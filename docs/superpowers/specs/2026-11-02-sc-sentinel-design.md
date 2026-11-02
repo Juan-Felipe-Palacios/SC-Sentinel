@@ -2,7 +2,7 @@
 
 **Proyecto:** SC-Sentinel (Strategic Connex Anomaly Shield)
 **Fecha:** 2026-11-02
-**Estado:** Aprobado por el propietario (Parte 1 + Parte 2 + DB Neon)
+**Estado:** SUPERSEDED por `SC-Sentinel-Spec-Completo-2026-11-03.md` (espec completo v2.1 — no usar como referencia salvo histórico)
 **Propiedad:** Strategic Connex — software PROPIETARIO
 
 ---
@@ -126,7 +126,7 @@ PC (pcap) → sc-capture →(mpsc)→ sc-aggregate
 
 | M | Contenido | Duración |
 |---|---|---|
-| M0 | scaffold repo, git, CI cross-compile Win/Linux, extracción zgoda módulos compila | 3–4 d |
+| M0 | scaffold repo, git, CI cross-compile Win/Linux, extracción de módulos compila | 3–4 d |
 | M1 | capture desacoplada + aggregate + sync (mock server) → datos reales end-to-end | 2 semanas |
 | M2 | Vercel API+Neon+auth device + dashboard v0 | 1.5 sem |
 | M3 | landing + design tokens + capa IA + panel IA | 1.5 sem |
