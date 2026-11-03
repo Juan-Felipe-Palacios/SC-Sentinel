@@ -8,3 +8,6 @@ license-file = "../../../LICENSE"
 authors.workspace = true
 
 [dependencies]
+sc-core = { path = "../sc-core" }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

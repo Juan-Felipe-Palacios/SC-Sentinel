@@ -1,6 +1,6 @@
 [package]
 name = "sc-aggregate"
-description = "Fusión de estadísticas con contexto geo y detect (M0: esqueleto)"
+description = "Agregación en ventanas de 30 s"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,4 +9,17 @@ authors.workspace = true
 
 [dependencies]
 sc-core = { path = "../sc-core" }
-tokio.workspace = true
+sc-geo = { path = "../sc-geo" }
+sc-capture = { path = "../sc-capture" }
+sc-telemetry = { path = "../sc-telemetry" }
+tokio = { workspace = true, features = ["sync", "time", "rt", "macros"] }
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
+tracing = "0.1"
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+insta = { version = "1.40", features = ["yaml", "json"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }

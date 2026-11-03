@@ -1,12 +1,10 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
-pub fn name() -> &'static str {
-    "sc-aggregate"
-}
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn smoke() {
-        assert_eq!(super::name(), "sc-aggregate");
-    }
-}
+pub mod accumulator;
+pub mod host_mark;
+pub mod snapshot;
+pub mod window;
+
+pub use host_mark::host_key;
+pub use snapshot::build_snapshot;
+pub use window::{AggregatorConfig, Clock, FixedClock, SystemClock, WindowAggregator};
