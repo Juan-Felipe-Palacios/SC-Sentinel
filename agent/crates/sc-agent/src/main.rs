@@ -7,9 +7,9 @@ use sc_geo::{GeoLite2Country, NoLookup};
 use sc_sync::{build_envelope, DeviceInfo, IngestClient, Spool, SpoolConfig, Syncer};
 use sc_telemetry::{logging, HealthRegistry};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::signal;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
 
 #[derive(Parser, Debug)]
 #[command(name = "sc-agent", version, about = "SCNet agent daemon")]
@@ -59,7 +59,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Setup capture
     let local = LocalIpSet::default();
     let fixture_path = args.fixture.unwrap_or_else(|| {
-        PathBuf::from("../fixtures/loopback-trace.pcap")
+        // Try from cwd/agent context
+        if PathBuf::from("fixtures/loopback-trace.pcap").exists() {
+            PathBuf::from("fixtures/loopback-trace.pcap")
+        } else {
+            PathBuf::from("../fixtures/loopback-trace.pcap")
+        }
     });
 
     let capture = run_offline(&fixture_path, local.clone())?;
@@ -78,8 +83,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         hostname: "localhost".to_string(),
         boot_id: "boot-001".to_string(),
     };
-    let _client = IngestClient::new(
-        args.endpoint.unwrap_or_else(|| "http://localhost:8080/api/ingest".to_string()),
+    let client = IngestClient::new(
+        args.endpoint
+            .unwrap_or_else(|| "http://localhost:8080/api/ingest".to_string()),
         args.api_key,
     )?;
     let _syncer = Syncer::new();
@@ -101,8 +107,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &snap,
             );
             if let Ok(json) = serde_json::to_vec(&env) {
-                if let Ok(mut s) = spool_clone.lock() {
-                    let _ = s.push_uncompressed(&format!("win_{:016x}", seq), &json, now.timestamp());
+                let mut s = spool_clone.lock().await;
+                let _ =
+                    s.push_uncompressed(&format!("win_{:016x}", seq), &json, now.timestamp());
+            }
+        }
+    });
+
+    // Simple sync loop
+    let spool_sync = spool.clone();
+    let sync_handle = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+        loop {
+            interval.tick().await;
+            let batches = {
+                let mut s = spool_sync.lock().await;
+                s.next_batch(10).unwrap_or_default()
+            };
+            for batch in batches {
+                if let Ok(env) = serde_json::from_slice::<sc_core::IngestEnvelope>(&batch.payload) {
+                    let _ = client.post_envelope(&env).await;
+                }
+                {
+                    let mut s = spool_sync.lock().await;
+                    let _ = s.confirm(batch.row_id);
                 }
             }
         }
@@ -113,7 +141,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ = signal::ctrl_c() => {
             tracing::info!("shutting down gracefully");
         }
+        _ = tokio::time::sleep(std::time::Duration::from_secs(10)) => {
+            tracing::info!("timeout shutdown");
+        }
     }
+    sync_handle.abort();
 
     Ok(())
 }

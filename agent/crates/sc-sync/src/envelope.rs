@@ -15,7 +15,7 @@ pub struct DeviceInfo {
 pub fn window_id_for(boot_id: &str, window_start_s: i64) -> String {
     let mut hasher = Sha256::new();
     hasher.update(boot_id.as_bytes());
-    hasher.update(&window_start_s.to_be_bytes());
+    hasher.update(window_start_s.to_be_bytes());
     let result = hasher.finalize();
     // Create deterministic ULID-like id
     format!(

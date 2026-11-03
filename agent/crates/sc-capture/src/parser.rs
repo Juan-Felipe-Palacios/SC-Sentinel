@@ -5,6 +5,7 @@
 //! Derivado parcialmente de https://github.com/GyulyVGC/sniffnet (tag v1.5.1)
 //! bajo licencia MIT OR Apache-2.0. Véase `docs/legal/THIRD_PARTY_NOTICES.md`.
 
+#[allow(unused_imports)]
 use crate::flow::{Direction, FlowUpdate, LocalIpSet};
 use sc_core::{FlowKey, Protocol};
 use thiserror::Error;
@@ -111,16 +112,7 @@ pub fn parse_packet(
                     protocol: Protocol::Tcp,
                 };
                 (flow, Direction::Out)
-            } else if dst_local && !src_local {
-                let flow = FlowKey {
-                    src_ip,
-                    dst_ip,
-                    src_port,
-                    dst_port,
-                    protocol: Protocol::Tcp,
-                };
-                (flow, Direction::In)
-            } else if src_local && dst_local {
+            } else if dst_local {
                 let flow = FlowKey {
                     src_ip,
                     dst_ip,
@@ -170,16 +162,7 @@ pub fn parse_packet(
                     protocol: Protocol::Udp,
                 };
                 (flow, Direction::Out)
-            } else if dst_local && !src_local {
-                let flow = FlowKey {
-                    src_ip,
-                    dst_ip,
-                    src_port,
-                    dst_port,
-                    protocol: Protocol::Udp,
-                };
-                (flow, Direction::In)
-            } else if src_local && dst_local {
+            } else if dst_local {
                 let flow = FlowKey {
                     src_ip,
                     dst_ip,

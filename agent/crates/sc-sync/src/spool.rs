@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
 
 use rusqlite::{params, Connection};
-use sha2::{Digest, Sha256};
+use sha2::Digest;
 use std::path::PathBuf;
 use thiserror::Error;
 

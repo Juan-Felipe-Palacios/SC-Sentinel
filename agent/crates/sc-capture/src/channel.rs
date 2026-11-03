@@ -38,33 +38,24 @@ pub struct CaptureChannel {
 
 impl Default for CaptureChannel {
     fn default() -> Self {
-        Self::new()
+        let (tx, rx) = mpsc::channel::<FlowUpdate>(CHANNEL_CAPACITY);
+        let drops = Arc::new(AtomicU64::new(0));
+        let sent = Arc::new(AtomicU64::new(0));
+        let _tx = tx;
+        CaptureChannel {
+            rx,
+            drops,
+            sent,
+        }
     }
 }
 
 impl CaptureChannel {
     pub fn new() -> Self {
-        let (tx, rx) = mpsc::channel::<FlowUpdate>(CHANNEL_CAPACITY);
-        let drops = Arc::new(AtomicU64::new(0));
-        let sent = Arc::new(AtomicU64::new(0));
-        // Keep tx/drops/sent in producer; store for channel
-        std::mem::forget(tx.clone()); // not needed, we'll create producer separately
-                                      // Better design: store in struct
-        let drops_clone = drops.clone();
-        let sent_clone = sent.clone();
-        // We'll reconstruct properly
-        std::mem::forget(drops_clone);
-        std::mem::forget(sent_clone);
-        let (tx2, rx2) = mpsc::channel::<FlowUpdate>(CHANNEL_CAPACITY);
-        CaptureChannel {
-            rx: rx2,
-            drops: Arc::new(AtomicU64::new(0)),
-            sent: Arc::new(AtomicU64::new(0)),
-        }
+        Self::default()
     }
 
     pub fn producer(&self) -> FlowProducer {
-        // This won't work with current design - need to fix
         unimplemented!("use new_pair instead")
     }
 }

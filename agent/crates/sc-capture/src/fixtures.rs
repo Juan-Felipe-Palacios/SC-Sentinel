@@ -86,6 +86,7 @@ fn write_packet<W: Write>(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_tcp_packet(
     src_mac: &[u8; 6],
     dst_mac: &[u8; 6],

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
 
 use crate::channel::{CaptureChannel, CaptureChannelPair};
-use crate::flow::{FlowUpdate, LocalIpSet};
+use crate::flow::LocalIpSet;
 use crate::parse_packet;
 use pcap_file::pcap::PcapReader;
 use std::fs::File;

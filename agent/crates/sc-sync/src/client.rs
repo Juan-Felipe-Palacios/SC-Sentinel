@@ -50,7 +50,7 @@ impl IngestClient {
             Err(_) => return SyncDecision::InvalidContract,
         };
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        if let Err(_) = encoder.write_all(&json) {
+        if encoder.write_all(&json).is_err() {
             return SyncDecision::Transport;
         }
         let compressed = match encoder.finish() {

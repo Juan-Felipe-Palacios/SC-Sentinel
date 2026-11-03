@@ -9,7 +9,7 @@ pub fn host_key(hmac_key: &[u8], ip: u128) -> String {
     let mut mac = HmacSha256::new_from_slice(hmac_key).expect("HMAC can take key of any size");
     mac.update(&ip.to_be_bytes());
     let result = mac.finalize().into_bytes();
-    let hex_str = hex::encode(&result);
+    let hex_str = hex::encode(result);
     hex_str[0..32].to_string()
 }
 #[cfg(test)]

@@ -2,9 +2,9 @@
 
 use crate::host_mark::host_key;
 use sc_capture::{Direction, FlowUpdate};
-use sc_core::{CountryStat, FlowKey, HostStats, PortStat, Protocol};
+use sc_core::{CountryStat, HostStats, PortStat, Protocol};
 use sc_geo::CountryLookup;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 #[derive(Default, Clone)]
@@ -81,7 +81,7 @@ impl Accumulator {
             Direction::In => (flow.src_port, flow.protocol),
         };
         let port_key = (port, proto);
-        let pentry = self.ports.entry(port_key).or_insert_with(Default::default);
+        let pentry = self.ports.entry(port_key).or_default();
         pentry.bytes += bytes;
         pentry
             .connections
