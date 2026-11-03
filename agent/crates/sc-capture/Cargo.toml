@@ -8,3 +8,20 @@ license-file = "../../../LICENSE"
 authors.workspace = true
 
 [dependencies]
+sc-core = { path = "../sc-core" }
+thiserror = { workspace = true }
+tracing = "0.1"
+etherparse = "0.20"
+pcap-file = "3.0.0-rc1"
+
+[dev-dependencies]
+tokio = { version = "1.40", features = ["rt", "macros"] }
+insta = { version = "1.40", features = ["yaml"] }
+proptest = "1.5"
+hex = "0.4"
+sha2 = "0.10"
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+assert_matches = "1.5"
+tempfile = "3.12"

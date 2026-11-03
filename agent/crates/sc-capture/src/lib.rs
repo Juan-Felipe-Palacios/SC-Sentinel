@@ -1,12 +1,8 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
-pub fn name() -> &'static str {
-    "sc-capture"
-}
+pub mod fixtures;
+pub mod flow;
+pub mod parser;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn smoke() {
-        assert_eq!(super::name(), "sc-capture");
-    }
-}
+pub use fixtures::generate_loopback_trace;
+pub use flow::{Direction, FlowUpdate, LocalIpSet};
+pub use parser::{parse_packet, ParseError};
