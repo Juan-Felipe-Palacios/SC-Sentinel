@@ -1,0 +1,17 @@
+SC-Sentinel — Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
+
+SOFTWARE PROPIO — LICENCIA PROPIETARIA
+
+1. Este software y su código fuente son propiedad de Strategic Connex.
+2. No se permite su distribución, modificación, ingeniería inversa ni uso
+   comercial sin autorización escrita previa de Strategic Connex, salvo en los
+   términos de un acuerdo específico firmado.
+3. Los módulos derivados de proyectos de código abierto citan su licencia
+   original en docs/legal/THIRD_PARTY_NOTICES.md y conservan los avisos de
+   copyright correspondientes en sus encabezados.
+4. Este producto incluye datos GeoLite2 creados por MaxMind, disponibles en
+   https://www.maxmind.com (licencias CC BY-SA y EULA — ver docs/legal/maxmind-notice.md).
+5. Npcap se distribuye DE MANERA INDEPENDIENTE y no forma parte de este
+   software (ver docs/legal/npcap-notice.md).
+
+Contacto: contact@strategicconnex.com.ar

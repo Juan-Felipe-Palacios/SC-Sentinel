@@ -6,4 +6,61 @@ version = 2
 # Crates externos permitidos. Los módulos propios del workspace (propietarios)
 # se gestionan vía dependencias path internas, no entra a la matriz de
 # licencias externas.
-allow = ["MIT", "Apache-2.0", "BSD-3-Clause", "BSD-2-Clause", "Unicode-3.0", "Zlib", "CC0-1.0", "ISC"]
+allow = [
+    "MIT", "Apache-2.0", "BSD-3-Clause", "BSD-2-Clause", "Unicode-3.0", "Zlib", "CC0-1.0", "ISC",
+    # Licencia propietaria del workspace SC-Sentinel (ver LICENSE en la raíz).
+    "LicenseRef-Proprietary",
+]
+
+# Los crates del workspace declaran `license-file = "../../../LICENSE"` (texto
+# propietario no clasificable por askalono), así que se les aplica una
+# aclaración que fija su expresión SPDX-válida mientras ese archivo no cambie.
+[[licenses.clarify]]
+crate = "sc-agent"
+expression = "LicenseRef-Proprietary"
+license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+
+[[licenses.clarify]]
+crate = "sc-aggregate"
+expression = "LicenseRef-Proprietary"
+license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+
+[[licenses.clarify]]
+crate = "sc-capture"
+expression = "LicenseRef-Proprietary"
+license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+
+[[licenses.clarify]]
+crate = "sc-collector"
+expression = "LicenseRef-Proprietary"
+license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+
+[[licenses.clarify]]
+crate = "sc-config"
+expression = "LicenseRef-Proprietary"
+license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+
+[[licenses.clarify]]
+crate = "sc-core"
+expression = "LicenseRef-Proprietary"
+license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+
+[[licenses.clarify]]
+crate = "sc-detect"
+expression = "LicenseRef-Proprietary"
+license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+
+[[licenses.clarify]]
+crate = "sc-geo"
+expression = "LicenseRef-Proprietary"
+license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+
+[[licenses.clarify]]
+crate = "sc-sync"
+expression = "LicenseRef-Proprietary"
+license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+
+[[licenses.clarify]]
+crate = "sc-telemetry"
+expression = "LicenseRef-Proprietary"
+license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
