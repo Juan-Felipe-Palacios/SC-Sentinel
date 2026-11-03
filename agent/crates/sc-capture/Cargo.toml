@@ -7,6 +7,10 @@ rust-version.workspace = true
 license-file = "../../../LICENSE"
 authors.workspace = true
 
+[features]
+default = []
+live = ["dep:pcap"]
+
 [dependencies]
 sc-core = { path = "../sc-core" }
 thiserror = { workspace = true }
@@ -14,6 +18,7 @@ tracing = "0.1"
 etherparse = "0.20"
 pcap-file = "3.0.0-rc1"
 tokio = { version = "1.40", features = ["sync", "rt", "macros", "time"] }
+pcap = { version = "2.4", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.40", features = ["rt-multi-thread", "macros", "time"] }
