@@ -1,6 +1,6 @@
 [package]
 name = "sc-geo"
-description = "Resolución geográfica vía MaxMindDB (M0: esqueleto sin deps)"
+description = "Resolución geográfica vía MaxMindDB"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,3 +8,12 @@ license-file = "../../../LICENSE"
 authors.workspace = true
 
 [dependencies]
+sc-core = { path = "../sc-core" }
+maxminddb = "0.30"
+thiserror = { workspace = true }
+tracing = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]
+hex = "0.4"
+sha2 = "0.10"
