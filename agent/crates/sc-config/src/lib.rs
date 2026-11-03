@@ -1,8 +1,12 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
-pub fn name() -> &'static str { "sc-config" }
+pub fn name() -> &'static str {
+    "sc-config"
+}
 
 #[cfg(test)]
 mod tests {
     #[test]
-    fn smoke() { assert_eq!(super::name(), "sc-config"); }
+    fn smoke() {
+        assert_eq!(super::name(), "sc-config");
+    }
 }

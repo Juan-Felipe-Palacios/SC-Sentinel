@@ -6,6 +6,5 @@ pub mod types;
 
 pub use types::{
     AgentHealth, Alert, AlertSeverity, CaptureStatus, CountryStat, DeviceIdentity, FlowKey,
-    HostStats, IngestEnvelope, PortStat, Protocol, Window, WindowSnapshot,
-    SC_CORE_SCHEMA_VERSION,
+    HostStats, IngestEnvelope, PortStat, Protocol, Window, WindowSnapshot, SC_CORE_SCHEMA_VERSION,
 };

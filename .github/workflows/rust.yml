@@ -1,0 +1,28 @@
+name: Rust CI
+on:
+  push:
+    paths: ["agent/**", ".github/workflows/rust.yml"]
+  pull_request:
+    paths: ["agent/**", ".github/workflows/rust.yml"]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny,cargo-audit
+      - run: cargo fmt --check
+      - run: cargo clippy -- -D warnings
+      - run: cargo test
+      - run: cargo audit
+      - run: cargo deny check licenses
+      - run: cargo build --release
