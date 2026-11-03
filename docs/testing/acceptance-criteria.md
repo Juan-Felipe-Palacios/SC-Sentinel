@@ -4,14 +4,16 @@ Fuente: spec §14.3. Cada hito cierra cuando TODOS los checks correspondientes p
 
 ## M0 — Scaffold + CI (3–4 días)
 
-- [ ] Repo con estructura completa del árbol §4 del spec (agent/, web/, docs/).
-- [ ] Rust workspace compila en Windows y Linux (CI matrix verde).
-- [ ] Next.js compila sin errores.
-- [ ] CI básico verde: fmt, clippy, test, build (+ audits Rust).
-- [ ] Licencias iniciales documentadas (THIRD_PARTY_NOTICES + headers en código heredado).
-- [ ] Contratos skeleton creados y validables en CI.
-- [ ] Diagramas C4 context/container iniciales creados.
-- [ ] README con instrucciones de desarrollo local.
+- [x] Repo con estructura completa del árbol §4 del spec (agent/, web/, docs/).
+- [x] Rust workspace compila en Windows y Linux (CI matrix verde).
+- [x] Next.js compila sin errores.
+- [x] CI básico verde: fmt, clippy, test, build (+ audits Rust).
+- [x] Licencias iniciales documentadas (THIRD_PARTY_NOTICES + headers en código heredado).
+- [x] Contratos skeleton creados y validables en CI.
+- [x] Diagramas C4 context/container iniciales creados.
+- [x] README con instrucciones de desarrollo local.
+
+> M0 verificado 2026-11-03: `cargo test` (11 passed, Windows local), `pnpm --dir web` lint/typecheck/test/build exit 0, `node scripts/validate-contracts.js` OK, `sc-agent.exe --version` OK, workflows Rust CI / Web CI / Validate Contracts verdes en GitHub (runs hasta 2026-11-03). Cierre de hito: commit `9780475`.
 
 ## M1 — Capture + aggregate + sync end-to-end (2 semanas)
 
