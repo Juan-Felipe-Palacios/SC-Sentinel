@@ -1,12 +1,14 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
 
+pub mod logging;
+
 use sc_core::{AgentHealth, CaptureStatus};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 #[derive(Debug)]
 pub struct HealthRegistry {
-    pub capture_status: AtomicU64, // store as u64
+    pub capture_status: AtomicU64,
     pub packets_seen: AtomicU64,
     pub packets_dropped: AtomicU64,
     pub parse_errors: AtomicU64,
@@ -37,18 +39,7 @@ impl Default for HealthRegistry {
 
 impl HealthRegistry {
     pub fn new() -> Arc<Self> {
-        Arc::new(Self {
-            capture_status: AtomicU64::new(0), // Ok = 0
-            packets_seen: AtomicU64::new(0),
-            packets_dropped: AtomicU64::new(0),
-            parse_errors: AtomicU64::new(0),
-            queue_depth: AtomicU64::new(0),
-            spool_bytes: AtomicU64::new(0),
-            data_loss_bytes: AtomicU64::new(0),
-            data_loss_windows: AtomicU64::new(0),
-            needs_enrollment: AtomicBool::new(false),
-            last_error: Mutex::new(None),
-        })
+        Arc::new(Self::default())
     }
 
     pub fn snapshot(&self) -> AgentHealth {
