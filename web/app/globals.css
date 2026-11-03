@@ -1,0 +1,30 @@
+/* SC-Sentinel — Tailwind v4 CSS-first (ADR/spec complemento ADR-0012 + docs/ux/design-tokens.md) */
+/* Los --sc-* verdaderos de marca se extraen de strategicconnex.com.ar en M3 (UX doc); estos son los neutrales del spec. */
+@import "tailwindcss";
+
+@theme {
+  /* Base neutrales (de docs/ux/design-tokens.md) */
+  --color-sc-bg: #0b1220;
+  --color-sc-surface: #111827;
+  --color-sc-surface-alt: #1f2937;
+  --color-sc-text: #e5e7eb;
+  --color-sc-text-muted: #94a3b8;
+
+  /* Estados semánticos — NO cambian con la extracción de marca */
+  --color-sc-ok: #10b981;
+  --color-sc-warn: #f59e0b;
+  --color-sc-degraded: #8b5cf6;
+  --color-sc-risk-low: #22c55e;
+  --color-sc-risk-medium: #eab308;
+  --color-sc-risk-high: #f97316;
+  --color-sc-risk-critical: #ef4444;
+
+  /* Data-viz — NO cambian con la extracción de marca */
+  --color-sc-viz-in: #38bdf8;
+  --color-sc-viz-out: #a78bfa;
+}
+
+body {
+  background: var(--color-sc-bg);
+  color: var(--color-sc-text);
+}
