@@ -1,0 +1,9 @@
+[graph]
+# Sección vacía en M0: solo se auditan las dependencias que existan.
+
+[licenses]
+version = 2
+# Crates externos permitidos. Los módulos propios del workspace (propietarios)
+# se gestionan vía dependencias path internas, no entra a la matriz de
+# licencias externas.
+allow = ["MIT", "Apache-2.0", "BSD-3-Clause", "BSD-2-Clause", "Unicode-3.0", "Zlib", "CC0-1.0", "ISC"]

@@ -1,0 +1,10 @@
+[package]
+name = "sc-capture"
+description = "Captura de paquetes (Windows: pcap; M0: esqueleto sin deps)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file = "../../../LICENSE"
+authors.workspace = true
+
+[dependencies]

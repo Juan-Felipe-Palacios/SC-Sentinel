@@ -1,0 +1,10 @@
+[package]
+name = "sc-telemetry"
+description = "Telemetría local (métricas, logs, healthcheck) (M0: esqueleto)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file = "../../../LICENSE"
+authors.workspace = true
+
+[dependencies]

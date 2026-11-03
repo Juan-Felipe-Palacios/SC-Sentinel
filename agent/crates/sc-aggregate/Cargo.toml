@@ -1,0 +1,12 @@
+[package]
+name = "sc-aggregate"
+description = "Fusión de estadísticas con contexto geo y detect (M0: esqueleto)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file = "../../../LICENSE"
+authors.workspace = true
+
+[dependencies]
+sc-core = { path = "../sc-core" }
+tokio.workspace = true

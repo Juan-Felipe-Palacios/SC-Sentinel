@@ -1,0 +1,14 @@
+[package]
+name = "sc-agent"
+description = "Daemon headless del agente SCNet (M0: esqueleto, solo --version)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file = "../../../LICENSE"
+authors.workspace = true
+
+[[bin]]
+name = "sc-agent"
+path = "src/main.rs"
+
+[dependencies]

@@ -1,0 +1,11 @@
+[package]
+name = "sc-sync"
+description = "Envío de métricas al backend SCNet vía webhook firmado (M0: esqueleto)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file = "../../../LICENSE"
+authors.workspace = true
+
+[dependencies]
+sc-core = { path = "../sc-core" }
