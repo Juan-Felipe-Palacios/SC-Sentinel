@@ -13,9 +13,10 @@ thiserror = { workspace = true }
 tracing = "0.1"
 etherparse = "0.20"
 pcap-file = "3.0.0-rc1"
+tokio = { version = "1.40", features = ["sync", "rt", "macros", "time"] }
 
 [dev-dependencies]
-tokio = { version = "1.40", features = ["rt", "macros"] }
+tokio = { version = "1.40", features = ["rt-multi-thread", "macros", "time"] }
 insta = { version = "1.40", features = ["yaml"] }
 proptest = "1.5"
 hex = "0.4"
