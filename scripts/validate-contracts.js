@@ -104,3 +104,4 @@ validateValid("snapshot-with-alerts", "window-snapshot.v1.schema.json", "example
 
 if (failures > 0) { console.error(`\n${failures} fallos de validación.`); process.exit(1); }
 console.log("\nContratos OK.");
+// Trigger exerciser: forzar evaluacion del filtro paths del workflow contracts.yml (M0).
