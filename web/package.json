@@ -5,14 +5,15 @@
   "license": "SEE LICENSE IN ../LICENSE",
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"sin tests web en M0\" && exit 0"
+    "test": "vitest run && node --experimental-strip-types ../scripts/test-contracts-zod.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",
+    "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.4",
     "next": "15.5.28",
     "react": "19.1.0",
@@ -22,13 +23,14 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20.19.43",
+    "@types/node": "^22.20.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "15.5.28",
     "tailwindcss": "^4",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.0"
   }
 }
