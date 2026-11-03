@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sc-sentinel.vercel.app/schemas/window-snapshot.v1.json",
+  "title": "WindowSnapshot v1",
+  "description": "Snapshot agregado de una ventana de 30-60 s (campo `snapshot` de /api/ingest). Nunca contiene raw packets ni flujos individuales.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["top_hosts", "top_ports", "top_countries", "alerts", "health"],
+  "properties": {
+    "top_hosts": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["host_key", "ip_display", "bytes_in", "bytes_out", "packets"],
+        "properties": {
+          "host_key": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 64,
+            "description": "HMAC truncado del host; identificador persistente unico. No es la IP."
+          },
+          "ip_display": {
+            "type": ["string", "null"],
+            "description": "IP legible SOLO si anonymize_hosts=false; con anonymize_hosts=true es obligatoriamente null (regla de privacidad spec 5.1)."
+          },
+          "country": {
+            "type": ["string", "null"],
+            "pattern": "^[A-Z]{2}$",
+            "description": "ISO 3166-1 alpha-2 via MaxMind GeoLite2."
+          },
+          "bytes_in": { "$ref": "#/$defs/counter" },
+          "bytes_out": { "$ref": "#/$defs/counter" },
+          "packets": { "$ref": "#/$defs/counter" },
+          "risk_score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Score determinista del motor (blacklist/umbrales); no es salida de IA."
+          }
+        }
+      }
+    },
+    "top_ports": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["port", "protocol", "bytes", "connections"],
+        "properties": {
+          "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+          "protocol": { "type": "string", "enum": ["tcp", "udp", "other"] },
+          "bytes": { "$ref": "#/$defs/counter" },
+          "connections": { "$ref": "#/$defs/counter" }
+        }
+      }
+    },
+    "top_countries": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["country", "bytes", "hosts"],
+        "properties": {
+          "country": { "type": "string", "pattern": "^[A-Z]{2}$" },
+          "bytes": { "$ref": "#/$defs/counter" },
+          "hosts": { "$ref": "#/$defs/counter" }
+        }
+      }
+    },
+    "alerts": {
+      "type": "array",
+      "maxItems": 50,
+      "items": { "$ref": "https://sc-sentinel.vercel.app/schemas/alert.v1.json" }
+    },
+    "health": {
+      "type": "object",
+      "$ref": "https://sc-sentinel.vercel.app/schemas/agent-health.v1.json"
+    }
+  },
+  "$defs": {
+    "counter": { "type": "integer", "minimum": 0 }
+  }
+}

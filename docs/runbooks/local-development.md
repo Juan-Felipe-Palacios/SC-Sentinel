@@ -1,0 +1,80 @@
+# Runbook — Desarrollo local (M0+)
+
+**Requisitos:** Rust toolchain stable (rustup) · Node 20+ · pnpm 9+ · Git · Windows (dev principal) o Linux.
+
+## 1. Estructura
+
+```text
+D:\ProyectosWeb\SC-Sentinel\   # monorepo (ADR-0001)
+├── agent/     # workspace Cargo (crates sc-*)
+├── web/       # Next.js 15 (pnpm)
+└── docs/      # specs, adr, contracts, diagrams, runbooks, testing, ux, legal, release
+```
+
+## 2. Clonar y compilar
+
+```bash
+git clone <url-repo> SC-Sentinel && cd SC-Sentinel
+
+# Agente (Rust)
+cd agent
+cargo build
+cargo test
+
+# Web (Next.js)
+cd ../web
+pnpm install
+pnpm dev            # http://localhost:3000
+```
+
+## 3. Flujo de prueba end-to-end sin nube (mock)
+
+Durante M1, `sc-agent` publica a un mock server HTTP local en lugar de Vercel:
+
+```toml
+# agent/config.dev.toml
+[agent]
+endpoint = "http://localhost:8787/api/ingest"
+window_seconds = 30
+compression = "gzip"
+```
+
+```bash
+cargo run -p sc-agent -- --config config.dev.toml
+```
+
+El mock server valida el esquema y escribe payloads a disco para inspección (ver `testing/fixtures.md`).
+
+## 4. Validación de contratos
+
+Los contratos en `docs/contracts/` se validan en CI (`contracts.yml`) y a mano:
+
+```bash
+node scripts/validate-contracts.js   # script del M0; valida schemas + ejemplos
+```
+
+Regla: un PR que cambia un contrato debe modificar el agente, la web, el schema y los ejemplos en el mismo PR (ADR-0001).
+
+## 5. Práctica diaria (gates)
+
+- Agente: `cargo fmt --check && cargo clippy -- -D warnings && cargo test`.
+- Web: `pnpm lint && pnpm typecheck && pnpm test && pnpm build`.
+- Datos de desarrollo contra Neon usan **preview branch**, nunca main (ADR-0003).
+- La GUI (`sc-gui`) no es prerequisito: cada crate compila y se prueba por separado.
+
+## 6. Tareas rápidas
+
+| Tarea | Comando |
+|---|---|
+| Test de un crate | `cargo test -p sc-aggregate` |
+| Correr daemon | `cargo run -p sc-agent -- --config <path>` |
+| Revisar snapshots insta | `cargo insta review` |
+| Playwright (requiere web corriendo) | `pnpm playwright test` |
+
+## 7. Errores típicos
+
+| Síntoma | Causa | Solución |
+|---|---|---|
+| `pcap` no compila en Windows | Falta Npcap SDK | Instalar Npcap + SDK (ver `troubleshoot-pcap.md`) |
+| 401 en mock/server | Token no configurado | Export export `SC_SENTINEL_TOKEN` antes de correr |
+| Snapshot diverge | Cambio de contrato sin fixtures | Regenerar golden files y revisar diff manualmente |

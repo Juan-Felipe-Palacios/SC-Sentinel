@@ -1,0 +1,40 @@
+sequenceDiagram
+    autonumber
+    participant CR as Vercel Cron (5 min)<br/>o plan B: cron-job.org
+    participant AC as /api/ai/cron
+    participant GATE as gate 5 min + no colas
+    participant DB as Neon Postgres
+    participant ORR as OpenRouter :free
+    participant AI2 as /api/ai/analyze<br/>(bajo demanda, cookie admin)
+
+    CR->>AC: POST + x-cron-secret
+    alt secret incorrecto
+        AC-->>CR: 401
+    else secret valido
+        AC->>GATE: hay analisis corriendo o hecho hace < 5 min?
+        alt si
+            GATE-->>CR: 200 {skipped:true}
+        else no
+            GATE->>DB: leer hechos del ultimo lote (top hosts/ports/countries, alerts, health)
+            AC->>AC: facts_hash = SHA-256(hechos normalizados)
+            AC->>DB: SELECT ai_insights WHERE facts_hash = ...
+            alt facts ya analizados
+                AC-->>CR: 200 {cached:true}
+            else hechos nuevos
+                loop cadena de fallback
+                    AC->>ORR: POST modelo n (:free) <= 4000 tokens in / <= 1000 out
+                    ORR-->>AC: summary + risk_level + findings + recommendations
+                    end
+                alt algun modelo respondio
+                    AC->>DB: INSERT ai_insights {model, facts_hash, status:"ok"}
+                    AC-->>CR: 200 {status:"ok"}
+                else agotados / timeout 30 s
+                    AC->>DB: INSERT ai_insights {status:"degraded"} (o skip + flag)
+                    AC-->>CR: 200 {status:"degraded"}
+                end
+            end
+        end
+    end
+
+    AI2->>GATE: mismo pipeline para el lote no analizado mas reciente
+    Note over AI2,ORR: cached:true si < 5 min desde el ultimo analisis (nunca re-analiza mismos hechos)

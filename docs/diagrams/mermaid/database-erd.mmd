@@ -1,0 +1,83 @@
+erDiagram
+    devices {
+        text id PK
+        text name
+        text token_hash "SHA-256"
+        timestamptz token_created_at
+        timestamptz token_rotated_at
+        text agent_version
+        timestamptz last_seen_at
+        text status "active|enrolled_pending|revoked"
+        timestamptz created_at
+    }
+    flow_windows {
+        text id PK "window_id"
+        text device_id FK
+        timestamptz window_start
+        timestamptz window_end
+        integer duration_ms
+        bigint bytes_in
+        bigint bytes_out
+        bigint packets_in
+        bigint packets_out
+        jsonb snapshot_json "hosts/puertos/paises/alerts/health"
+        timestamptz created_at
+    }
+    alerts {
+        text id PK
+        text device_id FK
+        text window_id FK
+        text rule_id
+        text severity
+        text title
+        text description
+        jsonb evidence_json
+        text status "open|acknowledged|resolved"
+        timestamptz created_at
+    }
+    agent_health {
+        text id PK
+        text device_id FK
+        text window_id FK
+        text capture_status
+        bigint packets_seen
+        bigint packets_dropped
+        bigint parse_errors
+        integer queue_depth
+        bigint spool_bytes
+        real cpu_percent
+        bigint memory_bytes
+        text last_error
+        timestamptz created_at
+    }
+    ai_insights {
+        text id PK
+        text device_id FK
+        timestamptz period_start
+        timestamptz period_end
+        text model
+        text status "ok|degraded"
+        text summary
+        jsonb recommendations_json
+        text facts_hash "dedup: mismos hechos no se re-analizan"
+        timestamptz created_at
+    }
+    ingest_batches {
+        text id PK
+        text device_id "sin FK por diseno: ledger independiente"
+        text window_id "sin FK"
+        text payload_hash
+        timestamptz received_at
+        integer schema_version
+        text status "processed|duplicate"
+    }
+    settings {
+        text key PK
+        jsonb value
+        timestamptz updated_at
+    }
+
+    devices ||--o{ flow_windows : "device_id"
+    flow_windows ||--o{ alerts : "window_id"
+    flow_windows ||--o{ agent_health : "window_id"
+    devices ||--o{ ai_insights : "device_id"

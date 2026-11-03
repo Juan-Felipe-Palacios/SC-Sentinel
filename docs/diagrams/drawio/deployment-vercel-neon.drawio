@@ -1,0 +1,50 @@
+<mxfile host="app.diagrams.net" version="24.7.7">
+  <diagram id="deployment-vercel-neon" name="Deployment Vercel-Neon">
+    <mxGraphModel dx="900" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="agent" value="sc-agent (Rust)&#10;daemon headless&#10;PC local" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="60" y="300" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="spool" value="Spool&#10;SQLite (500 MB / 7 d FIFO)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="60" y="430" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="vercel" value="Vercel (sc-sentinel.vercel.app)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="380" y="280" width="360" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="landing" value="/ (marketing SSG)" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="410" y="330" width="140" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="dash" value="/dashboard (cookie admin)" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="570" y="330" width="150" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="ingest" value="/api/ingest&#10;Bearer + zod + idempotente" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="410" y="390" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="query" value="/api/query&#10;SWR 5 s" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="570" y="400" width="150" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="ai" value="/api/ai/cron + /ai/analyze&#10;x-cron-secret" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="410" y="450" width="300" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="neon" value="Neon Postgres (free)&#10;snapshots JSONB + tablas derivadas&#10;retencion estricta" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="820" y="320" width="170" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="openrouter" value="OpenRouter :free&#10;(fallback chain)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="820" y="470" width="170" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="admin" value="Administrador&#10;(navegador)" style="shape=actor;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="120" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="admin" target="dash" ><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="agent" target="spool" ><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" value="HTTPS POST&#10;gzip 128 KB max" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="agent" target="ingest" ><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="ingest" target="neon" ><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="query" target="neon" ><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="ai" target="neon" ><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e6" value="hechos agregados&#10;(nunca raw)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="ai" target="openrouter" ><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

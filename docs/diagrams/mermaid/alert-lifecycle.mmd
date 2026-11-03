@@ -1,0 +1,13 @@
+stateDiagram-v2
+    [*] --> Open : rule strike en sc-detect<br/>(alerts INSERT + alert_id en snapshot)
+
+    Open --> Acknowledged : click "ack" desde /dashboard/alerts<br/>(cookie admin)
+    Acknowledged --> Resolved : confirmado por dueno
+    Open --> Resolved : auto-resolucion regla (si aplica)
+    Open --> Acknowledged : nada en auto (siempre manual el ack)
+
+    Open --> Open : no se recoge en ventanas nuevas<br/>(snapshot SOLO lleva alerts nuevas de su ventana)
+    Resolved --> Open : si la regla vuelve a disparar<br/>(alerta NUEVA con nuevo alert_id)
+
+    Resolved --> [*] : retencion 30 dias (cron cleanup)
+    Acknowledged --> [*] : retencion 30 dias (cron cleanup)

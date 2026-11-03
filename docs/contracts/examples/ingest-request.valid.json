@@ -1,0 +1,58 @@
+{
+  "v": 1,
+  "device": {
+    "id": "dev_01HXYZ0001",
+    "agent_version": "0.1.0",
+    "hostname": "pc-office",
+    "boot_id": "uuid-boot-123"
+  },
+  "window": {
+    "id": "win_01HXYZ0001",
+    "start": "2026-11-03T12:00:00Z",
+    "end": "2026-11-03T12:00:30Z",
+    "duration_ms": 30000,
+    "sequence": 1234
+  },
+  "snapshot": {
+    "top_hosts": [
+      {
+        "host_key": "hmac-truncated-01",
+        "ip_display": null,
+        "country": "AR",
+        "bytes_in": 1048576,
+        "bytes_out": 524288,
+        "packets": 1500,
+        "risk_score": 0.2
+      },
+      {
+        "host_key": "hmac-truncated-02",
+        "ip_display": null,
+        "country": "US",
+        "bytes_in": 262144,
+        "bytes_out": 131072,
+        "packets": 800,
+        "risk_score": 0.05
+      }
+    ],
+    "top_ports": [
+      { "port": 443, "protocol": "tcp", "bytes": 2097152, "connections": 50 },
+      { "port": 53, "protocol": "udp", "bytes": 51200, "connections": 220 }
+    ],
+    "top_countries": [
+      { "country": "AR", "bytes": 5242880, "hosts": 15 },
+      { "country": "US", "bytes": 2097152, "hosts": 8 }
+    ],
+    "alerts": [],
+    "health": {
+      "capture_status": "ok",
+      "packets_seen": 50000,
+      "packets_dropped": 0,
+      "parse_errors": 0,
+      "queue_depth": 5,
+      "spool_bytes": 102400,
+      "cpu_percent": 2.5,
+      "memory_bytes": 52428800,
+      "last_error": null
+    }
+  }
+}

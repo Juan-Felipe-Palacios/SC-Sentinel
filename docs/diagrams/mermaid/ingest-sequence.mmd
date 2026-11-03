@@ -1,0 +1,32 @@
+sequenceDiagram
+    autonumber
+    participant AG as sc-agent (sc-sync)
+    participant SP as Spool SQLite
+    participant RT as /api/ingest (Vercel)
+    participant AUTH as token auth
+    participant DB as Neon Postgres
+
+    AG->>SP: leer lote FIFO (ventana)
+    AG->>RT: POST + Bearer token + Content-Encoding gzip|zstd
+    RT->>AUTH: SHA-256(token) vs devices.token_hash
+    alt token invalido/revocado
+        AUTH-->>AG: 401 / 403
+        AG->>AG: estado needs_enrollment (spool conservado)
+    else token valido
+        RT->>RT: descompresion explicita (zlib / fzstd)
+        RT->>RT: validacion zod (snapshot v1, limites 128/512 KB)
+        alt schema invalido
+            RT-->>AG: 400 validation_failed
+            AG->>SP: batch -> dead_letter local
+        else schema valido
+            RT->>DB: INSERT flow_windows ON CONFLICT DO NOTHING
+            RT->>DB: INSERT alerts / agent_health / ingest_batches (ledger)
+            alt conflicto UNIQUE(device_id, window_id)
+                RT-->>AG: 200 {status:"duplicate"}
+            else insert limpio
+                RT-->>AG: 200 {status:"processed"}
+            end
+            AG->>SP: eliminar batch confirmado
+        end
+    end
+    Note over AG,SP: 408/429/5xx → backoff exponencial 1-60 s + jitter

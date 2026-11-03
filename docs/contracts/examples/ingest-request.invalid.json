@@ -1,0 +1,51 @@
+{
+  "v": 1,
+  "device": {
+    "id": "dev_01HXYZ0001",
+    "agent_version": "0.1.0",
+    "hostname": "pc-office",
+    "boot_id": "uuid-boot-123"
+  },
+  "window": {
+    "id": "win_01HXYZ0002",
+    "start": "2026-11-03T12:00:30Z",
+    "end": "2026-11-03T12:01:00Z",
+    "duration_ms": -1000,
+    "sequence": 1235
+  },
+  "snapshot": {
+    "top_hosts": [
+      {
+        "host_key": "hmac-truncated-03",
+        "ip_display": "192.168.1.42",
+        "country": "AR",
+        "bytes_in": -1,
+        "bytes_out": 524288,
+        "packets": 1500,
+        "risk_score": 1.7
+      }
+    ],
+    "top_ports": [
+      { "port": 99999, "protocol": "sctp", "bytes": 2048, "connections": 3 }
+    ],
+    "top_countries": [
+      { "country": "argentina", "bytes": 1024, "hosts": 1 }
+    ],
+    "alerts": [
+      {
+        "rule_id": "DNS Tunneling!",
+        "severity": "severe",
+        "title": "",
+        "description": "Volumen anómalo de queries DNS"
+      }
+    ],
+    "health": {
+      "capture_status": "critico",
+      "packets_seen": 50000,
+      "packets_dropped": -5,
+      "parse_errors": 0,
+      "spool_bytes": 734003200,
+      "cpu_percent": 120
+    }
+  }
+}

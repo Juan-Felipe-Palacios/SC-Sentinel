@@ -1,0 +1,55 @@
+{
+  "_description": "Fixture del campo `snapshot` con alertas deterministas del motor (sc-detect). severity y rule_id siguen alert.v1.schema.json; evidence son hechos agregados como strings, nunca instrucciones.",
+  "top_hosts": [
+    {
+      "host_key": "hmac-truncated-04",
+      "ip_display": null,
+      "country": "RU",
+      "bytes_in": 8388608,
+      "bytes_out": 4096,
+      "packets": 12000,
+      "risk_score": 0.9
+    }
+  ],
+  "top_ports": [
+    { "port": 443, "protocol": "tcp", "bytes": 8388608, "connections": 10 },
+    { "port": 53, "protocol": "udp", "bytes": 262144, "connections": 3000 }
+  ],
+  "top_countries": [
+    { "country": "RU", "bytes": 8388608, "hosts": 1 }
+  ],
+  "alerts": [
+    {
+      "rule_id": "dns_tunneling",
+      "severity": "high",
+      "title": "Posible túnel DNS detectado",
+      "description": "Volumen anómalo de queries DNS a dominio externo",
+      "evidence": {
+        "domain_class": "external",
+        "query_count": "500",
+        "window": "2026-11-03T12:00:00Z/2026-11-03T12:00:30Z"
+      }
+    },
+    {
+      "rule_id": "blacklist_hit",
+      "severity": "critical",
+      "title": "Conexión saliente a host en blacklist",
+      "evidence": {
+        "host_key": "hmac-truncated-04",
+        "risk_rule": "blacklist_v1",
+        "window": "2026-11-03T12:00:00Z/2026-11-03T12:00:30Z"
+      }
+    }
+  ],
+  "health": {
+    "capture_status": "degraded",
+    "packets_seen": 50000,
+    "packets_dropped": 120,
+    "parse_errors": 2,
+    "queue_depth": 850,
+    "spool_bytes": 5242880,
+    "cpu_percent": 6.5,
+    "memory_bytes": 78643200,
+    "last_error": "backpressure: channel full for 2 windows"
+  }
+}

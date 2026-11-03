@@ -1,0 +1,17 @@
+stateDiagram-v2
+    [*] --> Idle
+
+    Idle --> Sending: hay datos en spool
+    Sending --> Idle: batch confirmado (2xx)
+    Sending --> Backoff: error temporal (408/429/5xx)
+    Sending --> NeedsEnrollment: token inválido (401/403)
+    Sending --> DeadLetter: error permanente (400 schema)
+
+    Backoff --> Sending: backoff completado
+    Backoff --> Idle: máximo reintentos
+
+    NeedsEnrollment --> Idle: token renovado (dashboard)
+    DeadLetter --> Idle: error resuelto
+
+    Idle --> SpoolFull: spool > 500MB
+    SpoolFull --> Sending: espacio liberado (FIFO)

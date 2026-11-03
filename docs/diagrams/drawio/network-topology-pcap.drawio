@@ -1,0 +1,44 @@
+<mxfile host="app.diagrams.net" version="24.7.7">
+  <diagram id="network-topology-pcap" name="Topologia pcap (PC local)">
+    <mxGraphModel dx="900" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="700" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="net" value="Red LAN / Internet" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="60" y="160" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="nic" value="Interfaz de red&#10;(NIC en modo promiscuo opcional)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="340" y="60" width="220" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="npcap" value="Npcap (Windows) / libpcap (Linux)&#10;requiere privilegios o CAP_NET_RAW" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="640" y="90" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="capture" value="sc-capture&#10;(pcap + etherparse)&#10;canal tokio mpsc bounded 10k" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="640" y="190" width="240" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="aggregate" value="sc-aggregate&#10;ventanas 30-60 s&#10;WindowSnapshot (2-10 KB)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="640" y="320" width="240" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="detect" value="sc-detect + sc-geo&#10;(motor determinista + MaxMind)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="380" y="320" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="sync" value="sc-sync&#10;gzip + Bearer + spool" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="640" y="450" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="api" value="/api/ingest&#10;sc-sentinel.vercel.app" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="960" y="450" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="drop" value="backpressure: si canal lleno&#10;descarta + packets_dropped++" style="text;html=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="380" y="200" width="240" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" value="paquetes" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="net" target="nic" ><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="nic" target="npcap" ><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" value="FrameUpdate" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="npcap" target="capture" ><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" value="tokio mpsc" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="capture" target="aggregate" ><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5" value="enrich" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="detect" target="aggregate" ><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e6" value="WindowSnapshot" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="aggregate" target="sync" ><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7" value="HTTPS 60 req/min&#10;burst 30" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="sync" target="api" ><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

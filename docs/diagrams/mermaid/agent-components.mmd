@@ -1,0 +1,30 @@
+flowchart TB
+    subgraph Agent[SC-Sentinel Agent]
+        Config[sc-config]
+        Capture[sc-capture]
+        Collector[sc-collector]
+        Geo[sc-geo]
+        Detect[sc-detect]
+        Aggregate[sc-aggregate]
+        Sync[sc-sync]
+        Telemetry[sc-telemetry]
+        Core[sc-core]
+    end
+
+    Pcap[pcap/Npcap] --> Capture
+    IPFIX[NetFlow/IPFIX] --> Collector
+
+    Capture -->|FlowUpdate| Aggregate
+    Collector -->|FlowUpdate| Aggregate
+
+    Aggregate -->|WindowSnapshot| Detect
+    Detect -->|Alerts| Aggregate
+
+    Aggregate -->|WindowSnapshot| Sync
+    Sync --> Spool[(SQLite)]
+    Sync -->|HTTPS POST| API[/api/ingest/]
+
+    Geo -->|Country| Aggregate
+    Core -->|Types| All[All crates]
+    Telemetry -->|Metrics| Sync
+    Config -->|Config| All

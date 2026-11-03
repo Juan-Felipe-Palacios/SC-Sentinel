@@ -1,0 +1,30 @@
+flowchart LR
+    Admin[Administrador] --> Browser[Navegador]
+
+    Browser --> Landing[Landing pública<br/>Next.js]
+    Browser --> Dashboard[Dashboard privado<br/>Next.js]
+
+    subgraph Local[PC / Nodo local]
+        Agent[SC-Sentinel Agent<br/>Rust]
+        Pcap[pcap / Npcap]
+        Spool[(SQLite Spool)]
+        Agent --> Spool
+        Pcap --> Agent
+    end
+
+    Agent -->|HTTPS POST<br/>WindowSnapshot| Ingest[/api/ingest/]
+
+    subgraph Vercel[Vercel]
+        Landing
+        Dashboard
+        Ingest
+        Query[/api/query/]
+        AICron[/api/ai/cron/]
+    end
+
+    Ingest --> Neon[(Neon Postgres)]
+    Query --> Neon
+    Dashboard --> Query
+
+    AICron --> Neon
+    AICron --> OpenRouter[OpenRouter :free]

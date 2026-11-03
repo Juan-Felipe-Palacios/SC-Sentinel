@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sc-sentinel.vercel.app/schemas/alert.v1.json",
+  "title": "Alert v1",
+  "description": "Alerta determinista generada por el motor local (sc-detect) dentro de la ventana. La IA nunca produce alerts; solo analysis/summary.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["rule_id", "severity", "title"],
+  "properties": {
+    "rule_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+$",
+      "maxLength": 64,
+      "description": "Identificador estable de la regla (ej: dns_tunneling, port_scan, blacklist_hit)."
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["info", "low", "medium", "high", "critical"]
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 1000
+    },
+    "evidence": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 32,
+      "additionalProperties": { "type": "string" },
+      "description": "Hechos que sustentan la alerta (valores agregados como strings: counts, dominios agregados, ventanas). Escapados al render; nunca instrucciones pasadas a la IA como texto libre."
+    }
+  }
+}
