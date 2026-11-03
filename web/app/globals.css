@@ -1,5 +1,6 @@
 /* SC-Sentinel — Tailwind v4 CSS-first (ADR/spec complemento ADR-0012 + docs/ux/design-tokens.md) */
 /* Los --sc-* verdaderos de marca se extraen de strategicconnex.com.ar en M3 (UX doc); estos son los neutrales del spec. */
+/* Copyright (c) 2026 Strategic Connex. Todos los derechos reservados. */
 @import "tailwindcss";
 
 @theme {
