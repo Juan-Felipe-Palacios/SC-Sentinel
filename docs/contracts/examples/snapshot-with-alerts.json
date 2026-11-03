@@ -1,5 +1,4 @@
 {
-  "_description": "Fixture del campo `snapshot` con alertas deterministas del motor (sc-detect). severity y rule_id siguen alert.v1.schema.json; evidence son hechos agregados como strings, nunca instrucciones.",
   "top_hosts": [
     {
       "host_key": "hmac-truncated-04",

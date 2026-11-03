@@ -1,5 +1,4 @@
 {
-  "_description": "Fixture del campo `snapshot` (no payload completo): mínimo legal según window-snapshot.v1.schema.json — arrays vacios + health requerido. Con anonymize_hosts=true ip_display es null en TODOS los hosts.",
   "top_hosts": [],
   "top_ports": [],
   "top_countries": [],
