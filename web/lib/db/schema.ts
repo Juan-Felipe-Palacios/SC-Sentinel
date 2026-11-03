@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, bigint, jsonb, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, bigint, jsonb, uniqueIndex, index } from 'drizzle-orm/pg-core';
 
 export const devices = pgTable('devices', {
   id: text('id').primaryKey(),
