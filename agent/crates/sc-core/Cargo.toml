@@ -1,0 +1,16 @@
+[package]
+name = "sc-core"
+description = "Tipos de dominio compartidos (FlowKey, HostStats, Alert, WindowSnapshot)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file = "../../../LICENSE"
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
