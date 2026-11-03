@@ -10,6 +10,10 @@ use std::collections::BTreeMap;
 /// ver `docs/contracts/ingest-api.v1.md` §1.1).
 pub const SC_CORE_SCHEMA_VERSION: u8 = 1;
 
+/// Código de país ISO 3166-1 alpha-2 (formato `^[A-Z]{2}$`, validado por los
+/// generadores: sc-geo en el agente; zod en el servidor). Alias del contrato.
+pub type Alpha2 = String;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Protocol {
@@ -49,7 +53,7 @@ pub struct Window {
 pub struct HostStats {
     pub host_key: String,
     pub ip_display: Option<String>,
-    pub country: Option<String>, // ISO 3166-1 alpha-2
+    pub country: Option<Alpha2>, // ISO 3166-1 alpha-2
     pub bytes_in: u64,
     pub bytes_out: u64,
     pub packets: u64,
@@ -67,7 +71,7 @@ pub struct PortStat {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CountryStat {
-    pub country: String, // ISO 3166-1 alpha-2
+    pub country: Alpha2, // ISO 3166-1 alpha-2
     pub bytes: u64,
     pub hosts: u64,
 }
@@ -250,5 +254,27 @@ mod tests {
         // El snapshot en sí no lleva `v`: la versión viaja en el envelope
         // (ingest-api.v1.md §1.1; snapshot.schema tiene additionalProperties: false).
         assert!(json["snapshot"].get("v").is_none());
+    }
+
+    /// El ejemplo normativo del contrato (`examples/ingest-request.valid.json`)
+    /// debe deserializar con los tipos tal como quedan: si se agrega un campo o
+    /// cambia un tipo, este test falla antes de Publicar nada a la CI.
+    #[test]
+    fn ejemplo_del_contrato_deserializa() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../docs/contracts/examples/ingest-request.valid.json"
+        );
+        let raw =
+            std::fs::read_to_string(path).expect("ejemplo del contrato presente en docs/contracts");
+        let envelope: IngestEnvelope =
+            serde_json::from_str(&raw).expect("ejemplo válido para los tipos v1");
+        assert_eq!(envelope.v, 1);
+        assert_eq!(envelope.snapshot.top_hosts[0].packets, 1_500);
+        assert_eq!(envelope.snapshot.top_hosts[0].ip_display, None); // anonymize=true en el ejemplo
+        assert_eq!(envelope.snapshot.top_ports[0].port, 443);
+        assert_eq!(envelope.snapshot.top_countries[0].country, "AR");
+        assert!(envelope.snapshot.alerts.is_empty());
+        assert_eq!(envelope.snapshot.health.packets_dropped, 0);
     }
 }

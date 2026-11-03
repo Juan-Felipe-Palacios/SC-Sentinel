@@ -39,7 +39,7 @@ Los tipos de `sc-core` (M0) se escribieron según el ejemplo del spec §5.1, per
 | `Alert.evidence` | `Vec<(String, String)>` | objeto (map string→string, min 1, max 32 props) | `Option<BTreeMap<String, String>>` (BTreeMap: orden estable para golden) |
 | `AgentHealth` | todos los counters no-Option | opcionales: `queue_depth`, `spool_bytes`, `cpu_percent`, `memory_bytes`, `last_error` | opcionales pasan a `Option<T>` con `#[serde(skip_serializing_if = "Option::is_none")]` (el schema no admite null) |
 
-La Task 1 hace esta alineación y agrega un test que valida la sección `snapshot` de `docs/contracts/examples/ingest-request.valid.json` deserializando con los tipos nuevos.
+**Estado (2026-11-03):** al poner el plan contra el código real, la mayor parte de la Nota 2 ya estaba aprobeda en el M0 (commit `9fe6465`): `HostStats` con `packets`/`risk_score`, `PortStat`/`CountryStat` con amplitud del contrato, `Alert` con `Option<BTreeMap>`, `AgentHealth` con opcionales con `skip_serializing_if`, y además `Window` con `id/sequence` y los wrapper `DeviceIdentity`/`IngestEnvelope`. La Task 1 queda reducida a: alias `Alpha2` + test que deserializa `docs/contracts/examples/ingest-request.valid.json` completo (test anti-drift).
 
 ## Global Constraints (heredados de M0 + propios de M1)
 
