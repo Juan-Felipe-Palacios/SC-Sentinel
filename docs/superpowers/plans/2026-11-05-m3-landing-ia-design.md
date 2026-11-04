@@ -95,7 +95,7 @@
 > Orden = dependencias. Cada task termina con gates web (`pnpm --dir web lint && typecheck && test && build`) + commit. Commits por tarea (D16).
 
 ### Task 1 — Tokens `@theme` + scaffold `(marketing)`
-**Archivos:** `web/globals.css` (extender), `web/app/(marketing)/layout.tsx` (nuevo), `web/components/marketing/{MarketingShell.tsx? — decidir: nav mínimo propio + footer}.tsx`, `web/app/(marketing)/page.tsx` (placeholders mínimos SSG), **borrar** `web/app/page.tsx` (D11), `web/components/ui/` solo si hace falta un `Button`/`Badge` propio mínimo.
+**Archivos:** `web/app/globals.css` (extender), `web/app/(marketing)/layout.tsx` (nuevo), `web/components/marketing/{MarketingShell.tsx? — decidir: nav mínimo propio + footer}.tsx`, `web/app/(marketing)/page.tsx` (placeholders mínimos SSG), **borrar** `web/app/page.tsx` (D11), `web/components/ui/` solo si hace falta un `Button`/`Badge` propio mínimo.
 **Pasos:** revisar §16.1; extraer tokens a `@theme` con evidencia (síntesis del brief, no copiar assets de terceros); definir utilidades marketing (`.m-*` o tokens nuevos `sc-accent` etc. manteniendo M2); construir shell: Nav (logo SVG + links Funcionalidades/Seguridad/Contacto + CTA «Contactar»), Footer (links legales + dominio oficial + "Monitoring…" línea); home placeholder; `generateStaticParams` n/a.
 **DoD:** build SSG OK; cero recursos externos en runtime; accesible (focus visible, contraste, lang=es); reduced-motion respetado; **commit** `feat(marketing): scaffold grupo (marketing) + tokens Tailwind v4`.
 
