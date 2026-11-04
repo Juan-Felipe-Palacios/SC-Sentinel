@@ -74,3 +74,18 @@ export const agentHealth = pgTable('agent_health', {
   deviceIdx: index('agent_health_device_idx').on(table.deviceId),
   recordedAtIdx: index('agent_health_recorded_at_idx').on(table.recordedAt),
 }));
+
+export const aiInsights = pgTable('ai_insights', {
+  id: text('id').primaryKey(),
+  deviceId: text('device_id').notNull().references(() => devices.id),
+  periodStart: timestamp('period_start', { withTimezone: true }).notNull(),
+  periodEnd: timestamp('period_end', { withTimezone: true }).notNull(),
+  model: text('model').notNull(),
+  status: text('status').notNull(),
+  summary: text('summary').notNull(),
+  recommendationsJson: jsonb('recommendations_json').notNull(),
+  factsHash: text('facts_hash').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  deviceTimeIdx: index('ai_insights_device_time').on(table.deviceId, table.createdAt),
+}));

@@ -10,6 +10,7 @@ describe('lib/cleanup/retention', () => {
       hostStats: 7,
       alerts: 30,
       agentHealth: 7,
+      aiInsights: 15,
       ingestBatches: 2,
     });
   });

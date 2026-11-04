@@ -10,6 +10,7 @@ import { db } from '@/lib/db';
  * - host_stats:   7 días
  * - alerts:       30 días (se atan a flow_windows.start_at — alerts no tiene timestamp propio)
  * - agent_health: 7 días
+ * - ai_insights:  15 días
  * - ingest_batches: 2 días (solo idempotencia) — se borra solo si NO tiene flow_windows vivo
  *
  * `devices` y `settings` NUNCA se tocan (runbook: prohibido TRUNCATE sobre ellos).
@@ -21,6 +22,7 @@ export const RETENTION_DAYS = {
   hostStats: 7,
   alerts: 30,
   agentHealth: 7,
+  aiInsights: 15,
   ingestBatches: 2,
 } as const;
 
@@ -53,6 +55,7 @@ export async function runRetentionCleanup(now: Date = new Date()): Promise<Clean
     hostStats: retentionCutoff(RETENTION_DAYS.hostStats, now),
     alerts: retentionCutoff(RETENTION_DAYS.alerts, now),
     agentHealth: retentionCutoff(RETENTION_DAYS.agentHealth, now),
+    aiInsights: retentionCutoff(RETENTION_DAYS.aiInsights, now),
     ingestBatches: retentionCutoff(RETENTION_DAYS.ingestBatches, now),
   };
 
@@ -99,7 +102,14 @@ export async function runRetentionCleanup(now: Date = new Date()): Promise<Clean
     RETURNING id
   `);
 
-  // 5. Batches viejos sin ventanas referenciándolos (FK flow_windows.batch_id).
+  // 5. Insights de IA más viejos que 15 días.
+  const aiInsightsResult = await db.execute(sql`
+    DELETE FROM ai_insights
+    WHERE created_at < ${cutoffs.aiInsights}
+    RETURNING id
+  `);
+
+  // 6. Batches viejos sin ventanas referenciándolos (FK flow_windows.batch_id).
   const batchesResult = await db.execute(sql`
     DELETE FROM ingest_batches AS ib
     WHERE ib.received_at < ${cutoffs.ingestBatches}
@@ -109,7 +119,7 @@ export async function runRetentionCleanup(now: Date = new Date()): Promise<Clean
     RETURNING ib.id
   `);
 
-  // 6. Tamaño total de la DB para el umbral de 400 MB (spec §12.4). No crítico si falla.
+  // 7. Tamaño total de la DB para el umbral de 400 MB (spec §12.4). No crítico si falla.
   let databaseBytes: number | null = null;
   try {
     const sizeResult = await db.execute<{ bytes: number | string }>(sql`
@@ -127,6 +137,7 @@ export async function runRetentionCleanup(now: Date = new Date()): Promise<Clean
       hostStats: hostStatsResult.rows.length,
       alerts: alertsResult.rows.length,
       agentHealth: healthResult.rows.length,
+      aiInsights: aiInsightsResult.rows.length,
       ingestBatches: batchesResult.rows.length,
     },
     keptWindowsDueToAlerts: Number(keptResult.rows[0]?.kept ?? 0),
