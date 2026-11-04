@@ -36,7 +36,7 @@ Strategic Connex Anomaly Shield (**SC-Sentinel**) es software de monitoreo de re
 
 ## 7. Contacto y jurisdicción
 
-- Contacto: formulario `/contacto`.
+- Contacto: perfil de LinkedIn del responsable (ver `/contacto`).
 - Ley aplicable y jurisdicción (Argentina): a definir por el revisor legal junto al domicilio de Strategic Connex.
 
 ---

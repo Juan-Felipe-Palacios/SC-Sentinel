@@ -12,7 +12,7 @@
 - Clave de host hasheada (`host_key`, HMAC truncada) cuando `anonymize_hosts=true` (modo por defecto). En ese modo la IP real **no sale del equipo**; el campo `ip_display` se envía `null` (contrato `ingest-api.v1.md` §1.2).
 - Identificadores técnicos del dispositivo (`device_id`, hostname del nodo, versión del agente) para administrar el enrollment.
 
-**Del sitio público:** la landing no recaba datos personales salvo el formulario de contacto (nombre, email, mensaje), usado para responder la consulta.
+**Del sitio público:** la landing no recaba datos personales: no hay formularios ni campos de recolección. El contacto se realiza por el perfil de LinkedIn del responsable (ver `/contacto`), plataforma de un tercero; el contenido de esa conversación no se copia a nuestros sistemas.
 
 ## 2. Qué NO recoge
 
@@ -51,12 +51,12 @@ Purga automática diaria (03:00 UTC). Si el spool local del agente supera su cot
 
 ## 6. Derechos / contacto
 
-El responsable del tratamiento es Strategic Connex. Los sujetos de datos formularios del sitio pueden solicitar acceso, actualización o supresión escribiendo al contacto del sitio (`/contacto`).
+El responsable del tratamiento es Strategic Connex. Los titulares de los datos procesados por el sistema pueden solicitar acceso, actualización o supresión escribiendo al contacto del sitio (`/contacto`, perfil de LinkedIn del responsable).
 
 ---
 
 **Pendientes antes de M3** (checklist del revisor legal):
 - [x] Definir titular/domicilio/contacto oficial de Strategic Connex → decisión del equipo (nov 2026): titular "Strategic Connex" sin domicilio físico publicado; contacto exclusivamente por `/contacto`.
 - [x] Confirmar condiciones de cada DPA de terceros (Vercel, Neon, OpenRouter) → se mantiene la tabla de §4; sin publicación de DPA propios.
-- [x] Verificar formulación aplicable (Ley 25.326) → el sitio publica el formulario de contacto, por lo que rige Ley 25.326.
+- [x] Verificar formulación aplicable (Ley 25.326) → el sistema procesa señales agregadas de red y el sitio publica un canal de contacto, por lo que rige Ley 25.326.
 - [x] Publicar en `/legal/privacy` la versión pulida → publicada en M3 (feat(legal)).

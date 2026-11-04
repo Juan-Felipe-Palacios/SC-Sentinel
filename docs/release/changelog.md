@@ -10,6 +10,9 @@ Formato: Keep a Changelog 1.1 (semantic entries) publicado también en cada GitH
 - (M3) Landing pública SSG (`/`, `/funcionalidades`, `/security`, `/contacto`, `/legal/privacy`, `/legal/terms`, `/legal/third-party-notices`), `sitemap.xml`, `robots.txt`, OG image y Vercel Web Analytics.
 - (M3) IA asistente por lotes: tabla `ai_insights` (retención 15 d), `/api/ai/analyze`, `/api/ai/cron`, dedup por `facts_hash` y fallback determinista `degraded`; panel «Análisis IA» en el dashboard (refresh 30 s).
 
+### Changed
+- (M3) `/contacto` pasa a canal único por LinkedIn (`linkedin.com/in/juanfpalacios`): se retira el formulario y `POST /api/contact`. El sitio público ya no recaba datos personales (`/legal/privacy` §1/§4/§6 y `/legal/terms` §7 actualizados).
+
 ### Fixed
 - (M3) El lector de `recommendations_json` devolvía `findings: []` al leer el formato objeto `{ findings, recommendations }`.
 - (M3) `/api/query?metric=ai` ya no consulta la base con `device_id` vacío cuando no hay device resuelto.

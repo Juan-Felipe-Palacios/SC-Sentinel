@@ -88,7 +88,7 @@ export default function Terms() {
       <section className="mt-10 space-y-3">
         <h2 className="font-display text-xl font-semibold tracking-tight text-sc-text">7. Contacto y jurisdicción</h2>
         <ul className="list-disc space-y-1 pl-6 text-sm leading-relaxed text-sc-text-muted">
-          <li>Contacto: formulario <Link className="text-sc-accent hover:text-[#7dd3fc]" href="/contacto">/contacto</Link>.</li>
+          <li>Contacto: perfil de LinkedIn del responsable (ver <Link className="text-sc-accent hover:text-[#7dd3fc]" href="/contacto">/contacto</Link>).</li>
           <li>Ley aplicable y jurisdicción: República Argentina. El foro es la Ciudad Autónoma de Buenos Aires, en la medida en que la normativa aplicable lo permita.</li>
         </ul>
       </section>

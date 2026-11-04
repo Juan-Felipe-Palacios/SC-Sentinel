@@ -66,9 +66,11 @@ export default function Privacy() {
         </ul>
         <h3 className="font-display text-base font-semibold text-sc-text">Del sitio público</h3>
         <p className="text-sm leading-relaxed text-sc-text-muted">
-          La landing no recaba datos personales, salvo el formulario de contacto (nombre, email y mensaje),
-          utilizado exclusivamente para responder la consulta. Ese contenido no se almacena en la base de datos:
-          llega al buzón del equipo por los canales operativos previstos.
+          La landing no recaba datos personales: no hay formularios ni campos que recojan información del
+          visitante. El contacto se realiza por el perfil de LinkedIn del responsable (ver{" "}
+          <Link className="text-sc-accent hover:text-[#7dd3fc]" href="/contacto">/contacto</Link>), una plataforma
+          de un tercero: lo que se escriba allí queda en LinkedIn bajo su propia política y no se copia a
+          nuestros sistemas.
         </p>
       </section>
 
@@ -132,8 +134,9 @@ export default function Privacy() {
           </table>
         </div>
         <p className="text-sm leading-relaxed text-sc-text-muted">
-          Ley aplicable: Ley 25.326 de Protección de Datos Personales (Argentina). El sitio publica el formulario
-          de contacto, por lo que su consulta queda alcanzada por ese marco.
+          Ley aplicable: Ley 25.326 de Protección de Datos Personales (Argentina). El sitio no publica formularios
+          de recolección; la consulta enviada por LinkedIn queda alcanzada por ese marco en lo que respecta al
+          responsable del tratamiento.
         </p>
       </section>
 
@@ -150,9 +153,10 @@ export default function Privacy() {
       <section className="mt-10 space-y-3">
         <h2 className="font-display text-xl font-semibold tracking-tight text-sc-text">6. Derechos y contacto</h2>
         <p className="text-sm leading-relaxed text-sc-text-muted">
-          El responsable del tratamiento es <strong>Strategic Connex</strong>. Los titulares de los datos ingresados
-          en los formularios del sitio pueden solicitar acceso, actualización o supresión escribiendo por{" "}
-          <Link className="text-sc-accent hover:text-[#7dd3fc]" href="/contacto">/contacto</Link>.
+          El responsable del tratamiento es <strong>Strategic Connex</strong>. Los titulares de los datos procesados
+          por el sistema pueden solicitar acceso, actualización o supresión escribiendo por{" "}
+          <Link className="text-sc-accent hover:text-[#7dd3fc]" href="/contacto">/contacto</Link> (perfil de
+          LinkedIn del responsable).
         </p>
         <p className="mt-6 text-xs leading-relaxed text-sc-text-muted">
           SC-Sentinel es software propietario de Strategic Connex. Esta política puede actualizarse; la versión

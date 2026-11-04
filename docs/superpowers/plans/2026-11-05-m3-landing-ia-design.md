@@ -181,7 +181,7 @@
 | 2 · Home | ✅ | `8888c32` |
 | 3 · `/funcionalidades` | ✅ | `a540bea` |
 | 4 · `/security` | ✅ | `173a2b6` |
-| 5 · `/contacto` + `/api/contact` | ✅ (decisión: sin provider, ver §9.2) | `9662fe1` |
+| 5 · `/contacto` | ✅ (sin formulario: perfil de LinkedIn como canal único, ver §9.1) | `9662fe1` → canal LinkedIn |
 | 6 · `/legal/*` | ✅ con sign-off | `ff46e27` |
 | 7 · SEO + Analytics + OG | ✅ | `af1c0fb` (`sitemap.ts`, `robots.ts`, `opengraph-image.tsx`, `@vercel/analytics`) |
 | 8 · `ai_insights` + retención 15 d | ✅ (migración solo en `m2-preview`) | `45f4da0` |
@@ -194,11 +194,12 @@
 - **D9 vs código**: `/api/ai/analyze` devuelve `{cached:true, insight}` usando el dedup por `facts_hash` (<5 min) del pipeline; no hay segundo chequeo de “último insight” separado. Mismo resultado observable, una sola ruta de dedup.
 - **`recommendations_json`**: se persiste como objeto `{ findings, recommendations }` (§11.2) y el lector tolera el formato histórico de array de strings. Se corrigió el parser, que devolvía `findings: []` para el formato objeto.
 - **Panel IA**: se implementó como card en `/dashboard/overview` (refresh 30 s, D8). No se creó `/dashboard/ai` (opcional en el plan).
-- **Task 5 (decisión delegada)**: no se integra provider de email. El endpoint valida, aplica rate limit por IP (10/h) y registra en logs; el copy público se ajustó para no prometer entrega por correo. Motivo: un proveedor de email añade un encargado de tratamiento que la política de privacidad aprobada (`ff46e27`) no cubre; requiere actualización legal antes de activarlo.
+- **Task 5 (decisión delegada, superada el 2026-11-04)**: no se integra provider de email. El endpoint validaba, aplicaba rate limit por IP (10/h) y registraba en logs; el copy público se ajustó para no prometer entrega por correo. Motivo: un proveedor de email añade un encargado de tratamiento que la política de privacidad aprobada (`ff46e27`) no cubre.
+- **Task 5 — canal LinkedIn (decisión del usuario, 2026-11-04)**: se retira el formulario, `POST /api/contact`, `lib/contact/*` y su componente cliente. `/contacto` publica el perfil `linkedin.com/in/juanfpalacios` como canal único de soporte, comercial y divulgación. Motivo: LinkedIn no expone API pública para enviar mensajes a perfiles personales (solo Pages Messaging y Communications API restringida a partners), por lo que el envío desde el sitio no es viable; además el formulario anterior solo escribía en logs y no entregaba nada. `privacy` §1/§4/§6 y `terms` §7 se actualizaron: el sitio ya no recaba datos personales.
 
 ### 9.2 Baches abiertos al cierre de M3
 
-1. **Entrega real de `/api/contact`** — hoy solo logs de plataforma (retención corta). Requiere provider (p. ej. Resend) + actualización de privacidad + `RESEND_API_KEY`.
+1. ~~**Entrega real de `/api/contact`**~~ — **cerrado (2026-11-04)**: el sitio ya no recolecta mensajes; el canal es el perfil de LinkedIn (ver §9.1).
 2. **Migración `0001_ai-insights`** aplicada solo a `m2-preview`; no existe autorización para `[default] production`.
 3. **Cron externo de IA** — falta crear la tarea en cron-job.org contra `POST /api/ai/cron` con `x-cron-secret`, y definir `CRON_SECRET` en Preview/Producción.
 4. **`OPENROUTER_API_KEY`/`AI_MODELS`** — sin key la IA queda en `degraded` (comportamiento diseñado, no error). Los modelos `:free` por defecto son frágiles.
