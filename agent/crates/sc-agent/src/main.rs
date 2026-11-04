@@ -4,7 +4,9 @@ use clap::Parser;
 use sc_aggregate::{AggregatorConfig, WindowAggregator};
 use sc_capture::{run_offline, LocalIpSet};
 use sc_geo::{GeoLite2Country, NoLookup};
-use sc_sync::{build_envelope, DeviceInfo, IngestClient, Spool, SpoolConfig, Syncer};
+use sc_sync::{
+    build_envelope, Applied, DeviceInfo, IngestClient, Spool, SpoolConfig, SyncDecision, Syncer,
+};
 use sc_telemetry::{logging, HealthRegistry};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -91,7 +93,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or_else(|| "http://localhost:8080/api/ingest".to_string()),
         args.api_key,
     )?;
-    let _syncer = Syncer::new();
 
     // Process snapshots
     let spool_clone = spool.clone();
@@ -111,30 +112,69 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             if let Ok(json) = serde_json::to_vec(&env) {
                 let mut s = spool_clone.lock().await;
-                let _ =
-                    s.push_uncompressed(&format!("win_{:016x}", seq), &json, now.timestamp());
+                let _ = s.push_uncompressed(&format!("win_{:016x}", seq), &json, now.timestamp());
             }
         }
     });
 
-    // Simple sync loop
+    // Sync loop: solo un 2xx borra del spool (spec §9.2).
     let spool_sync = spool.clone();
     let sync_handle = tokio::spawn(async move {
+        let mut syncer = Syncer::new();
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
         loop {
             interval.tick().await;
+
+            if syncer.enrollment_required() {
+                tracing::warn!("sync: el device necesita enrolarse; batches retenidos en el spool");
+                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                continue;
+            }
+
             let batches = {
                 let mut s = spool_sync.lock().await;
                 s.next_batch(10).unwrap_or_default()
             };
+
+            let mut retained = false;
             for batch in batches {
-                if let Ok(env) = serde_json::from_slice::<sc_core::IngestEnvelope>(&batch.payload) {
-                    let _ = client.post_envelope(&env).await;
-                }
-                {
+                let decision =
+                    match serde_json::from_slice::<sc_core::IngestEnvelope>(&batch.payload) {
+                        Ok(env) => client.post_envelope(&env).await,
+                        // Un payload ilegible no se puede reintentar: va a dead-letter.
+                        Err(_) => SyncDecision::InvalidContract,
+                    };
+
+                let applied = {
                     let mut s = spool_sync.lock().await;
-                    let _ = s.confirm(batch.row_id);
+                    syncer.apply(&mut s, batch.row_id, &decision)
+                };
+
+                match applied {
+                    Ok(Applied::Confirmed) => {}
+                    Ok(Applied::DeadLettered) => {
+                        tracing::warn!(window_id = %batch.window_id, ?decision, "sync: batch a dead-letter");
+                    }
+                    Ok(Applied::EnrollmentRequired) => {
+                        tracing::error!(window_id = %batch.window_id, "sync: 401/403, re-enrolar el device");
+                        retained = true;
+                        break;
+                    }
+                    Ok(Applied::Retained) => {
+                        tracing::warn!(window_id = %batch.window_id, ?decision, "sync: batch retenido para reintento");
+                        retained = true;
+                        break;
+                    }
+                    Err(error) => {
+                        tracing::error!(window_id = %batch.window_id, %error, "sync: no se pudo aplicar la decisión al spool");
+                        retained = true;
+                        break;
+                    }
                 }
+            }
+
+            if retained {
+                tokio::time::sleep(syncer.delay()).await;
             }
         }
     });

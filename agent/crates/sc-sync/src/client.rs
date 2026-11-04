@@ -2,13 +2,15 @@
 
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_ENCODING, CONTENT_TYPE};
+use reqwest::header::{
+    HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_ENCODING, CONTENT_TYPE, RETRY_AFTER,
+};
 use sc_core::IngestEnvelope;
 use secrecy::{ExposeSecret, SecretString};
 use std::io::Write;
 use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SyncDecision {
     Processed,
     Duplicate,
@@ -76,6 +78,12 @@ impl IngestClient {
         {
             Ok(resp) => {
                 let status = resp.status().as_u16();
+                // `Retry-After` (segundos) cuando el server pide esperar explícitamente.
+                let retry_after = resp
+                    .headers()
+                    .get(RETRY_AFTER)
+                    .and_then(|value| value.to_str().ok())
+                    .and_then(|value| value.trim().parse::<u64>().ok());
                 match status {
                     200 => {
                         // Try to parse response
@@ -88,10 +96,10 @@ impl IngestClient {
                     }
                     401 | 403 => SyncDecision::NeedsEnrollment,
                     400 => SyncDecision::InvalidContract,
-                    408 => SyncDecision::Retriable { retry_after: None },
+                    408 => SyncDecision::Retriable { retry_after },
                     413 => SyncDecision::TooLarge,
-                    429 => SyncDecision::Retriable { retry_after: None },
-                    500..=599 => SyncDecision::Retriable { retry_after: None },
+                    429 => SyncDecision::Retriable { retry_after },
+                    500..=599 => SyncDecision::Retriable { retry_after },
                     _ => SyncDecision::Transport,
                 }
             }
