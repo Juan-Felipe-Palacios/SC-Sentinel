@@ -1,0 +1,14 @@
+# Deploy context: solo se sube lo necesario para el proyecto Vercel (Root Directory web/).
+# El upload desde la raíz fallaba por tamaño (agent/target pesa mucho).
+/agent
+/docs
+/.serena
+/.git
+**/node_modules
+**/.next
+**/.turbo
+*.zip
+.env
+.env*
+!.env.example
+env.local
