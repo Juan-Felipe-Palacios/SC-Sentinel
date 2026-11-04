@@ -19,7 +19,7 @@ export const metadata = {
     siteName: "SC-Sentinel",
     locale: "es_AR",
     type: "website",
-    images: [{ url: "/og/landing.png", width: 1200, height: 630, alt: "SC-Sentinel — seguridad" }],
+    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "SC-Sentinel — seguridad" }],
   },
 };
 

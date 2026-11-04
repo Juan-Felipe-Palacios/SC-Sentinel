@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
 import "./globals.css";
 import { Space_Grotesk, IBM_Plex_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -17,6 +18,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata = {
+  metadataBase: new URL("https://sc-sentinel.vercel.app"),
   title: "SC-Sentinel",
   description: "Monitoreo de red con motor determinista local. La nube recibe señales agregadas, no paquetes crudos.",
 };
@@ -24,7 +26,10 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className={`${spaceGrotesk.variable} ${plexMono.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        <Analytics />
+      </body>
     </html>
   );
 }
