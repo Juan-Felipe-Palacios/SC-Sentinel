@@ -22,6 +22,9 @@ struct Args {
     endpoint: Option<String>,
     #[arg(long)]
     api_key: Option<String>,
+    /// Device id inscrito en el tenant (por defecto dev-001, override con SC_SENTINEL_DEVICE_ID).
+    #[arg(long, env = "SC_SENTINEL_DEVICE_ID", default_value = "dev-001")]
+    device_id: String,
 }
 
 #[tokio::main]
@@ -78,7 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Setup sync/spool
     let spool = Arc::new(Mutex::new(Spool::open(SpoolConfig::default())?));
     let device = DeviceInfo {
-        id: "dev-001".to_string(),
+        id: args.device_id,
         agent_version: env!("CARGO_PKG_VERSION").to_string(),
         hostname: "localhost".to_string(),
         boot_id: "boot-001".to_string(),
