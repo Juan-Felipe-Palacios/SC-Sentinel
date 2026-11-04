@@ -34,4 +34,6 @@ mock_*.py
 .serena/
 *.zip
 .env
+# credenciales locales (p.ej. URL de Neon escrita por herramientas)
+env.local
 
