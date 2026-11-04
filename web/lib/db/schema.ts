@@ -30,13 +30,13 @@ export const flowWindows = pgTable('flow_windows', {
   sequence: bigint('sequence', { mode: 'number' }).notNull(),
   snapshotJson: jsonb('snapshot_json').notNull(),
 }, (table) => ({
-  deviceWindowIdx: index('flow_windows_device_window_idx').on(table.deviceId, table.windowId),
+  deviceWindowIdx: uniqueIndex('flow_windows_device_window_idx').on(table.deviceId, table.windowId),
   startAtIdx: index('flow_windows_start_at_idx').on(table.startAt),
 }));
 
 export const hostStats = pgTable('host_stats', {
   id: text('id').primaryKey(),
-  windowId: text('window_id').notNull().references(() => flowWindows.windowId),
+  windowId: text('window_id').notNull(),
   hostKey: text('host_key').notNull(),
   bytesIn: bigint('bytes_in', { mode: 'number' }).default(0).notNull(),
   bytesOut: bigint('bytes_out', { mode: 'number' }).default(0).notNull(),
@@ -49,7 +49,7 @@ export const hostStats = pgTable('host_stats', {
 
 export const alerts = pgTable('alerts', {
   id: text('id').primaryKey(),
-  windowId: text('window_id').notNull().references(() => flowWindows.windowId),
+  windowId: text('window_id').notNull(),
   ruleId: text('rule_id').notNull(),
   severity: text('severity').notNull(),
   title: text('title').notNull(),

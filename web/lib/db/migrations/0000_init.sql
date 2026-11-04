@@ -63,15 +63,13 @@ CREATE TABLE "ingest_batches" (
 );
 --> statement-breakpoint
 ALTER TABLE "agent_health" ADD CONSTRAINT "agent_health_device_id_devices_id_fk" FOREIGN KEY ("device_id") REFERENCES "public"."devices"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "alerts" ADD CONSTRAINT "alerts_window_id_flow_windows_window_id_fk" FOREIGN KEY ("window_id") REFERENCES "public"."flow_windows"("window_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "flow_windows" ADD CONSTRAINT "flow_windows_batch_id_ingest_batches_id_fk" FOREIGN KEY ("batch_id") REFERENCES "public"."ingest_batches"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "flow_windows" ADD CONSTRAINT "flow_windows_device_id_devices_id_fk" FOREIGN KEY ("device_id") REFERENCES "public"."devices"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "host_stats" ADD CONSTRAINT "host_stats_window_id_flow_windows_window_id_fk" FOREIGN KEY ("window_id") REFERENCES "public"."flow_windows"("window_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ingest_batches" ADD CONSTRAINT "ingest_batches_device_id_devices_id_fk" FOREIGN KEY ("device_id") REFERENCES "public"."devices"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "agent_health_device_idx" ON "agent_health" USING btree ("device_id");--> statement-breakpoint
 CREATE INDEX "agent_health_recorded_at_idx" ON "agent_health" USING btree ("recorded_at");--> statement-breakpoint
 CREATE INDEX "alerts_window_idx" ON "alerts" USING btree ("window_id");--> statement-breakpoint
-CREATE INDEX "flow_windows_device_window_idx" ON "flow_windows" USING btree ("device_id","window_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "flow_windows_device_window_idx" ON "flow_windows" USING btree ("device_id","window_id");--> statement-breakpoint
 CREATE INDEX "flow_windows_start_at_idx" ON "flow_windows" USING btree ("start_at");--> statement-breakpoint
 CREATE INDEX "host_stats_window_idx" ON "host_stats" USING btree ("window_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "ingest_batches_device_window_idx" ON "ingest_batches" USING btree ("device_id","window_id");

@@ -1,5 +1,5 @@
 {
-  "id": "348f8c19-baf5-42eb-b987-4acc2177e598",
+  "id": "bc8ee255-7a77-4098-88c7-16e6bf894eb7",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -190,21 +190,7 @@
           "with": {}
         }
       },
-      "foreignKeys": {
-        "alerts_window_id_flow_windows_window_id_fk": {
-          "name": "alerts_window_id_flow_windows_window_id_fk",
-          "tableFrom": "alerts",
-          "tableTo": "flow_windows",
-          "columnsFrom": [
-            "window_id"
-          ],
-          "columnsTo": [
-            "window_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -340,7 +326,7 @@
               "nulls": "last"
             }
           ],
-          "isUnique": false,
+          "isUnique": true,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -468,21 +454,7 @@
           "with": {}
         }
       },
-      "foreignKeys": {
-        "host_stats_window_id_flow_windows_window_id_fk": {
-          "name": "host_stats_window_id_flow_windows_window_id_fk",
-          "tableFrom": "host_stats",
-          "tableTo": "flow_windows",
-          "columnsFrom": [
-            "window_id"
-          ],
-          "columnsTo": [
-            "window_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
