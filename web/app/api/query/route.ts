@@ -9,6 +9,7 @@ import { queryOverview } from '@/lib/query/overview';
 import { queryHosts } from '@/lib/query/hosts';
 import { queryAlerts } from '@/lib/query/alerts';
 import { queryHealth } from '@/lib/query/health';
+import { fetchLatestInsight } from '@/lib/ai/analyze';
 
 const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
 
@@ -61,6 +62,11 @@ export async function GET(request: NextRequest) {
           status: 200,
           headers: noStoreHeaders,
         });
+      case 'ai': {
+        // AI insights (§5.2, D10): último insight del device; {} cuando no hay análisis aún.
+        const insight = deviceId ? await fetchLatestInsight(deviceId) : null;
+        return NextResponse.json(insight ?? {}, { status: 200, headers: noStoreHeaders });
+      }
     }
   } catch (error) {
     console.error('Error in /api/query:', error);

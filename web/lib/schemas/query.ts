@@ -3,7 +3,7 @@
 import { z } from 'zod';
 
 export const QueryParamsSchema = z.object({
-  metric: z.enum(['overview', 'hosts', 'alerts', 'health']),
+  metric: z.enum(['overview', 'hosts', 'alerts', 'health', 'ai']),
   range: z.enum(['1h', '6h', '24h', '7d']).default('1h'),
   device_id: z.string().min(1).optional(),
 });
