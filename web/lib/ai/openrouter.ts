@@ -4,14 +4,10 @@
 import { z } from 'zod';
 import type { AiFacts } from './facts';
 
-// Los IDs de modelos gratuitos se retiran sin aviso: verificar contra
-// https://openrouter.ai/api/v1/models (id + supported_parameters: response_format)
-// y ajustar por env var AI_MODELS sin tocar código.
-export const DEFAULT_AI_MODELS = [
-  'google/gemma-4-31b-it:free',
-  'google/gemma-4-26b-a4b-it:free',
-  'nvidia/nemotron-3.5-super-vl:free',
-] as const;
+// Router de modelos gratuitos de OpenRouter: elige uno disponible que soporte
+// structured outputs, así que no se rompe cuando retiran un modelo `:free`.
+// Se puede sobreescribir con AI_MODELS (lista separada por comas).
+export const DEFAULT_AI_MODELS = ['openrouter/free'] as const;
 
 export const AI_OUTPUT_MAX_TOKENS = 1000;
 export const AI_PROMPT_MAX_TOKENS = 4000;
@@ -113,6 +109,7 @@ export async function callOpenRouterChain(
         continue;
       }
       const payload = (await res.json()) as {
+        model?: string;
         choices?: Array<{ message?: { content?: string } }>;
       };
       const content = payload.choices?.[0]?.message?.content;
@@ -126,7 +123,9 @@ export async function callOpenRouterChain(
         attempts.push({ model, status: res.status, error: 'invalid_output' });
         continue;
       }
-      return { ok: true, model, output: validated.data };
+      // Con un router la respuesta trae el modelo realmente usado ("openrouter/free").
+      const usedModel = typeof payload.model === 'string' && payload.model ? payload.model : model;
+      return { ok: true, model: usedModel, output: validated.data };
     } catch (error) {
       // Timeout, red o body inválido: probamos el siguiente modelo (§11.3).
       attempts.push({ model, error: error instanceof Error ? error.name : 'unknown_error' });

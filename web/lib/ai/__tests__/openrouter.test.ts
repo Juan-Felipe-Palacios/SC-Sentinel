@@ -80,6 +80,22 @@ describe('callOpenRouterChain', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  it('registra el modelo real que devuelve el router (openrouter/free)', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        model: 'upstage/solar-pro-3:free',
+        choices: [{ message: { content: JSON.stringify(validOutput) } }],
+      })
+    );
+    const result = await callOpenRouterChain(facts, {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiKey: 'k',
+      models: ['openrouter/free'],
+    });
+    expect(result.ok).toBe(true);
+    expect(result.model).toBe('upstage/solar-pro-3:free');
+  });
+
   it('cae al siguiente modelo ante 5xx y certifica riesgo degradado', async () => {
     const fetchImpl = vi
       .fn()
