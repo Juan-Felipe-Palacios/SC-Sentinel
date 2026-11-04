@@ -62,6 +62,29 @@ export interface AlertsResponse {
   total: number;
 }
 
+export interface AiFinding {
+  type: string;
+  description: string;
+  severity: string;
+}
+
+export interface AiInsight {
+  id: string;
+  device_id: string;
+  period_start: string;
+  period_end: string;
+  model: string;
+  status: 'ok' | 'degraded';
+  summary: string;
+  findings: AiFinding[];
+  recommendations: string[];
+  facts_hash: string;
+  created_at: string;
+}
+
+/** `/api/query?metric=ai` responde `{}` cuando todavía no hay análisis persistido. */
+export type AiInsightResponse = AiInsight | Record<string, never>;
+
 export interface HealthMetric {
   device_id: string | null;
   capture_status: string | null;

@@ -16,6 +16,7 @@ import type { AlertsResponse, HealthMetric, OverviewResponse } from '@/lib/api-t
 import { fetcher, FetchError } from '@/lib/swr';
 import { formatBytes, formatNum } from '@/lib/format';
 import { AgentHealthCard } from './AgentHealthCard';
+import { AiInsightCard } from './AiInsightCard';
 import { StatCard } from './StatCard';
 import { TrafficChart } from './TrafficChart';
 import { TopHostsTable } from './TopHostsTable';
@@ -142,6 +143,9 @@ export function OverviewView({ range }: { range: QueryRange }) {
           accent="neutral"
         />
       </div>
+
+      {/* Análisis IA (lote, refresh 30 s — D8) */}
+      <AiInsightCard />
 
       {/* Tráfico agregado */}
       <section aria-label="Tráfico agregado" className="rounded-lg border sc-hairline bg-sc-surface">
