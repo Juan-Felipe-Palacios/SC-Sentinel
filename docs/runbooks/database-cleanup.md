@@ -37,8 +37,8 @@ Checklist semanal:
 Si la DB supera 400 MB previo al cleanup diario:
 
 ```sql
-DELETE FROM flow_windows      WHERE window_start < NOW() - INTERVAL '3 days';
-DELETE FROM agent_health      WHERE created_at   < NOW() - INTERVAL '3 days';
+DELETE FROM flow_windows      WHERE start_at     < NOW() - INTERVAL '3 days';
+DELETE FROM agent_health      WHERE recorded_at  < NOW() - INTERVAL '3 days';
 DELETE FROM ai_insights       WHERE created_at   < NOW() - INTERVAL '15 days';
 DELETE FROM ingest_batches    WHERE received_at  < NOW() - INTERVAL '1 day';
 -- solo si este cleanup fue confirmado por el propietario (el resto usa las pautas estándar del cron)

@@ -23,5 +23,6 @@ Requisitos detallados y gates diarios: `docs/runbooks/local-development.md`.
 
 ## Estatus
 
-- M0 (actual): scaffold + CI verde.
-- Roadmap M1–M5: `docs/superpowers/specs/SC-Sentinel-Spec-Completo-2026-11-03.md` §13.
+- M0: scaffold + CI verde. M1: captura + agregación + sync. M2: ingesta en Vercel/Neon + dashboard v0.
+- **M3 (actual, cerrado):** landing pública SSG (`/`, `/funcionalidades`, `/security`, `/contacto`, `/legal/*`), capa IA por lotes con fallback degradado (`/api/ai/analyze`, `/api/ai/cron`, panel IA), SEO/analytics y legales con sign-off. Cierre y baches abiertos: `docs/superpowers/plans/2026-11-05-m3-landing-ia-design.md` §9.
+- Roadmap M4–M5: `docs/superpowers/specs/SC-Sentinel-Spec-Completo-2026-11-03.md` §13.

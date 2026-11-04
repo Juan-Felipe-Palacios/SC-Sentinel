@@ -26,8 +26,11 @@ GitHub (main) ──► Vercel (sc-sentinel.vercel.app)
 | Variable | Dónde | Nota |
 |---|---|---|
 | `DATABASE_URL` | Vercel env (main) | Neon pooled connection string |
-| `SESSION_SECRET` | Vercel env (main + preview, valores distintos) | firma cookie admin |
-| `OPENROUTER_API_KEY` | Vercel env (server; solo producción y previews) | jamás a browser (ADR-0005) |
+| `SC_SESSION_SECRET` | Vercel env (main + preview, valores distintos) | firma cookie admin (`sc_session`) — el código lee `SC_SESSION_SECRET`, no `SESSION_SECRET` |
+| `ADMIN_SECRET` | Vercel env (server) | contraseña del login admin + `x-sc-admin-secret` para tooling |
+| `OPENROUTER_API_KEY` | Vercel env (server; solo producción y previews) | jamás a browser (ADR-0005). Sin valor ⇒ IA en modo `degraded` |
+| `AI_MODELS` | Vercel env (server, opcional) | cadena de modelos separada por comas; defaults `:free` en código |
+| `DEFAULT_DEVICE_ID` | Vercel env (server, opcional) | device único de v1; si falta se usa el primer device enrolado |
 | `CRON_SECRET` | Vercel env (server) | header `x-cron-secret` de los crons |
 | `SC_SENTINEL_TOKEN` | Servicio agente (Windows/Linux) | Bearer del agente — no es env de Vercel |
 
@@ -39,8 +42,8 @@ GitHub (main) ──► Vercel (sc-sentinel.vercel.app)
 
 ## 4. Crons
 
-- `/api/ai/cron` cada 5 min → activo en `vercel.json` si el plan lo permite; **plan B (spec §5.4)**: cron-job.org cada 5 min con header `x-cron-secret`.
-- `/api/cron/cleanup` diario 03:00 UTC (+ secret).
+- `/api/ai/cron` cada ~5 min → **NO** va en `vercel.json` (D1: Hobby no garantiza crons de 5 min y los previews no disparan crons). Se ejecuta con **cron externo** (cron-job.org) vía `POST` + header `x-cron-secret: <CRON_SECRET>`.
+- `/api/cron/cleanup` diario 03:00 UTC vía Vercel Cron (+ secret en producción).
 - Verificación post-deploy: ejecutar una llamada manual y ver resultado en logs de Vercel.
 
 ## 5. Checks por deployment (smoke mínimo)

@@ -170,3 +170,38 @@
 - ADR-0003/0004/0005/0007/0012 · `docs/ux/copywriting.md` · `docs/ux/landing-sitemap.md` · `docs/legal/*`
 - `docs/runbooks/database-cleanup.md` (fix 15 d) · `docs/release/deployment.md` (nota: `SESSION_SECRET` en doc vs código `SC_SESSION_SECRET` — actualizar en Task 11)
 - M2 cerrado: `3fe3a24` · Preview: `https://sc-sentinel-ar4sms4yr-strategicconnex.vercel.app` · cron `/api/cron/cleanup` prod-only · commit `00868e6` agent `--device-id`
+
+---
+
+## 9. Estado de ejecución — cierre M3 (2026-11-04)
+
+| Task | Estado | Commit / evidencia |
+|---|---|---|
+| 1 · tokens + `(marketing)` | ✅ | `c625dc3` |
+| 2 · Home | ✅ | `8888c32` |
+| 3 · `/funcionalidades` | ✅ | `a540bea` |
+| 4 · `/security` | ✅ | `173a2b6` |
+| 5 · `/contacto` + `/api/contact` | ✅ (decisión: sin provider, ver §9.2) | `9662fe1` |
+| 6 · `/legal/*` | ✅ con sign-off | `ff46e27` |
+| 7 · SEO + Analytics + OG | ✅ | `af1c0fb` (`sitemap.ts`, `robots.ts`, `opengraph-image.tsx`, `@vercel/analytics`) |
+| 8 · `ai_insights` + retención 15 d | ✅ (migración solo en `m2-preview`) | `45f4da0` |
+| 9 · `/api/ai/analyze` + `/api/ai/cron` + pipeline | ✅ | `feat(ai): pipeline por lotes con fallback determinista y endpoints analyze/cron` |
+| 10 · panel IA en dashboard | ✅ | `feat(dashboard): panel IA con estado degraded honesto` |
+| 11 · cierre M3 | ✅ | `feat(m3): cierre del hito — docs, copy honesto de contacto y baches` |
+
+### 9.1 Desvíos respecto al plan (y por qué)
+
+- **D9 vs código**: `/api/ai/analyze` devuelve `{cached:true, insight}` usando el dedup por `facts_hash` (<5 min) del pipeline; no hay segundo chequeo de “último insight” separado. Mismo resultado observable, una sola ruta de dedup.
+- **`recommendations_json`**: se persiste como objeto `{ findings, recommendations }` (§11.2) y el lector tolera el formato histórico de array de strings. Se corrigió el parser, que devolvía `findings: []` para el formato objeto.
+- **Panel IA**: se implementó como card en `/dashboard/overview` (refresh 30 s, D8). No se creó `/dashboard/ai` (opcional en el plan).
+- **Task 5 (decisión delegada)**: no se integra provider de email. El endpoint valida, aplica rate limit por IP (10/h) y registra en logs; el copy público se ajustó para no prometer entrega por correo. Motivo: un proveedor de email añade un encargado de tratamiento que la política de privacidad aprobada (`ff46e27`) no cubre; requiere actualización legal antes de activarlo.
+
+### 9.2 Baches abiertos al cierre de M3
+
+1. **Entrega real de `/api/contact`** — hoy solo logs de plataforma (retención corta). Requiere provider (p. ej. Resend) + actualización de privacidad + `RESEND_API_KEY`.
+2. **Migración `0001_ai-insights`** aplicada solo a `m2-preview`; no existe autorización para `[default] production`.
+3. **Cron externo de IA** — falta crear la tarea en cron-job.org contra `POST /api/ai/cron` con `x-cron-secret`, y definir `CRON_SECRET` en Preview/Producción.
+4. **`OPENROUTER_API_KEY`/`AI_MODELS`** — sin key la IA queda en `degraded` (comportamiento diseñado, no error). Los modelos `:free` por defecto son frágiles.
+5. **Verificación visual del panel IA** — pendiente de sesión admin real en Preview (el build y los tests cubren el contrato, no el render autenticado).
+6. **Bug conocido del agente** (`confirm()` incondicional) — fuera de alcance M3 por decisión explícita.
+7. **`/dashboard` sin enlace al panel IA** — no hay ruta dedicada; si se necesita detalle, es v1.1.

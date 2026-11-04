@@ -124,7 +124,8 @@ export function ContactForm() {
           Mensaje recibido
         </h3>
         <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-sc-text-muted">
-          Respondemos en ≤ 1 día hábil. Si el tema es urgente, escribe a{' '}
+          Tu mensaje quedó registrado para el equipo. Para respuesta garantizada en ≤ 1 día hábil,
+          escribe también a{' '}
           <a
             href="mailto:contacto@strategicconnex.com.ar"
             className="font-semibold text-sc-accent transition-colors hover:text-[#7dd3fc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sc-accent"

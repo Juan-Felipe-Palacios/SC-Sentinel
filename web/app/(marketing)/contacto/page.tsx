@@ -61,7 +61,15 @@ export default function Contacto() {
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-sc-text-muted">
               Máximo {RATE_LIMIT_PER_HOUR} mensajes por hora desde tu IP. El mensaje no se almacena
-              en la base de datos: llega al buzón del equipo y respondemos en ≤ 1 día hábil.
+              en la base de datos: queda en el registro del servidor. Todavía no se envían correos
+              automáticos, así que para garantizar respuesta en ≤ 1 día hábil escribe también a{" "}
+              <a
+                href="mailto:contacto@strategicconnex.com.ar"
+                className="font-semibold text-sc-accent transition-colors hover:text-[#7dd3fc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sc-accent"
+              >
+                contacto@strategicconnex.com.ar
+              </a>
+              .
             </p>
             <div className="mt-8">
               <ContactForm />
