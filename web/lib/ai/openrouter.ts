@@ -4,10 +4,13 @@
 import { z } from 'zod';
 import type { AiFacts } from './facts';
 
+// Los IDs de modelos gratuitos se retiran sin aviso: verificar contra
+// https://openrouter.ai/api/v1/models (id + supported_parameters: response_format)
+// y ajustar por env var AI_MODELS sin tocar código.
 export const DEFAULT_AI_MODELS = [
-  'meta-llama/llama-3.1-8b-instruct:free',
-  'mistralai/mistral-7b-instruct:free',
-  'google/gemma-2-9b-it:free',
+  'google/gemma-4-31b-it:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'nvidia/nemotron-3.5-super-vl:free',
 ] as const;
 
 export const AI_OUTPUT_MAX_TOKENS = 1000;
@@ -69,7 +72,13 @@ export async function callOpenRouterChain(
   const fetchImpl = init.fetchImpl ?? globalThis.fetch;
   const models = init.models ?? getModelChain();
 
-  if (!apiKey) return { ok: false, model: null, output: null };
+  if (!apiKey) {
+    console.warn(JSON.stringify({ event: 'ai_chain_failed', reason: 'missing_api_key' }));
+    return { ok: false, model: null, output: null };
+  }
+
+  // Diagnóstico sin secretos: modelo + status HTTP / tipo de error por intento.
+  const attempts: Array<{ model: string; status?: number; error?: string }> = [];
 
   const bodyFor = (model: string) =>
     JSON.stringify({
@@ -97,21 +106,34 @@ export async function callOpenRouterChain(
           signal: AbortSignal.timeout(AI_TIMEOUT_MS),
         }
       );
-      if (!res.ok) continue;
+      if (!res.ok) {
+        // El cuerpo del error de OpenRouter es corto y no contiene credenciales.
+        const detail = await res.text().catch(() => '');
+        attempts.push({ model, status: res.status, error: detail.slice(0, 160) });
+        continue;
+      }
       const payload = (await res.json()) as {
         choices?: Array<{ message?: { content?: string } }>;
       };
       const content = payload.choices?.[0]?.message?.content;
-      if (typeof content !== 'string' || !content) continue;
+      if (typeof content !== 'string' || !content) {
+        attempts.push({ model, status: res.status, error: 'empty_content' });
+        continue;
+      }
       const parsed = extractJsonObject(content);
       const validated = AiOutputSchema.safeParse(parsed);
-      if (!validated.success) continue;
+      if (!validated.success) {
+        attempts.push({ model, status: res.status, error: 'invalid_output' });
+        continue;
+      }
       return { ok: true, model, output: validated.data };
-    } catch {
+    } catch (error) {
       // Timeout, red o body inválido: probamos el siguiente modelo (§11.3).
+      attempts.push({ model, error: error instanceof Error ? error.name : 'unknown_error' });
       continue;
     }
   }
 
+  console.warn(JSON.stringify({ event: 'ai_chain_failed', attempts }));
   return { ok: false, model: null, output: null };
 }
