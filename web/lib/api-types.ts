@@ -1,0 +1,75 @@
+// Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
+// Tipos espejo de las respuestas de /api/query (lib/query/*). Mantener en sync.
+
+import type { QueryRange } from '@/lib/schemas/query';
+
+export interface Period {
+  start: string;
+  end: string;
+}
+
+export interface OverviewTotals {
+  bytes_in: number;
+  bytes_out: number;
+  packets_in: number;
+  packets_out: number;
+  windows_count: number;
+  alerts_count: number;
+}
+
+export interface OverviewSeriesPoint {
+  timestamp: string;
+  bytes_in: number;
+  bytes_out: number;
+}
+
+export interface OverviewTopHost {
+  host_key: string;
+  country: string | null;
+  bytes_total: number;
+  packets: number;
+}
+
+export interface OverviewTopCountry {
+  country: string;
+  bytes_total: number;
+  hosts_count: number;
+}
+
+export interface OverviewResponse {
+  range: QueryRange;
+  period: Period;
+  totals: OverviewTotals;
+  series: OverviewSeriesPoint[];
+  top_hosts: OverviewTopHost[];
+  top_countries: OverviewTopCountry[];
+}
+
+export interface AlertItem {
+  id: string;
+  window_id: string;
+  rule_id: string;
+  severity: string;
+  title: string;
+  description: string | null;
+  evidence: Record<string, unknown> | null;
+  created_at: string | null;
+}
+
+export interface AlertsResponse {
+  range: QueryRange;
+  alerts: AlertItem[];
+  total: number;
+}
+
+export interface HealthMetric {
+  device_id: string | null;
+  capture_status: string | null;
+  packets_seen: number;
+  packets_dropped: number;
+  parse_errors: number;
+  queue_depth: number | null;
+  spool_bytes: number | null;
+  last_error: string | null;
+  recorded_at: string | null;
+}

@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { QueryParamsSchema } from '@/lib/schemas/query';
+import { verifyAdminAuth } from '@/lib/auth/admin';
 import { resolveDeviceId } from '@/lib/query/device';
 import { queryOverview } from '@/lib/query/overview';
 import { queryHosts } from '@/lib/query/hosts';
@@ -11,16 +12,10 @@ import { queryHealth } from '@/lib/query/health';
 
 const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
 
-function isQueryAuthorized(request: NextRequest): boolean {
-  if (process.env.NODE_ENV === 'development') return true;
-
-  const session = request.cookies.get('sc_session')?.value;
-  return Boolean(session);
-}
-
 export async function GET(request: NextRequest) {
-  // 1. Admin cookie auth (dev bypass; cryptographic validation arrives in Task 4)
-  if (!isQueryAuthorized(request)) {
+  // 1. Admin auth: JWT de sesión firmada (o x-sc-admin-secret / Bearer para tooling)
+  const auth = await verifyAdminAuth(request);
+  if (!auth.authenticated) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401, headers: noStoreHeaders });
   }
 
