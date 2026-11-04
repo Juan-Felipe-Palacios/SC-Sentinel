@@ -58,6 +58,11 @@ impl Spool {
             std::fs::create_dir_all(parent).map_err(|e| SpoolError::Open(e.to_string()))?;
         }
         let conn = Connection::open(&cfg.path).map_err(|e| SpoolError::Open(e.to_string()))?;
+        // WAL: los commits no tocan el archivo principal hasta el checkpoint, así que
+        // el apagado hace `flush()` (checkpoint TRUNCATE) para consolidarlos.
+        let _: String = conn
+            .query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))
+            .map_err(|e| SpoolError::Open(e.to_string()))?;
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS batches (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -156,11 +161,75 @@ impl Spool {
         Ok(sum as u64)
     }
 
+    /// Batches pendientes de enviar (excluye dead-letter).
+    pub fn pending_count(&mut self) -> Result<u64, SpoolError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT COUNT(*) FROM batches WHERE dead_letter = 0")?;
+        let count: i64 = stmt.query_row([], |row| row.get(0))?;
+        Ok(count.max(0) as u64)
+    }
+
+    /// Consolida el WAL en el archivo principal y devuelve los batches pendientes.
+    /// Idempotente: llamarlo en el apagado deja el spool listo para el próximo arranque.
+    pub fn flush(&mut self) -> Result<u64, SpoolError> {
+        let mode: String = self
+            .conn
+            .query_row("PRAGMA journal_mode", [], |row| row.get(0))?;
+        if mode.eq_ignore_ascii_case("wal") {
+            self.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")?;
+        }
+        self.pending_count()
+    }
+
     pub fn next_sequence(&mut self) -> Result<u64, SpoolError> {
         let mut stmt = self
             .conn
             .prepare("UPDATE meta SET value = value + 1 WHERE key = 'sequence' RETURNING value")?;
         let val: i64 = stmt.query_row([], |row| row.get(0))?;
         Ok(val as u64)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn spool_en_tmp() -> (tempfile::TempDir, Spool) {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let cfg = SpoolConfig {
+            path: dir.path().join("spool.sqlite"),
+            ..SpoolConfig::default()
+        };
+        let spool = Spool::open(cfg).expect("open spool");
+        (dir, spool)
+    }
+
+    #[test]
+    fn flush_reporta_los_batches_pendientes() {
+        let (_dir, mut spool) = spool_en_tmp();
+        assert_eq!(spool.flush().expect("flush vacío"), 0);
+
+        spool
+            .push_uncompressed("win_1", br#"{"v":1}"#, 1_700_000_000)
+            .expect("push");
+        spool
+            .push_uncompressed("win_2", br#"{"v":1}"#, 1_700_000_030)
+            .expect("push");
+        assert_eq!(spool.pending_count().expect("count"), 2);
+        assert_eq!(spool.flush().expect("flush"), 2);
+    }
+
+    #[test]
+    fn flush_no_cuenta_los_dead_letter_y_es_idempotente() {
+        let (_dir, mut spool) = spool_en_tmp();
+        spool
+            .push_uncompressed("win_1", br#"{"v":1}"#, 1_700_000_000)
+            .expect("push");
+        let fila = spool.next_batch(10).expect("next").remove(0);
+        spool.dead_letter(fila.row_id, "400").expect("dead letter");
+
+        assert_eq!(spool.flush().expect("primer flush"), 0);
+        assert_eq!(spool.flush().expect("segundo flush"), 0);
     }
 }

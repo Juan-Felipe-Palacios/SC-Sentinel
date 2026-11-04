@@ -10,8 +10,17 @@ use sc_sync::{
 use sc_telemetry::{logging, HealthRegistry};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::signal;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{mpsc, watch, Mutex};
+
+/// Tope para drenar ventana activa, cola de sync y spool antes de salir.
+const DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
+/// Vueltas máximas del drenaje final de sync (un batch de 10 por vuelta).
+const DRAIN_ATTEMPTS: usize = 5;
+const SYNC_INTERVAL: Duration = Duration::from_secs(1);
+/// Reintento del enrolamiento: el device no puede hacer nada hasta que lo inscriban.
+const ENROLLMENT_RETRY: Duration = Duration::from_secs(60);
 
 #[derive(Parser, Debug)]
 #[command(name = "sc-agent", version, about = "SCNet agent daemon")]
@@ -76,7 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Start aggregator with capture rx
     let aggregator = WindowAggregator::new(agg_cfg, geo.clone(), health.clone());
-    tokio::spawn(async move {
+    let mut aggregator_handle = tokio::spawn(async move {
         aggregator.run(capture.rx, snap_tx).await;
     });
 
@@ -97,7 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Process snapshots
     let spool_clone = spool.clone();
     let device_clone = device.clone();
-    tokio::spawn(async move {
+    let spooler_handle = tokio::spawn(async move {
         let mut seq: u64 = 0;
         while let Some(snap) = snap_rx.recv().await {
             seq += 1;
@@ -118,77 +127,215 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // Sync loop: solo un 2xx borra del spool (spec §9.2).
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let spool_sync = spool.clone();
-    let sync_handle = tokio::spawn(async move {
-        let mut syncer = Syncer::new();
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
-        loop {
-            interval.tick().await;
+    let sync_handle = tokio::spawn(sync_loop(spool_sync, client, shutdown_rx));
 
-            if syncer.enrollment_required() {
-                tracing::warn!("sync: el device necesita enrolarse; batches retenidos en el spool");
-                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
-                continue;
-            }
-
-            let batches = {
-                let mut s = spool_sync.lock().await;
-                s.next_batch(10).unwrap_or_default()
-            };
-
-            let mut retained = false;
-            for batch in batches {
-                let decision =
-                    match serde_json::from_slice::<sc_core::IngestEnvelope>(&batch.payload) {
-                        Ok(env) => client.post_envelope(&env).await,
-                        // Un payload ilegible no se puede reintentar: va a dead-letter.
-                        Err(_) => SyncDecision::InvalidContract,
-                    };
-
-                let applied = {
-                    let mut s = spool_sync.lock().await;
-                    syncer.apply(&mut s, batch.row_id, &decision)
-                };
-
-                match applied {
-                    Ok(Applied::Confirmed) => {}
-                    Ok(Applied::DeadLettered) => {
-                        tracing::warn!(window_id = %batch.window_id, ?decision, "sync: batch a dead-letter");
-                    }
-                    Ok(Applied::EnrollmentRequired) => {
-                        tracing::error!(window_id = %batch.window_id, "sync: 401/403, re-enrolar el device");
-                        retained = true;
-                        break;
-                    }
-                    Ok(Applied::Retained) => {
-                        tracing::warn!(window_id = %batch.window_id, ?decision, "sync: batch retenido para reintento");
-                        retained = true;
-                        break;
-                    }
-                    Err(error) => {
-                        tracing::error!(window_id = %batch.window_id, %error, "sync: no se pudo aplicar la decisión al spool");
-                        retained = true;
-                        break;
-                    }
-                }
-            }
-
-            if retained {
-                tokio::time::sleep(syncer.delay()).await;
-            }
-        }
-    });
-
-    // Handle Ctrl+C for graceful shutdown
+    // Apagado ordenado: primera señal (o fin de la captura) drena y persiste;
+    // una segunda señal fuerza la salida con código != 0 (plan M1 §6).
+    spawn_forced_exit_watchdog();
+    let mut aggregator_done = false;
     tokio::select! {
-        _ = signal::ctrl_c() => {
-            tracing::info!("shutting down gracefully");
+        _ = shutdown_signal() => {
+            tracing::info!(event = "shutdown_signal", "señal de apagado: drenando pipeline");
         }
-        _ = tokio::time::sleep(std::time::Duration::from_secs(10)) => {
-            tracing::info!("timeout shutdown");
+        _ = &mut aggregator_handle => {
+            tracing::info!(event = "capture_finished", "captura finalizada: drenando pipeline");
+            aggregator_done = true;
         }
     }
-    sync_handle.abort();
+
+    // 1) Ventana activa: se emite cuando el aggregator cierra el canal de snapshots.
+    if !aggregator_done
+        && tokio::time::timeout(DRAIN_TIMEOUT, &mut aggregator_handle)
+            .await
+            .is_err()
+    {
+        tracing::warn!(
+            event = "window_dropped",
+            "drenaje agotado: se descarta la ventana en curso"
+        );
+        aggregator_handle.abort();
+    }
+    let _ = spooler_handle.await;
+
+    // 2) Sync final: envía lo que quede y corta el loop.
+    let _ = shutdown_tx.send(true);
+    if tokio::time::timeout(DRAIN_TIMEOUT, sync_handle)
+        .await
+        .is_err()
+    {
+        tracing::warn!(
+            event = "sync_drain_timeout",
+            "el loop de sync no terminó dentro del tope"
+        );
+    }
+
+    // 3) Flush: consolida el WAL y deja el spool listo para el próximo arranque.
+    let pending = { spool.lock().await.flush()? };
+    tracing::info!(
+        event = "spool_flushed",
+        pending,
+        "spool persistido: salida limpia"
+    );
 
     Ok(())
+}
+
+/// Loop de sync: envía un batch por tick y respeta el backoff del `Syncer`.
+/// Al recibir el apagado drena una última vez (acotado) y termina.
+async fn sync_loop(
+    spool: Arc<Mutex<Spool>>,
+    client: IngestClient,
+    mut shutdown: watch::Receiver<bool>,
+) {
+    let mut syncer = Syncer::new();
+    let mut interval = tokio::time::interval(SYNC_INTERVAL);
+
+    loop {
+        let delay = tokio::select! {
+            _ = interval.tick() => {
+                if syncer.enrollment_required() {
+                    tracing::warn!("sync: el device necesita enrolarse; batches retenidos en el spool");
+                    ENROLLMENT_RETRY
+                } else if sync_pass(&spool, &client, &mut syncer).await {
+                    syncer.delay()
+                } else {
+                    continue;
+                }
+            }
+            _ = shutdown.changed() => break,
+        };
+
+        tokio::select! {
+            _ = tokio::time::sleep(delay) => {}
+            _ = shutdown.changed() => break,
+        }
+    }
+
+    tracing::info!(
+        event = "sync_final_drain",
+        "drenaje final del spool antes de salir"
+    );
+    drain_spool(&spool, &client, &mut syncer).await;
+}
+
+/// Envía hasta 10 batches del spool. Devuelve `true` si hay que reintentar con backoff.
+async fn sync_pass(spool: &Arc<Mutex<Spool>>, client: &IngestClient, syncer: &mut Syncer) -> bool {
+    let batches = {
+        let mut s = spool.lock().await;
+        s.next_batch(10).unwrap_or_default()
+    };
+
+    for batch in batches {
+        let decision = match serde_json::from_slice::<sc_core::IngestEnvelope>(&batch.payload) {
+            Ok(env) => client.post_envelope(&env).await,
+            // Un payload ilegible no se puede reintentar: va a dead-letter.
+            Err(_) => SyncDecision::InvalidContract,
+        };
+
+        let applied = {
+            let mut s = spool.lock().await;
+            syncer.apply(&mut s, batch.row_id, &decision)
+        };
+
+        match applied {
+            Ok(Applied::Confirmed) => {}
+            Ok(Applied::DeadLettered) => {
+                tracing::warn!(window_id = %batch.window_id, ?decision, "sync: batch a dead-letter");
+            }
+            Ok(Applied::EnrollmentRequired) => {
+                tracing::error!(
+                    window_id = %batch.window_id,
+                    "sync: 401/403, re-enrolar el device"
+                );
+                return true;
+            }
+            Ok(Applied::Retained) => {
+                tracing::warn!(
+                    window_id = %batch.window_id,
+                    ?decision,
+                    "sync: batch retenido para reintento"
+                );
+                return true;
+            }
+            Err(error) => {
+                tracing::error!(
+                    window_id = %batch.window_id,
+                    %error,
+                    "sync: no se pudo aplicar la decisión al spool"
+                );
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+/// Best-effort al apagar: vacía el spool sin esperar backoff ni enrolamiento.
+async fn drain_spool(spool: &Arc<Mutex<Spool>>, client: &IngestClient, syncer: &mut Syncer) {
+    for _ in 0..DRAIN_ATTEMPTS {
+        if syncer.enrollment_required() {
+            break;
+        }
+        let pending = { spool.lock().await.pending_count().unwrap_or(0) };
+        if pending == 0 {
+            break;
+        }
+        if sync_pass(spool, client, syncer).await {
+            // El backend pidió backoff: no tiene sentido bloquear el apagado.
+            break;
+        }
+    }
+
+    let pending = { spool.lock().await.pending_count().unwrap_or(0) };
+    if pending == 0 {
+        tracing::info!(
+            event = "spool_drained",
+            "sin batches pendientes tras el drenaje"
+        );
+    } else {
+        tracing::warn!(
+            event = "spool_pending",
+            pending,
+            "quedan batches en el spool para el próximo arranque"
+        );
+    }
+}
+
+/// Primera señal de apagado: SIGINT (Ctrl+C) o SIGTERM en Unix.
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        let mut terminate = match signal::unix::signal(signal::unix::SignalKind::terminate()) {
+            Ok(handler) => handler,
+            Err(error) => {
+                tracing::error!(%error, "no se pudo registrar SIGTERM; solo Ctrl+C");
+                let _ = signal::ctrl_c().await;
+                return;
+            }
+        };
+        tokio::select! {
+            _ = signal::ctrl_c() => {}
+            _ = terminate.recv() => {}
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        let _ = signal::ctrl_c().await;
+    }
+}
+
+/// Segunda señal: salida inmediata con código != 0, nunca silenciosa.
+fn spawn_forced_exit_watchdog() {
+    tokio::spawn(async {
+        shutdown_signal().await;
+        tracing::error!(
+            event = "shutdown_forced",
+            "segunda señal: salida inmediata sin drenar"
+        );
+        std::process::exit(130);
+    });
 }

@@ -26,7 +26,7 @@ Fuente: spec §14.3. Cada hito cierra cuando TODOS los checks correspondientes p
 - [ ] Compresión gzip funcionando; flag zstd compila (off por defecto).
 - [ ] Smoke: tráfico real del propietario publicado end-to-end.
 
-> M1 en curso: **55%** (2026-11-04). Hecho y verificado: pipeline de eventos desacoplado (tokio mpsc) con offline fixture end-to-end y spool SQLite con reintentos/cota/FIFO. Pendiente: captura real (`sc-capture/live.rs` sigue devolviendo `InterfaceNotFound`, el daemon solo procesa el pcap de fixture), `config.toml` real en `sc-config`, sync seguro (`confirm()` hoy marca el batch como enviado aunque el POST falle, y no hay backoff exponencial), y por lo tanto el smoke con tráfico real. Sin cerrar el hito hasta que esos puntos estén verdes.
+> M1 en curso: **65%** (2026-11-04). Hecho y verificado: pipeline de eventos desacoplado (tokio mpsc) con offline fixture end-to-end, spool SQLite con reintentos/cota/FIFO, sync seguro (solo un 2xx borra del spool; 401/403 exige enrolamiento sin borrar; 400 va a dead-letter; 408/429/5xx reintentan con backoff exponencial y `Retry-After`) y apagado ordenado (SIGINT/SIGTERM, drenaje final del spool, flush con checkpoint WAL; ya no hay `sleep(10s)` de salida). Pendiente: captura real (`sc-capture/live.rs` sigue devolviendo `InterfaceNotFound`, el daemon solo procesa el pcap de fixture), `config.toml` real en `sc-config` y el smoke con tráfico real. Sin cerrar el hito hasta que esos puntos estén verdes.
 
 ## M2 — API + Neon + dashboard v0 (1,5 semanas)
 
