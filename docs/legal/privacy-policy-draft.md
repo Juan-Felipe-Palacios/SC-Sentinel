@@ -56,7 +56,7 @@ El responsable del tratamiento es Strategic Connex. Los sujetos de datos formula
 ---
 
 **Pendientes antes de M3** (checklist del revisor legal):
-- [ ] Definir titular/domicilio/contacto oficial de Strategic Connex.
-- [ ] Confirmar condiciones de cada DPA de terceros (Vercel, Neon, OpenRouter).
-- [ ] Verificar formulación aplicable (Ley 25.326 y disposiciones AAAr si la landing es pública).
-- [ ] Publicar en `/legal/privacy` la versión pulida, removiendo las anotaciones internas de este draft.
+- [x] Definir titular/domicilio/contacto oficial de Strategic Connex → decisión del equipo (nov 2026): titular "Strategic Connex" sin domicilio físico publicado; contacto exclusivamente por `/contacto`.
+- [x] Confirmar condiciones de cada DPA de terceros (Vercel, Neon, OpenRouter) → se mantiene la tabla de §4; sin publicación de DPA propios.
+- [x] Verificar formulación aplicable (Ley 25.326) → el sitio publica el formulario de contacto, por lo que rige Ley 25.326.
+- [x] Publicar en `/legal/privacy` la versión pulida → publicada en M3 (feat(legal)).

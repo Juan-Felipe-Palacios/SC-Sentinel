@@ -29,13 +29,35 @@ Los archivos heredados conservan sus headers de licencia originales. Sniffnet ©
 
 Licencias dominantes: **MIT / Apache-2.0** (ecosistema Rust). Listado completo y auditado en cada release con `cargo deny check --license` / `cargo audit`; esta sección cita los principales al momento del release: tokio, serde/serde_json, schemars, thiserror, anyhow, tracing, reqwest (rustls), rusqlite, backoff, config, clap, uuid/ulid, sha2, hmac, secrecy, flate2, zstd (opcional), insta (dev), proptest (dev), windows-service, pcap, etherparse.
 
-## 5. Web (npm)
+## 5. Web (npm — inventario real de `web/package.json`, noviembre 2026)
 
-Licencias dominantes: **MIT / Apache-2.0 / BSD-2-Clause**. Principales al momento del release: Next.js (MIT), React (MIT), TypeScript (Apache-2.0), Tailwind CSS v4 (MIT), shadcn/ui + Radix UI (MIT), Lucide (ISC), TanStack Table (MIT), Recharts (MIT), React Hook Form (MIT), Zod (MIT), SWR (MIT), date-fns (MIT), Framer Motion (MIT), next-mdx-remote (MIT), Vitest (MIT), Playwright (Apache-2.0), Drizzle ORM (Apache-2.0), jose (MIT) / iron-session (MIT), fzstd (MIT), ESLint (MIT), Prettier (MIT).
+Licencias dominantes: **MIT / Apache-2.0**. Inventario efectivo de la aplicación y sus herramientas:
+
+**Runtime (se distribuyen en el bundle / en el servidor):**
+
+| Paquete | Licencia |
+| --- | --- |
+| Next.js 15.5.28, React 19 / React DOM 19 | MIT / MIT |
+| TypeScript 5.9 | Apache-2.0 |
+| Tailwind CSS 4 (@tailwindcss/postcss) | MIT |
+| @neondatabase/serverless | MIT |
+| drizzle-orm | Apache-2.0 |
+| jose | MIT |
+| lucide-react | ISC |
+| recharts | MIT |
+| swr | MIT |
+| date-fns | MIT |
+| zod | MIT |
+
+**Desarrollo / construcción (no se distribuyen en runtime, listados por completitud):**
+
+ESLint 9 + eslint-config-next 15.5.28 + @eslint/eslintrc (MIT), Vitest 5 (MIT), drizzle-kit (MIT/ISC — verificar audit por release), @tailwindcss/postcss (MIT), @types/node, @types/react, @types/react-dom (MIT).
+
+La corrida de `pnpm licenses list` de cada pre-release es la fuente auditable; esta lista es la foto al publicar la página.
 
 ## Obligaciones operativas
 
 1. Regenerar el inventario antes de cada release (checklist de `testing/release-checklist.md`).
-2. Publicar esta página (o su render MDX) en `/legal/third-party-notices` (hito M3).
+2. Publicar esta página (o su render MDX) en `/legal/third-party-notices` (hito M3 — **publicada**, ver feat(legal)).
 3. No eliminar headers de licencia en código heredado; agregar archivo nuevo = agregar aviso aquí.
 4. Cualquier componente con licencia no descrita en este archivo requiere revisión antes de merge (cargo-deny y licensías npm en CI fallan antes, normalmente).
