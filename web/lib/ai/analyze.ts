@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { defaultQueryDb, isoOrNull, queryRows, type QueryDb } from '@/lib/query/db-rows';
 import { factsHash } from './hash';
-import { callOpenRouterChain } from './openrouter';
+import { callAiChain } from './providers';
 import type { AiFacts } from './facts';
 
 export type AnalysisStatus = 'ok' | 'degraded' | 'cached' | 'no_data';
@@ -147,7 +147,7 @@ export async function runAnalysisPipeline(
   const cached = await findRecentInsight(hash, deviceId, database);
   if (cached) return { status: 'cached', insight: cached };
 
-  const chain = await callOpenRouterChain(facts);
+  const chain = await callAiChain(facts);
   const output = chain.ok && chain.output ? chain.output : buildDegradedOutput();
   const model = chain.ok && chain.model ? chain.model : 'deterministic-fallback';
   const status: AnalysisStatus = chain.ok ? 'ok' : 'degraded';

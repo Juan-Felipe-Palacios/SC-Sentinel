@@ -13,6 +13,17 @@ export {
   getModelChain,
   AI_TIMEOUT_MS,
 } from './openrouter';
+export {
+  AI_REQUEST_TIMEOUT_MS,
+  PROVIDER_DEFAULT_MODELS,
+  callAiChain,
+  callGeminiChain,
+  callGroqChain,
+  geminiApiKey,
+  getModelsFor,
+  resolveProvider,
+  type AiProvider,
+} from './providers';
 export { canonicalJson, factsHash } from './hash';
 export { fetchAiFacts, type AiFacts } from './facts';
 

@@ -38,7 +38,7 @@ export function getModelChain(): string[] {
   return fromEnv && fromEnv.length > 0 ? fromEnv : [...DEFAULT_AI_MODELS];
 }
 
-const SYSTEM_PROMPT = `Sos un analista de seguridad de red. El motor determinista ya analizó las ventanas.
+export const SYSTEM_PROMPT = `Sos un analista de seguridad de red. El motor determinista ya analizó las ventanas.
 Recibís únicamente HECHOS AGREGADOS (JSON). No hay paquetes crudos ni IPs sin anonimizar.
 No inventés datos que no estén en el JSON. Si no hay nada notable, decilo con claridad.
 

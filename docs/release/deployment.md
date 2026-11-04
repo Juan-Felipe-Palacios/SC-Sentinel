@@ -28,8 +28,11 @@ GitHub (main) ──► Vercel (sc-sentinel.vercel.app)
 | `DATABASE_URL` | Vercel env (main) | Neon pooled connection string |
 | `SC_SESSION_SECRET` | Vercel env (main + preview, valores distintos) | firma cookie admin (`sc_session`) — el código lee `SC_SESSION_SECRET`, no `SESSION_SECRET` |
 | `ADMIN_SECRET` | Vercel env (server) | contraseña del login admin + `x-sc-admin-secret` para tooling |
+| `AI_PROVIDER` | Vercel env (server, opcional) | `openrouter` \| `gemini` \| `groq`. Si falta, se detecta por la key presente (Groq → Gemini → OpenRouter) |
 | `OPENROUTER_API_KEY` | Vercel env (server; solo producción y previews) | jamás a browser (ADR-0005). Sin valor ⇒ IA en modo `degraded` |
-| `AI_MODELS` | Vercel env (server, opcional) | cadena de modelos separada por comas; defaults `:free` en código |
+| `GEMINI_API_KEY` (o `GOOGLE_AI_API_KEY`) | Vercel env (server, opcional) | Google AI Studio, SDK `@google/genai`; modelo por defecto `gemini-3.8-flash` |
+| `GROQ_API_KEY` | Vercel env (server, opcional) | Groq, SDK `groq-sdk`; modelos por defecto `openai/gpt-oss-120b,openai/gpt-oss-20b` |
+| `AI_MODELS` | Vercel env (server, opcional) | modelos separados por comas; si falta, se usan los defaults del proveedor |
 | `DEFAULT_DEVICE_ID` | Vercel env (server, opcional) | device único de v1; si falta se usa el primer device enrolado |
 | `CRON_SECRET` | Vercel env (server) | header `x-cron-secret` de los crons |
 | `SC_SENTINEL_TOKEN` | Servicio agente (Windows/Linux) | Bearer del agente — no es env de Vercel |
