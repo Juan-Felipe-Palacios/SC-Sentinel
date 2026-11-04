@@ -1,0 +1,17 @@
+# Configuración del agente SCNet.
+# Copiar a config.toml y pasar la ruta con `sc-agent --config <ruta>`.
+# Los overrides de entorno pisan estos valores: SC_INGEST_URL, SC_SPOOL_PATH,
+# SC_SPOOL_MAX_BYTES y SC_LOG.
+
+[ingest]
+url = "https://sc-sentinel.vercel.app/api/ingest"
+token_env = "SC_INGEST_TOKEN"  # Bearer según contrato §1; nunca escribir el token acá
+compression = "gzip"           # único valor implementado por el cliente
+
+[spool]
+path = "./spool/sc-spool.sqlite"
+max_bytes = 524288000
+max_age_days = 7
+
+[log]
+level = "info"                 # SC_LOG tiene prioridad

@@ -3,7 +3,15 @@
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 pub fn init() {
-    let filter = EnvFilter::try_from_env("SC_LOG").unwrap_or_else(|_| EnvFilter::new("info"));
+    init_with_level("info");
+}
+
+/// Igual que [`init`], pero el nivel por defecto sale de la config del agente;
+/// `SC_LOG` sigue teniendo prioridad sobre ese valor.
+pub fn init_with_level(default_level: &str) {
+    let filter = EnvFilter::try_from_env("SC_LOG")
+        .or_else(|_| EnvFilter::try_new(default_level))
+        .unwrap_or_else(|_| EnvFilter::new("info"));
     tracing_subscriber::registry()
         .with(filter)
         .with(tracing_subscriber::fmt::layer())

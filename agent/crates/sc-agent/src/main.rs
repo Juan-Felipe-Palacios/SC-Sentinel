@@ -3,6 +3,7 @@
 use clap::Parser;
 use sc_aggregate::{AggregatorConfig, WindowAggregator};
 use sc_capture::{run_offline, LocalIpSet};
+use sc_config::AgentConfig;
 use sc_geo::{GeoLite2Country, NoLookup};
 use sc_sync::{
     build_envelope, Applied, DeviceInfo, IngestClient, Spool, SpoolConfig, SyncDecision, Syncer,
@@ -33,6 +34,9 @@ struct Args {
     endpoint: Option<String>,
     #[arg(long)]
     api_key: Option<String>,
+    /// Ruta del `config.toml` (sin esto se usan defaults + overrides SC_*).
+    #[arg(long)]
+    config: Option<PathBuf>,
     /// Device id inscrito en el tenant (por defecto dev-001, override con SC_SENTINEL_DEVICE_ID).
     #[arg(long, env = "SC_SENTINEL_DEVICE_ID", default_value = "dev-001")]
     device_id: String,
@@ -40,13 +44,38 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    logging::init();
     let args = Args::parse();
 
     if std::env::args().any(|a| a == "--version") {
         println!("sc-sentinel-agent {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
+
+    // Config: archivo explícito (--config) o defaults del agente + overrides SC_*.
+    let config = match &args.config {
+        Some(path) => AgentConfig::load(path),
+        None => AgentConfig::from_env(),
+    };
+    let config = match config {
+        Ok(config) => config,
+        Err(error) => {
+            eprintln!("sc-agent: configuración inválida: {error}");
+            std::process::exit(2);
+        }
+    };
+    logging::init_with_level(&config.log.level);
+
+    // El token nunca viaja por CLI ni por el archivo: se resuelve en memoria.
+    let api_key = match args.api_key.clone() {
+        Some(key) => Some(key),
+        None => match config.resolve_token() {
+            Ok(token) => Some(token),
+            Err(error) => {
+                eprintln!("sc-agent: {error}");
+                std::process::exit(2);
+            }
+        },
+    };
 
     let health = HealthRegistry::new();
 
@@ -90,7 +119,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // Setup sync/spool
-    let spool = Arc::new(Mutex::new(Spool::open(SpoolConfig::default())?));
+    let spool_config = SpoolConfig {
+        path: config.spool.path.clone(),
+        max_bytes: config.spool.max_bytes,
+        max_age_days: config.spool.max_age_days,
+    };
+    let endpoint = args
+        .endpoint
+        .clone()
+        .unwrap_or_else(|| config.ingest.url.clone());
+    tracing::info!(
+        endpoint = %endpoint,
+        spool = %spool_config.path.display(),
+        compression = %config.ingest.compression,
+        "config cargada"
+    );
+    let spool = Arc::new(Mutex::new(Spool::open(spool_config)?));
     let device = DeviceInfo {
         id: args.device_id,
         agent_version: env!("CARGO_PKG_VERSION").to_string(),
@@ -98,9 +142,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         boot_id: "boot-001".to_string(),
     };
     let client = IngestClient::new(
-        args.endpoint
-            .unwrap_or_else(|| "http://localhost:8080/api/ingest".to_string()),
-        args.api_key,
+        args.endpoint.unwrap_or_else(|| config.ingest.url.clone()),
+        api_key,
     )?;
 
     // Process snapshots
