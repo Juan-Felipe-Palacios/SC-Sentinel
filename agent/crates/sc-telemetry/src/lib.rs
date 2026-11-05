@@ -56,11 +56,14 @@ impl HealthRegistry {
         }
     }
 
+    /// Guarda el último error truncado a 500 caracteres.
+    /// Truncar por caracteres (no por bytes) evita paniquear al cortar una
+    /// secuencia UTF-8 (mensajes de error con acentos en español).
     pub fn note_error(&self, msg: impl Into<String>) {
         let mut err = self.last_error.lock().unwrap();
         let msg = msg.into();
-        *err = Some(if msg.len() > 500 {
-            msg[0..500].to_string()
+        *err = Some(if msg.chars().count() > 500 {
+            msg.chars().take(500).collect()
         } else {
             msg
         });
@@ -69,9 +72,31 @@ impl HealthRegistry {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use std::sync::atomic::Ordering;
+
     #[test]
-    fn smoke() {
-        let _ = crate::HealthRegistry::new();
-        assert!(true);
+    fn snapshot_refleja_los_contadores() {
+        let health = HealthRegistry::new();
+        health.packets_seen.store(7, Ordering::Relaxed);
+        health.packets_dropped.store(2, Ordering::Relaxed);
+        health.parse_errors.store(1, Ordering::Relaxed);
+        health.queue_depth.store(3, Ordering::Relaxed);
+
+        let snapshot = health.snapshot();
+        assert_eq!(snapshot.packets_seen, 7);
+        assert_eq!(snapshot.packets_dropped, 2);
+        assert_eq!(snapshot.parse_errors, 1);
+        assert_eq!(snapshot.queue_depth, Some(3));
+        assert!(snapshot.last_error.is_none());
+    }
+
+    #[test]
+    fn note_error_trunca_a_500_caracteres_sin_panico_utf8() {
+        let health = HealthRegistry::new();
+        health.note_error("ñ".repeat(700));
+
+        let last = health.snapshot().last_error.expect("debe guardar el error");
+        assert_eq!(last.chars().count(), 500);
     }
 }

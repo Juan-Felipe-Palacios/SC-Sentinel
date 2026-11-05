@@ -94,11 +94,10 @@ mod tests {
     use super::*;
     use crate::flow::{Direction, FlowUpdate};
     use sc_core::{FlowKey, Protocol};
-    use tokio::time::{sleep, Duration};
 
     #[tokio::test]
     async fn test_backpressure_full_channel() {
-        let mut pair = CaptureChannelPair::new();
+        let pair = CaptureChannelPair::new();
         // Fill the channel
         for i in 0..CHANNEL_CAPACITY {
             let flow = FlowKey {

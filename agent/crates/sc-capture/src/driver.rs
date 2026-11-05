@@ -84,8 +84,22 @@ pub fn run_offline(path: &Path, local: LocalIpSet) -> Result<CaptureChannel, Cap
 }
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    /// Sin fichero legible el canal debe cerrarse sin emitir actualizaciones
+    /// (el error se registra en el hilo lector, no se propaga al consumidor).
     #[test]
-    fn it_works() {
-        assert!(true);
+    fn offline_missing_pcap_cierra_el_canal_sin_actualizaciones() {
+        let channel = run_offline(
+            Path::new("no-existe-esta-captura.pcap"),
+            LocalIpSet::default(),
+        )
+        .expect("run_offline siempre debe crear el canal");
+
+        let mut rx = channel.rx;
+        assert!(
+            rx.try_recv().is_err(),
+            "no debe haber paquetes de un pcap inexistente"
+        );
     }
 }
