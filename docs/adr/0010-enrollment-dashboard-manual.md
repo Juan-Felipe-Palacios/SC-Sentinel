@@ -12,7 +12,7 @@ Un agente necesita un device-token para autenticarse en `/api/ingest`. El dashbo
 - En la DB solo se guarda el hash SHA-256 del token (`devices.token_hash`).
 - **Sin endpoints de enrollment pre-autenticados**: el dashboard ya está detrás de la cookie admin; no se expone ninguna ruta pública para crear tokens.
 - **Rotación**: botón en Settings revoca el token anterior y emite uno nuevo (también visible una sola vez). El agente que dejó de ser válido entra en `needs_enrollment` (cuando la API responde 401/403); su spool se conserva y se reanuda cuando se instala el nuevo token.
-- En producción, el token del agente se lee de variable de entorno (`SC_SENTINEL_TOKEN`), no del config.toml.
+- En producción, el token del agente se lee de variable de entorno (`SC_INGEST_TOKEN`), no del config.toml.
 
 ## Alternativas consideradas
 

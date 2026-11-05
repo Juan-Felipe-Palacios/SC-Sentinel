@@ -41,7 +41,8 @@ GitHub (main) ──► Vercel (sc-sentinel.vercel.app)
 | `AI_MODELS` | Vercel env (server, opcional) | modelos separados por comas; si falta, se usan los defaults del proveedor |
 | `DEFAULT_DEVICE_ID` | Vercel env (server, opcional) | device único de v1; si falta se usa el primer device enrolado |
 | `CRON_SECRET` | Vercel env (server) | header `x-cron-secret` de los crons |
-| `SC_SENTINEL_TOKEN` | Servicio agente (Windows/Linux) | Bearer del agente — no es env de Vercel |
+| `SC_INGEST_TOKEN` | Servicio agente (Windows/Linux) | Bearer del agente (`sc_dev_…`) — no es env de Vercel |
+| `SC_SENTINEL_DEVICE_ID` | Servicio agente (Windows/Linux) | id del device enrolado (`dev_…`); debe ser el dueño del token o el ingest responde 403 |
 
 ## 3. Neon
 
@@ -71,7 +72,21 @@ Sin un device enrolado no llega ninguna ventana de tráfico: `/api/ai/cron` resp
 
 1. Dashboard → **Configuración** (`/dashboard/settings`, requiere cookie `sc_session`).
 2. "Enrolar nuevo dispositivo" → el token se muestra **una sola vez** y expira en 24 h.
-3. Llevar el token al agente: `SC_SENTINEL_TOKEN` o `config.toml`.
+   Si ya pasaron 24 h, hay que rotar el token antes de usarlo.
+3. Llevar token e id a la máquina del dispositivo (**no** a Vercel ni al repo):
+   - `SC_INGEST_TOKEN` = token completo `sc_dev_…` (variable de entorno; el agente
+     solo lo resuelve en memoria y lo redacta en logs).
+   - `SC_SENTINEL_DEVICE_ID` = el `device_id` exacto que devolvió el panel (`dev_…`).
+     Si no coincide con el dueño del token, `/api/ingest` responde `403`
+     (`Device ID in payload does not match authenticated token`).
+   - `config.toml` guarda solo `token_env = "SC_INGEST_TOKEN"`: nunca el valor.
+   - PowerShell, por sesión:
+     `$env:SC_INGEST_TOKEN = "sc_dev_…"` · `$env:SC_SENTINEL_DEVICE_ID = "dev_…"`.
+   - Persistente del usuario (`[Environment]::SetEnvironmentVariable(..., 'User')`)
+     o, mejor para servicio/Task Scheduler, un wrapper que fije ambas variables y
+     ejecute `sc-agent` con ACL restringida.
+   - El agente **no** lee archivos `.env`; `.env` y `env.local` están en `.gitignore`
+     por si se usan desde un wrapper.
 4. El primer `/api/ingest` exitoso promueve el device de `enrolled_pending` a `active`
    y actualiza `last_seen_at`.
 5. Para revocar un token filtrado: "Rotar token" (el anterior deja de valer y el

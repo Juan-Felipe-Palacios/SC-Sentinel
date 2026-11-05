@@ -76,5 +76,5 @@ Regla: un PR que cambia un contrato debe modificar el agente, la web, el schema 
 | Síntoma | Causa | Solución |
 |---|---|---|
 | `pcap` no compila en Windows | Falta Npcap SDK | Instalar Npcap + SDK (ver `troubleshoot-pcap.md`) |
-| 401 en mock/server | Token no configurado | Export export `SC_SENTINEL_TOKEN` antes de correr |
+| 401 en mock/server | Token no configurado | Export export `SC_INGEST_TOKEN` antes de correr |
 | Snapshot diverge | Cambio de contrato sin fixtures | Regenerar golden files y revisar diff manualmente |

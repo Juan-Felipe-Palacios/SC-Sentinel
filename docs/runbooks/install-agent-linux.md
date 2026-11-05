@@ -70,7 +70,7 @@ systemctl edit sc-sentinel-agent
 
 ## 4. Token
 
-`SC_SENTINEL_TOKEN` vía EnvironmentFile systemd (`/etc/sc-sentinel/token.env`, `chmod 600`, referenciado con `EnvironmentFile=`); nunca en config.toml en producción.
+`SC_INGEST_TOKEN` vía EnvironmentFile systemd (`/etc/sc-sentinel/token.env`, `chmod 600`, referenciado con `EnvironmentFile=`); nunca en config.toml en producción.
 
 ## 5. Verificación
 

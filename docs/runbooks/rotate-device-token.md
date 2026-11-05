@@ -13,7 +13,7 @@ Procedimiento manual (ADR-0010): la rotación se administra desde el Dashboard S
    - Windows/Linux servicio: editar el EnvironmentFile (o config.toml si es entorno no-producción) con el token nuevo e inmediatamente limpiar el portapapeles.
    ```powershell
    # Windows (servicio) — si el token va vía env del servicio:
-   # re-escribir el valor de SC_SENTINEL_TOKEN y re-crear la config de arranque del servicio
+   # re-escribir el valor de SC_INGEST_TOKEN y re-crear la config de arranque del servicio
    Set-Service "SC-Sentinel-Agent"   # no hace falta; restart:
    Restart-Service "SC-Sentinel-Agent"
    ```

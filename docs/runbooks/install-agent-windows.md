@@ -43,7 +43,7 @@ sc.exe start "SC-Sentinel-Agent"
 
 ## 3. Token en entorno del servicio
 
-El token NO va en config.toml en producción; opcionalmente con variable de entorno del servicio: `SC_SENTINEL_TOKEN`. Si se setea por config, restringir permisos del archivo: `icacls "C:\ProgramData\SC-Sentinel\config.toml" /inheritance:r /grant Administrators:F /grant SYSTEM:F`.
+El token NO va en config.toml en producción; opcionalmente con variable de entorno del servicio: `SC_INGEST_TOKEN`. Si se setea por config, restringir permisos del archivo: `icacls "C:\ProgramData\SC-Sentinel\config.toml" /inheritance:r /grant Administrators:F /grant SYSTEM:F`.
 
 ## 4. Verificación post-instalación
 

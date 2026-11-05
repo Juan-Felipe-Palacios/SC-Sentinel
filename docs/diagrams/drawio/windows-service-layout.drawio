@@ -13,7 +13,7 @@
         <mxCell id="programdata" value="C:\ProgramData\SC-Sentinel\&#10;- config.toml (permisos restrictivos)&#10;- spool.sqlite (cota 500 MB / 7 d FIFO)&#10;- logs\ (sin tokens ni payloads; spec 9.3)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=8;verticalAlign=top;" vertex="1" parent="1">
           <mxGeometry x="380" y="220" width="300" height="110" as="geometry" />
         </mxCell>
-        <mxCell id="env" value="SC_SENTINEL_TOKEN (env del servicio)&#10;token plano nunca en config.toml en prod" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+        <mxCell id="env" value="SC_INGEST_TOKEN (env del servicio)&#10;token plano nunca en config.toml en prod" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
           <mxGeometry x="60" y="380" width="280" height="70" as="geometry" />
         </mxCell>
         <mxCell id="desinstalar" value="Desinstalacion limpia (runbook):&#10;sc.exe stop -> sc.exe delete&#10;Remove-Item Program Files + ProgramData" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacingLeft=8;verticalAlign=top;" vertex="1" parent="1">

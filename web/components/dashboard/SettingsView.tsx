@@ -146,9 +146,11 @@ export function SettingsView() {
             Enrolar dispositivo
           </h2>
           <p className="mt-1.5 text-xs leading-5 text-sc-text-muted">
-            Genera un token de 24 horas. Se muestra una sola vez: copialo al agente en
-            <code className="mx-1 rounded bg-sc-surface-alt px-1 py-0.5 font-mono text-[10px]">SC_SENTINEL_TOKEN</code>
-            o en su <code className="rounded bg-sc-surface-alt px-1 py-0.5 font-mono text-[10px]">config.toml</code>.
+            Genera un token de 24 horas. Se muestra una sola vez: copialo como
+            <code className="mx-1 rounded bg-sc-surface-alt px-1 py-0.5 font-mono text-[10px]">SC_INGEST_TOKEN</code>
+            en la máquina del agente, con el id del device en
+            <code className="mx-1 rounded bg-sc-surface-alt px-1 py-0.5 font-mono text-[10px]">SC_SENTINEL_DEVICE_ID</code>
+            (si no coinciden, el ingest responde 403).
           </p>
         </header>
 
