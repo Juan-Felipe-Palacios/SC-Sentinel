@@ -8,6 +8,6 @@ export async function POST() {
     { ok: true },
     { headers: { 'Cache-Control': 'no-store, max-age=0' } }
   );
-  response.cookies.set(SESSION_COOKIE, '', { ...sessionCookieOptions(), maxAge: 0 });
+  response.cookies.set(SESSION_COOKIE, '', { ...sessionCookieOptions(false), maxAge: 0 });
   return response;
 }

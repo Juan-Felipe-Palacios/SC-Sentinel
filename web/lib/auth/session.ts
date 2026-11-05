@@ -6,7 +6,8 @@
 import { SignJWT, jwtVerify } from 'jose';
 
 export const SESSION_COOKIE = 'sc_session';
-export const SESSION_TTL_SECONDS = 60 * 60 * 8; // 8 h
+export const SESSION_TTL_SECONDS = 60 * 60 * 8; // 8 h base
+export const SESSION_REMEMBER_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 días
 
 const SESSION_ISSUER = 'sc-sentinel';
 
@@ -21,12 +22,17 @@ function sessionSecret(): Uint8Array {
   throw new Error('SC_SESSION_SECRET (o ADMIN_SECRET, mínimo 16 caracteres) es obligatorio fuera de development');
 }
 
-export async function createSessionToken(): Promise<string> {
+export function getSessionTtlSeconds(rememberMe: boolean): number {
+  return rememberMe ? SESSION_REMEMBER_TTL_SECONDS : SESSION_TTL_SECONDS;
+}
+
+export async function createSessionToken(rememberMe: boolean = false): Promise<string> {
+  const ttl = getSessionTtlSeconds(rememberMe);
   return new SignJWT({ sub: 'admin' })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setIssuer(SESSION_ISSUER)
-    .setExpirationTime(`${SESSION_TTL_SECONDS}s`)
+    .setExpirationTime(`${ttl}s`)
     .sign(sessionSecret());
 }
 
@@ -39,12 +45,12 @@ export async function verifySessionToken(token: string): Promise<boolean> {
   }
 }
 
-export function sessionCookieOptions() {
+export function sessionCookieOptions(rememberMe: boolean) {
   return {
     httpOnly: true,
     sameSite: 'lax' as const,
     secure: process.env.NODE_ENV === 'production',
     path: '/',
-    maxAge: SESSION_TTL_SECONDS,
+    maxAge: getSessionTtlSeconds(rememberMe),
   };
 }

@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
-'use client';
+'use client'
 
 import { FormEvent, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -11,6 +11,7 @@ export function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -23,7 +24,7 @@ export function LoginForm() {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password, rememberMe }),
       });
 
       if (response.ok) {
@@ -49,7 +50,7 @@ export function LoginForm() {
 
   return (
     <form onSubmit={onSubmit} className="mt-8 space-y-5" noValidate>
-      <div>
+      <div className="space-y-3">
         <label htmlFor="password" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.22em] text-sc-text-muted">
           Contraseña de administrador
         </label>
@@ -63,8 +64,23 @@ export function LoginForm() {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           className="w-full rounded-md border sc-hairline bg-sc-surface px-4 py-3 text-[15px] text-sc-text outline-none transition-colors placeholder:text-sc-text-muted/60 hover:border-sc-text-muted/30 focus-visible:border-sc-viz-in focus-visible:ring-2 focus-visible:ring-sc-viz-in/30"
-          placeholder="••••••••••••"
+          placeholder="•••••••••••8"
         />
+
+        {/* Checkbox Remember Me */}
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="remember-me"
+            name="rememberMe"
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+            className="rounded-md border sc-hairline bg-sc-surface w-4 h-4 sc-focus-in focus-visible:ring-2 focus-visible:ring-sc-viz-in/30 cursor-pointer"
+          />
+          <label htmlFor="remember-me" className="font-mono text-[10px] text-sc-text-muted">
+            Recordarme
+          </label>
+        </div>
       </div>
 
       {error ? (

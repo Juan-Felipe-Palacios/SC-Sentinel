@@ -9,6 +9,7 @@ const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
 
 const LoginSchema = z.object({
   password: z.string().min(1).max(256),
+  rememberMe: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -28,7 +29,8 @@ export async function POST(request: NextRequest) {
   }
 
   const adminSecret = process.env.ADMIN_SECRET;
-  const { password } = parsed.data;
+  const { password, rememberMe: rememberMeInput } = parsed.data;
+  const rememberMe = rememberMeInput !== undefined ? rememberMeInput : false;
 
   // Sin ADMIN_SECRET solo se admite en desarrollo local (acepta cualquier password no vacío)
   const accepted = adminSecret
@@ -40,9 +42,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const token = await createSessionToken();
+    const token = await createSessionToken(rememberMe);
     const response = NextResponse.json({ ok: true }, { headers: noStoreHeaders });
-    response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
+    response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(rememberMe));
     return response;
   } catch (error) {
     console.error('POST /api/auth/login: no se pudo firmar la sesión', error);
