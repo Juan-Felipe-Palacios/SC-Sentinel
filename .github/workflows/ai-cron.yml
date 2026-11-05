@@ -1,0 +1,30 @@
+# Cron externo de análisis IA (M3 §11.4): dispara POST /api/ai/cron cada 5 minutos.
+# Vercel Hobby no permite vercel.json crons sub-diarios, por eso el disparo vive aquí.
+# El objetivo (producción o preview) va en el secret AI_CRON_URL; el secreto
+# x-cron-secret va en CRON_SECRET. Ver https://docs.github.com/actions/workflows.
+name: ai-cron
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+permissions: {}
+
+concurrency:
+  group: ai-cron
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST /api/ai/cron
+        env:
+          AI_CRON_URL: ${{ secrets.AI_CRON_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -fsS -X POST "$AI_CRON_URL/api/ai/cron" \
+            -H "x-cron-secret: $CRON_SECRET" \
+            --max-time 90 \
+            -o /dev/null -w 'http_status=%{http_code}\n'
