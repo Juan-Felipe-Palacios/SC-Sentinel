@@ -10,6 +10,7 @@ export interface DeviceAuthResult {
   valid: boolean;
   deviceId?: string;
   deviceName?: string | null;
+  deviceStatus?: string;
   error?: 'unauthorized' | 'forbidden';
   reason?: string;
 }
@@ -52,7 +53,8 @@ export async function authenticateDeviceToken(authHeader: string | null): Promis
       }
 
       const device = matched[0];
-      if (device.status !== 'active') {
+      // `enrolled_pending` se acepta: el primer ingest exitoso lo promueve a `active` (ADR-0010).
+      if (device.status !== 'active' && device.status !== 'enrolled_pending') {
         return {
           valid: false,
           error: 'forbidden',
@@ -60,10 +62,20 @@ export async function authenticateDeviceToken(authHeader: string | null): Promis
         };
       }
 
+      // Tokens emitidos desde 0003 caducan a las 24 h; los previos (null) no expiran.
+      if (device.tokenExpiresAt && device.tokenExpiresAt.getTime() <= Date.now()) {
+        return {
+          valid: false,
+          error: 'forbidden',
+          reason: 'token_expired',
+        };
+      }
+
       return {
         valid: true,
         deviceId: device.id,
         deviceName: device.name,
+        deviceStatus: device.status,
       };
     } catch (err) {
       console.error('Database error during device auth:', err);

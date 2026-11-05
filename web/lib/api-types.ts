@@ -87,6 +87,29 @@ export interface AiInsight {
 /** `/api/query?metric=ai` responde `{}` cuando todavía no hay análisis persistido. */
 export type AiInsightResponse = AiInsight | Record<string, never>;
 
+export interface Device {
+  id: string;
+  name: string | null;
+  status: 'active' | 'enrolled_pending' | 'revoked' | string;
+  enrolled_at: string;
+  last_seen_at: string | null;
+  /** ADR-0010: null en devices enrolados antes de la migración 0003. */
+  token_expires_at: string | null;
+}
+
+/** `GET /api/devices` */
+export interface DevicesResponse {
+  devices: Device[];
+}
+
+/** `POST /api/devices/enroll` y `POST /api/devices/[id]/rotate`: el token solo llega una vez. */
+export interface EnrollResponse {
+  device_id: string;
+  token: string;
+  expires_at: string;
+  device: Device;
+}
+
 export interface HealthMetric {
   device_id: string | null;
   capture_status: string | null;

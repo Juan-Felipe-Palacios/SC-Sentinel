@@ -10,6 +10,7 @@ const RANGE_OPTIONS = ['1h', '6h', '24h', '7d'] as const;
 
 const SECTION_TITLES: Array<{ prefix: string; eyebrow: string; title: string }> = [
   { prefix: '/dashboard/overview', eyebrow: 'Sentinel / Overview', title: 'Resumen de tráfico' },
+  { prefix: '/dashboard/settings', eyebrow: 'Sentinel / Configuración', title: 'Dispositivos y tokens' },
 ];
 
 export function Topbar() {

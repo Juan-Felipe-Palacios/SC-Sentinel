@@ -225,10 +225,12 @@ export async function POST(request: NextRequest) {
         lastError: h.last_error ?? null,
       });
 
-      // Update Device lastSeenAt
+      // Primer ingest exitoso promueve enrolled_pending → active (ADR-0010).
+      const devicePatch: { lastSeenAt: Date; status?: string } = { lastSeenAt: new Date() };
+      if (auth.deviceStatus === 'enrolled_pending') devicePatch.status = 'active';
       await db
         .update(devices)
-        .set({ lastSeenAt: new Date() })
+        .set(devicePatch)
         .where(eq(devices.id, envelope.device.id));
 
       return NextResponse.json({ status: 'processed' }, { status: 200 });

@@ -17,6 +17,12 @@ GitHub (main) ──► Vercel (sc-sentinel.vercel.app)
 ## 1. Vercel (web)
 
 1. Import del repo (monorepo) y Root Directory = `web/`.
+   > **Ojo con el directorio de despliegue:** el deploy a Vercel debe ejecutarse
+   > desde la **raíz del repo**, no desde `web/`. La variable "Root Directory" en
+   > Vercel está configurada como `web`, pero el comando `vercel --prod` debe
+   > lanzarse desde la raíz para que resuelva correctamente la estructura del
+   > proyecto. Ejecutarlo dentro de `web/` falla con
+   > `The specified Root Directory "web" does not exist`.
 2. Framework preset: Next.js; build `pnpm build`.
 3. Dominio: `sc-sentinel.vercel.app` (OFICIAL, ADR-0012); alias futuro post-v1 si se compró dominio propio.
 4. Rules deploy: `paths` del workflow `web.yml` evitan deploys innecesarios si solo cambia el agente.
@@ -58,7 +64,25 @@ GitHub (main) ──► Vercel (sc-sentinel.vercel.app)
 - [ ] Cron de IA corre o plan B standby activo (no "silencio").
 - [ ] Cleanup del día ejecutó y logueó.
 
-## 6. Rollback
+## 6. Enrolamiento de dispositivos (ADR-0010)
+
+Sin un device enrolado no llega ninguna ventana de tráfico: `/api/ai/cron` responde
+`status: no_data`, el dashboard queda vacío y el panel IA muestra "Asistente AI pronto".
+
+1. Dashboard → **Configuración** (`/dashboard/settings`, requiere cookie `sc_session`).
+2. "Enrolar nuevo dispositivo" → el token se muestra **una sola vez** y expira en 24 h.
+3. Llevar el token al agente: `SC_SENTINEL_TOKEN` o `config.toml`.
+4. El primer `/api/ingest` exitoso promueve el device de `enrolled_pending` a `active`
+   y actualiza `last_seen_at`.
+5. Para revocar un token filtrado: "Rotar token" (el anterior deja de valer y el
+   agente entra en `needs_enrollment` conservando su spool).
+6. Verificación: `curl -X POST .../api/ai/cron -H "x-cron-secret: …"` debe registrar
+   `{"event":"ai_cron","status":"ok"}` en los logs de Vercel.
+
+Migración asociada: `0003_device-token-expiry.sql` (columna `devices.token_expires_at`,
+nullable; los devices previos conservan tokens sin expiración).
+
+## 7. Rollback
 
 - Vercel: redeploy de commit anterior (instant roll-back).
 - Neon: puntos de restauración — para versión delete masivo manual, branched desde `main` primero (runbook `database-cleanup.md`).

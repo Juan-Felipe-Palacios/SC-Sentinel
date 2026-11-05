@@ -25,7 +25,7 @@ const NAV_ITEMS: NavEntry[] = [
   { label: 'Conexiones', href: null, icon: Network },
   { label: 'Alertas', href: null, icon: ShieldAlert },
   { label: 'Asistente AI', href: null, icon: Sparkles },
-  { label: 'Configuración', href: null, icon: Settings },
+  { label: 'Configuración', href: '/dashboard/settings', icon: Settings },
 ];
 
 export function Sidebar() {
