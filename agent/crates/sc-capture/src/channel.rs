@@ -42,11 +42,7 @@ impl Default for CaptureChannel {
         let drops = Arc::new(AtomicU64::new(0));
         let sent = Arc::new(AtomicU64::new(0));
         let _tx = tx;
-        CaptureChannel {
-            rx,
-            drops,
-            sent,
-        }
+        CaptureChannel { rx, drops, sent }
     }
 }
 

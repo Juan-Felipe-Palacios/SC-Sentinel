@@ -1,1 +1,6 @@
 /target/
+/spool/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.log

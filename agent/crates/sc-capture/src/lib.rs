@@ -10,6 +10,5 @@ pub use channel::{CaptureChannel, CaptureChannelPair, FlowProducer, CHANNEL_CAPA
 pub use driver::{run_offline, CaptureError, CaptureStats};
 pub use fixtures::generate_loopback_trace;
 pub use flow::{Direction, FlowUpdate, LocalIpSet};
-#[cfg(feature = "live")]
-pub use live::run_live;
+pub use live::{list_interfaces, run_live};
 pub use parser::{parse_packet, ParseError};

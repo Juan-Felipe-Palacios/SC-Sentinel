@@ -14,15 +14,32 @@ sc-agent (bin daemon, M1) · sc-gui (bin iced, M5)
 | Crate | Rol | Estado |
 |-------|-----|--------|
 | `sc-core` | Tipos de dominio versionados con los contratos de `docs/contracts/` (`v: 1`) | completo (M0) |
-| `sc-capture` | Captura pcap en thread bloqueante puenteado a `tokio mpsc` | esqueleto (M0, lógica en M1) |
-| `sc-collector` | Fuentes de flujo (ipfix heredado) | esqueleto (M0) |
-| `sc-geo` | MaxMind GeoLite2 (ISO alpha-2) | esqueleto (M0) |
-| `sc-aggregate` | Agregación por ventanas de 30–60 s → `WindowSnapshot` | esqueleto (M0) |
-| `sc-detect` | Motor determinista de `Alert` (blacklist/umbrales) | esqueleto (M0) |
-| `sc-sync` | Cliente de `/api/ingest` con spool, backoff e idempotencia | esqueleto (M0) |
-| `sc-config` | Config y secrets (TOML, keyring) | esqueleto (M0) |
-| `sc-telemetry` | Logging y métricas de salud | esqueleto (M0) |
-| `sc-agent` | Binario daemon (Windows service / systemd) | esqueleto (M0) |
+| `sc-capture` | Captura pcap en thread bloqueante puenteado a `tokio mpsc` con backpressure | completo (M1) |
+| `sc-collector` | Fuentes de flujo (ipfix/NetFlow diferido a M4) | esqueleto (M4) |
+| `sc-geo` | MaxMind GeoLite2 embebido con firma de integridad SHA-256 (ISO alpha-2) | completo (M1) |
+| `sc-aggregate` | Agregación por ventanas de 30–60 s → `WindowSnapshot` con HMAC host_mark | completo (M1) |
+| `sc-detect` | Motor determinista de `Alert` (blacklist/umbrales) | esqueleto (M3) |
+| `sc-sync` | Cliente `/api/ingest` con spool SQLite FIFO 500MB, backoff y gzip | completo (M1) |
+| `sc-config` | Configuración y secrets (TOML) | completo (M1) |
+| `sc-telemetry` | Logging estructurado con redacción de tokens y HealthRegistry | completo (M1) |
+| `sc-agent` | Binario daemon headless (pipeline capture->aggregate->sync) | completo (M1) |
 | `sc-gui` | Binario GUI iced (M5) — consumidor, nunca dependencia del engine | M5 |
 
 Referencias: `docs/adr/0002-rust-agent.md` (jerarquía), `docs/README.md` (set completo de docs), `docs/contracts/` (schemas normativos v1). Los comentarios y docs van en español internacional; identificadores en inglés.
+
+### Compilación en Windows (captura live)
+
+La feature `live` de `sc-capture` (pcap) necesita las librerías de importación del **Npcap SDK**; tener Npcap instalado (runtime en `System32\Npcap`) es necesario pero no suficiente para compilar.
+
+1. Descargar el [Npcap SDK](https://npcap.com/dist/npcap-sdk-1.15.zip) y extraerlo (p. ej. en `C:\Tools\npcap-sdk`).
+2. Antes de compilar/probar con la feature, apuntar `LIBPCAP_LIBDIR` a la carpeta `Lib\x64` del SDK:
+
+   ```powershell
+   $env:LIBPCAP_LIBDIR = "C:\Tools\npcap-sdk\Lib\x64"
+   cargo build --release --features sc-capture/live
+   cargo test -p sc-capture --features live
+   ```
+
+3. La feature se declara namespaced en `sc-capture`: invocarla como `--features sc-capture/live` (el binario `sc-agent` no declara una feature `live` propia).
+
+Sin el SDK configurado, el build falla en el link con `LNK1181: cannot open input file 'wpcap.lib'`. Sin la feature, el crate compila igual y `run_live` devuelve un error orientador en runtime.

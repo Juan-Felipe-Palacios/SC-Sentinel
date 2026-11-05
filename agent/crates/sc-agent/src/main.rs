@@ -2,7 +2,7 @@
 
 use clap::Parser;
 use sc_aggregate::{AggregatorConfig, WindowAggregator};
-use sc_capture::{run_offline, LocalIpSet};
+use sc_capture::{list_interfaces, run_live, run_offline, LocalIpSet};
 use sc_config::AgentConfig;
 use sc_geo::{GeoLite2Country, NoLookup};
 use sc_sync::{
@@ -26,8 +26,15 @@ const ENROLLMENT_RETRY: Duration = Duration::from_secs(60);
 #[derive(Parser, Debug)]
 #[command(name = "sc-agent", version, about = "SCNet agent daemon")]
 struct Args {
+    /// Fuerza el modo offline (pcap de fixture en lugar de captura live).
     #[arg(long)]
     offline: bool,
+    /// Interfaz de captura live (nombre o descripción; ver `--list-interfaces`).
+    #[arg(long)]
+    interface: Option<String>,
+    /// Lista las interfaces capturables y sale.
+    #[arg(long)]
+    list_interfaces: bool,
     #[arg(long)]
     fixture: Option<PathBuf>,
     #[arg(long)]
@@ -49,6 +56,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if std::env::args().any(|a| a == "--version") {
         println!("sc-sentinel-agent {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
+    }
+
+    if args.list_interfaces {
+        match list_interfaces() {
+            Ok(interfaces) => {
+                for iface in interfaces {
+                    println!("{iface}");
+                }
+                return Ok(());
+            }
+            Err(error) => {
+                eprintln!("sc-agent: {error}");
+                std::process::exit(2);
+            }
+        }
     }
 
     // Config: archivo explícito (--config) o defaults del agente + overrides SC_*.
@@ -101,7 +123,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Setup capture
     let local = LocalIpSet::default();
-    let fixture_path = args.fixture.unwrap_or_else(|| {
+    let use_offline = args.offline || args.fixture.is_some();
+    let fixture_path = args.fixture.clone().unwrap_or_else(|| {
         // Try from cwd/agent context
         if PathBuf::from("fixtures/loopback-trace.pcap").exists() {
             PathBuf::from("fixtures/loopback-trace.pcap")
@@ -110,7 +133,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    let capture = run_offline(&fixture_path, local.clone())?;
+    let capture = if use_offline {
+        run_offline(&fixture_path, local.clone())?
+    } else {
+        match args.interface.as_deref() {
+            Some(iface) => {
+                tracing::info!(interface = iface, "captura live");
+                run_live(iface, local.clone())?
+            }
+            None => {
+                eprintln!(
+                    "sc-agent: sin --offline/--fixture hay que indicar --interface (o correr --list-interfaces para ver las disponibles)"
+                );
+                std::process::exit(2);
+            }
+        }
+    };
 
     // Start aggregator with capture rx
     let aggregator = WindowAggregator::new(agg_cfg, geo.clone(), health.clone());
