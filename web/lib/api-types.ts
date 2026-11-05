@@ -75,6 +75,8 @@ export interface AiInsight {
   period_end: string;
   model: string;
   status: 'ok' | 'degraded';
+  /** Riesgo §11.2 persistido (null solo en filas previas a la migración 0002). */
+  risk_level: 'low' | 'medium' | 'high' | 'critical' | null;
   summary: string;
   findings: AiFinding[];
   recommendations: string[];

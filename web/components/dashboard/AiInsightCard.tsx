@@ -33,10 +33,14 @@ function isInsight(value: AiInsightResponse | undefined): value is AiInsight {
   return Boolean(value && typeof (value as AiInsight).id === 'string');
 }
 
-/** El riesgo del panel se deriva del hallazgo más severo; no se inventa un campo nuevo. */
 function topSeverity(insight: AiInsight): string {
   const severities = insight.findings.map((finding) => finding.severity.toLowerCase());
   return SEVERITY_ORDER.find((severity) => severities.includes(severity)) ?? 'info';
+}
+
+/** Riesgo del panel: usa el risk_level §11.2 persistido; legacy (pre-0002) deriva del hallazgo más severo. */
+function displayRisk(insight: AiInsight): string {
+  return insight.risk_level ?? topSeverity(insight);
 }
 
 function Chip({ severity }: { severity: string }) {
@@ -78,7 +82,7 @@ export function AiInsightCard() {
           </span>
         </div>
         <div className="flex items-center gap-3">
-          {insight ? <Chip severity={degraded ? 'info' : topSeverity(insight)} /> : null}
+          {insight ? <Chip severity={degraded ? 'info' : displayRisk(insight)} /> : null}
           {degraded ? (
             <span className="inline-flex items-center gap-1.5 rounded border border-sc-degraded/40 bg-sc-degraded/10 px-2 py-0.5 font-mono text-[8px] uppercase tracking-[0.2em] text-sc-degraded">
               Degradado

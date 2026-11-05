@@ -15,6 +15,13 @@
       "when": 1793807988073,
       "tag": "0001_ai-insights",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793840397072,
+      "tag": "0002_ai-risk-level",
+      "breakpoints": true
     }
   ]
 }

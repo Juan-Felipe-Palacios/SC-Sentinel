@@ -20,6 +20,7 @@ const insightRow = {
   period_end: '2026-11-03T10:00:30.000Z',
   model: 'm',
   status: 'ok',
+  risk_level: 'medium',
   summary: 'Resumen previo',
   recommendations_json: {
     findings: [
@@ -48,6 +49,15 @@ describe('runAnalysisPipeline', () => {
     const result = await runAnalysisPipeline(facts, 'dev_x', db);
     expect(result.status).toBe('cached');
     expect(result.insight?.id).toBe('ins_cached');
+    expect(result.insight?.risk_level).toBe('medium');
+  });
+
+  it('expone risk_level null en filas históricas sin la columna (pre-0002)', async () => {
+    const legacy = { ...insightRow, id: 'ins_legacy' };
+    delete (legacy as Record<string, unknown>).risk_level;
+    const db = fakeDb([[legacy]]);
+    const result = await runAnalysisPipeline(facts, 'dev_x', db);
+    expect(result.insight?.risk_level).toBeNull();
   });
 
   it('mapea findings y recommendations del jsonb { findings, recommendations }', async () => {

@@ -82,6 +82,8 @@ export const aiInsights = pgTable('ai_insights', {
   periodEnd: timestamp('period_end', { withTimezone: true }).notNull(),
   model: text('model').notNull(),
   status: text('status').notNull(),
+  // §11.2: riesgo del análisis. Nullable: filas anteriores a 0002 no lo almacenan.
+  riskLevel: text('risk_level'),
   summary: text('summary').notNull(),
   recommendationsJson: jsonb('recommendations_json').notNull(),
   factsHash: text('facts_hash').notNull(),

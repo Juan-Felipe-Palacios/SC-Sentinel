@@ -18,6 +18,8 @@ export interface AiInsightRecord {
   period_end: string;
   model: string;
   status: AnalysisStatus;
+  /** §11.2: riesgo declarado por el modelo (null solo en filas previas a 0002). */
+  risk_level: string | null;
   summary: string;
   findings: Array<{ type: string; description: string; severity: string }>;
   recommendations: string[];
@@ -39,6 +41,7 @@ interface InsightRow {
   period_end: Date | string;
   model: string;
   status: string;
+  risk_level: string | null;
   summary: string;
   recommendations_json: Array<{ type: string; description: string; severity: string }> | null;
   facts_hash: string;
@@ -89,6 +92,7 @@ function mapInsightRow(row: InsightRow): AiInsightRecord {
     period_end: isoOrNull(row.period_end) ?? String(row.period_end),
     model: row.model,
     status: (row.status as AnalysisStatus) ?? 'ok',
+    risk_level: row.risk_level ?? null,
     summary: row.summary,
     findings,
     recommendations,
@@ -160,7 +164,7 @@ export async function runAnalysisPipeline(
 
   await database.execute(
     sql`INSERT INTO ai_insights
-          (id, device_id, period_start, period_end, model, status, summary,
+          (id, device_id, period_start, period_end, model, status, risk_level, summary,
            recommendations_json, facts_hash)
         VALUES (
           ${id},
@@ -169,6 +173,7 @@ export async function runAnalysisPipeline(
           ${facts.period.end}::timestamptz,
           ${model},
           ${status},
+          ${output.risk_level},
           ${output.summary},
           ${JSON.stringify(recommendationsJson)}::jsonb,
           ${hash}
@@ -187,6 +192,7 @@ export async function runAnalysisPipeline(
         period_end: facts.period.end,
         model,
         status,
+        risk_level: output.risk_level,
         summary: output.summary,
         findings: output.findings,
         recommendations: output.recommendations,

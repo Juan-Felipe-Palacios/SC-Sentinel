@@ -404,6 +404,7 @@ CREATE TABLE ai_insights (
     period_end TIMESTAMPTZ NOT NULL,
     model TEXT NOT NULL,
     status TEXT NOT NULL,                    -- ok | degraded
+    risk_level TEXT,                         -- §11.2: low | medium | high | critical (null solo en filas previas a 0002)
     summary TEXT,
     recommendations_json JSONB,
     facts_hash TEXT NOT NULL,                -- deduplicación: no re-analizar mismos hechos
