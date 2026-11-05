@@ -7,7 +7,7 @@ version = 2
 # se gestionan vía dependencias path internas, no entra a la matriz de
 # licencias externas.
 allow = [
-    "MIT", "Apache-2.0", "BSD-3-Clause", "BSD-2-Clause", "Unicode-3.0", "Zlib", "CC0-1.0", "ISC",
+    "MIT", "Apache-2.0", "BSD-3-Clause", "BSD-2-Clause", "Unicode-3.0", "Zlib", "ISC", "CDLA-Permissive-2.0",
     # Licencia propietaria del workspace SC-Sentinel (ver LICENSE en la raíz).
     "LicenseRef-Proprietary",
 ]
