@@ -69,6 +69,38 @@ body {
   50% { opacity: 0.72; box-shadow: 0 0 0 4px var(--color-sc-accent-soft); }
 }
 
+/* Marketing — fade-up de entrada para secciones */
+@keyframes sc-fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.sc-fade-up {
+  animation: sc-fade-up 0.55s ease-out both;
+}
+
+/* Marketing — línea de scan del mockup hero */
+@keyframes sc-scan {
+  0%   { top: 0%; opacity: 0.6; }
+  90%  { top: 95%; opacity: 0.6; }
+  100% { top: 100%; opacity: 0; }
+}
+
+.sc-scan-line {
+  animation: sc-scan 3.5s ease-in-out infinite;
+  animation-delay: 1.2s;
+}
+
+/* Dashboard preview — parpadeo de fila activa */
+@keyframes sc-row-flash {
+  0%, 100% { background: transparent; }
+  50%       { background: rgba(56,189,248,0.07); }
+}
+
+.sc-row-active {
+  animation: sc-row-flash 2s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
