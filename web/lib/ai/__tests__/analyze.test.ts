@@ -32,6 +32,24 @@ const insightRow = {
   created_at: '2026-11-03T10:01:00.000Z',
 };
 
+const legacyRowWithoutRiskLevel = {
+  id: 'ins_cached_no_risk',
+  device_id: 'dev_x',
+  period_start: '2026-11-03T10:00:00.000Z',
+  period_end: '2026-11-03T10:00:30.000Z',
+  model: 'm',
+  status: 'ok',
+  summary: 'Resumen previo',
+  recommendations_json: {
+    findings: [
+      { type: 'volume_anomaly', description: 'Pico en la ventana', severity: 'medium' },
+    ],
+    recommendations: ['Observar'],
+  },
+  facts_hash: 'hash-existente-legacy',
+  created_at: '2026-11-03T10:01:00.000Z',
+};
+
 function fakeDb(responses: unknown[][]) {
   const execute = vi.fn();
   for (const response of responses) execute.mockResolvedValueOnce(response);
@@ -53,9 +71,7 @@ describe('runAnalysisPipeline', () => {
   });
 
   it('expone risk_level null en filas históricas sin la columna (pre-0002)', async () => {
-    const legacy = { ...insightRow, id: 'ins_legacy' };
-    delete (legacy as Record<string, unknown>).risk_level;
-    const db = fakeDb([[legacy]]);
+    const db = fakeDb([[legacyRowWithoutRiskLevel]]);
     const result = await runAnalysisPipeline(facts, 'dev_x', db);
     expect(result.insight?.risk_level).toBeNull();
   });
