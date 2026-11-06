@@ -170,17 +170,33 @@ export async function POST(request: NextRequest) {
         status: 'processed',
       });
 
-      // Flow Window
-      await db.insert(flowWindows).values({
-        id: flowWindowDbId,
-        batchId,
-        deviceId: envelope.device.id,
-        windowId: envelope.window.id,
-        startAt: new Date(envelope.window.start),
-        endAt: new Date(envelope.window.end),
-        sequence: envelope.window.sequence,
-        snapshotJson: envelope.snapshot,
-      });
+      // Flow Window. UNIQUE(device_id, start_at): un segundo agente reportando el mismo
+      // intervalo con otro window_id no crea una ventana nueva (evita métricas dobles).
+      const insertedWindows = await db
+        .insert(flowWindows)
+        .values({
+          id: flowWindowDbId,
+          batchId,
+          deviceId: envelope.device.id,
+          windowId: envelope.window.id,
+          startAt: new Date(envelope.window.start),
+          endAt: new Date(envelope.window.end),
+          sequence: envelope.window.sequence,
+          snapshotJson: envelope.snapshot,
+        })
+        // Sin target: cubre tanto (device_id, window_id) como (device_id, start_at).
+        .onConflictDoNothing()
+        .returning({ id: flowWindows.id });
+
+      if (insertedWindows.length === 0) {
+        // El intervalo ya estaba registrado para este device (otro window_id):
+        // se ignora el resto del batch y el agente lo descarta del spool.
+        await db
+          .update(ingestBatches)
+          .set({ status: 'duplicate' })
+          .where(eq(ingestBatches.id, batchId));
+        return NextResponse.json({ status: 'duplicate' }, { status: 200 });
+      }
 
       // Host Stats
       if (envelope.snapshot.top_hosts.length > 0) {

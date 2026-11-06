@@ -31,6 +31,9 @@ export const flowWindows = pgTable('flow_windows', {
   snapshotJson: jsonb('snapshot_json').notNull(),
 }, (table) => ({
   deviceWindowIdx: uniqueIndex('flow_windows_device_window_idx').on(table.deviceId, table.windowId),
+  // Un solo intervalo de 30 s por device: un segundo agente con otra base de secuencia
+  // genera otro window_id para el mismo start_at y duplicaba los totales del dashboard.
+  deviceStartIdx: uniqueIndex('flow_windows_device_start_idx').on(table.deviceId, table.startAt),
   startAtIdx: index('flow_windows_start_at_idx').on(table.startAt),
 }));
 

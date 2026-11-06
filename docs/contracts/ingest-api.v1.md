@@ -52,7 +52,7 @@ Ejemplo completo válido: `examples/ingest-request.valid.json`. Contraejemplo: `
 | Código | Body | Acción del agente |
 |--------|------|-------------------|
 | 200 | `{status:"processed"}` | batch confirmado → eliminado del spool |
-| 200 | `{status:"duplicate"}` | `(device_id, window_id)` ya procesado (idempotente, ADR-0008) → eliminado del spool; el reenvío nunca es error |
+| 200 | `{status:"duplicate"}` | `(device_id, window_id)` ya procesado (idempotente, ADR-0008) o `(device_id, start_at)` ya cubierto por otra ventana → eliminado del spool; el reenvío nunca es error |
 | 400 | problema de schema | batch → dead_letter local; reportar error de contrato |
 | 401 | token inválido/desconocido | estado `needs_enrollment` |
 | 403 | token expirado/revocado | estado `needs_enrollment` |
@@ -66,7 +66,8 @@ Backoff del agente: exponencial 1→60 s + jitter; 2xx elimina del spool; 401/40
 ## 3. Idempotencia
 
 - `UNIQUE(device_id, window_id)` en `flow_windows` y en el ledger `ingest_batches`.
-- Insert `ON CONFLICT DO NOTHING` → duplicado = `200 {status:"duplicate"}`, sin doble métrica.
+- `UNIQUE(device_id, start_at)` en `flow_windows`: dos agentes sobre el mismo device emiten `window_id` distintos para el mismo intervalo de 30 s; el segundo se descarta en lugar de duplicar los totales.
+- Insert `ON CONFLICT DO NOTHING` → duplicado = `200 {status:"duplicate"}`, sin doble métrica. En ese caso no se insertan `host_stats`, `alerts` ni `agent_health`, y el ledger queda con `status = duplicate`.
 - `ingest_batches.payload_hash` audita si el reenvío era idéntico. `ingest_batches` no tiene FK (ledger independiente, retención 2 días).
 
 ## 4. Errores de validación (400)

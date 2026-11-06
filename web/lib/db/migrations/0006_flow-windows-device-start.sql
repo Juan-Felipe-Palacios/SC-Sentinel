@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "flow_windows_device_start_idx" ON "flow_windows" USING btree ("device_id","start_at");
