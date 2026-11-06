@@ -211,10 +211,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let spool_clone = spool.clone();
     let device_clone = device.clone();
     let spooler_handle = tokio::spawn(async move {
-        let mut seq: u64 = 0;
+        let seq_base = sequence_base();
         while let Some(snap) = snap_rx.recv().await {
-            seq += 1;
             let now = chrono::Utc::now();
+            let mut s = spool_clone.lock().await;
+            // La secuencia vive en el spool: un contador en memoria reiniciaba en 1 en
+            // cada arranque y el backend descartaba las ventanas como duplicadas (§9.2).
+            // El base por época mantiene los ids crecientes aunque el spool sea nuevo.
+            let seq = match s.next_sequence() {
+                Ok(v) => seq_base + v,
+                Err(_) => continue,
+            };
             let env = build_envelope(
                 &device_clone,
                 format!("win_{:016x}", seq),
@@ -224,7 +231,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &snap,
             );
             if let Ok(json) = serde_json::to_vec(&env) {
-                let mut s = spool_clone.lock().await;
                 let _ = s.push_uncompressed(&format!("win_{:016x}", seq), &json, now.timestamp());
             }
         }
@@ -433,6 +439,15 @@ async fn shutdown_signal() {
 }
 
 /// Segunda señal: salida inmediata con código != 0, nunca silenciosa.
+/// Base de la secuencia de ventanas: segundos desde la época. Mantiene los ids
+/// crecientes aunque el spool se recree y evita colisiones de idempotencia.
+fn sequence_base() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
 fn spawn_forced_exit_watchdog() {
     tokio::spawn(async {
         shutdown_signal().await;

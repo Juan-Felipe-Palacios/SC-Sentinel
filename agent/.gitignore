@@ -8,3 +8,4 @@ config/sc-agent.toml
 
 # SDK de Npcap y binarios auxiliares de build (no versionar)
 /.tools/
+/config/.device-token

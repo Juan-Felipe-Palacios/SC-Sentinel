@@ -59,11 +59,18 @@ La feature `live` de `sc-capture` (pcap) necesita las librerías de importación
 
 Sin el SDK configurado, el build falla en el link con `LNK1181: cannot open input file 'wpcap.lib'`. Sin la feature, el crate compila igual y `run_live` devuelve un error orientador en runtime.
 
-Reinicio del agente en Windows (con captura live): recompilar con el comando de arriba y reiniciar el proceso con la interfaz y el token habituales, p. ej.:
+Reinicio del agente en Windows (con captura live): recompilar con el comando de arriba y reiniciar el proceso con la interfaz, el token y el **device id** reales. El id no es opcional: por defecto es `dev-001`, y el backend responde 403 cuando el `device.id` del sobre no coincide con el del token.
 
 ```powershell
-$env:SC_INGEST_TOKEN = "<token del device>"
-.\target\release\sc-agent.exe --interface '\Device\NPF_{...}' --config config\sc-agent.toml
+$env:SC_INGEST_TOKEN = (Get-Content .\config\.device-token -Raw).Trim()
+.\target\release\sc-agent.exe `
+  --device-id dev_bee8a7f6-8191-47ef-9dc2-f1ef3a9d7636 `
+  --interface '\Device\NPF_{5ED97C9D-575C-401F-A3C9-1397C3BD738A}' `
+  --config config\sc-agent.toml
 ```
 
-La interfaz exacta se obtiene con `--list-interfaces`; el token se toma de `SC_INGEST_TOKEN` (nunca se escribe en el TOML).
+- La interfaz exacta se obtiene con `--list-interfaces` (copiar el `\Device\NPF_{GUID}` completo: un `{...}` de ejemplo da `Error: InterfaceNotFound`).
+- El token se toma de `SC_INGEST_TOKEN` (nunca se escribe en el TOML); `config/.device-token` está ignorado por git.
+- El device id sale de la tabla `devices` del dashboard (`dev_<uuid>`).
+
+Los `window_id` se derivan de la secuencia persistida en el spool más una base por época, así que siguen creciendo entre reinicios: un contador en memoria hacía que el backend descartara las primeras ventanas de cada arranque como duplicadas.
