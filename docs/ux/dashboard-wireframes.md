@@ -56,8 +56,8 @@ Fuente: spec §18.2. Grupo `(dashboard)` protegido por middleware + cookie admin
 
 ## 6. Settings
 
-- Device token: oculto con botón mostrar; **plaintext visible una sola vez** al crear/rotar (ADR-0010).
-- Rotación de token (revoca el anterior) con confirmación en 2 pasos.
+- Device token: oculto con botón mostrar; **plaintext visible una sola vez** al crear (ADR-0010).
+- Eliminación permanente del device (revoca su token y borra sus datos) con confirmación en 2 pasos.
 - `anonymize_hosts` (estado actual, editable solo si el agente lo permite; campo sincronizado con config del agente).
 - Retención configurada (solo lectura en v1 — proviene de la política §12.1).
 - Estado de sync: último éxito, backoff actual, estado (idle/sending/backoff/needs_enrollment/dead_letter).

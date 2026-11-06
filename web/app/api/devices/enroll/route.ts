@@ -44,7 +44,6 @@ export async function POST(request: NextRequest) {
       {
         device_id: enrollment.device.id,
         token: enrollment.token,
-        expires_at: enrollment.expires_at,
         device: enrollment.device,
       },
       { status: 201, headers: noStoreHeaders }

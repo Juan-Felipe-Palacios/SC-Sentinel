@@ -29,6 +29,13 @@
       "when": 1793882350937,
       "tag": "0003_device-token-expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793967920762,
+      "tag": "0004_device-token-permanent",
+      "breakpoints": true
     }
   ]
 }

@@ -62,15 +62,6 @@ export async function authenticateDeviceToken(authHeader: string | null): Promis
         };
       }
 
-      // Tokens emitidos desde 0003 caducan a las 24 h; los previos (null) no expiran.
-      if (device.tokenExpiresAt && device.tokenExpiresAt.getTime() <= Date.now()) {
-        return {
-          valid: false,
-          error: 'forbidden',
-          reason: 'token_expired',
-        };
-      }
-
       return {
         valid: true,
         deviceId: device.id,

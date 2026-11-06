@@ -1,6 +1,6 @@
-# ADR-0010 — Enrollment y rotación de token: manual, administrado desde el Dashboard Settings
+# ADR-0010 — Enrollment manual y token permanente: administrado desde el Dashboard Settings
 
-**Fecha:** 2026-11-03 · **Estado:** Aceptada · **Deriva del spec:** §5.1, §18.2, §21
+**Fecha:** 2026-11-03 · **Actualizado:** 2026-11-06 · **Estado:** Aceptada · **Deriva del spec:** §5.1, §18.2, §21
 
 ## Contexto
 
@@ -11,7 +11,7 @@ Un agente necesita un device-token para autenticarse en `/api/ingest`. El dashbo
 - **Enrollment completamente manual y pre-autenticado**: el administrador crea el device desde **Dashboard → Settings**, que genera un token y lo muestra como **plaintext una sola vez** (no se vuelve a leer más).
 - En la DB solo se guarda el hash SHA-256 del token (`devices.token_hash`).
 - **Sin endpoints de enrollment pre-autenticados**: el dashboard ya está detrás de la cookie admin; no se expone ninguna ruta pública para crear tokens.
-- **Rotación**: botón en Settings revoca el token anterior y emite uno nuevo (también visible una sola vez). El agente que dejó de ser válido entra en `needs_enrollment` (cuando la API responde 401/403); su spool se conserva y se reanuda cuando se instala el nuevo token.
+- **Token permanente**: el token emitido al enrolar no expira ni se rota. Sigue vigente hasta que el device se elimina desde Settings (borrado permanente de sus ventanas, alertas, insights y health). El agente cuya credencial deja de existir entra en `needs_enrollment` (401/403); su spool se conserva hasta re-enrolarlo.
 - En producción, el token del agente se lee de variable de entorno (`SC_INGEST_TOKEN`), no del config.toml.
 
 ## Alternativas consideradas
@@ -22,4 +22,5 @@ Un agente necesita un device-token para autenticarse en `/api/ingest`. El dashbo
 ## Consecuencias
 
 - Cero superficie pública de autenticación crítica: la puertas de entrada son 2 (dashboard cookie admin + device token Bearer).
-- Si se pierde el plaintext, se rota (nunca "recuperar").
+- Si se pierde el plaintext, se elimina el device (y sus datos) y se enrola de nuevo: no hay recuperación ni rotación.
+- El token no caduca por tiempo; la revocación efectiva es la eliminación del device (borra su `token_hash`).

@@ -7,8 +7,6 @@ export const devices = pgTable('devices', {
   enrolledAt: timestamp('enrolled_at', { withTimezone: true }).defaultNow().notNull(),
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
   status: text('status').default('active').notNull(),
-  // ADR-0010: expiración del token emitido al enrolar/rotar. Null = token previo a 0003.
-  tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }),
 });
 
 export const ingestBatches = pgTable('ingest_batches', {

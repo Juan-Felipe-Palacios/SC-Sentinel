@@ -1,16 +1,16 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
-// POST /api/devices/[id]/rotate — revoca el token anterior y emite uno nuevo.
+// DELETE /api/devices/[id] — elimina el device y todos sus datos asociados.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminAuth } from '@/lib/auth/admin';
-import { rotateDeviceToken } from '@/lib/query/devices';
+import { deleteDevice } from '@/lib/query/devices';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
 
-export async function POST(
+export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -25,22 +25,17 @@ export async function POST(
   }
 
   try {
-    const enrollment = await rotateDeviceToken(id);
-    if (!enrollment) {
+    const deleted = await deleteDevice(id);
+    if (!deleted) {
       return NextResponse.json({ error: 'not_found' }, { status: 404, headers: noStoreHeaders });
     }
 
     return NextResponse.json(
-      {
-        device_id: enrollment.device.id,
-        token: enrollment.token,
-        expires_at: enrollment.expires_at,
-        device: enrollment.device,
-      },
+      { deleted: true, device_id: id },
       { status: 200, headers: noStoreHeaders }
     );
   } catch (error) {
-    console.error('POST /api/devices/[id]/rotate:', error);
+    console.error('DELETE /api/devices/[id]:', error);
     return NextResponse.json({ error: 'internal_error' }, { status: 500, headers: noStoreHeaders });
   }
 }

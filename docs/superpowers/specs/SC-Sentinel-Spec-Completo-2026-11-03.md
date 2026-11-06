@@ -1214,8 +1214,8 @@ stateDiagram-v2
 
 **Settings:**
 
-- Device token (oculto, botón para mostrar — **plaintext visible una sola vez al crear/rotar**)
-- Rotación de token (revoca el anterior)
+- Device token (oculto, botón para mostrar — **plaintext visible una sola vez al crear**)
+- Eliminación permanente del device (revoca el token y borra sus datos)
 - Opción `anonymize_hosts`
 - Retención configurada
 - Estado de sync (último éxito, backoff actual)

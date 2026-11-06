@@ -1,43 +1,47 @@
-# Runbook — Rotación de device-token
+# Runbook - Eliminación y re-enrolamiento de device
 
-Procedimiento manual (ADR-0010): la rotación se administra desde el Dashboard Settings; sin endpoints pre-autenticados.
+Procedimiento manual (ADR-0010, actualizado 2026-11-06): los tokens de device son **permanentes**;
+no expiran ni se rotan. Para revocar una credencial se elimina el device (borrado permanente de
+sus datos) y se enrola uno nuevo.
 
-## Tiempo estimado: 5 minutos · Interrupción del servicio: breve (hasta reiniciar el agente)
+## Tiempo estimado: 5 minutos · Interrupción del servicio: sí (el device anterior deja de ingerir)
 
 ## Pasos
 
-1. **Dashboard → Settings → Device token → "Rotar token"**.
-   - Revoca el token anterior (`devices.token_rotated_at`).
-   - Genera uno nuevo; **plaintext visible una sola vez** — copiarlo ANTES de cerrar el panel.
+1. **Dashboard → Configuración → Dispositivos enrolados → "Eliminar"** sobre el device.
+   - Confirmar el diálogo: se borran permanentemente sus ventanas, alertas, insights y health.
+   - El `token_hash` desaparece con la fila: el token anterior deja de ser válido al instante.
 2. **Actualizar el agente**:
-   - Windows/Linux servicio: editar el EnvironmentFile (o config.toml si es entorno no-producción) con el token nuevo e inmediatamente limpiar el portapapeles.
+   - Enrolar un dispositivo nuevo arriba, copiar el token (plaintext visible una sola vez) y el `device_id`.
+   - Reemplazar `SC_INGEST_TOKEN` y `SC_SENTINEL_DEVICE_ID` en el entorno del agente.
    ```powershell
-   # Windows (servicio) — si el token va vía env del servicio:
-   # re-escribir el valor de SC_INGEST_TOKEN y re-crear la config de arranque del servicio
-   Set-Service "SC-Sentinel-Agent"   # no hace falta; restart:
+   # Windows (servicio)
    Restart-Service "SC-Sentinel-Agent"
    ```
    ```bash
-   # Linux:
+   # Linux
    systemctl restart sc-sentinel-agent
    ```
 3. **Verificar**:
-   - Ya no hay 401/403 en logs del agente (si los había, se cortan).
-   - Dashboard → Settings: `needs_enrollment = false`; "último sync exitoso" con timestamp nuevo.
-   - `/dashboard/overview`: segu de datos entrando con las últimas ventanas.
+   - Sin 401/403 en los logs del agente.
+   - Dashboard → Settings: el device nuevo pasa de `enrolled_pending` a `active` con el primer ingest.
+   - `/dashboard/overview`: vuelven a entrar ventanas.
 
 ## Drenaje del spool pendiente
 
-Durante el período con token inválido, el spool conserva los batches sin reintentarlos indefinidamente (spec §8). Tras rotar y reiniciar, el agente entra en modo Sending y drena el spool a ~60 req/min (ADR-0011). No borrar el spool.
+Durante el período sin credencial válida el spool conserva los batches (spec §8). Tras re-enrolar y
+reiniciar, el agente drena el spool a ~60 req/min (ADR-0011). No borrar el spool.
 
 ## Emergencia: token expuesto (leaks)
 
-- Hacer la rotación **inmediatamente** (procedimiento anterior).
-- Si el token expuesto se usó ya para inyectar payloads, ejecutar el runbook `incident-response.md` (escenario "compromiso de token").
-- Ningún token se loguea en ningún lado: verificar logs del servidor si se sospecha exfiltración vía error logs (regla §9.3).
+- **Eliminar el device inmediatamente** (procedimiento anterior). No existe rotación.
+- Si el token expuesto se usó para inyectar payloads, ejecutar `incident-response.md` (escenario
+  "compromiso de token").
+- Ningún token se loguea en ningún lado: verificar logs del servidor si se sospecha exfiltración
+  vía error logs (regla §9.3).
 
 ## Recordatorios
 
-- La rotación **revoca el anterior al momento** (los batches con el token viejo reciben 401 → `needs_enrollment`).
-- El plaintext NO se puede "recuperar": solo re-crear.
-- Buckets del dashboard mantienen la sesión admin con cookie; la rotación del device no invalida la sesión.
+- La eliminación es **permanente e irreversible**: incluye el histórico del device.
+- El plaintext NO se puede "recuperar": solo eliminar y re-enrolar.
+- La sesión admin (cookie) no se ve afectada por eliminar un device.

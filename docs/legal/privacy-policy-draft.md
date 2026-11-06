@@ -19,7 +19,7 @@
 - Paquetes crudos ni contenido de tráfico (nunca se envían ni guardan).
 - Flujos individuales: solo agregación por ventana.
 - IPs reales de la LAN cuando está activa la anonimización.
-- Credenciales: el token del agente se guarda hasheado (SHA-256); el plaintext se muestra una única vez al crear/rotar.
+- Credenciales: el token del agente se guarda hasheado (SHA-256); el plaintext se muestra una única vez al crear.
 
 ## 3. Retención
 

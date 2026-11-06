@@ -6,7 +6,7 @@ Escenarios predefinidos con playbook. Regla transversal del spec §8.1: **nunca 
 
 **Síntomas:** reintentos 401 sin causa, datos fantasma en dashboard, uso anómalo del rate limit (429 persistentes), ingesta desde IPs/conexiones no previstas.
 
-1. Rotar el token inmediatamente (runbook `rotate-device-token.md`).
+1. Eliminar el device afectado desde Dashboard → Settings (borra su token y sus datos) y re-enrolar.
 2. Establecer el momento del posible compromiso (logs de `ingest_batches.received_at`: ventanas duplicadas, gaps).
 3. Revisar `payload_hash` de batches: reenvíos idénticos son benignos; hashes distintos con mismo window_id post-replay son señal de inyección.
 4. Los datos ya insertados vía replay son SOLO señales agregadas (no exfiltran nada nuevo: el atacante no puede LEER la DB ni el dashboard — única superficie de lectura es la cookie admin). Riesgo principal: **integridad** de métricas/alertas.

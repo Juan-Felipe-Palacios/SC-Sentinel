@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
-// Configuración → Dispositivos (ADR-0010): alta manual y rotación de tokens.
+// Configuración → Dispositivos (ADR-0010): alta manual y eliminación permanente.
 // El token solo se muestra una vez; no se puede volver a leer desde la base.
 'use client';
 
 import { useState } from 'react';
 import useSWR from 'swr';
-import { KeyRound, Loader2, Plus, RefreshCw, TriangleAlert } from 'lucide-react';
+import { KeyRound, Loader2, Plus, RefreshCw, Trash2, TriangleAlert } from 'lucide-react';
 import type { Device, DevicesResponse, EnrollResponse } from '@/lib/api-types';
 import { fetcher, FetchError } from '@/lib/swr';
 import { timeAgo } from '@/lib/format';
@@ -39,7 +39,6 @@ function StatusChip({ status }: { status: string }) {
 interface IssuedToken {
   device_id: string;
   token: string;
-  expires_at: string;
 }
 
 export function SettingsView() {
@@ -77,7 +76,7 @@ export function SettingsView() {
         return;
       }
       const payload = (await response.json()) as EnrollResponse;
-      setIssued({ device_id: payload.device_id, token: payload.token, expires_at: payload.expires_at });
+      setIssued({ device_id: payload.device_id, token: payload.token });
       setName('');
       await mutate();
     } catch {
@@ -87,29 +86,34 @@ export function SettingsView() {
     }
   }
 
-  async function handleRotate(deviceId: string) {
+  async function handleDelete(device: Device) {
     if (busy) return;
-    setBusy(deviceId);
+    const label = device.name ?? device.id;
+    const confirmed = window.confirm(
+      `¿Eliminar permanentemente «${label}»? Se borrarán sus ventanas, alertas, insights y health. Esta acción no se puede deshacer.`
+    );
+    if (!confirmed) return;
+
+    setBusy(`delete:${device.id}`);
     setActionError(null);
     setCopied(false);
 
     try {
-      const response = await fetch(`/api/devices/${encodeURIComponent(deviceId)}/rotate`, {
-        method: 'POST',
+      const response = await fetch(`/api/devices/${encodeURIComponent(device.id)}`, {
+        method: 'DELETE',
       });
       if (!response.ok) {
         setActionError(
           response.status === 401
-            ? 'Sesión expirada: volvé a entrar para rotar el token.'
-            : `No se pudo rotar el token (${response.status}).`
+            ? 'Sesión expirada: volvé a entrar para eliminar el dispositivo.'
+            : `No se pudo eliminar el dispositivo (${response.status}).`
         );
         return;
       }
-      const payload = (await response.json()) as EnrollResponse;
-      setIssued({ device_id: payload.device_id, token: payload.token, expires_at: payload.expires_at });
+      if (issued?.device_id === device.id) setIssued(null);
       await mutate();
     } catch {
-      setActionError('Error de conexión al rotar el token.');
+      setActionError('Error de conexión al eliminar el dispositivo.');
     } finally {
       setBusy(null);
     }
@@ -140,13 +144,20 @@ export function SettingsView() {
 
   return (
     <div className="space-y-6">
+      {actionError ? (
+        <p className="flex items-start gap-2 rounded-md border border-sc-risk-high/30 bg-sc-risk-high/10 px-3 py-2 text-xs leading-5 text-sc-risk-high">
+          <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+          {actionError}
+        </p>
+      ) : null}
+
       <section aria-label="Enrolar dispositivo" className="rounded-lg border sc-hairline bg-sc-surface">
         <header className="border-b sc-hairline px-5 py-4">
           <h2 className="font-mono text-[10px] uppercase tracking-[0.24em] text-sc-text-muted">
             Enrolar dispositivo
           </h2>
           <p className="mt-1.5 text-xs leading-5 text-sc-text-muted">
-            Genera un token de 24 horas. Se muestra una sola vez: copialo como
+            Genera un token permanente. Se muestra una sola vez: copialo como
             <code className="mx-1 rounded bg-sc-surface-alt px-1 py-0.5 font-mono text-[10px]">SC_INGEST_TOKEN</code>
             en la máquina del agente, con el id del device en
             <code className="mx-1 rounded bg-sc-surface-alt px-1 py-0.5 font-mono text-[10px]">SC_SENTINEL_DEVICE_ID</code>
@@ -182,13 +193,6 @@ export function SettingsView() {
           </button>
         </form>
 
-        {actionError ? (
-          <p className="mx-5 mb-4 flex items-start gap-2 rounded-md border border-sc-risk-high/30 bg-sc-risk-high/10 px-3 py-2 text-xs leading-5 text-sc-risk-high">
-            <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-            {actionError}
-          </p>
-        ) : null}
-
         {issued ? (
           <div className="mx-5 mb-5 rounded-md border border-sc-risk-medium/40 bg-sc-risk-medium/10 p-3">
             <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-sc-risk-medium">
@@ -207,8 +211,8 @@ export function SettingsView() {
               </button>
             </div>
             <p className="mt-2 text-[11px] leading-5 text-sc-text-muted">
-              Expira el {new Date(issued.expires_at).toLocaleString('es-ES')}. No se puede volver a
-              consultar: si lo perdés, rotá el token.
+              El token no expira. No se puede volver a consultar: guardalo en un lugar seguro. Si lo
+              perdés, vas a tener que eliminar el dispositivo y enrolarlo de nuevo.
             </p>
           </div>
         ) : null}
@@ -263,24 +267,21 @@ export function SettingsView() {
                     <p className="mt-1 text-[11px] leading-5 text-sc-text-muted">
                       Enrolado {timeAgo(device.enrolled_at)} ·{' '}
                       {device.last_seen_at ? `último envío ${timeAgo(device.last_seen_at)}` : 'sin envíos aún'}
-                      {device.token_expires_at
-                        ? ` · token expira ${timeAgo(device.token_expires_at)}`
-                        : ' · token sin expiración'}
                     </p>
                   </div>
                   <StatusChip status={device.status} />
                   <button
                     type="button"
-                    onClick={() => void handleRotate(device.id)}
+                    onClick={() => void handleDelete(device)}
                     disabled={busy !== null}
-                    className="inline-flex items-center gap-2 rounded-md border sc-hairline px-3 py-1.5 font-display text-xs font-semibold text-sc-text transition-colors hover:bg-sc-surface-alt disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sc-viz-in/50"
+                    className="inline-flex items-center gap-2 rounded-md border border-sc-risk-high/30 px-3 py-1.5 font-display text-xs font-semibold text-sc-risk-high transition-colors hover:bg-sc-risk-high/10 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sc-risk-high/50"
                   >
-                    {busy === device.id ? (
+                    {busy === `delete:${device.id}` ? (
                       <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
                     ) : (
-                      <KeyRound className="size-3.5" aria-hidden="true" />
+                      <Trash2 className="size-3.5" aria-hidden="true" />
                     )}
-                    Rotar token
+                    Eliminar
                   </button>
                 </li>
               ))}

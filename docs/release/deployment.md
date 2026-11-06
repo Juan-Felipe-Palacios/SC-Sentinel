@@ -71,8 +71,8 @@ Sin un device enrolado no llega ninguna ventana de tráfico: `/api/ai/cron` resp
 `status: no_data`, el dashboard queda vacío y el panel IA muestra "Asistente AI pronto".
 
 1. Dashboard → **Configuración** (`/dashboard/settings`, requiere cookie `sc_session`).
-2. "Enrolar nuevo dispositivo" → el token se muestra **una sola vez** y expira en 24 h.
-   Si ya pasaron 24 h, hay que rotar el token antes de usarlo.
+2. "Enrolar nuevo dispositivo" → el token se muestra **una sola vez** y **no expira**.
+   Guardalo en un lugar seguro: no se puede volver a consultar.
 3. Llevar token e id a la máquina del dispositivo (**no** a Vercel ni al repo):
    - `SC_INGEST_TOKEN` = token completo `sc_dev_…` (variable de entorno; el agente
      solo lo resuelve en memoria y lo redacta en logs).
@@ -89,13 +89,15 @@ Sin un device enrolado no llega ninguna ventana de tráfico: `/api/ai/cron` resp
      por si se usan desde un wrapper.
 4. El primer `/api/ingest` exitoso promueve el device de `enrolled_pending` a `active`
    y actualiza `last_seen_at`.
-5. Para revocar un token filtrado: "Rotar token" (el anterior deja de valer y el
-   agente entra en `needs_enrollment` conservando su spool).
+5. Para revocar un token filtrado: "Eliminar" el device en Settings (borra el token y sus
+   datos de forma permanente). El agente entra en `needs_enrollment` conservando su spool;
+   luego se enrola un device nuevo y se actualiza `SC_INGEST_TOKEN`/`SC_SENTINEL_DEVICE_ID`.
 6. Verificación: `curl -X POST .../api/ai/cron -H "x-cron-secret: …"` debe registrar
    `{"event":"ai_cron","status":"ok"}` en los logs de Vercel.
 
-Migración asociada: `0003_device-token-expiry.sql` (columna `devices.token_expires_at`,
-nullable; los devices previos conservan tokens sin expiración).
+Migraciones asociadas: `0003_device-token-expiry.sql` (histórica) y
+`0004_device-token-permanent.sql` (elimina `devices.token_expires_at`: los tokens son
+permanentes y solo se revocan eliminando el device).
 
 ## 7. Rollback
 

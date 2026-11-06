@@ -1,10 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  DEVICE_TOKEN_TTL_MS,
-  enrollDevice,
-  listDevices,
-  rotateDeviceToken,
-} from '@/lib/query/devices';
+import { deleteDevice, enrollDevice, listDevices } from '@/lib/query/devices';
 import { hashToken } from '@/lib/auth/token';
 
 const deviceRow = {
@@ -13,7 +8,6 @@ const deviceRow = {
   status: 'enrolled_pending',
   enrolled_at: '2026-11-05T10:00:00.000Z',
   last_seen_at: null,
-  token_expires_at: '2026-11-06T10:00:00.000Z',
 };
 
 function fakeDb(responses: unknown[][]) {
@@ -34,7 +28,7 @@ describe('devices', () => {
     expect(devices[0].last_seen_at).toBeNull();
   });
 
-  it('enrollDevice emite un token sc_dev_ + UUID con 24 h de validez', async () => {
+  it('enrollDevice emite un token sc_dev_ + UUID permanente', async () => {
     const now = new Date('2026-11-05T12:00:00.000Z');
     const db = fakeDb([[deviceRow]]);
     const enrollment = await enrollDevice({ name: 'Nodo casa' }, db, now);
@@ -42,7 +36,7 @@ describe('devices', () => {
     expect(enrollment.token).toMatch(/^sc_dev_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     // El device devuelto es la fila persistida (el id generado lo asigna la base).
     expect(enrollment.device.id).toBe('dev_1');
-    expect(enrollment.expires_at).toBe(new Date(now.getTime() + DEVICE_TOKEN_TTL_MS).toISOString());
+    expect(enrollment).not.toHaveProperty('expires_at');
     // El token se persiste hasheado (nunca en claro).
     expect(hashToken(enrollment.token)).toMatch(/^[0-9a-f]{64}$/);
   });
@@ -53,22 +47,16 @@ describe('devices', () => {
 
     expect(enrollment.device.name).toBeNull();
     expect(enrollment.device.status).toBe('enrolled_pending');
-    expect(enrollment.device.token_expires_at).toBe(enrollment.expires_at);
+    expect(enrollment).not.toHaveProperty('expires_at');
   });
 
-  it('rotateDeviceToken devuelve null cuando el device no existe', async () => {
+  it('deleteDevice devuelve true cuando elimina el device', async () => {
+    const db = fakeDb([[{ id: 'dev_1' }]]);
+    await expect(deleteDevice('dev_1', db)).resolves.toBe(true);
+  });
+
+  it('deleteDevice devuelve false cuando el device no existe', async () => {
     const db = fakeDb([[]]);
-    await expect(rotateDeviceToken('dev_missing', db)).resolves.toBeNull();
-  });
-
-  it('rotateDeviceToken devuelve un token nuevo y su expiración', async () => {
-    const now = new Date('2026-11-05T12:00:00.000Z');
-    const db = fakeDb([[{ ...deviceRow, status: 'active' }]]);
-    const enrollment = await rotateDeviceToken('dev_1', db, now);
-
-    expect(enrollment).not.toBeNull();
-    expect(enrollment?.token).toMatch(/^sc_dev_/);
-    expect(enrollment?.device.status).toBe('active');
-    expect(enrollment?.expires_at).toBe(new Date(now.getTime() + DEVICE_TOKEN_TTL_MS).toISOString());
+    await expect(deleteDevice('dev_missing', db)).resolves.toBe(false);
   });
 });

@@ -6,7 +6,7 @@ Aplica al flujo agente → `/api/ingest` y al spool SQLite. Referencia: máquina
 
 | Síntoma | Causa probable | Acción |
 |---|---|---|
-| Reintentos con 401/403; flag `needs_enrollment` en Dashboard → Settings | Token inválido/expirado/revocado | Rotar token desde dashboard (runbook `rotate-device-token.md`), actualizar `SC_INGEST_TOKEN` o config, reiniciar servicio. **El spool NO se toca** |
+| Reintentos con 401/403; flag `needs_enrollment` en Dashboard → Settings | Token inválido o device eliminado | Re-enrolar: eliminar el device y crear uno nuevo desde Settings (runbook `rotate-device-token.md`), actualizar `SC_INGEST_TOKEN`/`SC_SENTINEL_DEVICE_ID`, reiniciar servicio. **El spool NO se toca** |
 | Reintentos 429 con `Retry-After` | Rate limit: >60 req/min por device (burst 30) | Esperado durante drenaje post-reconexión (ADR-0011); el backoff lo maneja solo. Si es persistente en estado estable, revisar `window_seconds` y frecuencia |
 | Reintentos 408/5xx con backoff 1–60 s | Red inestable / Vercel incidente / Neon cold start (~1 s) | Tolerable por diseño (spec §8.1). Si hay >30 min sin éxito, revisar status de Vercel y conectividad local |
 | `throttle 413` registro y batch pasa a dead_letter | Snapshot excedió límites | Revisar cardinalidad: `top_hosts`≤50, `top_ports`≤50, `top_countries`≤30, `alerts`≤50; payload ≤128 KB comprimido / ≤512 KB sin comprimir. Si excede la ventana (p. ej. scan de subred completa), es dead_letter esperado; abrir issue para decisión de diseño |
