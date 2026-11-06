@@ -6,6 +6,7 @@ use crate::parse_packet;
 use pcap_file::pcap::PcapReader;
 use std::fs::File;
 use std::path::Path;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::thread;
 use thiserror::Error;
@@ -33,7 +34,13 @@ pub fn run_offline(path: &Path, local: LocalIpSet) -> Result<CaptureChannel, Cap
     let rx = pair.channel.rx;
     let drops = pair.channel.drops.clone();
     let sent = pair.channel.sent.clone();
+    let packets_seen = pair.channel.packets_seen.clone();
+    let parse_errors = pair.channel.parse_errors.clone();
     let producer = pair.producer;
+
+    // Copias para el hilo lector: el canal devuelto conserva las originales.
+    let thread_packets_seen = packets_seen.clone();
+    let thread_parse_errors = parse_errors.clone();
 
     let path = path.to_path_buf();
     thread::spawn(move || {
@@ -55,6 +62,7 @@ pub fn run_offline(path: &Path, local: LocalIpSet) -> Result<CaptureChannel, Cap
         loop {
             match reader.next_packet() {
                 Some(Ok(pkt)) => {
+                    thread_packets_seen.fetch_add(1, Ordering::Relaxed);
                     let ts = pkt.timestamp.as_secs() as i64 * 1_000_000_000
                         + pkt.timestamp.as_nanos() as i64;
                     let data = &pkt.data;
@@ -66,7 +74,7 @@ pub fn run_offline(path: &Path, local: LocalIpSet) -> Result<CaptureChannel, Cap
                             // ARP u otros - ok
                         }
                         Err(_) => {
-                            // parse error counted by caller via health
+                            thread_parse_errors.fetch_add(1, Ordering::Relaxed);
                         }
                     }
                 }
@@ -80,7 +88,13 @@ pub fn run_offline(path: &Path, local: LocalIpSet) -> Result<CaptureChannel, Cap
         // channel closes when producer drops
     });
 
-    Ok(CaptureChannel { rx, drops, sent })
+    Ok(CaptureChannel {
+        rx,
+        drops,
+        sent,
+        packets_seen,
+        parse_errors,
+    })
 }
 #[cfg(test)]
 mod tests {

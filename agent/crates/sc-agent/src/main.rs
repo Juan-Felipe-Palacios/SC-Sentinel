@@ -10,6 +10,7 @@ use sc_sync::{
 };
 use sc_telemetry::{logging, HealthRegistry};
 use std::path::PathBuf;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::signal;
@@ -152,6 +153,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Start aggregator with capture rx
+    // §9: publica los contadores de captura en health para que packets_seen no quede en 0.
+    let stats_health = health.clone();
+    let stats_packets_seen = capture.packets_seen.clone();
+    let stats_drops = capture.drops.clone();
+    let stats_parse_errors = capture.parse_errors.clone();
+    tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(Duration::from_secs(1));
+        loop {
+            ticker.tick().await;
+            stats_health.packets_seen.store(
+                stats_packets_seen.load(Ordering::Relaxed),
+                Ordering::Relaxed,
+            );
+            stats_health
+                .packets_dropped
+                .store(stats_drops.load(Ordering::Relaxed), Ordering::Relaxed);
+            stats_health.parse_errors.store(
+                stats_parse_errors.load(Ordering::Relaxed),
+                Ordering::Relaxed,
+            );
+        }
+    });
+
     let aggregator = WindowAggregator::new(agg_cfg, geo.clone(), health.clone());
     let mut aggregator_handle = tokio::spawn(async move {
         aggregator.run(capture.rx, snap_tx).await;

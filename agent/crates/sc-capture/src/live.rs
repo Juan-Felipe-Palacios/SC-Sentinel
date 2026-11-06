@@ -15,6 +15,7 @@ use crate::CaptureError;
 #[cfg(feature = "live")]
 pub fn run_live(iface: &str, local: LocalIpSet) -> Result<CaptureChannel, CaptureError> {
     use crate::parse_packet;
+    use std::sync::atomic::Ordering;
     use std::sync::Arc;
     use std::thread;
     use tokio::sync::mpsc::error::TrySendError;
@@ -23,7 +24,13 @@ pub fn run_live(iface: &str, local: LocalIpSet) -> Result<CaptureChannel, Captur
     let rx = pair.channel.rx;
     let drops = pair.channel.drops.clone();
     let sent = pair.channel.sent.clone();
+    let packets_seen = pair.channel.packets_seen.clone();
+    let parse_errors = pair.channel.parse_errors.clone();
     let producer = pair.producer;
+
+    // Copias para el hilo lector: el canal devuelto conserva las originales.
+    let thread_packets_seen = packets_seen.clone();
+    let thread_parse_errors = parse_errors.clone();
 
     // Acepta nombre de dispositivo o su descripción ("Ethernet", "Wi-Fi"…).
     let device = pcap::Device::list()
@@ -53,6 +60,7 @@ pub fn run_live(iface: &str, local: LocalIpSet) -> Result<CaptureChannel, Captur
         loop {
             match capture.next_packet() {
                 Ok(packet) => {
+                    thread_packets_seen.fetch_add(1, Ordering::Relaxed);
                     let ts = timestamp_ns(
                         packet.header.ts.tv_sec as i64,
                         packet.header.ts.tv_usec as i64,
@@ -67,8 +75,10 @@ pub fn run_live(iface: &str, local: LocalIpSet) -> Result<CaptureChannel, Captur
                             }
                         }
                         Ok(None) => {}
-                        // El parse error lo cuenta el consumidor vía health.
-                        Err(_) => {}
+                        // Se publica vía health (§9): paquetes que el parser rechazó.
+                        Err(_) => {
+                            thread_parse_errors.fetch_add(1, Ordering::Relaxed);
+                        }
                     }
                 }
                 // Sin paquetes en la ventana del timeout: normal, seguimos.
@@ -81,7 +91,13 @@ pub fn run_live(iface: &str, local: LocalIpSet) -> Result<CaptureChannel, Captur
         }
     });
 
-    Ok(CaptureChannel { rx, drops, sent })
+    Ok(CaptureChannel {
+        rx,
+        drops,
+        sent,
+        packets_seen,
+        parse_errors,
+    })
 }
 
 /// Sin la feature `live` el daemon sigue compilando, pero no captura.

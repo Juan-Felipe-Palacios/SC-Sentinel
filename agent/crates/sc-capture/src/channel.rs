@@ -34,6 +34,10 @@ pub struct CaptureChannel {
     pub rx: mpsc::Receiver<FlowUpdate>,
     pub drops: Arc<AtomicU64>,
     pub sent: Arc<AtomicU64>,
+    /// Paquetes crudos leídos de la interfaz (incluye los que no generan flow).
+    pub packets_seen: Arc<AtomicU64>,
+    /// Paquetes que el parser rechazó.
+    pub parse_errors: Arc<AtomicU64>,
 }
 
 impl Default for CaptureChannel {
@@ -41,8 +45,16 @@ impl Default for CaptureChannel {
         let (tx, rx) = mpsc::channel::<FlowUpdate>(CHANNEL_CAPACITY);
         let drops = Arc::new(AtomicU64::new(0));
         let sent = Arc::new(AtomicU64::new(0));
+        let packets_seen = Arc::new(AtomicU64::new(0));
+        let parse_errors = Arc::new(AtomicU64::new(0));
         let _tx = tx;
-        CaptureChannel { rx, drops, sent }
+        CaptureChannel {
+            rx,
+            drops,
+            sent,
+            packets_seen,
+            parse_errors,
+        }
     }
 }
 
@@ -66,11 +78,15 @@ impl CaptureChannelPair {
         let (tx, rx) = mpsc::channel::<FlowUpdate>(CHANNEL_CAPACITY);
         let drops = Arc::new(AtomicU64::new(0));
         let sent = Arc::new(AtomicU64::new(0));
+        let packets_seen = Arc::new(AtomicU64::new(0));
+        let parse_errors = Arc::new(AtomicU64::new(0));
         CaptureChannelPair {
             channel: CaptureChannel {
                 rx,
                 drops: drops.clone(),
                 sent: sent.clone(),
+                packets_seen,
+                parse_errors,
             },
             producer: FlowProducer { tx, drops, sent },
         }
