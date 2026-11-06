@@ -73,4 +73,25 @@ $env:SC_INGEST_TOKEN = (Get-Content .\config\.device-token -Raw).Trim()
 - El token se toma de `SC_INGEST_TOKEN` (nunca se escribe en el TOML); `config/.device-token` está ignorado por git.
 - El device id sale de la tabla `devices` del dashboard (`dev_<uuid>`).
 
+### Reinicio automático (script)
+
+`scripts/restart-agent.ps1` hace el ciclo completo: detiene el agente en marcha, asegura el SDK, recompila con `--features sc-capture/live`, detecta la interfaz de la ruta por defecto y arranca el proceso en segundo plano con logs en `logs/`.
+
+```powershell
+# desde agent/ ; el device id se guarda en config/.device-id
+.\scripts\restart-agent.ps1 -DeviceId dev_bee8a7f6-8191-47ef-9dc2-f1ef3a9d7636
+
+# arranques siguientes (device id y token ya guardados)
+.\scripts\restart-agent.ps1
+
+# forzar otro adaptador, no recompilar o vigilar más tiempo
+.\scripts\restart-agent.ps1 -InterfaceName 'Ethernet'
+.\scripts\restart-agent.ps1 -SkipBuild -WaitSeconds 40
+```
+
+- El token se lee de `config/.device-token` y viaja al proceso por `SC_INGEST_TOKEN`; nunca se pasa por parámetro ni se imprime.
+- La interfaz se resuelve siguiendo `0.0.0.0/0` hasta el adaptador y su GUID de Npcap; `-Interface '\Device\NPF_{GUID}'` la fuerza.
+- Si hay una instancia corriendo con más privilegios que la consola, el script **no arranca otra**: dos agentes sobre el mismo device duplican las ventanas en el dashboard. Cierra esa instancia desde una terminal de administrador.
+- Un cierre forzado pierde la ventana en curso (<30 s); lo ya volcado al spool se envía al siguiente arranque.
+
 Los `window_id` se derivan de la secuencia persistida en el spool más una base por época, así que siguen creciendo entre reinicios: un contador en memoria hacía que el backend descartara las primeras ventanas de cada arranque como duplicadas.
