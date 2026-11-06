@@ -9,6 +9,8 @@ export const HOSTS_LIMIT = 50;
 
 export interface HostMetricItem {
   host_key: string;
+  /** IP legible del host (null cuando el agente anonimiza). */
+  ip: string | null;
   country: string | null;
   bytes_in: number;
   bytes_out: number;
@@ -26,6 +28,7 @@ export interface HostsResult {
 
 interface HostRow {
   host_key: string;
+  ip: string | null;
   country: string | null;
   bytes_in: number | string | null;
   bytes_out: number | string | null;
@@ -65,6 +68,7 @@ export async function queryHosts(
     queryRows<HostRow>(
       database,
       sql`SELECT hs.host_key,
+                 (array_agg(hs.ip_display ORDER BY fw.start_at DESC) FILTER (WHERE hs.ip_display IS NOT NULL))[1] AS ip,
                  (array_agg(hs.country ORDER BY fw.start_at DESC) FILTER (WHERE hs.country IS NOT NULL))[1] AS country,
                  COALESCE(SUM(hs.bytes_in), 0)::bigint AS bytes_in,
                  COALESCE(SUM(hs.bytes_out), 0)::bigint AS bytes_out,
@@ -96,6 +100,7 @@ export async function queryHosts(
     range,
     hosts: rows.map((row) => ({
       host_key: row.host_key,
+      ip: row.ip ?? null,
       country: row.country,
       bytes_in: bigintToNumber(row.bytes_in),
       bytes_out: bigintToNumber(row.bytes_out),

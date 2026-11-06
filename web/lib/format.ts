@@ -50,3 +50,30 @@ export function severityRank(severity: string): number {
     default: return 0;
   }
 }
+
+/**
+ * Bandera + nombre legible del país de un host.
+ * `LAN` = red local/privada (centinela del agente, no es un país) y null/'' = sin geolocalizar.
+ */
+export function countryDisplay(country: string | null | undefined): { flag: string; label: string } {
+  const code = country?.trim();
+  if (!code) return { flag: '🌐', label: 'Sin geolocalizar' };
+  if (code.toUpperCase() === 'LAN') return { flag: '🏠', label: 'Red local' };
+  if (/^[A-Za-z]{2}$/.test(code)) {
+    const upper = code.toUpperCase();
+    const flag = upper.replace(/./g, (char) =>
+      String.fromCodePoint(127397 + char.charCodeAt(0))
+    );
+    return { flag, label: regionName(upper) };
+  }
+  return { flag: '🌐', label: code };
+}
+
+/** Nombre del país en español a partir del código ISO alpha-2 (fallback al código). */
+function regionName(code: string): string {
+  try {
+    return new Intl.DisplayNames(['es'], { type: 'region' }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+}

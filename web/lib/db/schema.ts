@@ -38,6 +38,8 @@ export const hostStats = pgTable('host_stats', {
   id: text('id').primaryKey(),
   windowId: text('window_id').notNull(),
   hostKey: text('host_key').notNull(),
+  // IP legible del host cuando el agente envía anonymize_hosts=false (null si está anonimizado).
+  ipDisplay: text('ip_display'),
   bytesIn: bigint('bytes_in', { mode: 'number' }).default(0).notNull(),
   bytesOut: bigint('bytes_out', { mode: 'number' }).default(0).notNull(),
   packets: bigint('packets', { mode: 'number' }).default(0).notNull(),
@@ -82,6 +84,8 @@ export const aiInsights = pgTable('ai_insights', {
   periodEnd: timestamp('period_end', { withTimezone: true }).notNull(),
   model: text('model').notNull(),
   status: text('status').notNull(),
+  // Idioma del texto generado: 'es' (por defecto) o 'en'.
+  language: text('language').default('es').notNull(),
   // §11.2: riesgo del análisis. Nullable: filas anteriores a 0002 no lo almacenan.
   riskLevel: text('risk_level'),
   summary: text('summary').notNull(),

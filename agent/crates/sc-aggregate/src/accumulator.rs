@@ -46,6 +46,16 @@ impl Accumulator {
         }
     }
 
+    /// País del host: las IPs privadas/locales se etiquetan como "LAN" para no
+    /// confundirlas con países desconocidos (GeoLite2 no las contiene).
+    fn country_for(&self, ip: u128) -> Option<String> {
+        if sc_geo::is_non_public_ip(ip) {
+            Some("LAN".to_string())
+        } else {
+            self.country_lookup.country(ip)
+        }
+    }
+
     pub fn add_flow(&mut self, update: &FlowUpdate) {
         let flow = &update.flow;
         let bytes = update.bytes;
@@ -88,7 +98,7 @@ impl Accumulator {
             .insert((flow.src_ip, flow.dst_ip, flow.src_port, flow.dst_port));
 
         // Country stats
-        if let Some(cc) = self.country_lookup.country(host_ip) {
+        if let Some(cc) = self.country_for(host_ip) {
             let centry = self
                 .countries
                 .entry(cc.clone())
@@ -123,13 +133,14 @@ impl Accumulator {
         hosts_vec
             .into_iter()
             .map(|(hkey, accum)| {
-                let country = self.country_lookup.country(accum.ip);
+                let country = self.country_for(accum.ip);
                 HostStats {
                     host_key: hkey,
                     ip_display: if self.anonymize_hosts {
                         None
                     } else {
-                        Some(format!("{}", accum.ip))
+                        // IPv4 o IPv6 legible (antes era el u128 en decimal).
+                        Some(sc_geo::format_ip(accum.ip))
                     },
                     country,
                     bytes_in: accum.bytes_in,
@@ -184,5 +195,25 @@ impl Accumulator {
                 hosts: hosts as u64,
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sc_geo::NoLookup;
+
+    #[test]
+    fn country_for_marca_las_ips_locales_como_lan() {
+        let accumulator = Accumulator::new(b"test-key".to_vec(), true, Arc::new(NoLookup));
+
+        assert_eq!(
+            accumulator.country_for(u32::from(std::net::Ipv4Addr::new(192, 168, 0, 10)) as u128),
+            Some("LAN".to_string())
+        );
+        assert_eq!(
+            accumulator.country_for(u32::from(std::net::Ipv4Addr::new(8, 8, 8, 8)) as u128),
+            None
+        );
     }
 }

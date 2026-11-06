@@ -1,12 +1,18 @@
 # Configuración del agente SCNet.
 # Copiar a config.toml y pasar la ruta con `sc-agent --config <ruta>`.
 # Los overrides de entorno pisan estos valores: SC_INGEST_URL, SC_SPOOL_PATH,
-# SC_SPOOL_MAX_BYTES y SC_LOG.
+# SC_SPOOL_MAX_BYTES, SC_LOG y SC_ANONYMIZE_HOSTS.
 
 [ingest]
 url = "https://sc-sentinel.vercel.app/api/ingest"
 token_env = "SC_INGEST_TOKEN"  # Bearer según contrato §1; nunca escribir el token acá
 compression = "gzip"           # único valor implementado por el cliente
+
+[privacy]
+# false (por defecto): el snapshot incluye la IP del host y el dashboard muestra
+# IP + nombre resuelto. true: la IP nunca sale del equipo (ip_display = null) y
+# los destinos se ven como host anonimizado.
+anonymize_hosts = false
 
 [spool]
 path = "./spool/sc-spool.sqlite"

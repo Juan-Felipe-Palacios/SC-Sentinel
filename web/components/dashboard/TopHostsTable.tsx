@@ -1,7 +1,14 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
 import { Globe2 } from 'lucide-react';
 import type { OverviewResponse } from '@/lib/api-types';
-import { formatBytes, formatNum } from '@/lib/format';
+import { formatBytes, formatNum, countryDisplay } from '@/lib/format';
+
+/** Identidad visible del host: nombre resuelto > IP > marca anonimizada. */
+function hostLabel(host: OverviewResponse['top_hosts'][number]): string {
+  if (host.hostname) return host.hostname;
+  if (host.ip) return host.ip;
+  return `Host anonimizado ${host.host_key.slice(0, 8)}`;
+}
 
 export function TopHostsTable({ hosts }: { hosts: OverviewResponse['top_hosts'] }) {
   return (
@@ -23,22 +30,32 @@ export function TopHostsTable({ hosts }: { hosts: OverviewResponse['top_hosts'] 
         </div>
       ) : (
         <ol className="divide-y divide-white/5">
-          {hosts.slice(0, 5).map((host, index) => (
-            <li key={`${host.host_key}-${index}`} className="flex items-center gap-4 px-5 py-3 transition-colors hover:bg-sc-surface-alt/40">
-              <span className="w-6 shrink-0 font-mono text-[11px] tabular-nums text-sc-text-muted/60">
-                {String(index + 1).padStart(2, '0')}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-mono text-[12px] text-sc-text" title={host.host_key}>{host.host_key}</p>
-                <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.18em] text-sc-text-muted">
-                  {host.country ?? 'país desconocido'} · {formatNum(host.packets)} paquetes
+          {hosts.slice(0, 5).map((host, index) => {
+            const country = countryDisplay(host.country);
+            const label = hostLabel(host);
+            return (
+              <li key={`${host.host_key}-${index}`} className="flex items-center gap-4 px-5 py-3 transition-colors hover:bg-sc-surface-alt/40">
+                <span className="w-6 shrink-0 font-mono text-[11px] tabular-nums text-sc-text-muted/60">
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p
+                    className="truncate font-display text-[13px] font-medium text-sc-text"
+                    title={host.hostname ?? host.ip ?? host.host_key}
+                  >
+                    <span aria-hidden="true">{country.flag}</span> {label}
+                  </p>
+                  <p className="mt-0.5 truncate font-mono text-[9px] uppercase tracking-[0.18em] text-sc-text-muted">
+                    {country.label}
+                    {host.hostname && host.ip ? ` · ${host.ip}` : ''} · {formatNum(host.packets)} paquetes
+                  </p>
+                </div>
+                <p className="shrink-0 text-right font-display text-sm font-semibold tabular-nums text-sc-text">
+                  {formatBytes(host.bytes_total)}
                 </p>
-              </div>
-              <p className="shrink-0 text-right font-display text-sm font-semibold tabular-nums text-sc-text">
-                {formatBytes(host.bytes_total)}
-              </p>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ol>
       )}
     </section>

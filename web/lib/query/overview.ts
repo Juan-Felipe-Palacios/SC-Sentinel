@@ -25,6 +25,8 @@ export interface OverviewResult {
   series: Array<{ timestamp: string; bytes_in: number; bytes_out: number }>;
   top_hosts: Array<{
     host_key: string;
+    /** IP legible del host (null cuando el agente anonimiza). */
+    ip: string | null;
     country: string | null;
     bytes_total: number;
     packets: number;
@@ -54,6 +56,7 @@ interface SeriesRow {
 
 interface TopHostRow {
   host_key: string;
+  ip: string | null;
   country: string | null;
   bytes_in: number | string | null;
   bytes_out: number | string | null;
@@ -140,6 +143,7 @@ export async function queryOverview(
       queryRows<TopHostRow>(
         database,
         sql`SELECT hs.host_key,
+                   COALESCE((array_agg(hs.ip_display ORDER BY fw.start_at DESC) FILTER (WHERE hs.ip_display IS NOT NULL))[1], NULL) AS ip,
                    COALESCE((array_agg(hs.country ORDER BY fw.start_at DESC) FILTER (WHERE hs.country IS NOT NULL))[1], NULL) AS country,
                    COALESCE(SUM(hs.bytes_in), 0)::bigint AS bytes_in,
                    COALESCE(SUM(hs.bytes_out), 0)::bigint AS bytes_out,
@@ -205,6 +209,7 @@ export async function queryOverview(
       const bytesOut = bigintToNumber(row.bytes_out);
       return {
         host_key: row.host_key,
+        ip: row.ip ?? null,
         country: row.country,
         bytes_total: bytesIn + bytesOut,
         packets: bigintToNumber(row.packets),

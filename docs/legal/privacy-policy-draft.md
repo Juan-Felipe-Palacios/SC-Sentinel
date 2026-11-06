@@ -9,7 +9,8 @@
 - Métricas de salud del agente (paquetes vistos/descartados, uso de CPU/memoria, estado del spool).
 
 **Identificadores:**
-- Clave de host hasheada (`host_key`, HMAC truncada) cuando `anonymize_hosts=true` (modo por defecto). En ese modo la IP real **no sale del equipo**; el campo `ip_display` se envía `null` (contrato `ingest-api.v1.md` §1.2).
+- IP del destino y clave de host hasheada (`host_key`, HMAC truncada). Por defecto el panel muestra IP y nombre de host (resuelto por DNS inverso en el servidor) para que el operador identifique el destino.
+- Con `anonymize_hosts=true` la IP real **no sale del equipo**; el campo `ip_display` se envía `null` y el panel muestra solo la clave hasheada (contrato `ingest-api.v1.md` §1.2).
 - Identificadores técnicos del dispositivo (`device_id`, hostname del nodo, versión del agente) para administrar el enrollment.
 
 **Del sitio público:** la landing no recaba datos personales: no hay formularios ni campos de recolección. El contacto se realiza por el perfil de LinkedIn del responsable (ver `/contacto`), plataforma de un tercero; el contenido de esa conversación no se copia a nuestros sistemas.

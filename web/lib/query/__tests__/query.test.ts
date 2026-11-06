@@ -61,7 +61,7 @@ describe('queryOverview', () => {
       { timestamp: '2026-11-04T11:31:00.000Z', bytes_in: 600, bytes_out: 2000 },
     ]);
     expect(result.top_hosts).toEqual([
-      { host_key: 'host-a', country: 'AR', bytes_total: 1500, packets: 10 },
+      { host_key: 'host-a', ip: null, country: 'AR', bytes_total: 1500, packets: 10 },
     ]);
     expect(result.top_countries).toEqual([{ country: 'AR', bytes_total: 1500, hosts_count: 3 }]);
   });
@@ -100,6 +100,7 @@ describe('queryHosts', () => {
     expect(result.hosts).toEqual([
       {
         host_key: 'host-a',
+        ip: null,
         country: 'AR',
         bytes_in: 100,
         bytes_out: 250,

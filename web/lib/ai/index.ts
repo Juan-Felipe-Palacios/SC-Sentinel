@@ -4,14 +4,19 @@
 import { fetchAiFacts } from './facts';
 import type { QueryDb } from '@/lib/query/db-rows';
 import { runAnalysisPipeline } from './analyze';
+import type { AiLanguage } from './openrouter';
 
 export {
   AiOutputSchema,
+  buildSystemPrompt,
   callOpenRouterChain,
   DEFAULT_AI_MODELS,
   extractJsonObject,
   getModelChain,
+  parseAiLanguage,
   AI_TIMEOUT_MS,
+  AI_LANGUAGES,
+  type AiLanguage,
 } from './openrouter';
 export {
   AI_REQUEST_TIMEOUT_MS,
@@ -27,7 +32,11 @@ export {
 export { canonicalJson, factsHash } from './hash';
 export { fetchAiFacts, type AiFacts } from './facts';
 
-export async function runAiPipeline(deviceId: string, database?: QueryDb) {
+export async function runAiPipeline(
+  deviceId: string,
+  database?: QueryDb,
+  language: AiLanguage = 'es'
+) {
   const facts = await fetchAiFacts(deviceId, database);
-  return runAnalysisPipeline(facts, deviceId, database);
+  return runAnalysisPipeline(facts, deviceId, database, language);
 }

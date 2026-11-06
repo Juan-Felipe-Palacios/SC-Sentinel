@@ -36,6 +36,13 @@
       "when": 1793967920762,
       "tag": "0004_device-token-permanent",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793974500736,
+      "tag": "0005_host-ip-and-ai-language",
+      "breakpoints": true
     }
   ]
 }

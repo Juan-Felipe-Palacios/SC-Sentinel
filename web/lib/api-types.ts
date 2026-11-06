@@ -25,6 +25,10 @@ export interface OverviewSeriesPoint {
 
 export interface OverviewTopHost {
   host_key: string;
+  /** IP legible del host (IPv4/IPv6); null cuando el agente anonimiza. */
+  ip: string | null;
+  /** Nombre resuelto por DNS inverso en el servidor; null si no se pudo resolver. */
+  hostname: string | null;
   country: string | null;
   bytes_total: number;
   packets: number;
@@ -75,6 +79,8 @@ export interface AiInsight {
   period_end: string;
   model: string;
   status: 'ok' | 'degraded';
+  /** Idioma del texto generado (español por defecto). */
+  language: 'es' | 'en';
   /** Riesgo §11.2 persistido (null solo en filas previas a la migración 0002). */
   risk_level: 'low' | 'medium' | 'high' | 'critical' | null;
   summary: string;

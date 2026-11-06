@@ -6,6 +6,7 @@ use sc_capture::FlowUpdate;
 use sc_core::{Window, WindowSnapshot};
 use sc_geo::CountryLookup;
 use sc_telemetry::HealthRegistry;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
@@ -54,6 +55,15 @@ pub struct AggregatorConfig {
     pub max_alerts: usize,
 }
 
+/// Contadores crudos del canal de captura, compartidos con el aggregator para
+/// que cada snapshot lleve el health del instante (no el del último tick).
+#[derive(Clone, Default)]
+pub struct CaptureCounters {
+    pub packets_seen: Option<Arc<std::sync::atomic::AtomicU64>>,
+    pub packets_dropped: Option<Arc<std::sync::atomic::AtomicU64>>,
+    pub parse_errors: Option<Arc<std::sync::atomic::AtomicU64>>,
+}
+
 impl Default for AggregatorConfig {
     fn default() -> Self {
         Self {
@@ -73,6 +83,7 @@ pub struct WindowAggregator {
     country: Arc<dyn CountryLookup>,
     health: Arc<HealthRegistry>,
     clock: Arc<dyn Clock>,
+    counters: CaptureCounters,
 }
 
 impl WindowAggregator {
@@ -86,6 +97,32 @@ impl WindowAggregator {
             country,
             health,
             clock: Arc::new(SystemClock),
+            counters: CaptureCounters::default(),
+        }
+    }
+
+    /// Inyecta los contadores de captura para publicarlos en cada snapshot (§9).
+    pub fn with_capture_counters(mut self, counters: CaptureCounters) -> Self {
+        self.counters = counters;
+        self
+    }
+
+    /// Copia `packets_seen`/`drops`/`parse_errors` al health antes de snapshotear.
+    fn sync_capture_counters(&self) {
+        if let Some(seen) = &self.counters.packets_seen {
+            self.health
+                .packets_seen
+                .store(seen.load(Ordering::Relaxed), Ordering::Relaxed);
+        }
+        if let Some(dropped) = &self.counters.packets_dropped {
+            self.health
+                .packets_dropped
+                .store(dropped.load(Ordering::Relaxed), Ordering::Relaxed);
+        }
+        if let Some(errors) = &self.counters.parse_errors {
+            self.health
+                .parse_errors
+                .store(errors.load(Ordering::Relaxed), Ordering::Relaxed);
         }
     }
 
@@ -116,6 +153,11 @@ impl WindowAggregator {
                     if now >= window_end {
                         // Flush current window
                         let _ = chrono::Utc;
+                        // Backlog real del canal de captura en este instante (§9).
+                        self.health
+                            .queue_depth
+                            .store(rx.len() as u64, Ordering::Relaxed);
+                        self.sync_capture_counters();
                         let snapshot = build_snapshot(
                             &accumulator,
                             &self.cfg,
@@ -144,6 +186,10 @@ impl WindowAggregator {
         let now = self.clock.now_epoch_s();
         let window_end = current_start + window_seconds;
         let end_time = if now > window_end { window_end } else { now };
+        self.health
+            .queue_depth
+            .store(rx.len() as u64, Ordering::Relaxed);
+        self.sync_capture_counters();
         let snapshot = build_snapshot(
             &accumulator,
             &self.cfg,

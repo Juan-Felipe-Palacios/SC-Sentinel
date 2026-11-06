@@ -61,7 +61,8 @@ export default function Privacy() {
         </ul>
         <h3 className="font-display text-base font-semibold text-sc-text">Identificadores</h3>
         <ul className="list-disc space-y-1 pl-6 text-sm leading-relaxed text-sc-text-muted">
-          <li>Clave de host hasheada (`host_key`, HMAC truncada) cuando `anonymize_hosts=true` (modo por defecto). En ese modo la IP real <strong>no sale del equipo</strong> y el campo `ip_display` se envía `null` (contrato <code>ingest-api.v1.md</code>).</li>
+          <li>IP del destino y clave de host hasheada (`host_key`, HMAC truncada). Por defecto el panel muestra IP y nombre de host para que el operador identifique el destino; el nombre se resuelve por DNS inverso en el servidor.</li>
+          <li>Si se activa <code>anonymize_hosts=true</code> en la configuración del agente, la IP real <strong>no sale del equipo</strong>: el campo `ip_display` se envía `null` y el panel muestra solo la clave hasheada (contrato <code>ingest-api.v1.md</code>).</li>
           <li>Identificadores técnicos del dispositivo (<code>device_id</code>, hostname del nodo, versión del agente) para administrar el enrollment.</li>
         </ul>
         <h3 className="font-display text-base font-semibold text-sc-text">Del sitio público</h3>

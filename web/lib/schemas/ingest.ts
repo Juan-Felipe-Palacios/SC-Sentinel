@@ -8,7 +8,9 @@ export const CounterSchema = z.number().int().min(0);
 export const HostStatsSchema = z.object({
   host_key: z.string().min(8).max(64),
   ip_display: z.string().nullable(),
-  country: z.string().regex(/^[A-Z]{2}$/).nullable().optional(),
+  // ISO 3166-1 alpha-2, o "LAN" cuando el host es una IP privada/reservada
+  // (GeoLite2 no las contiene: marcarlas evita confundirlas con "país desconocido").
+  country: z.string().regex(/^[A-Z]{2,3}$/).nullable().optional(),
   bytes_in: CounterSchema,
   bytes_out: CounterSchema,
   packets: CounterSchema,
@@ -23,7 +25,7 @@ export const PortStatSchema = z.object({
 });
 
 export const CountryStatSchema = z.object({
-  country: z.string().regex(/^[A-Z]{2}$/),
+  country: z.string().regex(/^[A-Z]{2,3}$/),
   bytes: CounterSchema,
   hosts: CounterSchema,
 });

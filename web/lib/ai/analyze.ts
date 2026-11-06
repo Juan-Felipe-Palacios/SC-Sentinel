@@ -8,6 +8,7 @@ import { defaultQueryDb, isoOrNull, queryRows, type QueryDb } from '@/lib/query/
 import { factsHash } from './hash';
 import { callAiChain } from './providers';
 import type { AiFacts } from './facts';
+import type { AiLanguage } from './openrouter';
 
 export type AnalysisStatus = 'ok' | 'degraded' | 'cached' | 'no_data';
 
@@ -18,6 +19,8 @@ export interface AiInsightRecord {
   period_end: string;
   model: string;
   status: AnalysisStatus;
+  /** Idioma del texto generado (español por defecto). */
+  language: AiLanguage;
   /** §11.2: riesgo declarado por el modelo (null solo en filas previas a 0002). */
   risk_level: string | null;
   summary: string;
@@ -41,6 +44,7 @@ interface InsightRow {
   period_end: Date | string;
   model: string;
   status: string;
+  language: string | null;
   risk_level: string | null;
   summary: string;
   recommendations_json: Array<{ type: string; description: string; severity: string }> | null;
@@ -92,6 +96,7 @@ function mapInsightRow(row: InsightRow): AiInsightRecord {
     period_end: isoOrNull(row.period_end) ?? String(row.period_end),
     model: row.model,
     status: (row.status as AnalysisStatus) ?? 'ok',
+    language: row.language === 'en' ? 'en' : 'es',
     risk_level: row.risk_level ?? null,
     summary: row.summary,
     findings,
@@ -120,15 +125,19 @@ async function findRecentInsight(
   return rows[0] ? mapInsightRow(rows[0]) : null;
 }
 
-function buildDegradedOutput(): {
+const DEGRADED_SUMMARY: Record<AiLanguage, string> = {
+  es: 'El motor determinista analizó las ventanas con normalidad; el análisis con IA no está disponible en modo degradado. Revisa las alertas y las métricas de la ventana.',
+  en: 'The deterministic engine analyzed the windows normally; the AI analysis is unavailable in degraded mode. Review the alerts and the window metrics.',
+};
+
+function buildDegradedOutput(language: AiLanguage = 'es'): {
   summary: string;
   risk_level: 'low';
   findings: [];
   recommendations: [];
 } {
   return {
-    summary:
-      'El motor determinista analizó las ventanas con normalidad; el análisis con IA no está disponible en modo degradado. Revisa las alertas y las métricas de la ventana.',
+    summary: DEGRADED_SUMMARY[language],
     risk_level: 'low',
     findings: [],
     recommendations: [],
@@ -142,17 +151,18 @@ function buildDegradedOutput(): {
 export async function runAnalysisPipeline(
   facts: AiFacts | null,
   deviceId: string,
-  database: QueryDb = defaultQueryDb
+  database: QueryDb = defaultQueryDb,
+  language: AiLanguage = 'es'
 ): Promise<AnalysisResult> {
   if (!facts) return { status: 'no_data', insight: null };
 
-  const hash = factsHash(facts);
+  const hash = factsHash(facts, language);
 
   const cached = await findRecentInsight(hash, deviceId, database);
   if (cached) return { status: 'cached', insight: cached };
 
-  const chain = await callAiChain(facts);
-  const output = chain.ok && chain.output ? chain.output : buildDegradedOutput();
+  const chain = await callAiChain(facts, { language });
+  const output = chain.ok && chain.output ? chain.output : buildDegradedOutput(language);
   const model = chain.ok && chain.model ? chain.model : 'deterministic-fallback';
   const status: AnalysisStatus = chain.ok ? 'ok' : 'degraded';
 
@@ -164,7 +174,7 @@ export async function runAnalysisPipeline(
 
   await database.execute(
     sql`INSERT INTO ai_insights
-          (id, device_id, period_start, period_end, model, status, risk_level, summary,
+          (id, device_id, period_start, period_end, model, status, language, risk_level, summary,
            recommendations_json, facts_hash)
         VALUES (
           ${id},
@@ -173,6 +183,7 @@ export async function runAnalysisPipeline(
           ${facts.period.end}::timestamptz,
           ${model},
           ${status},
+          ${language},
           ${output.risk_level},
           ${output.summary},
           ${JSON.stringify(recommendationsJson)}::jsonb,
@@ -192,6 +203,7 @@ export async function runAnalysisPipeline(
         period_end: facts.period.end,
         model,
         status,
+        language,
         risk_level: output.risk_level,
         summary: output.summary,
         findings: output.findings,
@@ -206,6 +218,7 @@ export async function runAnalysisPipeline(
 
 export async function fetchLatestInsight(
   deviceId: string,
+  language: AiLanguage = 'es',
   database: QueryDb = defaultQueryDb
 ): Promise<AiInsightRecord | null> {
   const rows = await queryRows<InsightRow>(
@@ -213,6 +226,7 @@ export async function fetchLatestInsight(
     sql`SELECT *
         FROM ai_insights
         WHERE device_id = ${deviceId}
+          AND COALESCE(language, 'es') = ${language}
         ORDER BY created_at DESC
         LIMIT 1`
   );

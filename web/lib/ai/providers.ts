@@ -9,10 +9,11 @@ import {
   AI_OUTPUT_MAX_TOKENS,
   AI_TIMEOUT_MS,
   AiOutputSchema,
-  SYSTEM_PROMPT,
+  buildSystemPrompt,
   callOpenRouterChain,
   extractJsonObject,
   type AiChainResult,
+  type AiLanguage,
 } from './openrouter';
 
 export type AiProvider = 'openrouter' | 'gemini' | 'groq';
@@ -85,7 +86,12 @@ export interface GroqClientLike {
 /** Gemini (SDK `@google/genai`): structured outputs nativos vía `responseMimeType`. */
 export async function callGeminiChain(
   facts: AiFacts,
-  init: { client?: GeminiClientLike; models?: string[]; apiKey?: string } = {}
+  init: {
+    client?: GeminiClientLike;
+    models?: string[];
+    apiKey?: string;
+    language?: AiLanguage;
+  } = {}
 ): Promise<AiChainResult> {
   const apiKey = init.apiKey ?? geminiApiKey();
   if (!init.client && !apiKey) {
@@ -96,6 +102,7 @@ export async function callGeminiChain(
   const client: GeminiClientLike =
     init.client ?? (new GoogleGenAI({ apiKey }) as unknown as GeminiClientLike);
   const models = init.models ?? getModelsFor('gemini');
+  const systemInstruction = buildSystemPrompt(init.language ?? 'es');
   const attempts: Array<{ model: string; status?: number; error?: string }> = [];
 
   for (const model of models) {
@@ -104,7 +111,7 @@ export async function callGeminiChain(
         model,
         contents: userPrompt(facts),
         config: {
-          systemInstruction: SYSTEM_PROMPT,
+          systemInstruction,
           responseMimeType: 'application/json',
           temperature: 0.2,
           maxOutputTokens: AI_OUTPUT_MAX_TOKENS,
@@ -134,7 +141,12 @@ export async function callGeminiChain(
 /** Groq (SDK `groq-sdk`, compatible con la API de OpenAI): `response_format: json_object`. */
 export async function callGroqChain(
   facts: AiFacts,
-  init: { client?: GroqClientLike; models?: string[]; apiKey?: string } = {}
+  init: {
+    client?: GroqClientLike;
+    models?: string[];
+    apiKey?: string;
+    language?: AiLanguage;
+  } = {}
 ): Promise<AiChainResult> {
   const apiKey = init.apiKey ?? process.env.GROQ_API_KEY;
   if (!init.client && !apiKey) {
@@ -145,6 +157,7 @@ export async function callGroqChain(
   const client: GroqClientLike =
     init.client ?? (new Groq({ apiKey }) as unknown as GroqClientLike);
   const models = init.models ?? getModelsFor('groq');
+  const systemPrompt = buildSystemPrompt(init.language ?? 'es');
   const attempts: Array<{ model: string; status?: number; error?: string }> = [];
 
   for (const model of models) {
@@ -152,7 +165,7 @@ export async function callGroqChain(
       const completion = await client.chat.completions.create({
         model,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt(facts) },
         ],
         response_format: { type: 'json_object' },
@@ -186,6 +199,7 @@ export async function callAiChain(
   init: {
     provider?: AiProvider;
     models?: string[];
+    language?: AiLanguage;
     geminiClient?: GeminiClientLike;
     groqClient?: GroqClientLike;
     fetchImpl?: typeof fetch;
@@ -194,15 +208,17 @@ export async function callAiChain(
 ): Promise<AiChainResult> {
   const provider = init.provider ?? resolveProvider();
   const models = init.models ?? getModelsFor(provider);
+  const language = init.language ?? 'es';
 
   switch (provider) {
     case 'gemini':
-      return callGeminiChain(facts, { client: init.geminiClient, models });
+      return callGeminiChain(facts, { client: init.geminiClient, models, language });
     case 'groq':
-      return callGroqChain(facts, { client: init.groqClient, models });
+      return callGroqChain(facts, { client: init.groqClient, models, language });
     default:
       return callOpenRouterChain(facts, {
         models,
+        language,
         fetchImpl: init.fetchImpl,
         apiKey: init.openRouterApiKey,
       });

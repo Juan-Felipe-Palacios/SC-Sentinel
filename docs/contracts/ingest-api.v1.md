@@ -31,7 +31,9 @@ Ejemplo completo válido: `examples/ingest-request.valid.json`. Contraejemplo: `
 
 ### 1.2 Reglas de privacidad (normativas)
 
+- Por defecto (`anonymize_hosts = false`) `ip_display` lleva la IP textual del host (IPv4 o IPv6) y el dashboard resuelve el nombre por DNS inverso.
 - Si `anonymize_hosts = true` (config del agente), `ip_display` se envía **`null`** — la IP real nunca sale del nodo; `host_key` (HMAC truncado) es el único identificador persistente.
+- Las IPs privadas/reservadas (RFC1918, loopback, link-local, CGNAT, ULA IPv6) no están en GeoLite2 y se emiten con `country: "LAN"` para no confundirlas con destinos sin geolocalizar.
 - El snapshot contiene SOLO señales agregadas. Jamás raw packets ni flujos individuales.
 
 ### 1.3 Límites

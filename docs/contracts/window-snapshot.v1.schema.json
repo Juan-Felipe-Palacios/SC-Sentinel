@@ -27,8 +27,8 @@
           },
           "country": {
             "type": ["string", "null"],
-            "pattern": "^[A-Z]{2}$",
-            "description": "ISO 3166-1 alpha-2 via MaxMind GeoLite2."
+            "pattern": "^[A-Z]{2,3}$",
+            "description": "ISO 3166-1 alpha-2 via MaxMind GeoLite2. El literal LAN marca IPs privadas/reservadas (GeoLite2 no las contiene)."
           },
           "bytes_in": { "$ref": "#/$defs/counter" },
           "bytes_out": { "$ref": "#/$defs/counter" },
@@ -65,7 +65,7 @@
         "additionalProperties": false,
         "required": ["country", "bytes", "hosts"],
         "properties": {
-          "country": { "type": "string", "pattern": "^[A-Z]{2}$" },
+          "country": { "type": "string", "pattern": "^[A-Z]{2,3}$" },
           "bytes": { "$ref": "#/$defs/counter" },
           "hosts": { "$ref": "#/$defs/counter" }
         }

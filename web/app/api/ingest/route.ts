@@ -188,6 +188,8 @@ export async function POST(request: NextRequest) {
           id: `hst_${randomUUID()}`,
           windowId: envelope.window.id,
           hostKey: h.host_key,
+          // IP legible solo cuando el agente envía anonymize_hosts=false.
+          ipDisplay: h.ip_display ?? null,
           bytesIn: h.bytes_in,
           bytesOut: h.bytes_out,
           packets: h.packets,

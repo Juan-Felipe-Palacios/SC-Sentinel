@@ -43,13 +43,16 @@ impl HealthRegistry {
     }
 
     pub fn snapshot(&self) -> AgentHealth {
+        // `spool_bytes` siempre se publica (0 = spool vacío): un null hacía que el
+        // dashboard mostrara "—" y pareciera que el agente no reporta nada.
+        let spool_bytes = self.spool_bytes.load(Ordering::Relaxed);
         AgentHealth {
             capture_status: CaptureStatus::Ok,
             packets_seen: self.packets_seen.load(Ordering::Relaxed),
             packets_dropped: self.packets_dropped.load(Ordering::Relaxed),
             parse_errors: self.parse_errors.load(Ordering::Relaxed),
             queue_depth: Some(self.queue_depth.load(Ordering::Relaxed)),
-            spool_bytes: None,
+            spool_bytes: Some(spool_bytes),
             cpu_percent: None,
             memory_bytes: None,
             last_error: self.last_error.lock().unwrap().clone(),

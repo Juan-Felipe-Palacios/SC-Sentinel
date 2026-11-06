@@ -13,6 +13,15 @@ export const AI_OUTPUT_MAX_TOKENS = 1000;
 export const AI_PROMPT_MAX_TOKENS = 4000;
 export const AI_TIMEOUT_MS = 30_000;
 
+/** Idioma de salida del análisis. `es` es el idioma por defecto del producto. */
+export type AiLanguage = 'es' | 'en';
+
+export const AI_LANGUAGES: readonly AiLanguage[] = ['es', 'en'];
+
+export function parseAiLanguage(value: unknown): AiLanguage {
+  return value === 'en' ? 'en' : 'es';
+}
+
 const AiFindingSchema = z.object({
   type: z.string().min(1).max(64),
   description: z.string().min(1).max(1000),
@@ -38,12 +47,43 @@ export function getModelChain(): string[] {
   return fromEnv && fromEnv.length > 0 ? fromEnv : [...DEFAULT_AI_MODELS];
 }
 
-export const SYSTEM_PROMPT = `Sos un analista de seguridad de red. El motor determinista ya analizó las ventanas.
+const PROMPT_HEADER = `Sos un analista de seguridad de red. El motor determinista ya analizó las ventanas.
 Recibís únicamente HECHOS AGREGADOS (JSON). No hay paquetes crudos ni IPs sin anonimizar.
 No inventés datos que no estén en el JSON. Si no hay nada notable, decilo con claridad.
 
-Respondé SOLO un objeto JSON válido (sin markdown, sin texto adicional) con esta forma:
+En los hechos, country "LAN" significa red local/privada (no es un país) y country null
+significa que el host no se pudo geolocalizar: explicá esa distinción y nunca los
+describas como "país desconocido".`;
+
+const PROMPT_JSON_SHAPE = `Respondé SOLO un objeto JSON válido (sin markdown, sin texto adicional) con esta forma:
 {"summary":"...","risk_level":"low"|"medium"|"high"|"critical","findings":[{"type":"...","description":"...","severity":"info"|"low"|"medium"|"high"|"critical"}],"recommendations":["..."]}`;
+
+const SYSTEM_PROMPTS: Record<AiLanguage, string> = {
+  es: `${PROMPT_HEADER}
+
+IDIOMA OBLIGATORIO: español neutro. Los campos "summary", "findings[].description" y
+"recommendations[]" van SIEMPRE en español, sin excepciones y sin frases en inglés.
+La única excepción es "findings[].type": un slug corto en inglés (traffic, ports, alerts,
+host_anonymity, health, capture).
+Volvé a escribir todo en español aunque los hechos vengan con nombres en inglés.
+
+${PROMPT_JSON_SHAPE}`,
+  en: `${PROMPT_HEADER}
+
+MANDATORY LANGUAGE: neutral English. Write "summary", "findings[].description" and
+"recommendations[]" in English only. The only exception is "findings[].type": a short
+English slug (traffic, ports, alerts, host_anonymity, health, capture).
+
+${PROMPT_JSON_SHAPE}`,
+};
+
+/** Prompt del sistema para el idioma pedido (español por defecto). */
+export function buildSystemPrompt(language: AiLanguage = 'es'): string {
+  return SYSTEM_PROMPTS[language] ?? SYSTEM_PROMPTS.es;
+}
+
+/** Prompt por defecto: español, el idioma del producto. */
+export const SYSTEM_PROMPT = buildSystemPrompt('es');
 
 /** Extrae el primer objeto JSON completo de la respuesta (tolera fences ```json). */
 export function extractJsonObject(text: string): unknown | null {
@@ -62,11 +102,17 @@ export function extractJsonObject(text: string): unknown | null {
 
 export async function callOpenRouterChain(
   facts: AiFacts,
-  init: { fetchImpl?: typeof fetch; apiKey?: string; models?: string[] } = {}
+  init: {
+    fetchImpl?: typeof fetch;
+    apiKey?: string;
+    models?: string[];
+    language?: AiLanguage;
+  } = {}
 ): Promise<AiChainResult> {
   const apiKey = init.apiKey ?? process.env.OPENROUTER_API_KEY;
   const fetchImpl = init.fetchImpl ?? globalThis.fetch;
   const models = init.models ?? getModelChain();
+  const systemPrompt = buildSystemPrompt(init.language ?? 'es');
 
   if (!apiKey) {
     console.warn(JSON.stringify({ event: 'ai_chain_failed', reason: 'missing_api_key' }));
@@ -80,7 +126,7 @@ export async function callOpenRouterChain(
     JSON.stringify({
       model,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: `Facts agregados de la última ventana:\n${JSON.stringify(facts)}` },
       ],
       response_format: { type: 'json_object' },

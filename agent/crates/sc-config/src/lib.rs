@@ -17,6 +17,8 @@ const DEFAULT_SPOOL_PATH: &str = "./spool/sc-spool.sqlite";
 const DEFAULT_SPOOL_MAX_BYTES: u64 = 524_288_000;
 const DEFAULT_SPOOL_MAX_AGE_DAYS: u32 = 7;
 const DEFAULT_LOG_LEVEL: &str = "info";
+/// El dashboard muestra IP y nombre de host: la anonimización es opt-in.
+const DEFAULT_ANONYMIZE_HOSTS: bool = false;
 /// El cliente de `sc-sync` solo comprime con gzip; `zstd` queda para cuando
 /// ese camino exista (feature `zstd` de `sc-sync`).
 const SUPPORTED_COMPRESSION: [&str; 1] = ["gzip"];
@@ -49,6 +51,7 @@ pub enum ConfigError {
 #[serde(deny_unknown_fields, default)]
 pub struct AgentConfig {
     pub ingest: IngestConfig,
+    pub privacy: PrivacySection,
     pub spool: SpoolSection,
     pub log: LogSection,
 }
@@ -61,6 +64,22 @@ pub struct IngestConfig {
     pub token_env: String,
     /// `gzip` (único valor implementado por el cliente).
     pub compression: String,
+}
+
+/// Privacidad del snapshot. `anonymize_hosts = true` oculta la IP real del host
+/// (`ip_display: null`); con el valor por defecto el dashboard muestra IP y nombre.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields, default)]
+pub struct PrivacySection {
+    pub anonymize_hosts: bool,
+}
+
+impl Default for PrivacySection {
+    fn default() -> Self {
+        Self {
+            anonymize_hosts: DEFAULT_ANONYMIZE_HOSTS,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -140,7 +159,8 @@ impl AgentConfig {
         Ok(config)
     }
 
-    /// Aplica `SC_INGEST_URL`, `SC_SPOOL_PATH`, `SC_SPOOL_MAX_BYTES` y `SC_LOG`.
+    /// Aplica `SC_INGEST_URL`, `SC_SPOOL_PATH`, `SC_SPOOL_MAX_BYTES`, `SC_LOG`
+    /// y `SC_ANONYMIZE_HOSTS`.
     pub fn with_env(&mut self) -> Result<&mut Self, ConfigError> {
         self.with_env_from(|key| std::env::var(key).ok().filter(|v| !v.is_empty()))
     }
@@ -165,6 +185,19 @@ impl AgentConfig {
         }
         if let Some(level) = lookup("SC_LOG") {
             self.log.level = level;
+        }
+        if let Some(raw) = lookup("SC_ANONYMIZE_HOSTS") {
+            self.privacy.anonymize_hosts = match raw.trim().to_ascii_lowercase().as_str() {
+                "1" | "true" | "yes" | "on" => true,
+                "0" | "false" | "no" | "off" => false,
+                _ => {
+                    return Err(ConfigError::Invalid {
+                        field: "SC_ANONYMIZE_HOSTS",
+                        value: raw,
+                        expected: "true o false",
+                    })
+                }
+            };
         }
         self.validate()?;
         Ok(self)

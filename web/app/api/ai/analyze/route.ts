@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminAuth } from '@/lib/auth/admin';
 import { resolveDeviceId } from '@/lib/query/device';
-import { runAiPipeline } from '@/lib/ai';
+import { parseAiLanguage, runAiPipeline } from '@/lib/ai';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,7 +25,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: 'no_data', insight: null }, { status: 200 });
     }
 
-    const result = await runAiPipeline(deviceId);
+    // El panel IA permite pedir el análisis en español (por defecto) o en inglés.
+    const language = parseAiLanguage(new URL(request.url).searchParams.get('lang'));
+    const result = await runAiPipeline(deviceId, undefined, language);
 
     if (result.status === 'cached') {
       return NextResponse.json({ cached: true, insight: result.insight }, { status: 200 });
