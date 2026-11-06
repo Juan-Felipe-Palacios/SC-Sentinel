@@ -2,7 +2,7 @@
 
 use clap::Parser;
 use sc_aggregate::{AggregatorConfig, WindowAggregator};
-use sc_capture::{list_interfaces, run_live, run_offline, LocalIpSet};
+use sc_capture::{list_interfaces, local_ips_for_interface, run_live, run_offline, LocalIpSet};
 use sc_config::AgentConfig;
 use sc_geo::{GeoLite2Country, NoLookup};
 use sc_sync::{
@@ -122,7 +122,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (snap_tx, mut snap_rx) = mpsc::channel(1000);
 
     // Setup capture
-    let local = LocalIpSet::default();
     let use_offline = args.offline || args.fixture.is_some();
     let fixture_path = args.fixture.clone().unwrap_or_else(|| {
         // Try from cwd/agent context
@@ -134,12 +133,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let capture = if use_offline {
-        run_offline(&fixture_path, local.clone())?
+        run_offline(&fixture_path, LocalIpSet::default())?
     } else {
         match args.interface.as_deref() {
             Some(iface) => {
                 tracing::info!(interface = iface, "captura live");
-                run_live(iface, local.clone())?
+                // §5: sin las IPs locales el parser descarta todo el tráfico (IPs no locales).
+                let local = local_ips_for_interface(iface)?;
+                run_live(iface, local)?
             }
             None => {
                 eprintln!(

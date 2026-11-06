@@ -112,6 +112,25 @@ pub fn list_interfaces() -> Result<Vec<String>, CaptureError> {
     ))
 }
 
+/// IPs locales de la interfaz (necesarias para que `parse_packet` acepte el tráfico).
+#[cfg(feature = "live")]
+pub fn local_ips_for_interface(iface: &str) -> Result<LocalIpSet, CaptureError> {
+    let device = pcap::Device::list()
+        .map_err(|e| CaptureError::OpenFailure(e.to_string()))?
+        .into_iter()
+        .find(|d| d.name == iface || d.desc.as_deref() == Some(iface))
+        .ok_or(CaptureError::InterfaceNotFound)?;
+    let ips: Vec<std::net::IpAddr> = device.addresses.iter().map(|a| a.addr).collect();
+    Ok(LocalIpSet::from_config(&ips))
+}
+
+#[cfg(not(feature = "live"))]
+pub fn local_ips_for_interface(_iface: &str) -> Result<LocalIpSet, CaptureError> {
+    Err(CaptureError::Runtime(
+        "captura live no compilada: recompilar con --features live".to_string(),
+    ))
+}
+
 #[cfg(feature = "live")]
 fn timestamp_ns(secs: i64, micros: i64) -> i64 {
     secs * 1_000_000_000 + micros * 1_000
