@@ -31,15 +31,39 @@ Referencias: `docs/adr/0002-rust-agent.md` (jerarquía), `docs/README.md` (set c
 
 La feature `live` de `sc-capture` (pcap) necesita las librerías de importación del **Npcap SDK**; tener Npcap instalado (runtime en `System32\Npcap`) es necesario pero no suficiente para compilar.
 
-1. Descargar el [Npcap SDK](https://npcap.com/dist/npcap-sdk-1.15.zip) y extraerlo (p. ej. en `C:\Tools\npcap-sdk`).
-2. Antes de compilar/probar con la feature, apuntar `LIBPCAP_LIBDIR` a la carpeta `Lib\x64` del SDK:
+1. Descargar el [Npcap SDK](https://npcap.com/dist/npcap-sdk-1.13.zip) y extraerlo. En este equipo ya está en `agent\.tools\npcap-sdk` (carpeta ignorada por git; para recrearla: `curl -sSL -o .tools/npcap-sdk.zip https://npcap.com/dist/npcap-sdk-1.13.zip && powershell -NoProfile -Command "Expand-Archive -Force -Path '.tools\npcap-sdk.zip' -DestinationPath '.tools\npcap-sdk'"` desde `agent/`).
+2. Antes de compilar/probar con la feature, apuntar `LIBPCAP_LIBDIR` a la carpeta `Lib\x64` del SDK. Comando exacto desde `agent/` (Git Bash):
+
+   ```bash
+   LIBPCAP_VER=1.0.0 LIBPCAP_LIBDIR='D:\ProyectosWeb\SC-Sentinel\agent\.tools\npcap-sdk\Lib\x64' \
+     cargo build --release -p sc-agent --features sc-capture/live
+   ```
+
+   Equivalente en PowerShell:
 
    ```powershell
-   $env:LIBPCAP_LIBDIR = "C:\Tools\npcap-sdk\Lib\x64"
-   cargo build --release --features sc-capture/live
-   cargo test -p sc-capture --features live
+   $env:LIBPCAP_VER = "1.0.0"
+   $env:LIBPCAP_LIBDIR = "D:\ProyectosWeb\SC-Sentinel\agent\.tools\npcap-sdk\Lib\x64"
+   cargo build --release -p sc-agent --features sc-capture/live
+   ```
+
+   `LIBPCAP_VER` evita que el build script intente deducir la versión cargando `wpcap.dll` desde `Lib\x64` (el SDK sólo trae los `.lib`; el DLL vive en `C:\Windows\System32\Npcap`).
+
+   Comprobación rápida del binario recién compilado (no captura, sólo enumera):
+
+   ```bash
+   ./target/release/sc-agent.exe --list-interfaces
    ```
 
 3. La feature se declara namespaced en `sc-capture`: invocarla como `--features sc-capture/live` (el binario `sc-agent` no declara una feature `live` propia).
 
 Sin el SDK configurado, el build falla en el link con `LNK1181: cannot open input file 'wpcap.lib'`. Sin la feature, el crate compila igual y `run_live` devuelve un error orientador en runtime.
+
+Reinicio del agente en Windows (con captura live): recompilar con el comando de arriba y reiniciar el proceso con la interfaz y el token habituales, p. ej.:
+
+```powershell
+$env:SC_INGEST_TOKEN = "<token del device>"
+.\target\release\sc-agent.exe --interface '\Device\NPF_{...}' --config config\sc-agent.toml
+```
+
+La interfaz exacta se obtiene con `--list-interfaces`; el token se toma de `SC_INGEST_TOKEN` (nunca se escribe en el TOML).
