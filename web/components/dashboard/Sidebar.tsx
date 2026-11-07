@@ -17,6 +17,7 @@ interface NavEntry {
   label: string;
   href: string | null;
   icon: typeof LayoutDashboard;
+  action?: 'open-chat';
 }
 
 const NAV_ITEMS: NavEntry[] = [
@@ -24,7 +25,7 @@ const NAV_ITEMS: NavEntry[] = [
   { label: 'Hosts', href: null, icon: Server },
   { label: 'Conexiones', href: null, icon: Network },
   { label: 'Alertas', href: null, icon: ShieldAlert },
-  { label: 'Asistente AI', href: null, icon: Sparkles },
+  { label: 'Asistente AI', href: null, icon: Sparkles, action: 'open-chat' },
   { label: 'Configuración', href: '/dashboard/settings', icon: Settings },
 ];
 
@@ -51,6 +52,25 @@ export function Sidebar() {
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const active = item.href !== null && pathname.startsWith(item.href);
+
+            if (item.action === 'open-chat') {
+              return (
+                <li key={item.label}>
+                  <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new Event('sc:open-chat'))}
+                    title="Abrir asistente"
+                    className="flex w-full items-center gap-3 rounded-md border border-transparent px-3 py-2 text-sm text-sc-text-muted transition-colors hover:bg-sc-surface-alt hover:text-sc-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sc-viz-in/50"
+                  >
+                    <Icon className="size-[17px]" strokeWidth={1.5} aria-hidden="true" />
+                    <span className="flex-1 text-left">{item.label}</span>
+                    <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-sc-viz-in/60">
+                      abrir
+                    </span>
+                  </button>
+                </li>
+              );
+            }
 
             if (item.href === null) {
               return (
