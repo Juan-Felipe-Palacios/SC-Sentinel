@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hito M3.5 — Security Chatbot | SC-Sentinel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #090d16;
+  --bg-card: #111827;
+  --bg-card-hover: #162032;
+  --bg-subtle: #1e293b;
+  --border: #1e293b;
+  --border-focus: #38bdf8;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  
+  --accent: #38bdf8;
+  --accent-glow: rgba(56, 189, 248, 0.15);
+  --accent-secondary: #34d399;
+  
+  --risk-low: #34d399;
+  --risk-medium: #fbbf24;
+  --risk-high: #fb923c;
+  --risk-critical: #f87171;
+  --risk-info: #38bdf8;
+
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg);
+  color: var(--text-main);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 48px 24px 96px;
+}
+
+/* Header & Hero section */
+.hero {
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.95), rgba(15, 23, 42, 0.8));
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 16px;
+  padding: 40px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5), 0 0 30px rgba(56, 189, 248, 0.05);
+  backdrop-filter: blur(12px);
+  margin-bottom: 40px;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -100px;
+  right: -100px;
+  width: 350px;
+  height: 350px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, rgba(52, 211, 153, 0.05) 50%, transparent 70%);
+  pointer-events: none;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  background: rgba(56, 189, 248, 0.08);
+  padding: 6px 14px;
+  border-radius: 20px;
+  margin-bottom: 20px;
+}
+
+.hero h1 {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  margin-bottom: 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #cbd5e1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero .sub {
+  font-size: 16px;
+  color: var(--text-muted);
+  max-width: 700px;
+  margin-bottom: 32px;
+}
+
+.mgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.mitem {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 16px 20px;
+  transition: all 0.2s ease;
+}
+
+.mitem:hover {
+  border-color: rgba(56, 189, 248, 0.3);
+  transform: translateY(-2px);
+}
+
+.mitem .l {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.mitem .v {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+/* Typography & Sections */
+section {
+  margin-top: 56px;
+}
+
+h2 {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #f1f5f9;
+}
+
+h2 .n {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 24px 0 14px;
+  color: var(--accent-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+p {
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+p strong, li strong {
+  color: var(--text-main);
+}
+
+/* Cards & Layout Grid */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 16px;
+  transition: border-color 0.2s ease;
+}
+
+.card:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.cgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+/* Brainstorming Boxes */
+.bs {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.bs h4 {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 14px;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bs h4 .ic {
+  font-size: 18px;
+  background: var(--bg-subtle);
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+}
+
+.bs ul {
+  padding-left: 0;
+  list-style: none;
+}
+
+.bs li {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  position: relative;
+  padding-left: 16px;
+  line-height: 1.5;
+}
+
+.bs li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+  font-weight: bold;
+}
+
+/* Flow steps */
+.flow {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.fs {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 10px;
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.fs .sn {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 700;
+  background: rgba(56, 189, 248, 0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.fs .st {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text-main);
+}
+
+.fs .sd {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  grid-column: 2;
+}
+
+/* Tables */
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  margin: 16px 0 24px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  text-align: left;
+  background: var(--bg-card);
+}
+
+th {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  background: #0f172a;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+td {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(30, 41, 59, 0.6);
+  color: var(--text-muted);
+  vertical-align: top;
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+tr:hover td {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+td strong {
+  color: var(--text-main);
+}
+
+/* Chips & Badges */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid;
+}
+
+.chip.lo { color: var(--risk-low); border-color: rgba(52, 211, 153, 0.3); background: rgba(52, 211, 153, 0.08); }
+.chip.me { color: var(--risk-medium); border-color: rgba(251, 191, 36, 0.3); background: rgba(251, 191, 36, 0.08); }
+.chip.hi { color: var(--risk-high); border-color: rgba(251, 146, 60, 0.3); background: rgba(251, 146, 60, 0.08); }
+.chip.cr { color: var(--risk-critical); border-color: rgba(248, 113, 113, 0.3); background: rgba(248, 113, 113, 0.08); }
+.chip.in { color: var(--risk-info); border-color: rgba(56, 189, 248, 0.3); background: rgba(56, 189, 248, 0.08); }
+
+/* Code blocks */
+pre {
+  background: #090d16;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  color: #e2e8f0;
+  margin: 16px 0 24px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+}
+
+code {
+  font-family: var(--font-mono);
+  background: rgba(56, 189, 248, 0.1);
+  color: var(--accent);
+  padding: 3px 7px;
+  border-radius: 5px;
+  font-size: 12.5px;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+pre code {
+  background: none;
+  color: inherit;
+  padding: 0;
+  border: none;
+}
+
+/* Lists & Checklists */
+ul, ol {
+  padding-left: 20px;
+  margin-bottom: 16px;
+}
+
+li {
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+
+.ck {
+  list-style: none;
+  padding-left: 0;
+}
+
+.ck li {
+  position: relative;
+  padding-left: 30px;
+  margin-bottom: 10px;
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+.ck li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  top: 2px;
+  width: 20px;
+  height: 20px;
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  border-radius: 6px;
+  background: rgba(52, 211, 153, 0.1);
+  color: var(--accent-secondary);
+  font-size: 12px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Footer */
+.ft {
+  margin-top: 80px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: 0.05em;
+}
+
+.ft p {
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+@media print {
+  body { background: #fff; color: #1a1a1a; }
+  .hero { background: #f8fafc; border-color: #cbd5e1; }
+  .card, .bs { border-color: #cbd5e1; background: #fff; }
+  pre { background: #f1f5f9; color: #0f172a; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hero">
+<span class="badge">📋 Planificado</span>
+<h1>Hito M3.5 — Security Chatbot</h1>
+<p class="sub">Asistente IA de Ciberseguridad para consultas, recomendaciones y explicación de eventos del sistema</p>
+<div class="mgrid">
+<div class="mitem"><div class="l">Creado</div><div class="v">2026-11-06</div></div>
+<div class="mitem"><div class="l">Dependencias</div><div class="v">M3 ✅ (100%)</div></div>
+<div class="mitem"><div class="l">Estimación</div><div class="v">6–8 días</div></div>
+<div class="mitem"><div class="l">Autor</div><div class="v">Equipo SC-Sentinel</div></div>
+</div>
+</div>
+
+<section>
+<h2><span class="n">1</span> Resumen ejecutivo</h2>
+<p>El Hito M3.5 introduce un <strong>chatbot inteligente integrado en el dashboard</strong> que actúa como un analista de ciberseguridad virtual, capaz de:</p>
+<ul>
+<li><strong>Consultar</strong> datos históricos y en tiempo real usando lenguaje natural.</li>
+<li><strong>Explicar</strong> eventos, alertas y métricas técnicas en términos comprensibles.</li>
+<li><strong>Recomendar</strong> acciones de remediación basadas en el contexto específico del tenant.</li>
+<li><strong>Correlacionar</strong> eventos dispersos para identificar patrones de ataque.</li>
+</ul>
+<p>Este chatbot transforma SC-Sentinel de una herramienta de monitoreo pasivo a un <strong>asistente proactivo de seguridad</strong>, reduciendo la barrera de entrada para usuarios no técnicos y acelerando el tiempo de respuesta ante incidentes.</p>
+<div class="card">
+<h3>💼 Valor de negocio</h3>
+<ul>
+<li><strong>Diferenciación competitiva:</strong> pocos productos de monitoreo ofrecen un asistente conversacional especializado.</li>
+<li><strong>Reducción de tiempo de triage:</strong> analiza horas de logs en segundos.</li>
+<li><strong>Educación continua:</strong> explica conceptos de ciberseguridad en contexto real.</li>
+<li><strong>Casos de uso expandidos:</strong> desde SOC analista hasta auditoría conversacional.</li>
+</ul>
+</div>
+</section>
+
+<section>
+<h2><span class="n">2</span> Objetivos del hito</h2>
+<h3>2.1 Objetivos funcionales</h3>
+<ul class="ck">
+<li><strong>F1</strong>: Chat UI integrado en el dashboard (widget flotante o página dedicada).</li>
+<li><strong>F2</strong>: Consultas en lenguaje natural sobre eventos de red (ej. “¿Qué IPs me atacaron ayer?”).</li>
+<li><strong>F3</strong>: Explicación de alertas en términos comprensibles (ej. “¿Qué significa 'TCP SYN flood'?”).</li>
+<li><strong>F4</strong>: Recomendaciones de remediación basadas en el contexto del tenant.</li>
+<li><strong>F5</strong>: Correlación de eventos históricos (ej. “¿Este IP apareció en ataques anteriores?”).</li>
+<li><strong>F6</strong>: Análisis de tendencias (ej. “¿El tráfico ha aumentado en la última semana?”).</li>
+<li><strong>F7</strong>: Memoria de contexto conversacional (recordar preguntas previas en la sesión).</li>
+<li><strong>F8</strong>: Streaming de respuestas (UX fluida, no esperar al texto completo).</li>
+<li><strong>F9</strong>: Exportación de conversaciones a reportes (PDF/Markdown).</li>
+<li><strong>F10</strong>: Modo “incident response” guiado (workflow paso a paso).</li>
+<li><strong>F11</strong>: Auditoría conversacional (quién preguntó qué y cuándo).</li>
+<li><strong>F12</strong>: Sugerencias contextuales (botones de preguntas frecuentes relevantes).</li>
+</ul>
+
+<h3>2.2 Objetivos no funcionales</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>ID</th><th>Objetivo</th><th>Métrica</th></tr></thead>
+<tbody>
+<tr><td><strong>NF1</strong></td><td>Latencia de primera respuesta</td><td>&lt; 2 segundos (streaming)</td></tr>
+<tr><td><strong>NF2</strong></td><td>Precisión</td><td>&lt; 5% de hallucinations</td></tr>
+<tr><td><strong>NF3</strong></td><td>Seguridad</td><td>Solo admins autenticados</td></tr>
+<tr><td><strong>NF4</strong></td><td>Privacidad</td><td>Conversaciones no salen del tenant</td></tr>
+<tr><td><strong>NF5</strong></td><td>Costo</td><td>&lt; 2000 tokens por consulta (promedio)</td></tr>
+<tr><td><strong>NF6</strong></td><td>Escalabilidad</td><td>100 conversaciones simultáneas</td></tr>
+<tr><td><strong>NF7</strong></td><td>Observabilidad</td><td>Logs de consultas y métricas de uso</td></tr>
+<tr><td><strong>NF8</strong></td><td>Accesibilidad</td><td>WCAG 2.1 AA</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>2.3 Fuera de alcance (explícitamente NO entra en M3.5)</h3>
+<ul>
+<li>❌ Entrenamiento de modelos personalizados (usamos LLMs pre-entrenados con RAG).</li>
+<li>❌ Ejecución automática de acciones (solo recomendaciones, no cambios en el sistema).</li>
+<li>❌ Integración con herramientas externas (VirusTotal, Shodan) — queda para M6+.</li>
+<li>❌ Soporte multi-tenant en el chat (cada tenant tiene su propio contexto aislado).</li>
+<li>❌ Voz (solo texto por ahora).</li>
+</ul>
+</section>
+
+<section>
+<h2><span class="n">3</span> Brainstorm de funcionalidades</h2>
+<div class="cgrid">
+<div class="bs"><h4><span class="ic">🔍</span> Consultas en lenguaje natural</h4><ul><li>“¿Qué IPs me atacaron en las últimas 24 horas?”</li><li>“¿Cuál es el país con más tráfico sospechoso?”</li><li>“Muéstrame los hosts que más consumen ancho de banda”</li><li>“¿Hubo algún ataque DDoS la semana pasada?”</li><li>“¿Qué puertos están más expuestos?”</li></ul></div>
+<div class="bs"><h4><span class="ic">📖</span> Explicación de eventos técnicos</h4><ul><li>“¿Qué significa 'TCP SYN flood'?”</li><li>“¿Por qué se disparó la alerta 'Blacklist hit'?”</li><li>“¿Qué son los 'packets dropped'?”</li><li>“Explícame qué es un 'flow record'”</li><li>“¿Qué significa 'risk_level: high'?”</li></ul></div>
+<div class="bs"><h4><span class="ic">🛡️</span> Recomendaciones de remediación</h4><ul><li>“¿Qué debo hacer si detecto un SYN flood?”</li><li>“¿Cómo bloqueo esta IP maliciosa?”</li><li>“¿Qué configuración de firewall recomiendas?”</li><li>“¿Debo preocuparme por este tráfico de China?”</li><li>“¿Cómo mejoro la detección de anomalías?”</li></ul></div>
+<div class="bs"><h4><span class="ic">🔗</span> Correlación de eventos</h4><ul><li>“¿Este IP apareció en ataques anteriores?”</li><li>“¿Hay algún patrón en los últimos 30 días?”</li><li>“¿Qué IPs atacaron tanto ayer como hoy?”</li><li>“¿El ataque de las 3 AM está relacionado con el de las 3 PM?”</li><li>“¿Qué hosts fueron atacados por múltiples IPs?”</li></ul></div>
+<div class="bs"><h4><span class="ic">📈</span> Análisis de tendencias</h4><ul><li>“¿El tráfico ha aumentado en la última semana?”</li><li>“¿Hay algún patrón estacional en los ataques?”</li><li>“¿Qué días de la semana hay más actividad sospechosa?”</li><li>“¿El volumen de alertas está creciendo?”</li><li>“¿Hay algún pico anómalo en este momento?”</li></ul></div>
+<div class="bs"><h4><span class="ic">💬</span> Memoria de contexto</h4><ul><li>P1: “¿Qué IPs me atacaron ayer?”</li><li>P2: “¿Y esos mismos IPs, la semana pasada?”</li><li>P3: “¿De qué países son?”</li><li>P4: “Dame un resumen de todo esto”</li><li>El chatbot recuerda el hilo conversacional completo</li></ul></div>
+<div class="bs"><h4><span class="ic">🚨</span> Incident response guiado</h4><ul><li>“Ayúdame a investigar este ataque”</li><li>Paso 1: Identificar el vector de ataque</li><li>Paso 2: Revisar IPs involucrados</li><li>Paso 3: Verificar correlación histórica</li><li>Paso 4: Recomendaciones de contención</li></ul></div>
+<div class="bs"><h4><span class="ic">💡</span> Sugerencias contextuales</h4><ul><li>En alertas: “¿Explicar esta alerta?”</li><li>En panel IA: “¿Profundizar en este hallazgo?”</li><li>En top hosts: “¿Ver historial de este host?”</li><li>En configuración: “¿Cómo mejoro este umbral?”</li></ul></div>
+<div class="bs"><h4><span class="ic">📝</span> Auditoría conversacional</h4><ul><li>Registro: todas las preguntas y respuestas persisten</li><li>Trazabilidad: quién preguntó, cuándo, contexto usado</li><li>Exportación: reportes de auditoría</li><li>Búsqueda: en el historial de conversaciones</li></ul></div>
+<div class="bs"><h4><span class="ic">⚙️</span> Asistente de configuración</h4><ul><li>“¿Cómo configuro una regla de detección personalizada?”</li><li>“¿Qué umbrales recomiendas para detectar DDoS?”</li><li>“¿Cómo añado una IP a la blacklist?”</li><li>“¿Qué significa 'anonymize_hosts: true'?”</li></ul></div>
+<div class="bs"><h4><span class="ic">📄</span> Reportes narrativos</h4><ul><li>“Dame un resumen ejecutivo de la última semana”</li><li>“Exporta este análisis a PDF”</li><li>“Crea un reporte para el CISO”</li><li>“Resume las 5 alertas más críticas del mes”</li></ul></div>
+<div class="bs"><h4><span class="ic">🎓</span> Modo educativo</h4><ul><li>“Explícame qué es un ataque DDoS”</li><li>“¿Cómo funciona un SYN flood?”</li><li>“¿Qué es la segmentación de red?”</li><li>“¿Por qué es importante el monitoreo de flujos?”</li></ul></div>
+<div class="bs"><h4><span class="ic">🌐</span> Multi-idioma</h4><ul><li>Español: “¿Qué IPs me atacaron?”</li><li>Inglés: “What IPs attacked me?”</li><li>Portugués: “Quais IPs me atacaram?”</li><li>El chatbot detecta el idioma y responde en el mismo</li></ul></div>
+<div class="bs"><h4><span class="ic">🔮</span> Futuro (M6+)</h4><ul><li>Integración con VirusTotal / Shodan</li><li>Consulta de CVEs asociados a servicios</li><li>Threat Intelligence Feeds</li><li>Ejecución automática con aprobación</li></ul></div>
+</div>
+</section>
+
+<section>
+<h2><span class="n">4</span> Arquitectura técnica</h2>
+<h3>4.1 Componentes del sistema</h3>
+<div class="flow">
+<div class="fs"><span class="sn">01</span><div><div class="st">Frontend (Next.js)</div><div class="sd">ChatWidget flotante o página /dashboard/chat. Input de texto, streaming de respuestas, sugerencias contextuales, historial de conversaciones.</div></div></div>
+<div class="fs"><span class="sn">02</span><div><div class="st">API Routes (Next.js)</div><div class="sd">POST /api/chat (autenticación + streaming SSE + orquestación). GET /api/chat/history (recuperar conversaciones).</div></div></div>
+<div class="fs"><span class="sn">03</span><div><div class="st">Chat Pipeline (lib/chat/)</div><div class="sd">Context Builder → Query Classifier → RAG → LLM Call → Response Validator.</div></div></div>
+<div class="fs"><span class="sn">04</span><div><div class="st">Database (Neon PostgreSQL)</div><div class="sd">Tablas chat_conversations y chat_messages para persistencia y auditoría.</div></div></div>
+</div>
+
+<h3>4.2 Decisiones de diseño (ADRs)</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>ID</th><th>Decisión</th><th>Justificación</th></tr></thead>
+<tbody>
+<tr><td><code>ADR-M3.5-01</code></td><td>RAG con consultas SQL directas (no vector DB)</td><td>Simplicidad, latencia baja, datos ya estructurados en Neon. Vector DB queda para M6+.</td></tr>
+<tr><td><code>ADR-M3.5-02</code></td><td>Streaming con Server-Sent Events (SSE)</td><td>UX fluida, compatible con Next.js, no requiere WebSockets.</td></tr>
+<tr><td><code>ADR-M3.5-03</code></td><td>System prompt especializado por tenant</td><td>Contexto específico (dispositivos, alertas, configuración) mejora precisión.</td></tr>
+<tr><td><code>ADR-M3.5-04</code></td><td>Límite de contexto: últimas 10 conversaciones</td><td>Evita enviar demasiado contexto al LLM (costo y latencia).</td></tr>
+<tr><td><code>ADR-M3.5-05</code></td><td>Validación de hallucinations con queries SQL</td><td>Si el LLM menciona un IP, verificar que existe en la DB antes de mostrarlo.</td></tr>
+<tr><td><code>ADR-M3.5-06</code></td><td>Solo admins pueden usar el chat</td><td>Seguridad: el chat tiene acceso a datos sensibles del tenant.</td></tr>
+<tr><td><code>ADR-M3.5-07</code></td><td>Persistencia de conversaciones en Neon</td><td>Auditoría, continuidad de contexto, exportación.</td></tr>
+<tr><td><code>ADR-M3.5-08</code></td><td>Sin ejecución automática de acciones</td><td>Seguridad: el chatbot solo recomienda, no ejecuta cambios.</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>4.3 Flujo de una consulta típica</h3>
+<div class="flow">
+<div class="fs"><span class="sn">01</span><div><div class="st">POST /api/chat</div><div class="sd">Autenticación con verifyAdminAuth. Body: { message: “¿Qué IPs me atacaron ayer?”, conversation_id: “conv_123” }</div></div></div>
+<div class="fs"><span class="sn">02</span><div><div class="st">Context Builder</div><div class="sd">Recuperar últimas 10 conversaciones de conv_123. Recuperar alertas de ayer y top hosts. Construir contexto: “Ayer hubo 47 alertas, top 3 IPs: 192.168.1.100, 10.0.0.5, 172.16.0.1”</div></div></div>
+<div class="fs"><span class="sn">03</span><div><div class="st">Query Classifier</div><div class="sd">Intención: “listar IPs maliciosos”. Entidades: fecha=“ayer”. Tipo de query: SQL directa a alerts + host_stats.</div></div></div>
+<div class="fs"><span class="sn">04</span><div><div class="st">RAG (consultas SQL)</div><div class="sd">Query 1: SELECT DISTINCT host_key FROM host_stats WHERE risk_score='high' AND window_id IN (...). Query 2: SELECT COUNT(*) FROM alerts WHERE created_at > NOW() - INTERVAL '1 day'. Resultado: 3 IPs, 47 alertas.</div></div></div>
+<div class="fs"><span class="sn">05</span><div><div class="st">LLM Call (Groq/Gemini)</div><div class="sd">System prompt especializado + contexto + pregunta. Streaming de respuesta vía SSE.</div></div></div>
+<div class="fs"><span class="sn">06</span><div><div class="st">Response Validator</div><div class="sd">Validar que los IPs mencionados existen en la DB. Formatear markdown. Persistir en chat_messages.</div></div></div>
+<div class="fs"><span class="sn">07</span><div><div class="st">Respuesta al usuario (streaming)</div><div class="sd">“Ayer detecté 3 IPs que te atacaron: 192.168.1.100 (23 alertas, SYN flood), 10.0.0.5 (15 alertas, port scan), 172.16.0.1 (9 alertas, blacklist hit). ¿Quieres que te explique cómo mitigarlo?”</div></div></div>
+</div>
+
+<h3>4.4 Esquema de base de datos (Migración 0005)</h3>
+<pre><code>CREATE TABLE chat_conversations (
+  id TEXT PRIMARY KEY,
+  device_id TEXT NOT NULL REFERENCES devices(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  metadata JSONB DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE chat_messages (
+  id TEXT PRIMARY KEY,
+  conversation_id TEXT NOT NULL
+    REFERENCES chat_conversations(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('user','assistant','system')),
+  content TEXT NOT NULL,
+  tokens_used INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX chat_messages_conversation_idx
+  ON chat_messages(conversation_id);
+CREATE INDEX chat_messages_created_at_idx
+  ON chat_messages(created_at);</code></pre>
+
+<h3>4.5 Estructura de archivos</h3>
+<pre><code>web/
+├── app/
+│   ├── (dashboard)/dashboard/chat/page.tsx
+│   └── api/chat/
+│       ├── route.ts              # POST /api/chat (streaming)
+│       └── history/route.ts      # GET /api/chat/history
+├── components/chat/
+│   ├── ChatWidget.tsx
+│   ├── ChatInput.tsx
+│   ├── ChatMessage.tsx
+│   ├── ChatHistory.tsx
+│   └── ChatSuggestions.tsx
+├── lib/chat/
+│   ├── pipeline.ts               # Orquestación
+│   ├── context-builder.ts
+│   ├── query-classifier.ts
+│   ├── rag.ts                    # Queries SQL
+│   ├── llm.ts                    # Groq/Gemini
+│   ├── validator.ts              # Anti-hallucinations
+│   └── types.ts
+└── db/migrations/0005_chat.sql</code></pre>
+</section>
+
+<section>
+<h2><span class="n">5</span> Plan de tareas (WBS)</h2>
+<h3>Fase 1: Fundaciones (Días 1–2)</h3>
+<div class="card">
+<h3>T1.1 — ADR y diseño del sistema ⏱️ 4h</h3>
+<ul class="ck">
+<li>Redactar <code>docs/adr/0005-security-chatbot.md</code> con las decisiones de §4.2.</li>
+<li>Diseñar el esquema de base de datos (chat_conversations, chat_messages).</li>
+<li>Definir la API contract (request/response de /api/chat).</li>
+<li>Diseñar el system prompt del LLM.</li>
+</ul>
+<p><strong>Entregable</strong>: ADR mergeado, schema SQL, OpenAPI spec. <strong>Tests</strong>: Revisión de diseño.</p>
+</div>
+
+<div class="card">
+<h3>T1.2 — Migración de base de datos ⏱️ 2h</h3>
+<ul class="ck">
+<li>Crear <code>web/db/migrations/0005_chat.sql</code>.</li>
+<li>Ejecutar migración en preview y producción.</li>
+<li>Verificar que las tablas se crearon correctamente.</li>
+</ul>
+<p><strong>Entregable</strong>: Tablas de chat en Neon. <strong>Tests</strong>: Query de verificación en SQL Editor.</p>
+</div>
+
+<div class="card">
+<h3>T1.3 — API endpoint /api/chat (básico) ⏱️ 6h</h3>
+<ul class="ck">
+<li>Implementar <code>web/app/api/chat/route.ts</code>.</li>
+<li>Autenticación con <code>verifyAdminAuth</code>.</li>
+<li>Streaming con Server-Sent Events (SSE).</li>
+<li>Persistencia de mensajes en chat_messages.</li>
+</ul>
+<p><strong>Tests</strong>: Unit (autenticación 401 sin cookie), Unit (persistencia), Integration (POST → SSE).</p>
+</div>
+
+<h3>Fase 2: Pipeline de IA (Días 3–4)</h3>
+<div class="card">
+<h3>T2.1 — Context Builder ⏱️ 6h</h3>
+<ul class="ck">
+<li>Implementar <code>web/lib/chat/context-builder.ts</code>.</li>
+<li>Recuperar últimas 10 conversaciones.</li>
+<li>Recuperar alertas recientes, top hosts, métricas.</li>
+<li>Construir contexto estructurado para el LLM.</li>
+</ul>
+<p><strong>Tests</strong>: Unit (datos mock → contexto incluye alertas y hosts), Unit (sin datos → vacío válido), Integration (datos reales de Neon).</p>
+</div>
+
+<div class="card">
+<h3>T2.2 — Query Classifier ⏱️ 4h</h3>
+<ul class="ck">
+<li>Detectar intención (listar, explicar, recomendar, correlacionar).</li>
+<li>Extraer entidades (IPs, hosts, fechas, puertos) con regex + heurísticas.</li>
+</ul>
+<p><strong>Tests</strong>: Unit (“¿Qué IPs me atacaron?” → listar), Unit (“Explícame SYN flood” → explicar), Unit (“¿Qué hago si detecto un ataque?” → recomendar).</p>
+</div>
+
+<div class="card">
+<h3>T2.3 — RAG con queries SQL ⏱️ 8h</h3>
+<ul class="ck">
+<li>Generar queries SQL basadas en la intención y entidades.</li>
+<li>Ejecutar queries y formatear resultados.</li>
+<li>Inyectar resultados en el contexto del LLM.</li>
+</ul>
+<p><strong>Tests</strong>: Unit (intención=listar IPs → query SQL correcta), Unit (intención=explicar → sin query), Integration (query real a Neon → resultados).</p>
+</div>
+
+<div class="card">
+<h3>T2.4 — LLM Call (Groq/Gemini) ⏱️ 6h</h3>
+<ul class="ck">
+<li>System prompt especializado (experto en ciberseguridad, español, conciso).</li>
+<li>Llamada al LLM con contexto + pregunta.</li>
+<li>Streaming de respuesta.</li>
+<li>Manejo de errores (timeout, rate limit, API down).</li>
+</ul>
+<p><strong>Tests</strong>: Unit (system prompt incluye contexto), Unit (streaming SSE chunks), Integration (llamada real), Error (API key inválida).</p>
+</div>
+
+<div class="card">
+<h3>T2.5 — Response Validator ⏱️ 4h</h3>
+<ul class="ck">
+<li>Detectar IPs/hosts mencionados en la respuesta.</li>
+<li>Verificar que existen en la base de datos.</li>
+<li>Marcar respuestas con hallucinations (warning en UI).</li>
+</ul>
+<p><strong>Tests</strong>: Unit (IP válida → OK), Unit (IP inventada → warning), Unit (sin IPs → OK).</p>
+</div>
+
+<h3>Fase 3: Frontend (Días 5–6)</h3>
+<div class="card">
+<h3>T3.1 — ChatWidget (widget flotante) ⏱️ 8h</h3>
+<ul class="ck">
+<li>Botón flotante en la esquina inferior derecha.</li>
+<li>Ventana de chat expandible.</li>
+<li>Input de texto con envío por Enter.</li>
+<li>Streaming de respuestas (actualización en tiempo real).</li>
+<li>Scroll automático al último mensaje.</li>
+</ul>
+<p><strong>Tests</strong>: E2E (abrir widget → enviar → ver streaming), Unit (streaming progresivo), Accessibility (teclado, ARIA).</p>
+</div>
+
+<div class="card">
+<h3>T3.2 — ChatMessage (renderizado) ⏱️ 4h</h3>
+<ul class="ck">
+<li>Renderizado de markdown (listas, código, negritas).</li>
+<li>Diferenciar mensajes de usuario vs asistente.</li>
+<li>Mostrar timestamp y botón de copiar.</li>
+</ul>
+<p><strong>Tests</strong>: Unit (markdown correcto), Unit (estilos diferenciados), Accessibility (screen reader).</p>
+</div>
+
+<div class="card">
+<h3>T3.3 — ChatHistory (historial) ⏱️ 6h</h3>
+<ul class="ck">
+<li>Lista de conversaciones previas.</li>
+<li>Crear nueva conversación.</li>
+<li>Cambiar entre conversaciones y eliminar.</li>
+</ul>
+<p><strong>Tests</strong>: Integration (crear → aparece), Integration (cambiar → carga mensajes), Integration (eliminar → desaparece).</p>
+</div>
+
+<div class="card">
+<h3>T3.4 — ChatSuggestions (sugerencias) ⏱️ 4h</h3>
+<ul class="ck">
+<li>Sugerencias basadas en la página actual (dashboard, alertas, IA).</li>
+<li>Sugerencias basadas en el historial de conversación.</li>
+<li>Botones de preguntas frecuentes.</li>
+</ul>
+<p><strong>Tests</strong>: Unit (en alertas → “¿Explicar esta alerta?”), Unit (en IA → “¿Profundizar?”), Unit (sin contexto → genéricas).</p>
+</div>
+
+<h3>Fase 4: Integración y robustez (Día 7)</h3>
+<div class="card">
+<h3>T4.1 — Orquestación del pipeline ⏱️ 6h</h3>
+<ul class="ck">
+<li>Conectar Context Builder → Query Classifier → RAG → LLM → Validator.</li>
+<li>Manejo de errores en cada etapa.</li>
+<li>Logging de cada paso (observabilidad).</li>
+</ul>
+<p><strong>Tests</strong>: Integration (consulta completa → respuesta válida), Error (LLM falla → degradada), Error (RAG falla → sin contexto).</p>
+</div>
+
+<div class="card">
+<h3>T4.2 — API endpoint /api/chat/history ⏱️ 3h</h3>
+<ul class="ck">
+<li>GET /api/chat/history → lista de conversaciones.</li>
+<li>GET /api/chat/history/:id → mensajes.</li>
+<li>DELETE /api/chat/history/:id → eliminar conversación.</li>
+</ul>
+<p><strong>Tests</strong>: Integration (GET → lista), Integration (GET :id → mensajes), Integration (DELETE :id → eliminada).</p>
+</div>
+
+<div class="card">
+<h3>T4.3 — Manejo de errores y edge cases ⏱️ 4h</h3>
+<ul class="ck">
+<li>Timeout del LLM (30s) → respuesta degradada.</li>
+<li>Rate limit del LLM → retry con backoff.</li>
+<li>Contexto demasiado largo → truncar con resumen.</li>
+<li>Consulta ambigua → pedir clarificación.</li>
+<li>Respuesta vacía del LLM → retry o fallback.</li>
+</ul>
+<p><strong>Tests</strong>: Unit (timeout → degradada), Unit (rate limit → retry), Unit (contexto largo → truncado).</p>
+</div>
+
+<h3>Fase 5: Documentación y cierre (Día 8)</h3>
+<div class="card">
+<h3>T5.1 — Documentación técnica ⏱️ 6h</h3>
+<ul class="ck">
+<li>README de <code>web/lib/chat/</code> con arquitectura y flujo.</li>
+<li>Documentar system prompt del LLM.</li>
+<li>Documentar queries SQL generadas por RAG.</li>
+<li>Runbooks: uso, extensión y troubleshooting.</li>
+</ul>
+</div>
+
+<div class="card">
+<h3>T5.2 — Smoke test E2E ⏱️ 8h</h3>
+<ul class="ck">
+<li>Abrir dashboard → hacer clic en el widget de chat.</li>
+<li>Enviar consulta: “¿Qué IPs me atacaron ayer?”</li>
+<li>Verificar respuesta streaming con datos reales.</li>
+<li>Enviar consulta de seguimiento: “¿Y la semana pasada?”</li>
+<li>Verificar que recuerda el contexto.</li>
+<li>Exportar conversación a markdown y eliminar conversación.</li>
+</ul>
+<p><strong>Criterio de aceptación</strong>: Video/screenshot del chat funcionando con datos reales.</p>
+</div>
+
+<div class="card">
+<h3>T5.3 — Commit de cierre ⏱️ 2h</h3>
+<ul class="ck">
+<li>Commit atómico: <code>feat(chat): asistente IA de ciberseguridad completo</code></li>
+<li>Actualizar <code>docs/release/changelog.md</code>.</li>
+<li>Actualizar <code>docs/testing/acceptance-criteria.md</code> (marcar M3.5 como completo).</li>
+<li>Push a <code>main</code> y deploy a Vercel.</li>
+</ul>
+</div>
+</section>
+
+<section>
+<h2><span class="n">6</span> Criterios de aceptación</h2>
+<h3>6.1 Criterios funcionales</h3>
+<ul class="ck">
+<li><strong>CA1</strong>: Responde consultas en lenguaje natural sobre eventos del sistema.</li>
+<li><strong>CA2</strong>: Explica eventos técnicos en términos comprensibles.</li>
+<li><strong>CA3</strong>: Recomienda acciones de remediación basadas en el contexto.</li>
+<li><strong>CA4</strong>: Correlaciona eventos históricos (recuerda contexto conversacional).</li>
+<li><strong>CA5</strong>: Analiza tendencias (comparación de períodos).</li>
+<li><strong>CA6</strong>: Genera sugerencias contextuales relevantes.</li>
+<li><strong>CA7</strong>: Persiste conversaciones en la base de datos.</li>
+<li><strong>CA8</strong>: Permite exportar conversaciones a markdown/PDF.</li>
+</ul>
+
+<h3>6.2 Criterios no funcionales</h3>
+<ul class="ck">
+<li><strong>CA9</strong>: Latencia de primera respuesta &lt; 2 segundos (streaming).</li>
+<li><strong>CA10</strong>: Precisión &gt; 95% (menos del 5% de hallucinations).</li>
+<li><strong>CA11</strong>: Solo accesible para admins autenticados.</li>
+<li><strong>CA12</strong>: Conversaciones no salen del tenant (privacidad).</li>
+<li><strong>CA13</strong>: Uso eficiente de tokens (&lt; 2000 por consulta en promedio).</li>
+<li><strong>CA14</strong>: WCAG 2.1 AA (accesibilidad).</li>
+</ul>
+
+<h3>6.3 Criterios de calidad</h3>
+<ul class="ck">
+<li><strong>CA15</strong>: <code>pnpm lint</code> verde.</li>
+<li><strong>CA16</strong>: <code>pnpm typecheck</code> verde.</li>
+<li><strong>CA17</strong>: <code>pnpm test</code> verde (≥ 50 tests nuevos).</li>
+<li><strong>CA18</strong>: <code>pnpm build</code> verde.</li>
+<li><strong>CA19</strong>: Documentación completa (README, ADR, runbooks).</li>
+</ul>
+</section>
+
+<section>
+<h2><span class="n">7</span> Estrategia de testing</h2>
+<h3>7.1 Pirámide de tests</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Nivel</th><th>%</th><th>Enfoque</th></tr></thead>
+<tbody>
+<tr><td><strong>Unit</strong></td><td>70%</td><td>Context builder, classifier, RAG, validator</td></tr>
+<tr><td><strong>Integration</strong></td><td>20%</td><td>Pipeline completo (API + LLM)</td></tr>
+<tr><td><strong>E2E</strong></td><td>10%</td><td>Smoke test con chat real</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>7.2 Tests unitarios (≥ 40 tests)</h3>
+<div class="card">
+<h3>Context Builder</h3>
+<ul><li>Con datos mock → contexto incluye alertas y hosts.</li><li>Sin datos → contexto vacío pero válido.</li><li>Límite de 10 conversaciones previas.</li></ul>
+<h3>Query Classifier</h3>
+<ul><li>“¿Qué IPs me atacaron?” → intención=listar, entidades=[IPs].</li><li>“Explícame SYN flood” → intención=explicar.</li><li>“¿Qué hago si detecto un ataque?” → intención=recomendar.</li><li>“¿Hubo ataques ayer?” → intención=correlacionar, entidades=[fecha].</li></ul>
+<h3>RAG</h3>
+<ul><li>Intención=listar IPs → genera query SQL correcta.</li><li>Intención=explicar → no genera query (usa knowledge base).</li><li>Query con fecha relativa (“ayer”) → convierte a timestamp absoluto.</li></ul>
+<h3>Validator</h3>
+<ul><li>Respuesta con IP válida → OK.</li><li>Respuesta con IP inventada → warning.</li><li>Respuesta sin IPs → OK (no valida).</li></ul>
+<h3>LLM</h3>
+<ul><li>System prompt incluye contexto del tenant.</li><li>Streaming funciona (SSE chunks).</li><li>Error de API → manejo controlado.</li></ul>
+</div>
+
+<h3>7.3 Tests de integración (≥ 10 tests)</h3>
+<ul class="ck">
+<li>POST /api/chat con mensaje → respuesta SSE.</li>
+<li>GET /api/chat/history → lista de conversaciones.</li>
+<li>GET /api/chat/history/:id → mensajes.</li>
+<li>DELETE /api/chat/history/:id → conversación eliminada.</li>
+<li>Pipeline completo: consulta → contexto → RAG → LLM → respuesta.</li>
+<li>LLM falla → respuesta degradada.</li>
+<li>RAG falla → respuesta sin contexto adicional.</li>
+<li>Contexto largo → truncado con resumen.</li>
+</ul>
+
+<h3>7.4 Tests E2E (≥ 3 tests)</h3>
+<ul class="ck">
+<li>Abrir widget → enviar mensaje → ver respuesta streaming.</li>
+<li>Conversación multi-turno (contexto recordado).</li>
+<li>Exportar conversación a markdown.</li>
+</ul>
+</section>
+
+<section>
+<h2><span class="n">8</span> Riesgos y mitigaciones</h2>
+<div class="table-wrap">
+<table>
+<thead><tr><th>#</th><th>Riesgo</th><th>Prob.</th><th>Impacto</th><th>Mitigación</th></tr></thead>
+<tbody>
+<tr><td><strong>R1</strong></td><td>Hallucinations del LLM</td><td><span class="chip me">Media</span></td><td><span class="chip hi">Alto</span></td><td>Validación de IPs/hosts mencionados en respuestas.</td></tr>
+<tr><td><strong>R2</strong></td><td>Costo elevado de tokens</td><td><span class="chip me">Media</span></td><td><span class="chip me">Medio</span></td><td>Límite de contexto (10 conv.), queries SQL en lugar de vector DB.</td></tr>
+<tr><td><strong>R3</strong></td><td>Latencia alta (> 2s)</td><td><span class="chip lo">Baja</span></td><td><span class="chip hi">Alto</span></td><td>Streaming SSE, optimización de queries SQL, cache de contexto.</td></tr>
+<tr><td><strong>R4</strong></td><td>Consultas ambiguas</td><td><span class="chip hi">Alta</span></td><td><span class="chip me">Medio</span></td><td>Pedir clarificación al usuario, sugerencias contextuales.</td></tr>
+<tr><td><strong>R5</strong></td><td>Privacidad (datos salen del tenant)</td><td><span class="chip lo">Baja</span></td><td><span class="chip hi">Alto</span></td><td>System prompt específico por tenant, no enviar datos a servicios externos.</td></tr>
+<tr><td><strong>R6</strong></td><td>LLM no entiende español técnico</td><td><span class="chip lo">Baja</span></td><td><span class="chip me">Medio</span></td><td>System prompt con ejemplos en español, fine-tuning de prompts.</td></tr>
+<tr><td><strong>R7</strong></td><td>Contexto demasiado largo</td><td><span class="chip me">Media</span></td><td><span class="chip me">Medio</span></td><td>Truncar con resumen, límite de 10 conversaciones.</td></tr>
+<tr><td><strong>R8</strong></td><td>Rate limit del LLM</td><td><span class="chip me">Media</span></td><td><span class="chip me">Medio</span></td><td>Retry con backoff, fallback a respuesta degradada.</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section>
+<h2><span class="n">9</span> Timeline estimado</h2>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Día</th><th>Fase</th><th>Tareas</th><th>Horas</th><th>Entregable</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Fundaciones</td><td>T1.1, T1.2</td><td>6h</td><td>ADR, schema SQL, migración aplicada</td></tr>
+<tr><td>2</td><td>Fundaciones</td><td>T1.3</td><td>8h</td><td>API endpoint básico (sin LLM)</td></tr>
+<tr><td>3</td><td>Pipeline</td><td>T2.1, T2.2</td><td>8h</td><td>Context builder + query classifier</td></tr>
+<tr><td>4</td><td>Pipeline</td><td>T2.3, T2.4, T2.5</td><td>10h</td><td>RAG + LLM + validator</td></tr>
+<tr><td>5</td><td>Frontend</td><td>T3.1, T3.2</td><td>8h</td><td>ChatWidget + ChatMessage</td></tr>
+<tr><td>6</td><td>Frontend</td><td>T3.3, T3.4</td><td>8h</td><td>ChatHistory + ChatSuggestions</td></tr>
+<tr><td>7</td><td>Integración</td><td>T4.1, T4.2, T4.3</td><td>10h</td><td>Pipeline completo + API history + manejo de errores</td></tr>
+<tr><td>8</td><td>Cierre</td><td>T5.1, T5.2, T5.3</td><td>10h</td><td>Docs + E2E + commit de cierre</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Total</strong>: 68h (8 días × 8.5h)</p>
+</section>
+
+<section>
+<h2><span class="n">10</span> Checklist de seguimiento</h2>
+<h3>Pre-kickoff</h3>
+<ul class="ck"><li>Plan revisado y aprobado.</li><li>ADR redactado y mergeado.</li><li>Schema SQL diseñado.</li><li>System prompt del LLM diseñado.</li></ul>
+<h3>Fase 1: Fundaciones</h3>
+<ul class="ck"><li>T1.1 completada: ADR + diseño.</li><li>T1.2 completada: Migración aplicada en preview y producción.</li><li>T1.3 completada: API endpoint básico funcional.</li></ul>
+<h3>Fase 2: Pipeline</h3>
+<ul class="ck"><li>T2.1 completada: Context builder funcional.</li><li>T2.2 completada: Query classifier funcional.</li><li>T2.3 completada: RAG con queries SQL funcional.</li><li>T2.4 completada: Integración con LLM (Groq/Gemini).</li><li>T2.5 completada: Validator de respuestas funcional.</li></ul>
+<h3>Fase 3: Frontend</h3>
+<ul class="ck"><li>T3.1 completada: ChatWidget funcional.</li><li>T3.2 completada: ChatMessage renderiza markdown.</li><li>T3.3 completada: ChatHistory gestiona conversaciones.</li><li>T3.4 completada: ChatSuggestions muestra sugerencias.</li></ul>
+<h3>Fase 4: Integración</h3>
+<ul class="ck"><li>T4.1 completada: Pipeline orquestado.</li><li>T4.2 completada: API history funcional.</li><li>T4.3 completada: Manejo de errores robusto.</li></ul>
+<h3>Fase 5: Cierre</h3>
+<ul class="ck"><li>T5.1 completada: Documentación completa.</li><li>T5.2 completada: Smoke test E2E verificado.</li><li>T5.3 completada: Commit de cierre mergeado.</li></ul>
+<h3>Post-M3.5</h3>
+<ul class="ck"><li>M3.5 marcado como 100% en <code>docs/testing/acceptance-criteria.md</code>.</li><li>Changelog actualizado.</li><li>Demo grabada (video del chat funcionando).</li><li>Anuncio al equipo: “M3.5 completo, listo para M4”.</li></ul>
+</section>
+
+<section>
+<h2><span class="n">11</span> Anexo: System prompt de ejemplo</h2>
+<pre><code>Eres un experto en ciberseguridad y analítica de eventos de red.
+Tu rol es ayudar al usuario a entender y responder a incidentes
+de seguridad en su red.
+
+Reglas:
+1. Responde siempre en español, de forma clara y concisa.
+2. Usa los datos proporcionados en el contexto para responder.
+   No inventes información.
+3. Si mencionas IPs, hosts o fechas, verifica que estén en el
+   contexto proporcionado.
+4. Explica términos técnicos de forma comprensible para usuarios
+   no expertos.
+5. Cuando recomiendes acciones, sé específico y actionable.
+6. Si no tienes suficiente información para responder, pide
+   clarificación al usuario.
+7. Usa markdown para formatear la respuesta (listas, negritas,
+   código).
+
+Contexto del tenant:
+- Dispositivo: {device_id}
+- Período: {period}
+- Alertas recientes: {alerts}
+- Top hosts: {hosts}
+- Métricas: {metrics}
+
+Historial de conversación:
+{conversation_history}
+
+Pregunta del usuario:
+{user_question}
+
+Responde:</code></pre>
+</section>
+
+<section>
+<h2><span class="n">12</span> Anexo: Queries SQL generadas por RAG</h2>
+<h3>Consulta: “¿Qué IPs me atacaron ayer?”</h3>
+<pre><code>SELECT DISTINCT host_key, COUNT(*) as alert_count
+FROM alerts
+WHERE created_at > NOW() - INTERVAL '1 day'
+  AND severity IN ('high', 'critical')
+GROUP BY host_key
+ORDER BY alert_count DESC
+LIMIT 10;</code></pre>
+
+<h3>Consulta: “¿Hubo ataques la semana pasada?”</h3>
+<pre><code>SELECT DATE(created_at) as date, COUNT(*) as alert_count
+FROM alerts
+WHERE created_at > NOW() - INTERVAL '7 days'
+GROUP BY DATE(created_at)
+ORDER BY date;</code></pre>
+
+<h3>Consulta: “¿Qué puertos están más expuestos?”</h3>
+<pre><code>SELECT dst_port, COUNT(*) as connection_count
+FROM flow_windows
+WHERE start_at > NOW() - INTERVAL '1 day'
+GROUP BY dst_port
+ORDER BY connection_count DESC
+LIMIT 10;</code></pre>
+</section>
+
+<section>
+<h2><span class="n">13</span> Extensiones futuras (M6+)</h2>
+<div class="cgrid">
+<div class="card"><h3>🗄️ Vector Database para RAG avanzado</h3><ul><li>Embeddings de documentos de seguridad (RFCs, CVEs, best practices).</li><li>Búsqueda semántica en lugar de queries SQL.</li><li>Mejora la precisión de explicaciones técnicas.</li></ul></div>
+<div class="card"><h3>🔌 Integración con herramientas externas</h3><ul><li><strong>VirusTotal</strong>: Consultar reputación de IPs/domains.</li><li><strong>Shodan</strong>: Obtener información de hosts expuestos.</li><li><strong>CVE Database</strong>: Buscar vulnerabilidades asociadas a servicios.</li><li><strong>Threat Intelligence Feeds</strong>: Enriquecer alertas con contexto externo.</li></ul></div>
+<div class="card"><h3>⚡ Ejecución automática de acciones (con aprobación)</h3><ul><li>Bloquear IPs maliciosas en el firewall (con confirmación del usuario).</li><li>Ajustar umbrales de detección.</li><li>Crear reglas personalizadas.</li><li><strong>Requiere</strong>: Sistema de permisos granular y auditoría exhaustiva.</li></ul></div>
+<div class="card"><h3>🎙️ Voz (voice-to-text y text-to-speech)</h3><ul><li>Consultas por voz (ideal para SOC analysts).</li><li>Respuestas habladas (para accesibilidad).</li><li><strong>Requiere</strong>: Web Speech API o servicio externo (Whisper, ElevenLabs).</li></ul></div>
+<div class="card"><h3>👥 Multi-tenant collaboration</h3><ul><li>Compartir conversaciones entre analistas del mismo tenant.</li><li>Comentarios y anotaciones en conversaciones.</li><li>Asignación de incidentes a miembros del equipo.</li></ul></div>
+</div>
+</section>
+
+<section>
+<h2><span class="n">14</span> Referencias y glosario</h2>
+<div class="card">
+<h3>Referencias</h3>
+<ul>
+<li><strong>Groq API</strong>: <a href="https://console.groq.com/docs" style="color:var(--accent)">console.groq.com/docs</a></li>
+<li><strong>Gemini API</strong>: <a href="https://ai.google.dev/docs" style="color:var(--accent)">ai.google.dev/docs</a></li>
+<li><strong>Server-Sent Events (SSE)</strong>: <a href="https://html.spec.whatwg.org/multipage/server-sent-events.html" style="color:var(--accent)">html.spec.whatwg.org</a></li>
+<li><strong>Retrieval Augmented Generation (RAG)</strong>: <a href="https://arxiv.org/abs/2005.11401" style="color:var(--accent)">arxiv.org/abs/2005.11401</a></li>
+</ul>
+</div>
+<div class="card">
+<h3>Glosario</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Término</th><th>Definición</th></tr></thead>
+<tbody>
+<tr><td><strong>RAG</strong></td><td>Retrieval Augmented Generation — técnica que combina búsqueda de información con generación de texto.</td></tr>
+<tr><td><strong>Hallucination</strong></td><td>Cuando el LLM inventa información que no está en el contexto.</td></tr>
+<tr><td><strong>Streaming</strong></td><td>Envío progresivo de la respuesta (token por token) para mejorar UX.</td></tr>
+<tr><td><strong>SSE</strong></td><td>Server-Sent Events — protocolo para streaming de datos del servidor al cliente.</td></tr>
+<tr><td><strong>System prompt</strong></td><td>Instrucciones iniciales que definen el comportamiento del LLM.</td></tr>
+<tr><td><strong>Query Classifier</strong></td><td>Módulo que detecta la intención de una pregunta del usuario.</td></tr>
+<tr><td><strong>Context Builder</strong></td><td>Módulo que construye el contexto específico del tenant para el LLM.</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+
+<div class="ft">
+<p>SC-SENTINEL · Hito M3.5 · Security Chatbot · 2026-11-06</p>
+<p>Strategic Connex · Todos los derechos reservados</p>
+</div>
+
+</div>
+</body>
+</html>

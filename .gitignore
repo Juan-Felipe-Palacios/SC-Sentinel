@@ -16,8 +16,11 @@ pnpm-debug.log*
 .env*.local
 
 # Rust
+# Artefactos de compilación del agente (binarios + dependencies)
 target/
 Cargo.lock.bak
+
+# Runtime del agente (spool activo y WAL/SHM); nunca versionar
 agent/spool/
 *.sqlite
 *.sqlite-shm

@@ -27,4 +27,4 @@ Requisitos detallados y gates diarios: `docs/runbooks/local-development.md`.
 - **M3 (cerrado):** landing pública SSG (`/`, `/funcionalidades`, `/security`, `/contacto`, `/legal/*`), capa IA por lotes con fallback degradado (`/api/ai/analyze`, `/api/ai/cron`, panel IA), SEO/analytics y legales con sign-off. Cierre y baches abiertos: `docs/superpowers/plans/2026-11-05-m3-landing-ia-design.md` §9.
 - **M3.5 (cerrado):** chatbot seguro con RAG, streaming SSE e historial. Contrato: `docs/contracts/chat-api.v1.md`; decisión: `docs/adr/0013-chatbot-mvp.md`.
 - **Demo pública:** `/demo` entra como visitante de solo lectura, sin credenciales ni configuración previa.
-- Roadmap M4–M5: `docs/superpowers/specs/SC-Sentinel-Spec-Completo-2026-11-03.md` §13. Plan M4: `M4.md`.
+- Roadmap M4–M5: `docs/superpowers/specs/SC-Sentinel-Spec-Completo-2026-11-03.md` §13. Plan M4: `docs/superpowers/plans/2026-11-06-m4-collector-netflow-ipfix.md`.
