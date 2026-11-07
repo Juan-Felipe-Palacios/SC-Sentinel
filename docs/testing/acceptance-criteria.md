@@ -47,6 +47,25 @@ Fuente: spec §14.3. Cada hito cierra cuando TODOS los checks correspondientes p
 - [ ] Legal/privacy/notices publicados.
 - [ ] SEO básico + analytics activo.
 
+## M3.5 — Security Chatbot (MVP — 100% completado, 2026-11-07)
+
+Alcance de cierre: backend seguro, RAG agregado de 24 h, streaming SSE, persistencia e interfaz flotante. El plan original F9 (exportar PDF/Markdown), F10 (incident response guiado) y la comparación de tendencias entre períodos quedan fuera de este MVP y pasan al backlog de M3.6; no se marcan como entregados.
+
+- [x] Autenticación exclusiva de admin (`verifyAdminAuth`); el device se resuelve por `?device_id`/`DEFAULT_DEVICE_ID` y nunca por `body.context.deviceId`.
+- [x] Aislamiento por device en RAG e historial: todas las consultas filtran `flow_windows.device_id` y la conversación se valida contra el device autorizado.
+- [x] Body estricto (`message`, `conversationId`); rechazo de campos no previstos, incluido `context.deviceId`.
+- [x] Persistencia en `chat_conversations` / `chat_messages` (migración `0007_chat.sql`), con FK cascade e índices; historial GET y DELETE scoped.
+- [x] RAG corregido: últimas 24 h, joins por `window_id`, top hosts con `ip_display`, top ports/countries desde la última ventana, alertas y salud del agente.
+- [x] Streaming SSE real con eventos `meta`, `token`, `done`, `error`; proveedores Groq/OpenRouter/Gemini, fallback de modelo, timeout 30 s y tope de 2000 tokens.
+- [x] Validación de grounding: las IPv4 citadas se contrastan con el contexto y se devuelven warnings sin bloquear.
+- [x] Widget flotante cyberpunk en el dashboard: launcher, panel responsive 420×600, mensajes con Markdown seguro, streaming, stop, nueva conversación, sugerencias y manejo de 401.
+- [x] Accesibilidad base: `role=dialog`, `aria-modal`, cierre con Escape, autofocus, textos alternativos y `prefers-reduced-motion`.
+- [x] Gates: `pnpm lint`, `pnpm typecheck`, `pnpm exec vitest run` (17 archivos / 95 tests) y `pnpm build` (21 páginas) verdes.
+- [x] Contrato `docs/contracts/chat-api.v1.md`, ADR `docs/adr/0013-chatbot-mvp.md` y changelog actualizados.
+- [x] Smoke productivo: sin auth 401; con admin SSE 200, 679 eventos token, `done` sin error; historial y borrado scoped verificados.
+
+> M3.5 MVP verificado 2026-11-07 sobre el deployment `sc-sentinel-qxd8-6bc9a1iws-scteam1.vercel.app` (alias `https://sc-sentinel.vercel.app`). Commit de producto: `cb907c8`. Este cierre **no** incluye exportación PDF/Markdown ni workflow guiado de incident response; se registran como backlog M3.6 para no declarar como hechas funcionalidades ausentes.
+
 ## M4 — sc-collector MikroTik/Cisco (1,5 semanas)
 
 - [ ] IPFIX/NetFlow recibe tráfico real de router MikroTik (y Cisco si hay hardware).
