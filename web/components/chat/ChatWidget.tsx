@@ -429,22 +429,24 @@ export function ChatWidget() {
   return (
     <>
       {!open ? (
-        <button
-          ref={launcherRef}
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label="Abrir SC Sentinel AI"
-          aria-expanded={open}
-          aria-controls="sc-chat-panel"
-          className="sc-chat-avatar-pulse group fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-full border border-cyan-300/55 bg-slate-950/95 shadow-[0_0_0_1px_rgba(34,211,238,0.2),0_0_34px_rgba(34,211,238,0.35),0_16px_40px_rgba(2,6,23,0.7)] transition hover:scale-105 hover:border-cyan-200/80 hover:shadow-[0_0_0_1px_rgba(34,211,238,0.35),0_0_46px_rgba(34,211,238,0.55),0_16px_44px_rgba(2,6,23,0.8)] sm:bottom-6 sm:right-6"
-        >
-          <span className="absolute inset-1 rounded-full bg-gradient-to-br from-cyan-400/20 to-blue-600/10 blur-md" />
-          <ChatRobot variant="compact" className="relative h-9 w-9" />
-          <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-slate-950 bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
-          <span className="pointer-events-none absolute right-full mr-3 hidden whitespace-nowrap rounded-lg border border-cyan-400/25 bg-slate-950/95 px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-cyan-200/80 shadow-[0_0_24px_rgba(34,211,238,0.18)] group-hover:block">
-            Sentinel AI
-          </span>
-        </button>
+        <div className="fixed bottom-5 right-5 z-50 sm:bottom-6 sm:right-6">
+          <button
+            ref={launcherRef}
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label="Abrir SC Sentinel AI"
+            aria-expanded={open}
+            aria-controls="sc-chat-panel"
+            className="sc-chat-avatar-pulse group relative flex h-14 w-14 items-center justify-center rounded-full border border-cyan-300/55 bg-slate-950/95 shadow-[0_0_0_1px_rgba(34,211,238,0.2),0_0_34px_rgba(34,211,238,0.35),0_16px_40px_rgba(2,6,23,0.7)] transition hover:scale-105 hover:border-cyan-200/80 hover:shadow-[0_0_0_1px_rgba(34,211,238,0.35),0_0_46px_rgba(34,211,238,0.55),0_16px_44px_rgba(2,6,23,0.8)]"
+          >
+            <span className="absolute inset-1 rounded-full bg-gradient-to-br from-cyan-400/20 to-blue-600/10 blur-md" />
+            <ChatRobot variant="compact" className="relative h-9 w-9" />
+            <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-slate-950 bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
+            <span className="pointer-events-none absolute right-full mr-3 hidden whitespace-nowrap rounded-lg border border-cyan-400/25 bg-slate-950/95 px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-cyan-200/80 shadow-[0_0_24px_rgba(34,211,238,0.18)] group-hover:block">
+              Sentinel AI
+            </span>
+          </button>
+        </div>
       ) : null}
 
       {open ? (
