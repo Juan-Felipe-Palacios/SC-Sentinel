@@ -13,6 +13,11 @@ compression = "gzip"           # único valor implementado por el cliente
 # IP + nombre resuelto. true: la IP nunca sale del equipo (ip_display = null) y
 # los destinos se ven como host anonimizado.
 anonymize_hosts = false
+# Clave HMAC de host_mark. Prioridad: SC_HMAC_KEY → hmac_key_file → clave nueva
+# generada y persistida en el primer arranque. No versionar el .host-key: si
+# cambia la clave, los host_key del dashboard dejan de coincidir con el historial.
+hmac_key_env = "SC_HMAC_KEY"
+hmac_key_file = "./config/.host-key"
 
 [spool]
 path = "./spool/sc-spool.sqlite"

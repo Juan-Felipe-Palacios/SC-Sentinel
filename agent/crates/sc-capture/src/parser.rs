@@ -53,7 +53,7 @@ pub fn parse_packet(
         return Err(ParseError::IpMalformed);
     }
     let ihl = ((version_ihl & 0x0f) as usize) * 4;
-    if ihl < 20 || packet.len() < ip_start + ihl + 20 {
+    if ihl < 20 || packet.len() < ip_start + ihl {
         return Err(ParseError::IpMalformed);
     }
 
@@ -76,7 +76,15 @@ pub fn parse_packet(
     let frag_offset = flags_frag & 0x1fff;
     let more_fragments = (flags_frag & 0x2000) != 0;
     if frag_offset != 0 || more_fragments {
-        return Err(ParseError::IpMalformed);
+        // Válido pero no reensamblable sin estado: se ignora, no es un parse error.
+        return Ok(None);
+    }
+
+    let src_local = local.contains(src_ip);
+    let dst_local = local.contains(dst_ip);
+    // En modo promiscuo se ven flujos de otros hosts de la red: no son malformados.
+    if !src_local && !dst_local {
+        return Ok(None);
     }
 
     let transport_start = ip_start + ihl;
@@ -100,29 +108,28 @@ pub fn parse_packet(
                 0
             };
 
-            let src_local = local.contains(src_ip);
-            let dst_local = local.contains(dst_ip);
-
             let (flow, direction) = if src_local && !dst_local {
-                let flow = FlowKey {
-                    src_ip,
-                    dst_ip,
-                    src_port,
-                    dst_port,
-                    protocol: Protocol::Tcp,
-                };
-                (flow, Direction::Out)
-            } else if dst_local {
-                let flow = FlowKey {
-                    src_ip,
-                    dst_ip,
-                    src_port,
-                    dst_port,
-                    protocol: Protocol::Tcp,
-                };
-                (flow, Direction::In)
+                (
+                    FlowKey {
+                        src_ip,
+                        dst_ip,
+                        src_port,
+                        dst_port,
+                        protocol: Protocol::Tcp,
+                    },
+                    Direction::Out,
+                )
             } else {
-                return Err(ParseError::IpMalformed);
+                (
+                    FlowKey {
+                        src_ip,
+                        dst_ip,
+                        src_port,
+                        dst_port,
+                        protocol: Protocol::Tcp,
+                    },
+                    Direction::In,
+                )
             };
 
             Ok(Some(FlowUpdate {
@@ -150,29 +157,28 @@ pub fn parse_packet(
                 0
             };
 
-            let src_local = local.contains(src_ip);
-            let dst_local = local.contains(dst_ip);
-
             let (flow, direction) = if src_local && !dst_local {
-                let flow = FlowKey {
-                    src_ip,
-                    dst_ip,
-                    src_port,
-                    dst_port,
-                    protocol: Protocol::Udp,
-                };
-                (flow, Direction::Out)
-            } else if dst_local {
-                let flow = FlowKey {
-                    src_ip,
-                    dst_ip,
-                    src_port,
-                    dst_port,
-                    protocol: Protocol::Udp,
-                };
-                (flow, Direction::In)
+                (
+                    FlowKey {
+                        src_ip,
+                        dst_ip,
+                        src_port,
+                        dst_port,
+                        protocol: Protocol::Udp,
+                    },
+                    Direction::Out,
+                )
             } else {
-                return Err(ParseError::IpMalformed);
+                (
+                    FlowKey {
+                        src_ip,
+                        dst_ip,
+                        src_port,
+                        dst_port,
+                        protocol: Protocol::Udp,
+                    },
+                    Direction::In,
+                )
             };
 
             Ok(Some(FlowUpdate {
@@ -183,6 +189,98 @@ pub fn parse_packet(
                 direction,
             }))
         }
-        _ => Err(ParseError::TransportMalformed),
+        // ICMP, ESP, GRE…: válidos pero fuera del modelo de flujos, se ignoran.
+        _ => Ok(None),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+    use std::net::Ipv4Addr;
+
+    fn local(ip: [u8; 4]) -> LocalIpSet {
+        let mut set = HashSet::new();
+        set.insert(u32::from(Ipv4Addr::from(ip)) as u128);
+        LocalIpSet(set)
+    }
+
+    /// Ethernet + IPv4 con el transporte indicado.
+    fn ipv4(
+        src: [u8; 4],
+        dst: [u8; 4],
+        protocol: u8,
+        flags_frag: u16,
+        transport: &[u8],
+    ) -> Vec<u8> {
+        let mut packet = vec![0u8; 14];
+        packet[12] = 0x08;
+        packet[13] = 0x00;
+        let total = 20 + transport.len();
+        packet.push(0x45);
+        packet.push(0);
+        packet.extend_from_slice(&(total as u16).to_be_bytes());
+        packet.extend_from_slice(&[0, 1]);
+        packet.extend_from_slice(&flags_frag.to_be_bytes());
+        packet.push(64);
+        packet.push(protocol);
+        packet.extend_from_slice(&[0, 0]);
+        packet.extend_from_slice(&src);
+        packet.extend_from_slice(&dst);
+        packet.extend_from_slice(transport);
+        packet
+    }
+
+    fn udp(payload: &[u8]) -> Vec<u8> {
+        let len = 8 + payload.len();
+        let mut transport = Vec::new();
+        transport.extend_from_slice(&12345u16.to_be_bytes());
+        transport.extend_from_slice(&53u16.to_be_bytes());
+        transport.extend_from_slice(&(len as u16).to_be_bytes());
+        transport.extend_from_slice(&[0, 0]);
+        transport.extend_from_slice(payload);
+        transport
+    }
+
+    const LOCAL: [u8; 4] = [192, 168, 1, 41];
+    const REMOTE: [u8; 4] = [8, 8, 8, 8];
+
+    #[test]
+    fn fragmento_valido_se_ignora_sin_contar_error() {
+        let packet = ipv4(LOCAL, REMOTE, 17, 0x2000, &udp(b"frag"));
+        assert!(matches!(parse_packet(&local(LOCAL), &packet, 0), Ok(None)));
+    }
+
+    #[test]
+    fn icmp_valido_se_ignora_sin_contar_error() {
+        let packet = ipv4(LOCAL, REMOTE, 1, 0x4000, &[]);
+        assert!(matches!(parse_packet(&local(LOCAL), &packet, 0), Ok(None)));
+    }
+
+    #[test]
+    fn trafico_de_otro_host_se_ignora_sin_contar_error() {
+        let packet = ipv4([10, 0, 0, 1], REMOTE, 17, 0x4000, &udp(b"x"));
+        assert!(matches!(parse_packet(&local(LOCAL), &packet, 0), Ok(None)));
+    }
+
+    #[test]
+    fn udp_minimo_local_si_se_agrega() {
+        let packet = ipv4(LOCAL, REMOTE, 17, 0x4000, &udp(b""));
+        let update = parse_packet(&local(LOCAL), &packet, 0)
+            .expect("sin error")
+            .expect("flujo");
+        assert_eq!(update.bytes, 0);
+        assert_eq!(update.flow.protocol, Protocol::Udp);
+        assert!(matches!(update.direction, Direction::Out));
+    }
+
+    #[test]
+    fn udp_truncado_sigue_siendo_error() {
+        let packet = ipv4(LOCAL, REMOTE, 17, 0x4000, &[0u8; 6]);
+        assert!(matches!(
+            parse_packet(&local(LOCAL), &packet, 0),
+            Err(ParseError::TransportMalformed)
+        ));
     }
 }

@@ -17,16 +17,22 @@ Fuente: spec §14.3. Cada hito cierra cuando TODOS los checks correspondientes p
 
 ## M1 — Capture + aggregate + sync end-to-end (2 semanas)
 
-- [ ] Captura real desacoplada de iced (eventos tokio mpsc).
-- [ ] FlowUpdate por canal bounded con backpressure; drops reflejados en métricas.
-- [ ] Ventanas de 30 s estables (golden tests).
-- [ ] Spool SQLite soporta offline (reintentos, cota, FIFO).
-- [ ] Mock server recibe batches idempotentes (duplicate aceptado).
-- [ ] Métricas de drops/spool visibles en logs y en el health del snapshot.
-- [ ] Compresión gzip funcionando; flag zstd compila (off por defecto).
-- [ ] Smoke: tráfico real del propietario publicado end-to-end.
+- [x] Captura real desacoplada de iced (eventos tokio mpsc).
+- [x] FlowUpdate por canal bounded con backpressure; drops reflejados en métricas.
+- [x] Ventanas de 30 s estables (golden tests).
+- [x] Spool SQLite soporta offline (reintentos, cota, FIFO).
+- [x] Mock server recibe batches idempotentes (duplicate aceptado).
+- [x] Métricas de drops/spool visibles en logs y en el health del snapshot.
+- [x] Compresión gzip funcionando; flag zstd compila (off por defecto).
+- [x] Smoke: tráfico real del propietario publicado end-to-end.
 
-> M1 en curso: **75%** (2026-11-04). Hecho y verificado: pipeline de eventos desacoplado (tokio mpsc) con offline fixture end-to-end, spool SQLite con reintentos/cota/FIFO, sync seguro (solo un 2xx borra del spool; 401/403 exige enrolamiento sin borrar; 400 va a dead-letter; 408/429/5xx reintentan con backoff exponencial y `Retry-After`), apagado ordenado (SIGINT/SIGTERM, drenaje final del spool, flush con checkpoint WAL; ya no hay `sleep(10s)` de salida) y `config.toml` real en `sc-config` (`--config`, validación, overrides `SC_*`, token resuelto desde `token_env`, nunca en el archivo). Pendiente: captura real (`sc-capture/live.rs` sigue devolviendo `InterfaceNotFound`, el daemon solo procesa el pcap de fixture) y el smoke con tráfico real. Sin cerrar el hito hasta que esos puntos estén verdes.
+> M1 verificado 2026-11-07 sobre el binario `sc-agent` con `--features sc-capture/live`:
+>
+> - Gates: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings` y `cargo test --workspace` verdes (47 tests; incluye ventana de 30 s alineada, retención FIFO del spool y los escenarios de sync 200/400/401/429/500 contra mock HTTP real).
+> - Captura live compilada con Npcap SDK, `--list-interfaces` OK y ejecución real sobre Wi-Fi (`\Device\NPF_{5ED97C9D-…}`) con 3 ventanas cada ~30 s.
+> - Smoke contra `https://sc-sentinel.vercel.app/api/ingest`: todas las ventanas confirmadas por 2xx (el spool quedó en 0 pendientes, 0 dead-letter y sin reintentos); solo un 2xx borra filas del spool, así que la publicación quedó verificada.
+> - Corregidos dos baches que impedían el cierre: (1) el envelope enviaba `now-30..now` en vez de los extremos reales de la ventana agregada; (2) la cota del spool (`max_bytes`/`max_age_days`) existía pero nunca se aplicaba, así que el spool podía crecer sin límite con el backend caído. También se registran en logs los drops por backpressure de cada ventana.
+> - Pendiente de sign-off visual (requiere contraseña de admin): confirmar la última ventana y el health del agente en el dashboard de producción.
 
 ## M2 — API + Neon + dashboard v0 (1,5 semanas)
 

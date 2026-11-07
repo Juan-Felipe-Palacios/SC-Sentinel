@@ -49,7 +49,7 @@ pub struct RetentionReport {
 
 pub struct Spool {
     conn: Connection,
-    _config: SpoolConfig,
+    config: SpoolConfig,
 }
 
 impl Spool {
@@ -79,7 +79,7 @@ impl Spool {
             );
             INSERT OR IGNORE INTO meta(key, value) VALUES('sequence', 0);",
         )?;
-        Ok(Spool { conn, _config: cfg })
+        Ok(Spool { conn, config: cfg })
     }
 
     pub fn push_uncompressed(
@@ -135,22 +135,85 @@ impl Spool {
         Ok(())
     }
 
+    /// Aplica la retención del spool: primero por antigüedad (`max_age_days`) y
+    /// después por cota de tamaño (`max_bytes`), borrando siempre las filas más
+    /// antiguas (FIFO). Devuelve cuántas ventanas/bytes se descartaron para que el
+    /// daemon lo registre; sin esto el spool podía crecer sin límite con el
+    /// backend caído (spec §9.4).
     pub fn enforce_retention(&mut self, now_s: i64) -> RetentionReport {
         let mut report = RetentionReport::default();
-        // Simple implementation - by age
-        let cutoff = now_s - (7i64 * 24 * 3600);
-        if let Ok(mut stmt) = self.conn.prepare("SELECT id, length(payload) FROM batches WHERE created_at < ?1 AND dead_letter = 0 ORDER BY id ASC") {
-            if let Ok(rows) = stmt.query_map(params![cutoff], |row| {
-                Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))
-            }) {
-                for r in rows.flatten() {
-                    report.dropped_bytes += r.1 as u64;
-                    report.dropped_windows += 1;
-                    let _ = self.conn.execute("DELETE FROM batches WHERE id = ?1", params![r.0]);
-                }
+
+        let max_age_secs = i64::from(self.config.max_age_days) * 24 * 3600;
+        let cutoff = now_s - max_age_secs;
+        let expired = self.collect_rows(
+            "SELECT id, length(payload) FROM batches WHERE created_at < ?1 ORDER BY id ASC",
+            params![cutoff],
+        );
+        self.drop_rows(&expired, &mut report);
+
+        let max_bytes = self.config.max_bytes;
+        if max_bytes == 0 {
+            return report;
+        }
+        let total: i64 = self
+            .conn
+            .query_row(
+                "SELECT COALESCE(SUM(length(payload)), 0) FROM batches",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+        if (total as u64) <= max_bytes {
+            return report;
+        }
+        let mut excess = total as u64 - max_bytes;
+        let oldest = self.collect_rows(
+            "SELECT id, length(payload) FROM batches ORDER BY id ASC",
+            [],
+        );
+        for (row_id, bytes) in oldest {
+            if excess == 0 {
+                break;
+            }
+            if self
+                .conn
+                .execute("DELETE FROM batches WHERE id = ?1", params![row_id])
+                .is_ok()
+            {
+                let bytes = bytes.max(0) as u64;
+                report.dropped_bytes += bytes;
+                report.dropped_windows += 1;
+                excess = excess.saturating_sub(bytes);
             }
         }
         report
+    }
+
+    /// Materializa las filas a borrar antes de mutar la tabla (no se itera el
+    /// statement mientras se ejecutan DELETE sobre las mismas filas).
+    fn collect_rows(&self, sql: &str, params: impl rusqlite::Params) -> Vec<(i64, i64)> {
+        let mut rows = Vec::new();
+        if let Ok(mut stmt) = self.conn.prepare(sql) {
+            if let Ok(mapped) = stmt.query_map(params, |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))
+            }) {
+                rows.extend(mapped.flatten());
+            }
+        }
+        rows
+    }
+
+    fn drop_rows(&mut self, rows: &[(i64, i64)], report: &mut RetentionReport) {
+        for (row_id, bytes) in rows {
+            if self
+                .conn
+                .execute("DELETE FROM batches WHERE id = ?1", params![row_id])
+                .is_ok()
+            {
+                report.dropped_bytes += (*bytes).max(0) as u64;
+                report.dropped_windows += 1;
+            }
+        }
     }
 
     pub fn len_bytes(&mut self) -> Result<u64, SpoolError> {
@@ -218,6 +281,79 @@ mod tests {
             .expect("push");
         assert_eq!(spool.pending_count().expect("count"), 2);
         assert_eq!(spool.flush().expect("flush"), 2);
+    }
+
+    fn payload_de(bytes: usize) -> Vec<u8> {
+        vec![b'x'; bytes]
+    }
+
+    #[test]
+    fn retention_descarta_lo_mas_antiguo_por_edad() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut spool = Spool::open(SpoolConfig {
+            path: dir.path().join("spool.sqlite"),
+            max_bytes: 1_000_000,
+            max_age_days: 1,
+        })
+        .expect("open spool");
+        let now = 1_700_000_000;
+        spool
+            .push_uncompressed("win_vieja", &payload_de(100), now - 2 * 24 * 3600)
+            .expect("push vieja");
+        spool
+            .push_uncompressed("win_nueva", &payload_de(100), now)
+            .expect("push nueva");
+
+        let report = spool.enforce_retention(now);
+        assert_eq!(report.dropped_windows, 1);
+        assert_eq!(report.dropped_bytes, 100);
+        assert_eq!(spool.pending_count().expect("count"), 1);
+    }
+
+    #[test]
+    fn retention_respeta_la_cota_de_tamano_borrando_fifo() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut spool = Spool::open(SpoolConfig {
+            path: dir.path().join("spool.sqlite"),
+            max_bytes: 150,
+            max_age_days: 7,
+        })
+        .expect("open spool");
+        let now = 1_700_000_000;
+        for (id, created) in [
+            ("win_1", now - 30),
+            ("win_2", now - 20),
+            ("win_3", now - 10),
+        ] {
+            spool
+                .push_uncompressed(id, &payload_de(100), created)
+                .expect("push");
+        }
+
+        let report = spool.enforce_retention(now);
+        assert_eq!(report.dropped_windows, 2);
+        assert_eq!(report.dropped_bytes, 200);
+        assert_eq!(spool.pending_count().expect("count"), 1);
+        assert!(spool.len_bytes().expect("bytes") <= 150);
+    }
+
+    #[test]
+    fn retention_no_borra_nada_si_esta_dentro_de_los_limites() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut spool = Spool::open(SpoolConfig {
+            path: dir.path().join("spool.sqlite"),
+            max_bytes: 1_000_000,
+            max_age_days: 7,
+        })
+        .expect("open spool");
+        let now = 1_700_000_000;
+        spool
+            .push_uncompressed("win_1", &payload_de(100), now - 30)
+            .expect("push");
+
+        let report = spool.enforce_retention(now);
+        assert_eq!(report.dropped_windows, 0);
+        assert_eq!(spool.pending_count().expect("count"), 1);
     }
 
     #[test]

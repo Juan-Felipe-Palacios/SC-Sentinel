@@ -10,4 +10,5 @@ config/sc-agent.toml
 /.tools/
 /config/.device-token
 /config/.device-id
+/config/.host-key
 /logs/

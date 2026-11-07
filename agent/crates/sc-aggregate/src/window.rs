@@ -131,10 +131,12 @@ impl WindowAggregator {
         self
     }
 
+    /// Emite `(Window, WindowSnapshot)`: el spool necesita los extremos reales de
+    /// la ventana, no un `now-30..now` aproximado al momento de persistirla.
     pub async fn run(
         self,
         mut rx: mpsc::Receiver<FlowUpdate>,
-        snapshots: mpsc::Sender<WindowSnapshot>,
+        snapshots: mpsc::Sender<(Window, WindowSnapshot)>,
     ) {
         let window_seconds = self.cfg.window_seconds as i64;
         let mut current_start = (self.clock.now_epoch_s() / window_seconds) * window_seconds;
@@ -144,6 +146,8 @@ impl WindowAggregator {
             self.country.clone(),
         );
         let mut window_id_counter: u64 = 0;
+        // Último total de drops ya registrado, para loguear solo el delta de la ventana.
+        let mut last_dropped: u64 = 0;
 
         loop {
             tokio::select! {
@@ -158,21 +162,32 @@ impl WindowAggregator {
                             .queue_depth
                             .store(rx.len() as u64, Ordering::Relaxed);
                         self.sync_capture_counters();
+                        let dropped = self.health.packets_dropped.load(Ordering::Relaxed);
+                        if dropped > last_dropped {
+                            tracing::warn!(
+                                event = "capture_drops",
+                                dropped_window = dropped - last_dropped,
+                                dropped_total = dropped,
+                                "canal de captura lleno: paquetes descartados por backpressure"
+                            );
+                            last_dropped = dropped;
+                        }
+                        let window = Window {
+                            id: format!("win_{}", window_id_counter),
+                            start: chrono::DateTime::<chrono::Utc>::from_timestamp(current_start, 0).unwrap(),
+                            end: chrono::DateTime::<chrono::Utc>::from_timestamp(window_end, 0).unwrap(),
+                            duration_ms: (window_seconds * 1000) as u64,
+                            sequence: window_id_counter,
+                        };
                         let snapshot = build_snapshot(
                             &accumulator,
                             &self.cfg,
                             &self.health,
-                            Window {
-                                id: format!("win_{}", window_id_counter),
-                                start: chrono::DateTime::<chrono::Utc>::from_timestamp(current_start, 0).unwrap(),
-                                end: chrono::DateTime::<chrono::Utc>::from_timestamp(window_end, 0).unwrap(),
-                                duration_ms: (window_seconds * 1000) as u64,
-                                sequence: window_id_counter,
-                            },
+                            window.clone(),
                             window_id_counter,
                         );
                         window_id_counter += 1;
-                        let _ = snapshots.send(snapshot).await;
+                        let _ = snapshots.send((window, snapshot)).await;
                         // Start new window
                         current_start = (now / window_seconds) * window_seconds;
                         accumulator = Accumulator::new(self.cfg.hmac_key.clone(), self.cfg.anonymize_hosts, self.country.clone());
@@ -190,19 +205,110 @@ impl WindowAggregator {
             .queue_depth
             .store(rx.len() as u64, Ordering::Relaxed);
         self.sync_capture_counters();
+        let window = Window {
+            id: format!("win_{}", window_id_counter),
+            start: chrono::DateTime::<chrono::Utc>::from_timestamp(current_start, 0).unwrap(),
+            end: chrono::DateTime::<chrono::Utc>::from_timestamp(end_time, 0).unwrap(),
+            duration_ms: ((end_time - current_start).max(0)) as u64 * 1000,
+            sequence: window_id_counter,
+        };
         let snapshot = build_snapshot(
             &accumulator,
             &self.cfg,
             &self.health,
-            Window {
-                id: format!("win_{}", window_id_counter),
-                start: chrono::DateTime::<chrono::Utc>::from_timestamp(current_start, 0).unwrap(),
-                end: chrono::DateTime::<chrono::Utc>::from_timestamp(end_time, 0).unwrap(),
-                duration_ms: ((end_time - current_start).max(0)) as u64 * 1000,
-                sequence: window_id_counter,
-            },
+            window.clone(),
             window_id_counter,
         );
-        let _ = snapshots.send(snapshot).await;
+        let _ = snapshots.send((window, snapshot)).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sc_capture::{Direction, FlowUpdate};
+    use sc_core::{FlowKey, Protocol};
+
+    /// Reloj mutable: permite avanzar el tiempo entre envíos sin dormir el test.
+    struct StepClock(Arc<std::sync::atomic::AtomicI64>);
+
+    impl Clock for StepClock {
+        fn now_epoch_s(&self) -> i64 {
+            self.0.load(Ordering::Relaxed)
+        }
+    }
+
+    fn update(now: i64, bytes: u64) -> FlowUpdate {
+        FlowUpdate {
+            ts: now * 1_000_000_000,
+            flow: FlowKey {
+                src_ip: u32::from(std::net::Ipv4Addr::new(192, 168, 1, 41)) as u128,
+                dst_ip: u32::from(std::net::Ipv4Addr::new(8, 8, 8, 8)) as u128,
+                src_port: 51_234,
+                dst_port: 443,
+                protocol: Protocol::Tcp,
+            },
+            bytes,
+            packets: 1,
+            direction: Direction::Out,
+        }
+    }
+
+    /// Golden de la ventana de 30 s: se cierra alineada al bloque de 30 s y el
+    /// snapshot lleva solo los flujos de esa ventana (no los de la siguiente).
+    #[tokio::test]
+    async fn ventana_de_30_s_cierra_alineada_con_sus_flujos() {
+        let clock = Arc::new(std::sync::atomic::AtomicI64::new(1_000));
+        let (tx, rx) = mpsc::channel(16);
+        let (snap_tx, mut snap_rx) = mpsc::channel(16);
+        let aggregator = WindowAggregator::new(
+            AggregatorConfig {
+                window_seconds: 30,
+                anonymize_hosts: false,
+                ..AggregatorConfig::default()
+            },
+            Arc::new(sc_geo::NoLookup),
+            HealthRegistry::new(),
+        )
+        .with_clock(Arc::new(StepClock(clock.clone())));
+        let handle = tokio::spawn(aggregator.run(rx, snap_tx));
+        // Deja que `run` fije la ventana inicial (990) antes de avanzar el reloj.
+        tokio::task::yield_now().await;
+
+        let t = std::time::Duration::from_secs(5);
+        tokio::time::timeout(t, tx.send(update(1_000, 100)))
+            .await
+            .expect("timeout flujo 1")
+            .expect("flujo 1");
+        tokio::task::yield_now().await;
+        tokio::time::timeout(t, tx.send(update(1_005, 100)))
+            .await
+            .expect("timeout flujo 2")
+            .expect("flujo 2");
+        tokio::task::yield_now().await;
+        // El primer flujo que llega pasado el borde cierra 990..1020 y abre 1020..1050.
+        clock.store(1_020, Ordering::Relaxed);
+        tokio::time::timeout(t, tx.send(update(1_020, 999)))
+            .await
+            .expect("timeout flujo 3")
+            .expect("flujo 3");
+        tokio::task::yield_now().await;
+
+        let (window, snapshot) = tokio::time::timeout(t, snap_rx.recv())
+            .await
+            .expect("timeout esperando la ventana")
+            .expect("ventana cerrada");
+        assert_eq!(window.start.timestamp(), 990);
+        assert_eq!(window.end.timestamp(), 1_020);
+        assert_eq!(window.duration_ms, 30_000);
+        let host = snapshot.top_hosts.first().expect("host agregado");
+        assert_eq!(host.packets, 2, "solo los flujos de 990..1020");
+        assert_eq!(host.bytes_out, 200);
+
+        drop(tx);
+        tokio::time::timeout(t, handle)
+            .await
+            .expect("timeout cerrando el aggregator")
+            .expect("aggregator sin panico");
     }
 }

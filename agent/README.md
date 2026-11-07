@@ -95,3 +95,9 @@ $env:SC_INGEST_TOKEN = (Get-Content .\config\.device-token -Raw).Trim()
 - Un cierre forzado pierde la ventana en curso (<30 s); lo ya volcado al spool se envía al siguiente arranque.
 
 Los `window_id` se derivan de la secuencia persistida en el spool más una base por época, así que siguen creciendo entre reinicios: un contador en memoria hacía que el backend descartara las primeras ventanas de cada arranque como duplicadas.
+
+### Identidad del agente y clave HMAC
+
+- El **device id es obligatorio**: `--device-id dev_<uuid>` o `SC_SENTINEL_DEVICE_ID`. Ya no existe el fallback silencioso `dev-001`, que terminaba en 403 porque el `device.id` del sobre no coincidía con el token. El script de reinicio lo pasa siempre desde `config/.device-id`.
+- `hostname` y `boot_id` del sobre se resuelven del sistema (`COMPUTERNAME`/`/etc/hostname`, `/proc/sys/kernel/random/boot_id`); en plataformas sin boot id estable se usa un UUID por proceso.
+- `host_mark` usa una clave HMAC que **no** está en el binario. Precedencia: `SC_HMAC_KEY` → `privacy.hmac_key_file` → clave aleatoria generada y persistida en el primer arranque (`config/.host-key`, ignorado por git). Conservá ese archivo: si cambia la clave, los `host_key` nuevos dejan de coincidir con el historial del dashboard. Para mantener continuidad con instalaciones previas, fijá `SC_HMAC_KEY=sc-sentinel-dev-key` hasta hacer la migración.

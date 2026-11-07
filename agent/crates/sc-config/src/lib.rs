@@ -7,6 +7,7 @@
 //! de entorno que lo contiene y el valor solo se resuelve en memoria.
 
 use serde::Deserialize;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -19,13 +20,19 @@ const DEFAULT_SPOOL_MAX_AGE_DAYS: u32 = 7;
 const DEFAULT_LOG_LEVEL: &str = "info";
 /// El dashboard muestra IP y nombre de host: la anonimización es opt-in.
 const DEFAULT_ANONYMIZE_HOSTS: bool = false;
+/// Variable de entorno opcional para fijar la clave HMAC de `host_mark`.
+const DEFAULT_HMAC_KEY_ENV: &str = "SC_HMAC_KEY";
+/// Archivo donde se persiste la clave generada en el primer arranque.
+const DEFAULT_HMAC_KEY_FILE: &str = "./config/.host-key";
+/// 32 bytes (dos UUID v4) de entropía del CSPRNG del sistema.
+const HMAC_KEY_LEN: usize = 32;
 /// El cliente de `sc-sync` solo comprime con gzip; `zstd` queda para cuando
 /// ese camino exista (feature `zstd` de `sc-sync`).
 const SUPPORTED_COMPRESSION: [&str; 1] = ["gzip"];
 
 #[derive(Debug, Error)]
 pub enum ConfigError {
-    #[error("no se pudo leer {path}: {source}")]
+    #[error("no se pudo acceder a {path}: {source}")]
     Io {
         path: PathBuf,
         #[source]
@@ -72,14 +79,32 @@ pub struct IngestConfig {
 #[serde(deny_unknown_fields, default)]
 pub struct PrivacySection {
     pub anonymize_hosts: bool,
+    /// Nombre de la variable de entorno con la clave HMAC de `host_mark`.
+    /// Si está definida tiene prioridad sobre `hmac_key_file`.
+    pub hmac_key_env: String,
+    /// Archivo donde se persiste la clave HMAC generada en el primer arranque.
+    /// Nunca se versiona: el mismo host debe conservar su `host_key` entre reinicios.
+    pub hmac_key_file: PathBuf,
 }
 
 impl Default for PrivacySection {
     fn default() -> Self {
         Self {
             anonymize_hosts: DEFAULT_ANONYMIZE_HOSTS,
+            hmac_key_env: DEFAULT_HMAC_KEY_ENV.to_string(),
+            hmac_key_file: PathBuf::from(DEFAULT_HMAC_KEY_FILE),
         }
     }
+}
+
+/// Clave HMAC resuelta para `host_mark`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedHmacKey {
+    pub key: Vec<u8>,
+    /// `true` cuando la clave se generó y persistió en este arranque.
+    pub generated: bool,
+    /// Archivo de origen cuando no vino por variable de entorno.
+    pub path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -254,7 +279,94 @@ impl AgentConfig {
                 expected: "filtro de tracing (info, debug, sc_sync=debug…)",
             });
         }
+        if self.privacy.hmac_key_env.trim().is_empty() {
+            return Err(ConfigError::Invalid {
+                field: "privacy.hmac_key_env",
+                value: self.privacy.hmac_key_env.clone(),
+                expected: "nombre de una variable de entorno",
+            });
+        }
+        if self.privacy.hmac_key_file.as_os_str().is_empty() {
+            return Err(ConfigError::Invalid {
+                field: "privacy.hmac_key_file",
+                value: self.privacy.hmac_key_file.display().to_string(),
+                expected: "ruta para persistir la clave HMAC",
+            });
+        }
         Ok(())
+    }
+
+    /// Resuelve la clave HMAC de `host_mark` (nunca se registra su valor).
+    ///
+    /// Precedencia: variable de entorno nombrada por `privacy.hmac_key_env` →
+    /// archivo `privacy.hmac_key_file` → clave aleatoria nueva persistida.
+    pub fn resolve_hmac_key(&self) -> Result<ResolvedHmacKey, ConfigError> {
+        self.resolve_hmac_key_from(|key| std::env::var(key).ok().filter(|value| !value.is_empty()))
+    }
+
+    /// Variante testeable: `lookup` devuelve el valor de una variable de entorno.
+    pub fn resolve_hmac_key_from(
+        &self,
+        lookup: impl Fn(&str) -> Option<String>,
+    ) -> Result<ResolvedHmacKey, ConfigError> {
+        if let Some(value) = lookup(&self.privacy.hmac_key_env) {
+            return Ok(ResolvedHmacKey {
+                key: value.into_bytes(),
+                generated: false,
+                path: None,
+            });
+        }
+
+        let path = &self.privacy.hmac_key_file;
+        match std::fs::read(path) {
+            Ok(bytes) if !bytes.is_empty() => Ok(ResolvedHmacKey {
+                key: bytes,
+                generated: false,
+                path: Some(path.clone()),
+            }),
+            Ok(_) => Err(ConfigError::Invalid {
+                field: "privacy.hmac_key_file",
+                value: path.display().to_string(),
+                expected: "archivo no vacío con la clave HMAC",
+            }),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                let key = random_hmac_key();
+                match write_new_key_file(path, &key) {
+                    Ok(()) => Ok(ResolvedHmacKey {
+                        key,
+                        generated: true,
+                        path: Some(path.clone()),
+                    }),
+                    // Otro proceso ganó la carrera: se usa la clave ya persistida.
+                    Err(write_error) if write_error.kind() == std::io::ErrorKind::AlreadyExists => {
+                        let bytes = std::fs::read(path).map_err(|source| ConfigError::Io {
+                            path: path.clone(),
+                            source,
+                        })?;
+                        if bytes.is_empty() {
+                            return Err(ConfigError::Invalid {
+                                field: "privacy.hmac_key_file",
+                                value: path.display().to_string(),
+                                expected: "archivo no vacío con la clave HMAC",
+                            });
+                        }
+                        Ok(ResolvedHmacKey {
+                            key: bytes,
+                            generated: false,
+                            path: Some(path.clone()),
+                        })
+                    }
+                    Err(source) => Err(ConfigError::Io {
+                        path: path.clone(),
+                        source,
+                    }),
+                }
+            }
+            Err(source) => Err(ConfigError::Io {
+                path: path.clone(),
+                source,
+            }),
+        }
     }
 
     /// Resuelve el token desde `ingest.token_env`. El valor no se registra en logs.
@@ -270,6 +382,33 @@ impl AgentConfig {
             .filter(|token| !token.trim().is_empty())
             .ok_or_else(|| ConfigError::MissingToken(self.ingest.token_env.clone()))
     }
+}
+
+/// Clave nueva con entropía del CSPRNG del sistema (dos UUID v4).
+fn random_hmac_key() -> Vec<u8> {
+    let mut key = Vec::with_capacity(HMAC_KEY_LEN);
+    key.extend_from_slice(uuid::Uuid::new_v4().as_bytes());
+    key.extend_from_slice(uuid::Uuid::new_v4().as_bytes());
+    key
+}
+
+/// Crea el archivo sin truncar uno existente; en Unix queda solo para el usuario.
+fn write_new_key_file(path: &Path, key: &[u8]) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(path)?;
+    file.write_all(key)?;
+    file.sync_all()
 }
 
 #[cfg(test)]
@@ -295,6 +434,11 @@ mod tests {
         assert_eq!(config.spool.max_bytes, 524_288_000);
         assert_eq!(config.spool.max_age_days, 7);
         assert_eq!(config.log.level, "info");
+        assert_eq!(config.privacy.hmac_key_env, "SC_HMAC_KEY");
+        assert_eq!(
+            config.privacy.hmac_key_file,
+            PathBuf::from("./config/.host-key")
+        );
     }
 
     #[test]
@@ -385,6 +529,57 @@ mod tests {
             .resolve_token_from(|key| (key == "MI_TOKEN").then(|| "secreto".to_string()))
             .expect("token presente");
         assert_eq!(token, "secreto");
+    }
+
+    #[test]
+    fn hmac_key_desde_el_entorno_tiene_prioridad_sobre_el_archivo() {
+        let mut config = AgentConfig::default();
+        config.privacy.hmac_key_env = "MI_HMAC".to_string();
+        config.privacy.hmac_key_file = PathBuf::from("no-se-debe-leer");
+
+        let resolved = config
+            .resolve_hmac_key_from(|key| (key == "MI_HMAC").then(|| "clave-prueba".to_string()))
+            .expect("clave desde entorno");
+        assert_eq!(resolved.key, b"clave-prueba");
+        assert!(!resolved.generated);
+        assert!(resolved.path.is_none());
+    }
+
+    #[test]
+    fn hmac_key_se_genera_y_persiste_entre_arranques() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut config = AgentConfig::default();
+        config.privacy.hmac_key_file = dir.path().join("host-key");
+
+        let first = config
+            .resolve_hmac_key_from(|_| None)
+            .expect("genera clave");
+        assert!(first.generated);
+        assert_eq!(first.key.len(), HMAC_KEY_LEN);
+
+        let second = config.resolve_hmac_key_from(|_| None).expect("relee clave");
+        assert!(!second.generated);
+        assert_eq!(first.key, second.key, "la clave debe ser estable");
+    }
+
+    #[test]
+    fn hmac_key_vacia_es_error_claro() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("host-key");
+        std::fs::write(&path, b"").expect("archivo vacío");
+        let mut config = AgentConfig::default();
+        config.privacy.hmac_key_file = path;
+
+        let error = config
+            .resolve_hmac_key_from(|_| None)
+            .expect_err("vacía debe fallar");
+        assert!(matches!(
+            error,
+            ConfigError::Invalid {
+                field: "privacy.hmac_key_file",
+                ..
+            }
+        ));
     }
 
     #[test]
