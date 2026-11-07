@@ -4,10 +4,10 @@
 import Link from 'next/link';
 import useSWR from 'swr';
 import {
-  ArrowDownToLine,
-  ArrowUpFromLine,
+  ArrowDownUp,
+  Package,
   ShieldAlert,
-  Layers,
+  Server,
   RefreshCw,
   TriangleAlert,
 } from 'lucide-react';
@@ -20,7 +20,11 @@ import { AiInsightCard } from './AiInsightCard';
 import { StatCard } from './StatCard';
 import { TrafficChart } from './TrafficChart';
 import { TopHostsTable } from './TopHostsTable';
+import { TopPortsTable } from './TopPortsTable';
+import { GeoDistribution } from './GeoDistribution';
+import { RiskSummary } from './RiskSummary';
 import { RecentAlerts } from './RecentAlerts';
+import { SeverityChips } from './SeverityChips';
 
 const REFRESH_MS = 5000;
 
@@ -97,14 +101,28 @@ export function OverviewView({ range }: { range: QueryRange }) {
         </div>
         <SkeletonBlock className="h-72" />
         <div className="grid gap-4 lg:grid-cols-5">
+          <SkeletonBlock className="h-80 lg:col-span-3" />
+          <SkeletonBlock className="h-80 lg:col-span-2" />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-5">
           <SkeletonBlock className="h-64 lg:col-span-3" />
           <SkeletonBlock className="h-64 lg:col-span-2" />
         </div>
+        <SkeletonBlock className="h-48" />
       </div>
     );
   }
 
-  const { totals, series, top_hosts: topHosts, period } = overview.data;
+  const {
+    totals,
+    series,
+    top_hosts: topHosts,
+    top_ports: topPorts,
+    top_countries: topCountries,
+    protocols,
+    risk,
+    period,
+  } = overview.data;
   const periodLabel = `${new Date(period.start).toLocaleString('es-AR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })} → ${new Date(period.end).toLocaleString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })}`;
 
   return (
@@ -112,34 +130,36 @@ export function OverviewView({ range }: { range: QueryRange }) {
       {/* Estado del agente */}
       <AgentHealthCard health={health.data} />
 
-      {/* KPIs */}
+      {/* KPIs consolidados */}
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <StatCard
-          icon={ArrowDownToLine}
-          label="Tráfico de entrada"
-          value={formatBytes(totals.bytes_in)}
-          sub={`${formatNum(totals.packets_in)} paquetes`}
+          icon={ArrowDownUp}
+          label="Bytes totales"
+          value={formatBytes(totals.bytes_in + totals.bytes_out)}
+          sub={`↑ ${formatBytes(totals.bytes_in)} · ↓ ${formatBytes(totals.bytes_out)}`}
           accent="in"
         />
         <StatCard
-          icon={ArrowUpFromLine}
-          label="Tráfico de salida"
-          value={formatBytes(totals.bytes_out)}
-          sub={`${formatNum(totals.packets_out)} paquetes`}
+          icon={Package}
+          label="Paquetes totales"
+          value={formatNum(totals.packets_in)}
+          sub={`${formatNum(totals.windows_count)} ventanas agregadas`}
           accent="out"
         />
         <StatCard
           icon={ShieldAlert}
           label="Alertas"
           value={formatNum(totals.alerts_count)}
-          sub={`En la ventana ${range}`}
+          sub={`Ventana ${range}`}
           accent="warn"
-        />
+        >
+          <SeverityChips counts={totals.alerts_by_severity} />
+        </StatCard>
         <StatCard
-          icon={Layers}
-          label="Ventanas agregadas"
-          value={formatNum(totals.windows_count)}
-          sub={`Período ${range}`}
+          icon={Server}
+          label="Hosts únicos"
+          value={formatNum(totals.hosts_count)}
+          sub={`${formatNum(totals.countries_count)} países observados`}
           accent="neutral"
         />
       </div>
@@ -173,15 +193,28 @@ export function OverviewView({ range }: { range: QueryRange }) {
         </div>
       </section>
 
-      {/* Destinos y alertas */}
+      {/* Destinos y puertos */}
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="lg:col-span-3">
           <TopHostsTable hosts={topHosts} />
         </div>
         <div className="lg:col-span-2">
-          <RecentAlerts alerts={alerts.data?.alerts ?? []} />
+          <TopPortsTable ports={topPorts} protocols={protocols} />
         </div>
       </div>
+
+      {/* Geografía y riesgo determinista */}
+      <div className="grid gap-4 lg:grid-cols-5">
+        <div className="lg:col-span-3">
+          <GeoDistribution countries={topCountries} />
+        </div>
+        <div className="lg:col-span-2">
+          <RiskSummary risk={risk} hostsCount={totals.hosts_count} />
+        </div>
+      </div>
+
+      {/* Alertas recientes */}
+      <RecentAlerts alerts={alerts.data?.alerts ?? []} />
     </div>
   );
 }

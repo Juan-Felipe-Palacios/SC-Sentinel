@@ -6,7 +6,7 @@ Fuente: spec §18.2. Grupo `(dashboard)` protegido por middleware + cookie admin
 
 ```text
 ┌───────────────────────────────────────────────────────┐
-│ Sidebar │  ┌── Header: global (rango temporal 1h/6h/24h/7d) ──┐ │
+│ Sidebar │  ┌── Header: global (rango temporal 15m/1h/6h/24h/7d/30d) ──┐ │
 │ overview│  │                                                     │
 │ hosts   │  │  contenido de la vista                              │
 │ conns   │  └─────────────────────────────────────────────────────┘ │
@@ -20,10 +20,14 @@ Fuente: spec §18.2. Grupo `(dashboard)` protegido por middleware + cookie admin
 
 | Zona | Contenido |
 |---|---|
-| Estado del agente | online / offline / degraded (badge grande) + versión del agente |
+| Estado del agente | online / offline / degraded (badge grande) + métricas de captura (drops, cola, spool) |
 | Último snapshot | timestamp del último accepted + latencia de sync |
+| KPIs consolidados | bytes totales (con reparto in/out), paquetes totales, alertas con desglose por severidad, hosts únicos + países observados |
 | Traffic chart | líneas bytes in/out (Recharts), rango temporal global |
-| Top 5 hosts | host_key (o IP si no anon), país, bytes, riesgo |
+| Top 10 hosts | hostname (DNS inverso) > IP > `host_key`; país, paquetes, bytes y banda de riesgo (alto ≥0.7 / medio ≥0.4 / bajo) |
+| Puertos y protocolos | top 10 puertos por bytes con servicio conocido, protocolo, conexiones + distribución TCP/UDP/otros |
+| Tráfico por país | top 5 países por bytes (`top_countries` del snapshot) con hosts y % del total |
+| Riesgo del sistema | nivel global (alto/medio/bajo), score promedio, hosts por banda; sin tendencia hasta tener comparación de períodos |
 | Alertas recientes | últimas 5 con severity chip |
 | Estado de IA | ok / degraded + fecha del último insight |
 

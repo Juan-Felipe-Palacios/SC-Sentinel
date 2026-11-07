@@ -28,20 +28,59 @@ describe('getRangeBounds', () => {
     const { start, end } = getRangeBounds('1h', fixedNow);
     expect(end.getTime() - start.getTime()).toBe(60 * 60 * 1000);
   });
+
+  it('15m bounds are exactly 15 minutes apart', () => {
+    const { start, end } = getRangeBounds('15m', fixedNow);
+    expect(end.getTime() - start.getTime()).toBe(15 * 60 * 1000);
+  });
+
+  it('30d bounds are exactly 30 days apart', () => {
+    const { start, end } = getRangeBounds('30d', fixedNow);
+    expect(end.getTime() - start.getTime()).toBe(30 * 24 * 60 * 60 * 1000);
+  });
 });
 
 describe('queryOverview', () => {
   it('returns contract shape with host_stats-derived totals', async () => {
     const db = fakeDb([
       [{ windows_count: '12' }],
-      [{ bytes_in: '1000', bytes_out: '2500', packets: '77' }],
+      [
+        {
+          bytes_in: '1000',
+          bytes_out: '2500',
+          packets: '77',
+          hosts_count: '4',
+          countries_count: '2',
+        },
+      ],
       [
         { bucket: '2026-11-04T11:30:00.000Z', bytes_in: '400', bytes_out: '500' },
         { bucket: '2026-11-04T11:31:00.000Z', bytes_in: '600', bytes_out: '2000' },
       ],
-      [{ host_key: 'host-a', country: 'AR', bytes_in: '700', bytes_out: '800', packets: '10' }],
+      [
+        {
+          host_key: 'host-a',
+          ip: '203.0.113.7',
+          country: 'AR',
+          risk_score: '0.82',
+          bytes_in: '700',
+          bytes_out: '800',
+          packets: '10',
+        },
+      ],
       [{ country: 'AR', bytes_total: '1500', hosts_count: '3' }],
       [{ alerts_count: '4' }],
+      [
+        { severity: 'critical', count: '1' },
+        { severity: 'high', count: '2' },
+        { severity: 'info', count: '1' },
+      ],
+      [
+        { port: 443, protocol: 'tcp', bytes: '1200', connections: '8' },
+        { port: 53, protocol: 'udp', bytes: '300', connections: '2' },
+        { port: 22, protocol: 'tcp', bytes: '100', connections: '1' },
+      ],
+      [{ scored_hosts: '3', high_hosts: '1', medium_hosts: '1', low_hosts: '1', avg_score: '0.4833' }],
     ]);
 
     const result = await queryOverview('1h', 'dev_123', db, fixedNow);
@@ -55,15 +94,66 @@ describe('queryOverview', () => {
       packets_out: 77,
       windows_count: 12,
       alerts_count: 4,
+      hosts_count: 4,
+      countries_count: 2,
+      alerts_by_severity: { critical: 1, high: 2, medium: 0, low: 0, info: 1 },
     });
     expect(result.series).toEqual([
       { timestamp: '2026-11-04T11:30:00.000Z', bytes_in: 400, bytes_out: 500 },
       { timestamp: '2026-11-04T11:31:00.000Z', bytes_in: 600, bytes_out: 2000 },
     ]);
     expect(result.top_hosts).toEqual([
-      { host_key: 'host-a', ip: null, country: 'AR', bytes_total: 1500, packets: 10 },
+      {
+        host_key: 'host-a',
+        ip: '203.0.113.7',
+        country: 'AR',
+        risk_score: 0.82,
+        bytes_in: 700,
+        bytes_out: 800,
+        bytes_total: 1500,
+        packets: 10,
+      },
     ]);
     expect(result.top_countries).toEqual([{ country: 'AR', bytes_total: 1500, hosts_count: 3 }]);
+    expect(result.top_ports).toEqual([
+      { port: 443, protocol: 'tcp', bytes: 1200, connections: 8 },
+      { port: 53, protocol: 'udp', bytes: 300, connections: 2 },
+      { port: 22, protocol: 'tcp', bytes: 100, connections: 1 },
+    ]);
+    expect(result.protocols).toEqual([
+      { protocol: 'tcp', bytes: 1300, connections: 9 },
+      { protocol: 'udp', bytes: 300, connections: 2 },
+    ]);
+    expect(result.risk).toEqual({
+      scored_hosts: 3,
+      high_hosts: 1,
+      medium_hosts: 1,
+      low_hosts: 1,
+      avg_score: 0.4833,
+    });
+  });
+
+  it('reports empty risk when no host has a score', async () => {
+    const db = fakeDb([
+      [{ windows_count: '1' }],
+      [{ bytes_in: '0', bytes_out: '0', packets: '0', hosts_count: '2', countries_count: '0' }],
+      [],
+      [],
+      [],
+      [{ alerts_count: '0' }],
+      [],
+      [],
+      [{ scored_hosts: '0', high_hosts: '0', medium_hosts: '0', low_hosts: '0', avg_score: null }],
+    ]);
+
+    const result = await queryOverview('1h', 'dev_123', db, fixedNow);
+    expect(result.risk).toEqual({
+      scored_hosts: 0,
+      high_hosts: 0,
+      medium_hosts: 0,
+      low_hosts: 0,
+      avg_score: null,
+    });
   });
 
   it('returns empty zeroed payload when device is unresolved and does not query DB', async () => {
@@ -71,7 +161,16 @@ describe('queryOverview', () => {
     const result = await queryOverview('1h', null, db as never, fixedNow);
     expect(db.execute).not.toHaveBeenCalled();
     expect(result.totals.windows_count).toBe(0);
+    expect(result.totals.alerts_by_severity).toEqual({ critical: 0, high: 0, medium: 0, low: 0, info: 0 });
     expect(result.series).toEqual([]);
+    expect(result.top_ports).toEqual([]);
+    expect(result.risk).toEqual({
+      scored_hosts: 0,
+      high_hosts: 0,
+      medium_hosts: 0,
+      low_hosts: 0,
+      avg_score: null,
+    });
   });
 });
 

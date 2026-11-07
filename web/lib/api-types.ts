@@ -8,6 +8,14 @@ export interface Period {
   end: string;
 }
 
+export interface OverviewAlertSeverityCounts {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  info: number;
+}
+
 export interface OverviewTotals {
   bytes_in: number;
   bytes_out: number;
@@ -15,6 +23,11 @@ export interface OverviewTotals {
   packets_out: number;
   windows_count: number;
   alerts_count: number;
+  /** Hosts distintos en el período. */
+  hosts_count: number;
+  /** Países distintos (excluye el centinela `LAN`). */
+  countries_count: number;
+  alerts_by_severity: OverviewAlertSeverityCounts;
 }
 
 export interface OverviewSeriesPoint {
@@ -30,14 +43,41 @@ export interface OverviewTopHost {
   /** Nombre resuelto por DNS inverso en el servidor; null si no se pudo resolver. */
   hostname: string | null;
   country: string | null;
+  /** Último risk_score determinista (0.0–1.0); null si no hay score. */
+  risk_score: number | null;
+  bytes_in: number;
+  bytes_out: number;
   bytes_total: number;
   packets: number;
+}
+
+export interface OverviewRisk {
+  /** Hosts con risk_score observado en el período. */
+  scored_hosts: number;
+  high_hosts: number;
+  medium_hosts: number;
+  low_hosts: number;
+  /** Promedio de los scores (0.0–1.0); null si ningún host tiene score. */
+  avg_score: number | null;
 }
 
 export interface OverviewTopCountry {
   country: string;
   bytes_total: number;
   hosts_count: number;
+}
+
+export interface OverviewTopPort {
+  port: number;
+  protocol: string;
+  bytes: number;
+  connections: number;
+}
+
+export interface OverviewProtocolShare {
+  protocol: string;
+  bytes: number;
+  connections: number;
 }
 
 export interface OverviewResponse {
@@ -47,6 +87,9 @@ export interface OverviewResponse {
   series: OverviewSeriesPoint[];
   top_hosts: OverviewTopHost[];
   top_countries: OverviewTopCountry[];
+  top_ports: OverviewTopPort[];
+  protocols: OverviewProtocolShare[];
+  risk: OverviewRisk;
 }
 
 export interface AlertItem {

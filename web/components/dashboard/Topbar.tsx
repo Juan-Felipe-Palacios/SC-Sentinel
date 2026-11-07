@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ShieldCheck, LogOut, Loader2 } from 'lucide-react';
 
-const RANGE_OPTIONS = ['1h', '6h', '24h', '7d'] as const;
+const RANGE_OPTIONS = ['15m', '1h', '6h', '24h', '7d', '30d'] as const;
 
 const SECTION_TITLES: Array<{ prefix: string; eyebrow: string; title: string }> = [
   { prefix: '/dashboard/overview', eyebrow: 'Sentinel / Overview', title: 'Resumen de tráfico' },

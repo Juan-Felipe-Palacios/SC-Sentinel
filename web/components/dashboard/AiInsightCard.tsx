@@ -244,7 +244,7 @@ export function AiInsightCard() {
 
             {insight.findings.length > 0 ? (
               <ul className="divide-y divide-white/5 rounded-md border sc-hairline">
-                {insight.findings.slice(0, 3).map((finding, index) => (
+                {insight.findings.map((finding, index) => (
                   <li key={`${finding.type}-${index}`} className="flex items-start gap-3 px-3 py-2.5">
                     <Chip severity={finding.severity.toLowerCase()} />
                     <p className="text-xs leading-5 text-sc-text-muted">
@@ -264,7 +264,7 @@ export function AiInsightCard() {
                   Recomendaciones
                 </p>
                 <ul className="mt-2 space-y-1.5">
-                  {insight.recommendations.slice(0, 3).map((recommendation, index) => (
+                  {insight.recommendations.map((recommendation, index) => (
                     <li key={index} className="flex items-start gap-2 text-xs leading-5 text-sc-text-muted">
                       <span className="mt-2 size-1 shrink-0 rounded-full bg-sc-viz-out" aria-hidden="true" />
                       {recommendation}

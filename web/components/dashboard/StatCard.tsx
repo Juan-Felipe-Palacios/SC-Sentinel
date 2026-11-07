@@ -1,4 +1,5 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
+import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 
 interface StatCardProps {
@@ -6,6 +7,7 @@ interface StatCardProps {
   label: string;
   value: string;
   sub?: string;
+  children?: ReactNode;
   accent?: 'in' | 'out' | 'warn' | 'neutral';
 }
 
@@ -16,7 +18,7 @@ const ACCENT_STYLES: Record<NonNullable<StatCardProps['accent']>, string> = {
   neutral: 'text-sc-text-muted border-white/5 bg-sc-surface-alt/50',
 };
 
-export function StatCard({ icon: Icon, label, value, sub, accent = 'neutral' }: StatCardProps) {
+export function StatCard({ icon: Icon, label, value, sub, children, accent = 'neutral' }: StatCardProps) {
   return (
     <div className="rounded-lg border sc-hairline bg-sc-surface p-5 transition-colors hover:border-sc-text-muted/20">
       <div className="flex items-center justify-between gap-3">
@@ -28,6 +30,7 @@ export function StatCard({ icon: Icon, label, value, sub, accent = 'neutral' }: 
       <p className="mt-4 font-display text-[26px] font-semibold leading-none tabular-nums text-sc-text sm:text-3xl">
         {value}
       </p>
+      {children ? <div className="mt-3">{children}</div> : null}
       {sub ? <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.18em] text-sc-text-muted">{sub}</p> : null}
     </div>
   );

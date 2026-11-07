@@ -1,4 +1,6 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
+// Panel «Salud del agente»: los seis campos que publica agent_health, siempre visibles
+// (con «—» cuando el agente no reportó el valor). El motor determinista no depende de esto.
 import { Activity, AlertTriangle } from 'lucide-react';
 import type { HealthMetric } from '@/lib/api-types';
 import { formatBytes, formatNum, timeAgo, dropRate } from '@/lib/format';
@@ -41,13 +43,41 @@ const STATUS_CONFIG: Record<CaptureStatus, { label: string; dot: string; text: s
   },
 };
 
-function Metric({ label, value }: { label: string; value: string }) {
+type Tone = 'neutral' | 'warn' | 'critical';
+
+const TONE_TEXT: Record<Tone, string> = {
+  neutral: 'text-sc-text',
+  warn: 'text-sc-risk-high',
+  critical: 'text-sc-risk-critical',
+};
+
+/** Tasa de descarte: por encima de 1 % es degradación real, por encima de 5 % es crítico. */
+function rateTone(rate: number | null): Tone {
+  if (rate == null || rate === 0) return 'neutral';
+  if (rate > 5) return 'critical';
+  return 'warn';
+}
+
+function Tile({
+  label,
+  value,
+  tone = 'neutral',
+  hint,
+}: {
+  label: string;
+  value: string;
+  tone?: Tone;
+  hint?: string;
+}) {
   return (
-    <div className="min-w-0">
-      <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-sc-text-muted">{label}</p>
-      <p className="mt-1 truncate font-display text-sm font-semibold tabular-nums text-sc-text" title={value}>
+    <div className="min-w-0 rounded-md border border-white/5 bg-sc-bg/40 px-3 py-2.5">
+      <dt className="font-mono text-[9px] uppercase leading-4 tracking-[0.2em] text-sc-text-muted">{label}</dt>
+      <dd className={`mt-1 truncate font-display text-lg font-semibold tabular-nums ${TONE_TEXT[tone]}`} title={value}>
         {value}
-      </p>
+      </dd>
+      {hint ? (
+        <p className="mt-0.5 font-mono text-[8px] uppercase tracking-[0.16em] text-sc-text-muted/70">{hint}</p>
+      ) : null}
     </div>
   );
 }
@@ -58,57 +88,79 @@ export function AgentHealthCard({ health }: { health: HealthMetric | undefined }
   const drops = health?.packets_dropped ?? 0;
   const seen = health?.packets_seen ?? 0;
   const rate = dropRate(seen, drops);
+  const parseErrors = health?.parse_errors ?? 0;
+  const hasReport = Boolean(health?.recorded_at);
 
   return (
     <section
       aria-label="Salud del agente de captura"
-      className={`flex flex-col gap-4 rounded-lg border p-5 transition-colors sm:flex-row sm:items-center sm:justify-between ${config.ring}`}
+      className={`rounded-lg border transition-colors ${config.ring}`}
     >
-      {/* Estado + última señal */}
-      <div className="flex items-center gap-4">
-        <span className="relative grid size-11 shrink-0 place-items-center rounded-md border border-white/5 bg-sc-bg">
-          <Activity className="size-5 text-sc-text-muted" strokeWidth={1.5} aria-hidden="true" />
-          <span className="absolute -right-1.5 -top-1.5 flex size-3.5">
-            {status === 'ok' ? (
-              <span className={`absolute inline-flex size-full animate-ping rounded-full ${config.dot} opacity-60`} aria-hidden="true" />
-            ) : null}
-            <span className={`relative inline-flex size-3.5 rounded-full border-2 border-sc-surface ${config.dot}`} aria-hidden="true" />
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 px-5 py-4">
+        <div className="flex items-center gap-4">
+          <span className="relative grid size-11 shrink-0 place-items-center rounded-md border border-white/5 bg-sc-bg">
+            <Activity className="size-5 text-sc-text-muted" strokeWidth={1.5} aria-hidden="true" />
+            <span className="absolute -right-1.5 -top-1.5 flex size-3.5">
+              {status === 'ok' ? (
+                <span className={`absolute inline-flex size-full animate-ping rounded-full ${config.dot} opacity-60`} aria-hidden="true" />
+              ) : null}
+              <span className={`relative inline-flex size-3.5 rounded-full border-2 border-sc-surface ${config.dot}`} aria-hidden="true" />
+            </span>
           </span>
-        </span>
-        <div className="leading-tight">
-          <p className="font-mono text-[9px] uppercase tracking-[0.28em] text-sc-text-muted">Agente de captura</p>
-          <p className={`mt-1 font-display text-base font-semibold ${config.text}`}>{config.label}</p>
-          <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.16em] text-sc-text-muted">
-            Última señal · {timeAgo(health?.recorded_at)}
-          </p>
+          <div className="leading-tight">
+            <p className="font-mono text-[9px] uppercase tracking-[0.28em] text-sc-text-muted">Agente de captura</p>
+            <p className={`mt-1 font-display text-base font-semibold ${config.text}`}>{config.label}</p>
+            <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.16em] text-sc-text-muted">
+              Última señal · {timeAgo(health?.recorded_at)}
+            </p>
+          </div>
         </div>
-      </div>
 
-      {/* Métricas */}
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-white/5 pt-4 sm:grid-cols-4 sm:border-0 sm:pt-0">
-        <Metric label="Paquetes vistos" value={formatNum(seen)} />
-        <Metric
-          label="Drops"
-          value={`${formatNum(drops)}${rate != null ? ` · ${rate.toFixed(2)}%` : ''}`}
+        <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-sc-text-muted/70">
+          {hasReport ? 'Health reportado por el agente' : 'El agente todavía no reportó salud'}
+        </p>
+      </header>
+
+      <dl className="grid grid-cols-2 gap-2 px-5 py-4 sm:grid-cols-3 xl:grid-cols-6">
+        <Tile label="Paquetes capturados" value={hasReport ? formatNum(seen) : '—'} />
+        <Tile
+          label="Descartados"
+          value={hasReport ? formatNum(drops) : '—'}
+          tone={drops > 0 ? 'warn' : 'neutral'}
         />
-        <Metric label="Cola" value={health?.queue_depth != null ? formatNum(health.queue_depth) : '—'} />
-        <Metric label="Spool" value={health?.spool_bytes != null ? formatBytes(health.spool_bytes) : '—'} />
+        <Tile label="Tasa de descarte" value={rate != null ? `${rate.toFixed(2)}%` : '—'} tone={rateTone(rate)} />
+        <Tile
+          label="Errores de parseo"
+          value={hasReport ? formatNum(parseErrors) : '—'}
+          tone={parseErrors > 0 ? 'critical' : 'neutral'}
+          hint={parseErrors > 0 ? 'revisar compatibilidad' : undefined}
+        />
+        <Tile
+          label="Cola"
+          value={health?.queue_depth != null ? formatNum(health.queue_depth) : '—'}
+          hint="backpressure"
+        />
+        <Tile
+          label="Spool"
+          value={health?.spool_bytes != null ? formatBytes(health.spool_bytes) : '—'}
+          hint="resiliencia"
+        />
       </dl>
 
-      {health?.last_error ? (
-        <p className="flex items-start gap-2 rounded-md border border-sc-risk-critical/25 bg-sc-risk-critical/5 px-3 py-2 font-mono text-[10px] uppercase leading-5 tracking-[0.12em] text-sc-risk-critical sm:hidden">
-          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-          {health.last_error}
-        </p>
-      ) : null}
-
-      {health?.last_error ? (
-        <p className="hidden max-w-[16rem] items-start gap-2 rounded-md border border-sc-risk-critical/25 bg-sc-risk-critical/5 px-3 py-2 font-mono text-[9px] uppercase leading-5 tracking-[0.12em] text-sc-risk-critical xl:flex" title={health.last_error}>
-          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-          <span className="line-clamp-2">{health.last_error}</span>
-        </p>
-      ) : null}
-
+      <p
+        className={`flex items-start gap-2 border-t border-white/5 px-5 py-3 font-mono text-[10px] uppercase leading-5 tracking-[0.12em] ${
+          health?.last_error ? 'text-sc-risk-critical' : 'text-sc-text-muted/70'
+        }`}
+        title={health?.last_error ?? undefined}
+      >
+        <AlertTriangle
+          className={`mt-0.5 size-3.5 shrink-0 ${health?.last_error ? 'text-sc-risk-critical' : 'text-sc-text-muted/40'}`}
+          aria-hidden="true"
+        />
+        <span className="min-w-0 break-words">
+          Último error · {health?.last_error ?? 'sin errores registrados'}
+        </span>
+      </p>
     </section>
   );
 }

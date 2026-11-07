@@ -41,6 +41,22 @@ export function timeAgo(iso: string | null | undefined, now: number = Date.now()
   return `hace ${days} d`;
 }
 
+export type RiskBucket = 'high' | 'medium' | 'low';
+
+/** Banda visual de un `risk_score` determinista (0.0–1.0). null si no hay score. */
+export function riskBucket(score: number | null | undefined): RiskBucket | null {
+  if (score == null || !Number.isFinite(score)) return null;
+  if (score >= 0.7) return 'high';
+  if (score >= 0.4) return 'medium';
+  return 'low';
+}
+
+export const RISK_LABELS: Record<RiskBucket, string> = {
+  high: 'Alto',
+  medium: 'Medio',
+  low: 'Bajo',
+};
+
 export function severityRank(severity: string): number {
   switch (severity) {
     case 'critical': return 4;
