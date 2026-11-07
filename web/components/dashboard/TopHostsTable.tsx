@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
 import { Globe2 } from 'lucide-react';
+import { CountryFlag } from '@/components/dashboard/CountryFlag';
 import type { OverviewResponse } from '@/lib/api-types';
 import { formatBytes, formatNum, countryDisplay, riskBucket, RISK_LABELS, type RiskBucket } from '@/lib/format';
 
@@ -73,7 +74,8 @@ export function TopHostsTable({ hosts }: { hosts: OverviewResponse['top_hosts'] 
                     className="truncate font-display text-[13px] font-medium text-sc-text"
                     title={host.hostname ?? host.ip ?? host.host_key}
                   >
-                    <span aria-hidden="true">{country.flag}</span> {label}
+                    <CountryFlag country={host.country} className="mr-1.5 align-[-2px]" />{' '}
+                    {label}
                   </p>
                   <p className="mt-0.5 truncate font-mono text-[9px] uppercase tracking-[0.18em] text-sc-text-muted">
                     {country.label}

@@ -41,6 +41,7 @@ const runtimeNpm = [
   ["drizzle-orm", "Apache-2.0"],
   ["jose", "MIT"],
   ["lucide-react", "ISC"],
+  ["flag-icons 7.6.0", "MIT"],
   ["recharts", "MIT"],
   ["swr", "MIT"],
   ["date-fns", "MIT"],

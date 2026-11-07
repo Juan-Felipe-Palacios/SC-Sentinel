@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
 import { MapPin } from 'lucide-react';
+import { CountryFlag } from '@/components/dashboard/CountryFlag';
 import type { OverviewResponse } from '@/lib/api-types';
 import { countryDisplay, formatBytes, formatNum } from '@/lib/format';
 
@@ -34,9 +35,7 @@ export function GeoDistribution({ countries }: { countries: OverviewResponse['to
             return (
               <li key={item.country} className="px-5 py-3">
                 <div className="flex items-center gap-3">
-                  <span className="shrink-0 text-base leading-none" aria-hidden="true">
-                    {display.flag}
-                  </span>
+                  <CountryFlag country={item.country} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-display text-[13px] font-medium text-sc-text">{display.label}</p>
                     <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.18em] text-sc-text-muted">
