@@ -2,6 +2,7 @@
 
 import { NextResponse } from 'next/server';
 import { SESSION_COOKIE, sessionCookieOptions } from '@/lib/auth/session';
+import { GUEST_COOKIE, guestCookieOptions } from '@/lib/auth/guest';
 
 export async function POST() {
   const response = NextResponse.json(
@@ -9,5 +10,6 @@ export async function POST() {
     { headers: { 'Cache-Control': 'no-store, max-age=0' } }
   );
   response.cookies.set(SESSION_COOKIE, '', { ...sessionCookieOptions(false), maxAge: 0 });
+  response.cookies.set(GUEST_COOKIE, '', { ...guestCookieOptions(), maxAge: 0 });
   return response;
 }

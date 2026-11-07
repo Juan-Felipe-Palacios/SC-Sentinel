@@ -6,6 +6,10 @@ export const CHAT_MAX_CONTEXT_MESSAGES = 12;
 export const CHAT_HISTORY_LIMIT = 20;
 export const CHAT_MAX_OUTPUT_TOKENS = 1200;
 export const CHAT_TOKEN_BUDGET = 2000;
+// Visitante: respuesta más corta y una sola pasada de contexto.
+export const CHAT_GUEST_MAX_OUTPUT_TOKENS = 1000;
+export const CHAT_GUEST_TOKEN_BUDGET = 1000;
+export const CHAT_GUEST_TIMEOUT_MS = 20_000;
 export const CHAT_CONTEXT_HOURS = 24;
 
 export type ChatRole = 'user' | 'assistant';
@@ -89,7 +93,8 @@ export interface ChatConversationSummary extends ChatConversation {
 }
 
 export interface ChatStreamMeta {
-  conversationId: string;
+  /** null en modo visitante: la sesión no se persiste. */
+  conversationId: string | null;
   model: string;
   provider: string;
   sources: string[];
@@ -99,7 +104,7 @@ export interface ChatStreamMeta {
 }
 
 export interface ChatStreamDone {
-  conversationId: string;
+  conversationId: string | null;
   model: string;
   provider: string;
   tokensUsed: number;

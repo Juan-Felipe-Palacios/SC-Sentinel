@@ -2,7 +2,7 @@
 // GET /api/devices — lista de devices enrolados (ADR-0010). Solo admin.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAdminAuth } from '@/lib/auth/admin';
+import { authorize } from '@/lib/auth/resolve';
 import { listDevices } from '@/lib/query/devices';
 
 export const runtime = 'nodejs';
@@ -11,10 +11,8 @@ export const dynamic = 'force-dynamic';
 const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
 
 export async function GET(request: NextRequest) {
-  const auth = await verifyAdminAuth(request);
-  if (!auth.authenticated) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401, headers: noStoreHeaders });
-  }
+  const check = await authorize(request);
+  if (!check.ok) return check.response;
 
   try {
     const devices = await listDevices();

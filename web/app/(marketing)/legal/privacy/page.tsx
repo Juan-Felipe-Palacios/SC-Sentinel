@@ -144,7 +144,7 @@ export default function Privacy() {
       <section className="mt-10 space-y-3">
         <h2 className="font-display text-xl font-semibold tracking-tight text-sc-text">5. Seguridad</h2>
         <ul className="list-disc space-y-1 pl-6 text-sm leading-relaxed text-sc-text-muted">
-          <li>Autenticación: token de agente rotable + cookie de administración firmada (HS256, httpOnly).</li>
+          <li>Autenticación: token de agente rotable + cookie de administración firmada (HS256, httpOnly). La demo pública usa una cookie de visitante httpOnly de 1 h, sin datos personales.</li>
           <li>Transporte: HTTPS only; payload comprimido (gzip) con límite de 128 KB.</li>
           <li>Los logs no incluyen tokens completos, encabezado Authorization ni payloads crudos.</li>
           <li>Anonimización integrada <code>anonymize_hosts</code> (HMAC truncada) — ver también <Link className="text-sc-accent hover:text-[#7dd3fc]" href="/security">/security</Link>.</li>

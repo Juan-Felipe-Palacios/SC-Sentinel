@@ -59,6 +59,21 @@ export async function listDevices(database: QueryDb = defaultQueryDb): Promise<D
   return rows.map(mapDeviceRow);
 }
 
+/** Device puntual por id (validación de la allowlist de visitantes). */
+export async function getDeviceById(
+  deviceId: string,
+  database: QueryDb = defaultQueryDb
+): Promise<DeviceRecord | null> {
+  const rows = await queryRows<DeviceRow>(
+    database,
+    sql`SELECT id, name, status, enrolled_at, last_seen_at
+        FROM devices
+        WHERE id = ${deviceId}
+        LIMIT 1`
+  );
+  return rows[0] ? mapDeviceRow(rows[0]) : null;
+}
+
 /**
  * Crea un device en estado `enrolled_pending` con un token permanente.
  * El token devuelto no se persiste: solo su hash.

@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { consumeChatStream } from '@/lib/chat/client';
+import { useDashboardRole } from '@/components/dashboard/DashboardRoleContext';
 import type { ChatStreamDone, ChatStreamMeta } from '@/lib/chat/types';
 import { ChatInput } from './ChatInput';
 import { ChatMessage, type ChatMessageMeta } from './ChatMessage';
@@ -194,6 +195,8 @@ function EmptyState({ onPick }: { onPick: (suggestion: string) => void }) {
 }
 
 export function ChatWidget() {
+  const { role } = useDashboardRole();
+  const isGuest = role === 'guest';
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [input, setInput] = useState('');
@@ -557,7 +560,9 @@ export function ChatWidget() {
                   {busy ? 'Generando respuesta' : 'Canal seguro'}
                 </span>
                 <span className="truncate">
-                  {conversationId ? `conv ${conversationId.slice(-6)}` : 'nueva sesión'} · RAG 24H
+                  {isGuest
+                    ? 'sin historial · sesión temporal · RAG 24H'
+                    : `${conversationId ? `conv ${conversationId.slice(-6)}` : 'nueva sesión'} · RAG 24H`}
                 </span>
               </div>
 

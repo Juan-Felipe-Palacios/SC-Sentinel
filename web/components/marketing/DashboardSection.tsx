@@ -74,14 +74,14 @@ export default function DashboardSection() {
         {/* CTA al dashboard */}
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <a
-            href="/dashboard"
+            href="/demo"
             className="inline-flex items-center gap-2 rounded-md bg-sc-accent px-5 py-2.5 text-sm font-semibold text-sc-bg transition-colors hover:bg-[#7dd3fc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sc-accent"
           >
-            Ir al Dashboard
+            Ver demo en vivo
             <span aria-hidden="true">→</span>
           </a>
           <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-sc-text-muted">
-            Requiere autenticación de administrador
+            Demo pública de solo lectura · sin registro
           </span>
         </div>
 
@@ -187,7 +187,7 @@ export default function DashboardSection() {
         {/* CTA secundario al dashboard */}
         <div className="mt-10 flex justify-center">
           <a
-            href="/dashboard"
+            href="/demo"
             className="group inline-flex items-center gap-2 rounded-xl border sc-hairline bg-sc-panel/80 px-6 py-4 text-sm font-semibold text-sc-text transition-all hover:border-sc-accent/40 hover:bg-sc-panel focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sc-accent"
           >
             <span
@@ -197,9 +197,9 @@ export default function DashboardSection() {
               ◈
             </span>
             <div className="text-left">
-              <span className="block">Abrir el Dashboard</span>
+              <span className="block">Abrir la demo pública</span>
               <span className="block font-mono text-[10px] font-normal uppercase tracking-widest text-sc-text-muted">
-                sc-sentinel.vercel.app/dashboard
+                Solo lectura · sin registro
               </span>
             </div>
             <span className="text-sc-accent transition-transform group-hover:translate-x-0.5">→</span>

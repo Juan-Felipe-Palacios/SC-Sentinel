@@ -10,6 +10,7 @@ import { BrainCircuit, Loader2, RefreshCw, Sparkles, TriangleAlert } from 'lucid
 import type { AiInsight, AiInsightResponse } from '@/lib/api-types';
 import { fetcher, FetchError } from '@/lib/swr';
 import { timeAgo } from '@/lib/format';
+import { useDashboardRole } from './DashboardRoleContext';
 
 const REFRESH_MS = 30_000;
 const LANG_STORAGE_KEY = 'sc-ai-language';
@@ -116,14 +117,18 @@ function LanguageSwitch({
 }
 
 export function AiInsightCard() {
+  const { role } = useDashboardRole();
+  const isGuest = role === 'guest';
   const [language, setLanguage] = useState<AiLanguage>('es');
   const [busy, setBusy] = useState(false);
 
-  // Preferencia guardada en el navegador (español por defecto).
+  // Preferencia guardada en el navegador (español por defecto). El visitante
+  // no cambia de idioma porque eso dispara el lote admin.
   useEffect(() => {
+    if (isGuest) return;
     const stored = window.localStorage.getItem(LANG_STORAGE_KEY);
     if (stored === 'en' || stored === 'es') setLanguage(stored);
-  }, []);
+  }, [isGuest]);
 
   const key = `/api/query?metric=ai&lang=${language}`;
   const { data, error, isLoading, mutate } = useSWR<AiInsightResponse>(key, fetcher, {
@@ -170,7 +175,9 @@ export function AiInsightCard() {
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <LanguageSwitch language={language} busy={busy} onChange={(next) => void changeLanguage(next)} />
+          {isGuest ? null : (
+            <LanguageSwitch language={language} busy={busy} onChange={(next) => void changeLanguage(next)} />
+          )}
           {insight ? <Chip severity={degraded ? 'info' : displayRisk(insight)} /> : null}
           {degraded ? (
             <span className="inline-flex items-center gap-1.5 rounded border border-sc-degraded/40 bg-sc-degraded/10 px-2 py-0.5 font-mono text-[8px] uppercase tracking-[0.2em] text-sc-degraded">
@@ -212,24 +219,27 @@ export function AiInsightCard() {
                   {language === 'es' ? 'Aún no hay análisis en español.' : 'No analysis in English yet.'}
                 </p>
                 <p className="mt-1 text-xs leading-5 text-sc-text-muted">
-                  El motor determinista sigue activo: las métricas y alertas de arriba no dependen de la
-                  IA. Ejecutá el lote para generarlo en este idioma.
+                  {isGuest
+                    ? 'El motor determinista sigue activo: las métricas y alertas de arriba no dependen de la IA. El análisis lo genera un administrador.'
+                    : 'El motor determinista sigue activo: las métricas y alertas de arriba no dependen de la IA. Ejecutá el lote para generarlo en este idioma.'}
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => void analyze(language)}
-              disabled={busy}
-              className="inline-flex items-center gap-2 rounded-md border sc-hairline px-3 py-1.5 font-display text-xs font-semibold text-sc-text transition-colors hover:bg-sc-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sc-viz-in/50 disabled:cursor-wait disabled:opacity-60"
-            >
-              {busy ? (
-                <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-              ) : (
-                <Sparkles className="size-3.5" aria-hidden="true" />
-              )}
-              {busy ? 'Analizando…' : 'Analizar ahora'}
-            </button>
+            {isGuest ? null : (
+              <button
+                type="button"
+                onClick={() => void analyze(language)}
+                disabled={busy}
+                className="inline-flex items-center gap-2 rounded-md border sc-hairline px-3 py-1.5 font-display text-xs font-semibold text-sc-text transition-colors hover:bg-sc-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sc-viz-in/50 disabled:cursor-wait disabled:opacity-60"
+              >
+                {busy ? (
+                  <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Sparkles className="size-3.5" aria-hidden="true" />
+                )}
+                {busy ? 'Analizando…' : 'Analizar ahora'}
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-4">

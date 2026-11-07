@@ -1,12 +1,13 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
 // POST /api/chat - Security Chatbot (M3.5, backend MVP).
 //
-// Seguridad: solo admin autenticado (cookie de sesión, x-sc-admin-secret o
-// Bearer admin). El device_id se resuelve del query param/DEFAULT_DEVICE_ID y
-// NUNCA de `body.context`; todo el RAG y el historial se filtran por ese device.
+// Seguridad: admin o visitante (solo lectura). El device_id se resuelve del
+// token guest o del query param/DEFAULT_DEVICE_ID, NUNCA de `body.context`.
+// Un visitante no crea conversación ni deja historial persistente.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAdminAuth } from '@/lib/auth/admin';
+import { authorize, clientIp } from '@/lib/auth/resolve';
+import { checkGuestChatLimit, guestRateLimitResponse } from '@/lib/rate-limit/guest';
 import { resolveChatDeviceId } from '@/lib/chat/device';
 import {
   appendMessage,
@@ -23,6 +24,7 @@ import {
   isExportableQuery,
 } from '@/lib/chat/suggestions';
 import {
+  CHAT_LLM_TIMEOUT_MS,
   ChatLlmError,
   estimateTokens,
   resolveChatModelPlan,
@@ -31,6 +33,10 @@ import {
 import { ChatRequestSchema } from '@/lib/chat/schemas';
 import { validateChatAnswer } from '@/lib/chat/validator';
 import {
+  CHAT_GUEST_MAX_OUTPUT_TOKENS,
+  CHAT_GUEST_TIMEOUT_MS,
+  CHAT_GUEST_TOKEN_BUDGET,
+  CHAT_MAX_OUTPUT_TOKENS,
   CHAT_TOKEN_BUDGET,
   type ChatStreamDone,
   type ChatStreamMeta,
@@ -58,9 +64,17 @@ function jsonError(error: string, status: number, message?: string) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await verifyAdminAuth(request);
-  if (!auth.authenticated) {
-    return jsonError('unauthorized', 401);
+  const check = await authorize(request, { allowGuest: true });
+  if (!check.ok) return check.response;
+  const { auth } = check;
+  const isGuest = auth.role === 'guest';
+
+  // El chat consume créditos del proveedor: límites más estrictos para guest.
+  if (isGuest) {
+    const limit = checkGuestChatLimit(auth.guest.tokenId, clientIp(request));
+    if (!limit.allowed) {
+      return guestRateLimitResponse(limit.retryAfterSeconds);
+    }
   }
 
   let rawBody: unknown;
@@ -84,43 +98,56 @@ export async function POST(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const deviceId = await resolveChatDeviceId(searchParams.get('device_id'));
+    const deviceId = isGuest
+      ? auth.guest.deviceId
+      : await resolveChatDeviceId(searchParams.get('device_id'));
     if (!deviceId) {
       return jsonError('no_device', 404, 'No hay un device enrolado para consultar.');
     }
 
-    let conversationId = parsed.data.conversationId;
-    if (conversationId) {
-      const existing = await getConversation(conversationId, deviceId);
-      if (!existing) {
-        return jsonError('not_found', 404, 'La conversación no existe para este device.');
+    // Guest: sin conversación persistente y sin historial previo (aunque envíe
+    // un conversationId, se ignora).
+    let activeConversationId: string | null = null;
+    if (!isGuest) {
+      if (parsed.data.conversationId) {
+        const existing = await getConversation(parsed.data.conversationId, deviceId);
+        if (!existing) {
+          return jsonError('not_found', 404, 'La conversación no existe para este device.');
+        }
+        activeConversationId = existing.id;
+      } else {
+        const created = await createConversation(deviceId, titleFromMessage(message));
+        activeConversationId = created.id;
       }
-    } else {
-      const created = await createConversation(deviceId, titleFromMessage(message));
-      conversationId = created.id;
     }
 
-    const activeConversationId = conversationId;
-    const [context, history] = await Promise.all([
-      fetchChatContext(deviceId),
-      getRecentMessages(activeConversationId, deviceId),
-    ]);
+    const context = await fetchChatContext(deviceId);
+    const history =
+      activeConversationId === null
+        ? []
+        : await getRecentMessages(activeConversationId, deviceId);
 
     const suggestions = buildSuggestions(detectQueryType(message), context);
     const exportable = isExportableQuery(message);
     const sources = summarizeSources(context);
     const llmMessages = buildLlmMessages(context, history, message);
     const plan = resolveChatModelPlan();
+    const maxOutputTokens = isGuest ? CHAT_GUEST_MAX_OUTPUT_TOKENS : CHAT_MAX_OUTPUT_TOKENS;
+    const tokenBudget = isGuest ? CHAT_GUEST_TOKEN_BUDGET : CHAT_TOKEN_BUDGET;
+    const timeoutMs = isGuest ? CHAT_GUEST_TIMEOUT_MS : CHAT_LLM_TIMEOUT_MS;
 
     // El mensaje del usuario se persiste antes de abrir el stream: si el LLM
     // falla, la conversación conserva la pregunta y el error queda en metadata.
-    await appendMessage({
-      conversationId: activeConversationId,
-      deviceId,
-      role: 'user',
-      content: message,
-      tokensUsed: 0,
-    });
+    // En modo visitante no se persiste nada.
+    if (!isGuest && activeConversationId) {
+      await appendMessage({
+        conversationId: activeConversationId,
+        deviceId,
+        role: 'user',
+        content: message,
+        tokensUsed: 0,
+      });
+    }
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
@@ -156,6 +183,9 @@ export async function POST(request: NextRequest) {
 
           for await (const chunk of streamChatCompletion(llmMessages, {
             signal: request.signal,
+            maxOutputTokens,
+            tokenBudget,
+            timeoutMs,
           })) {
             if (chunk.type === 'delta') {
               fullText += chunk.text;
@@ -181,7 +211,7 @@ export async function POST(request: NextRequest) {
             provider,
             tokensUsed: Math.min(
               tokensUsed || estimateTokens(fullText),
-              CHAT_TOKEN_BUDGET
+              tokenBudget
             ),
             executionTimeMs,
             warnings: validation.warnings,
@@ -190,22 +220,24 @@ export async function POST(request: NextRequest) {
           };
 
           try {
-            await appendMessage({
-              conversationId: activeConversationId,
-              deviceId,
-              role: 'assistant',
-              content: fullText,
-              tokensUsed: done.tokensUsed,
-              metadata: {
-                model,
-                provider,
-                warnings: validation.warnings,
-                executionTimeMs,
-                suggestions,
-                exportable,
-                sources,
-              },
-            });
+            if (!isGuest && activeConversationId) {
+              await appendMessage({
+                conversationId: activeConversationId,
+                deviceId,
+                role: 'assistant',
+                content: fullText,
+                tokensUsed: done.tokensUsed,
+                metadata: {
+                  model,
+                  provider,
+                  warnings: validation.warnings,
+                  executionTimeMs,
+                  suggestions,
+                  exportable,
+                  sources,
+                },
+              });
+            }
           } catch (persistenceError) {
             console.error(
               JSON.stringify({
@@ -230,14 +262,14 @@ export async function POST(request: NextRequest) {
           // Solo el código: nunca el prompt ni la clave del proveedor.
           console.error(JSON.stringify({ event: 'chat_stream_failed', code }));
 
-          if (fullText.trim()) {
+          if (!isGuest && activeConversationId && fullText.trim()) {
             try {
               await appendMessage({
                 conversationId: activeConversationId,
                 deviceId,
                 role: 'assistant',
                 content: fullText,
-                tokensUsed: Math.min(estimateTokens(fullText), CHAT_TOKEN_BUDGET),
+                tokensUsed: Math.min(estimateTokens(fullText), tokenBudget),
                 metadata: {
                   model,
                   provider,

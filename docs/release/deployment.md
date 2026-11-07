@@ -40,6 +40,7 @@ GitHub (main) ──► Vercel (sc-sentinel.vercel.app)
 | `GROQ_API_KEY` | Vercel env (server, opcional) | Groq, SDK `groq-sdk`; modelos por defecto `openai/gpt-oss-120b,openai/gpt-oss-20b` |
 | `AI_MODELS` | Vercel env (server, opcional) | modelos separados por comas; si falta, se usan los defaults del proveedor |
 | `DEFAULT_DEVICE_ID` | Vercel env (server, opcional) | device único de v1; si falta se usa el primer device enrolado |
+| `SC_GUEST_DEVICE_ID` | Vercel env (server, opcional) | demo pública de solo lectura: fija el device expuesto. Si falta, usa `DEFAULT_DEVICE_ID` o el primer device no revocado. `/demo` y `/api/auth/guest-login` emiten cookie `sc_guest` de 1 h, sin persistencia |
 | `CRON_SECRET` | Vercel env (server) | header `x-cron-secret` de los crons |
 | `SC_INGEST_TOKEN` | Servicio agente (Windows/Linux) | Bearer del agente (`sc_dev_…`) — no es env de Vercel |
 | `SC_SENTINEL_DEVICE_ID` | Servicio agente (Windows/Linux) | id del device enrolado (`dev_…`); debe ser el dueño del token o el ingest responde 403 |

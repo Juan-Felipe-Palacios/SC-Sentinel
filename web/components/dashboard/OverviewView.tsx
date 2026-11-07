@@ -25,6 +25,7 @@ import { GeoDistribution } from './GeoDistribution';
 import { RiskSummary } from './RiskSummary';
 import { RecentAlerts } from './RecentAlerts';
 import { SeverityChips } from './SeverityChips';
+import { useDashboardRole } from './DashboardRoleContext';
 
 const REFRESH_MS = 5000;
 
@@ -42,6 +43,7 @@ function SkeletonBlock({ className }: { className: string }) {
 }
 
 export function OverviewView({ range }: { range: QueryRange }) {
+  const { role } = useDashboardRole();
   const overviewKey = `/api/query?metric=overview&range=${range}`;
   const alertsKey = `/api/query?metric=alerts&range=${range}`;
   const healthKey = '/api/query?metric=health';
@@ -59,7 +61,9 @@ export function OverviewView({ range }: { range: QueryRange }) {
         <TriangleAlert className="mx-auto size-6 text-sc-warn" strokeWidth={1.5} aria-hidden="true" />
         <h2 className="mt-4 font-display text-lg font-semibold text-sc-text">Tu sesión expiró</h2>
         <p className="mt-2 text-sm leading-6 text-sc-text-muted">
-          Por seguridad, la sesión de administrador dura 8 horas. Volvé a entrar para seguir viendo el panel.
+          {role === 'guest'
+            ? 'La sesión de visitante dura 1 hora. Volvé a entrar para seguir viendo la demostración.'
+            : 'Por seguridad, la sesión de administrador dura 8 horas. Volvé a entrar para seguir viendo el panel.'}
         </p>
         <Link
           href="/login"

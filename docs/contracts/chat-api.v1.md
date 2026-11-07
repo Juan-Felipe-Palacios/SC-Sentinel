@@ -6,15 +6,18 @@
 
 ## 1. Autenticación y aislamiento
 
-Todos los endpoints requieren **admin autenticado**:
+`POST /api/chat` acepta **admin** o **visitante** (solo lectura):
 
 - Cookie de sesión `sc_session`, o
 - `x-sc-admin-secret: <ADMIN_SECRET>`, o
-- `Authorization: Bearer <ADMIN_SECRET>`.
+- `Authorization: Bearer <ADMIN_SECRET>`, o
+- Cookie de visitante `sc_guest` (JWT de 1 h, emitida por `/demo` o `/api/auth/guest-login`).
 
-El `device_id` se resuelve, en este orden, desde `?device_id=` o `DEFAULT_DEVICE_ID`/primer device enrolado. **Nunca** se acepta `deviceId` en el body de la petición.
+El historial (`/api/chat/history`) y el borrado siguen siendo **exclusivos de admin**; un visitante recibe `403 forbidden`.
 
-Todas las consultas RAG y de historial filtran por ese device. Una conversación de otro device responde `404` sin revelar si existe.
+El `device_id` de un visitante sale **siempre del token** (`SC_GUEST_DEVICE_ID`, allowlist de un device). Para admin se resuelve desde `?device_id=` o `DEFAULT_DEVICE_ID`/primer device enrolado. **Nunca** se acepta `deviceId` en el body de la petición.
+
+Todas las consultas RAG y de historial filtran por ese device. Una conversación de otro device responde `404` sin revelar si existe. El visitante no crea conversación ni persiste mensajes: `conversationId` es `null` en `meta`/`done` y su presupuesto baja a 1000 tokens (timeout 20 s).
 
 ## 2. `POST /api/chat`
 
@@ -43,12 +46,12 @@ x-sc-admin-secret: <ADMIN_SECRET>
 
 | Evento | `data` |
 |--------|--------|
-| `meta` | `{ conversationId, model, provider, sources, suggestions, exportable, period }` |
+| `meta` | `{ conversationId, model, provider, sources, suggestions, exportable, period }` — `conversationId` es `null` para visitante |
 | `token` | `{ delta }` |
 | `done` | `{ conversationId, model, provider, tokensUsed, executionTimeMs, warnings, suggestions, exportable }` |
 | `error` | `{ code, message }` |
 
-- `tokensUsed` se limita a 2000 por consulta.
+- `tokensUsed` se limita a 2000 por consulta (1000 para visitante).
 - `sources` resume hosts/alertas/salud usados como contexto.
 - `warnings` incluye IPs citadas por el modelo que no existen en el contexto (grounding básico).
 - Si el LLM falla después de emitir texto, el parcial se persiste con `metadata.aborted = true` y se emite `error`.
@@ -58,9 +61,11 @@ x-sc-admin-secret: <ADMIN_SECRET>
 | HTTP | `error` | Causa |
 |------|---------|-------|
 | 400 | `bad_request` | JSON inválido, mensaje fuera de rango o campo extra |
-| 401 | `unauthorized` | Sin sesión/secreto admin |
+| 401 | `unauthorized` | Sin sesión admin/visitante válida |
+| 403 | `forbidden` | Visitante en una operación solo-admin |
 | 404 | `no_device` | No hay device resoluble/enrolado |
 | 404 | `not_found` | `conversationId` no pertenece al device |
+| 429 | `rate_limited` | Límite de visitante excedido (`Retry-After`) |
 | 500 | `internal_error` | Error inesperado (sin secretos en la respuesta) |
 
 ## 3. `GET /api/chat/history`

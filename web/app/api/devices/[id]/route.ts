@@ -2,7 +2,7 @@
 // DELETE /api/devices/[id] — elimina el device y todos sus datos asociados.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAdminAuth } from '@/lib/auth/admin';
+import { authorize } from '@/lib/auth/resolve';
 import { deleteDevice } from '@/lib/query/devices';
 
 export const runtime = 'nodejs';
@@ -14,10 +14,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await verifyAdminAuth(request);
-  if (!auth.authenticated) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401, headers: noStoreHeaders });
-  }
+  const check = await authorize(request);
+  if (!check.ok) return check.response;
 
   const { id } = await params;
   if (!id) {

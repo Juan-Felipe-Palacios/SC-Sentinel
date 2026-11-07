@@ -91,7 +91,7 @@ const securityBullets = [
   "Secretos solo en el servidor — nunca en el cliente",
   "Logs sin datos sensibles ni IPs sin anonimizar",
   "Retención estricta con limpieza diaria automática",
-  "Dashboard detrás de cookie de administración firmada",
+  "Demo pública de solo lectura + sesión admin firmada",
   "Comunicación agente → nube cifrada con TLS 1.3",
 ];
 
@@ -118,10 +118,10 @@ export default function MarketingHome() {
               {/* CTAs — Dashboard primero */}
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Link
-                  href="/dashboard"
+                  href="/demo"
                   className="inline-flex items-center gap-2 rounded-md bg-sc-accent px-5 py-3 text-sm font-semibold text-sc-bg transition-colors hover:bg-[#7dd3fc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sc-accent"
                 >
-                  Ir al Dashboard
+                  Ver demo en vivo
                   <span aria-hidden="true">→</span>
                 </Link>
                 <Link
@@ -167,7 +167,7 @@ export default function MarketingHome() {
                     sc-sentinel.vercel.app/dashboard
                   </p>
                 </div>
-                <span className="font-mono text-[10px] text-sc-text-muted">admin</span>
+                <span className="font-mono text-[10px] text-sc-text-muted">demo</span>
               </div>
 
               {/* Contenido del snapshot */}
@@ -427,15 +427,15 @@ export default function MarketingHome() {
               crudos.
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-sc-text-muted">
-              Accedé al dashboard y al panel de IA desde tu navegador. Sin servidores que mantener.
+              Probá la demo pública y el panel de IA desde tu navegador. Sin registro ni servidores que mantener.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link
-                href="/dashboard"
+                href="/demo"
                 className="inline-flex items-center gap-2 rounded-md bg-sc-accent px-7 py-3 text-sm font-semibold text-sc-bg transition-colors hover:bg-[#7dd3fc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sc-accent"
               >
-                Ir al Dashboard
+                Ver demo en vivo
                 <span aria-hidden="true">→</span>
               </Link>
               <Link

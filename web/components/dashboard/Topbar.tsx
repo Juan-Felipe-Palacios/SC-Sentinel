@@ -4,7 +4,8 @@
 import { useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ShieldCheck, LogOut, Loader2 } from 'lucide-react';
+import { Eye, ShieldCheck, LogOut, Loader2 } from 'lucide-react';
+import { useDashboardRole } from './DashboardRoleContext';
 
 const RANGE_OPTIONS = ['15m', '1h', '6h', '24h', '7d', '30d'] as const;
 
@@ -17,6 +18,8 @@ export function Topbar() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { role } = useDashboardRole();
+  const isGuest = role === 'guest';
   const [loggingOut, setLoggingOut] = useState(false);
 
   const currentRange = searchParams.get('range') ?? '1h';
@@ -45,7 +48,15 @@ export function Topbar() {
         </span>
         <div className="min-w-0 leading-tight">
           <p className="truncate font-mono text-[9px] uppercase tracking-[0.28em] text-sc-text-muted">{section.eyebrow}</p>
-          <h1 className="truncate font-display text-[15px] font-semibold text-sc-text">{section.title}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="truncate font-display text-[15px] font-semibold text-sc-text">{section.title}</h1>
+            {isGuest ? (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded border border-sc-warn/35 bg-sc-warn/10 px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-[0.16em] text-sc-warn">
+                <Eye className="size-2.5" aria-hidden="true" />
+                Demo
+              </span>
+            ) : null}
+          </div>
         </div>
       </div>
 

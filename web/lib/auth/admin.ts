@@ -3,6 +3,7 @@
 import { NextRequest } from 'next/server';
 import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth/session';
 import { safeEqual } from '@/lib/auth/secrets';
+import { GUEST_COOKIE } from '@/lib/auth/guest';
 
 export interface AdminAuthResult {
   authenticated: boolean;
@@ -34,8 +35,12 @@ export async function verifyAdminAuth(request: NextRequest): Promise<AdminAuthRe
     return { authenticated: true, user: 'admin_session' };
   }
 
-  // 4. Fallback de desarrollo cuando no hay secreto configurado
-  if (process.env.NODE_ENV === 'development') {
+  // 4. Fallback de desarrollo cuando no hay secreto configurado. Si el usuario
+  //    eligió explícitamente el modo visitante, se respeta ese rol.
+  if (
+    process.env.NODE_ENV === 'development' &&
+    !request.cookies.get(GUEST_COOKIE)?.value
+  ) {
     return { authenticated: true, user: 'dev_local' };
   }
 

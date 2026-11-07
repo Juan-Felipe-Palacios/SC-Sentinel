@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { verifyAdminAuth } from '@/lib/auth/admin';
+import { authorize } from '@/lib/auth/resolve';
 import { enrollDevice } from '@/lib/query/devices';
 
 export const runtime = 'nodejs';
@@ -17,10 +17,8 @@ const EnrollSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const auth = await verifyAdminAuth(request);
-  if (!auth.authenticated) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401, headers: noStoreHeaders });
-  }
+  const check = await authorize(request);
+  if (!check.ok) return check.response;
 
   let body: unknown = {};
   try {

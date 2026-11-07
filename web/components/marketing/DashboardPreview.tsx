@@ -803,7 +803,7 @@ export default function DashboardPreview() {
           </span>
         </div>
         <span style={{ color: C.muted, fontSize: 10 }} className="font-mono">
-          admin
+          demo
         </span>
       </div>
 

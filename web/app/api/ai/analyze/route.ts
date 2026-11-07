@@ -3,7 +3,7 @@
 // <5 min sin facts nuevos ⇒ 200 {cached:true}; cadena agotada ⇒ 200 {status:"degraded"}.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAdminAuth } from '@/lib/auth/admin';
+import { authorize } from '@/lib/auth/resolve';
 import { resolveDeviceId } from '@/lib/query/device';
 import { parseAiLanguage, runAiPipeline } from '@/lib/ai';
 
@@ -11,13 +11,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
-  const auth = await verifyAdminAuth(request);
-  if (!auth.authenticated) {
-    return NextResponse.json(
-      { error: 'unauthorized', message: auth.error ?? 'Unauthorized' },
-      { status: 401 }
-    );
-  }
+  const check = await authorize(request);
+  if (!check.ok) return check.response;
 
   try {
     const deviceId = await resolveDeviceId(undefined);

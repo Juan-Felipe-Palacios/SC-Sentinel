@@ -9,9 +9,9 @@ export const SESSION_COOKIE = 'sc_session';
 export const SESSION_TTL_SECONDS = 60 * 60 * 8; // 8 h base
 export const SESSION_REMEMBER_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 días
 
-const SESSION_ISSUER = 'sc-sentinel';
+export const SESSION_ISSUER = 'sc-sentinel';
 
-function sessionSecret(): Uint8Array {
+export function getSessionSecret(): Uint8Array {
   const configured = process.env.SC_SESSION_SECRET ?? process.env.ADMIN_SECRET;
   if (configured && configured.length >= 16) {
     return new TextEncoder().encode(configured);
@@ -33,13 +33,14 @@ export async function createSessionToken(rememberMe: boolean = false): Promise<s
     .setIssuedAt()
     .setIssuer(SESSION_ISSUER)
     .setExpirationTime(`${ttl}s`)
-    .sign(sessionSecret());
+    .sign(getSessionSecret());
 }
 
 export async function verifySessionToken(token: string): Promise<boolean> {
   try {
-    await jwtVerify(token, sessionSecret(), { issuer: SESSION_ISSUER });
-    return true;
+    const { payload } = await jwtVerify(token, getSessionSecret(), { issuer: SESSION_ISSUER });
+    // Los tokens guest comparten secreto pero no pueden actuar como admin.
+    return payload.sub === 'admin' && payload.role !== 'guest';
   } catch {
     return false;
   }

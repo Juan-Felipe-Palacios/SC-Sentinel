@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { SESSION_COOKIE, createSessionToken, sessionCookieOptions } from '@/lib/auth/session';
+import { GUEST_COOKIE, guestCookieOptions } from '@/lib/auth/guest';
 import { safeEqual } from '@/lib/auth/secrets';
 
 const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
@@ -44,6 +45,8 @@ export async function POST(request: NextRequest) {
   try {
     const token = await createSessionToken(rememberMe);
     const response = NextResponse.json({ ok: true }, { headers: noStoreHeaders });
+    // Admin reemplaza cualquier sesión de visitante previa.
+    response.cookies.set(GUEST_COOKIE, '', { ...guestCookieOptions(), maxAge: 0 });
     response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(rememberMe));
     return response;
   } catch (error) {

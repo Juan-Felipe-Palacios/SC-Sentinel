@@ -12,6 +12,7 @@ import {
   Settings,
   ShieldCheck,
 } from 'lucide-react';
+import { useDashboardRole } from './DashboardRoleContext';
 
 interface NavEntry {
   label: string;
@@ -31,6 +32,12 @@ const NAV_ITEMS: NavEntry[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { role } = useDashboardRole();
+  const isGuest = role === 'guest';
+  // Configuración expone devices y tokens: solo administración.
+  const navItems = isGuest
+    ? NAV_ITEMS.filter((item) => item.href !== '/dashboard/settings')
+    : NAV_ITEMS;
 
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r sc-hairline bg-sc-surface lg:flex">
@@ -49,7 +56,7 @@ export function Sidebar() {
       <nav aria-label="Secciones del panel" className="flex-1 px-3 py-5">
         <p className="px-2 font-mono text-[9px] uppercase tracking-[0.28em] text-sc-text-muted/70">Consola</p>
         <ul className="mt-3 space-y-1">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             const active = item.href !== null && pathname.startsWith(item.href);
 
@@ -110,9 +117,13 @@ export function Sidebar() {
 
       {/* Pie: principio de la plataforma */}
       <div className="border-t sc-hairline px-5 py-4">
-        <p className="font-mono text-[9px] uppercase tracking-[0.28em] text-sc-text-muted/70">Motor local</p>
+        <p className="font-mono text-[9px] uppercase tracking-[0.28em] text-sc-text-muted/70">
+          {isGuest ? 'Demo pública' : 'Motor local'}
+        </p>
         <p className="mt-1.5 text-[11px] leading-5 text-sc-text-muted">
-          Señal agregada. Ningún paquete crudo sale del sitio.
+          {isGuest
+            ? 'Solo lectura. La configuración y los tokens están ocultos.'
+            : 'Señal agregada. Ningún paquete crudo sale del sitio.'}
         </p>
       </div>
     </aside>

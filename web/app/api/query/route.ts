@@ -3,7 +3,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { QueryParamsSchema } from '@/lib/schemas/query';
-import { verifyAdminAuth } from '@/lib/auth/admin';
+import { authorize, clientIp } from '@/lib/auth/resolve';
+import { checkGuestRequestLimit, guestRateLimitResponse } from '@/lib/rate-limit/guest';
 import { resolveDeviceId } from '@/lib/query/device';
 import { queryOverview } from '@/lib/query/overview';
 import { queryHosts } from '@/lib/query/hosts';
@@ -15,11 +16,10 @@ import { attachHostnames } from '@/lib/dns/reverse';
 const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
 
 export async function GET(request: NextRequest) {
-  // 1. Admin auth: JWT de sesión firmada (o x-sc-admin-secret / Bearer para tooling)
-  const auth = await verifyAdminAuth(request);
-  if (!auth.authenticated) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401, headers: noStoreHeaders });
-  }
+  // 1. Admin o visitante (solo lectura). El visitante queda acotado a su device.
+  const check = await authorize(request, { allowGuest: true });
+  if (!check.ok) return check.response;
+  const { auth } = check;
 
   // 2. Validate params
   const { searchParams } = new URL(request.url);
@@ -39,9 +39,26 @@ export async function GET(request: NextRequest) {
 
   const { metric, range, device_id, lang } = parsed.data;
 
-  // 3. Resolve single-device v1: explicit device_id > DEFAULT_DEVICE_ID > first device
+  // 3. Guest: device fijo del token; nunca el query param. Admin: single-device v1.
+  let guestDeviceId: string | null = null;
+  if (auth.role === 'guest') {
+    // La demo es pública: el límite se ata a la IP, no a un token renovable.
+    const limit = checkGuestRequestLimit(clientIp(request));
+    if (!limit.allowed) {
+      return guestRateLimitResponse(limit.retryAfterSeconds);
+    }
+    if (device_id && device_id !== auth.guest.deviceId) {
+      return NextResponse.json(
+        { error: 'forbidden', message: 'El visitante solo puede consultar su device de demostración.' },
+        { status: 403, headers: noStoreHeaders }
+      );
+    }
+    guestDeviceId = auth.guest.deviceId;
+  }
+
   try {
-    const deviceId = await resolveDeviceId(device_id);
+    const deviceId =
+      auth.role === 'guest' ? guestDeviceId : await resolveDeviceId(device_id);
 
     switch (metric) {
       case 'overview':

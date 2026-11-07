@@ -2,7 +2,7 @@
 // GET /api/chat/history - conversaciones o mensajes de UN device autorizado.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAdminAuth } from '@/lib/auth/admin';
+import { authorize } from '@/lib/auth/resolve';
 import { resolveChatDeviceId } from '@/lib/chat/device';
 import {
   getConversation,
@@ -17,10 +17,9 @@ export const dynamic = 'force-dynamic';
 const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
 
 export async function GET(request: NextRequest) {
-  const auth = await verifyAdminAuth(request);
-  if (!auth.authenticated) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401, headers: noStoreHeaders });
-  }
+  // El historial persistente es exclusivo de administración.
+  const check = await authorize(request);
+  if (!check.ok) return check.response;
 
   const { searchParams } = new URL(request.url);
   const parsed = ChatHistoryQuerySchema.safeParse({

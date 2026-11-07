@@ -43,6 +43,12 @@ export interface ChatLlmInit {
   apiKey?: string;
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
+  /** Límite de salida del proveedor (guest usa 1000). */
+  maxOutputTokens?: number;
+  /** Tope contable de tokens (guest usa 1000). */
+  tokenBudget?: number;
+  /** Timeout total del proveedor (guest usa 20 s). */
+  timeoutMs?: number;
 }
 
 export function resolveChatModelPlan(init: Pick<ChatLlmInit, 'provider' | 'models'> = {}): {
@@ -72,14 +78,17 @@ function numberFrom(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function createAbortSignal(signal?: AbortSignal): {
+function createAbortSignal(
+  signal?: AbortSignal,
+  timeoutMs: number = CHAT_LLM_TIMEOUT_MS
+): {
   signal: AbortSignal;
   cleanup: () => void;
 } {
   const controller = new AbortController();
   const timeout = setTimeout(
     () => controller.abort(new Error('chat_llm_timeout')),
-    CHAT_LLM_TIMEOUT_MS
+    timeoutMs
   );
   const onAbort = () => controller.abort(signal?.reason);
   if (signal) {
@@ -166,6 +175,8 @@ async function* streamOpenAiCompatible(args: {
   messages: ChatLlmMessage[];
   fetchImpl: typeof fetch;
   signal: AbortSignal;
+  maxOutputTokens: number;
+  tokenBudget: number;
 }): AsyncGenerator<ChatStreamChunk> {
   const response = await args.fetchImpl(args.endpoint, {
     method: 'POST',
@@ -179,7 +190,7 @@ async function* streamOpenAiCompatible(args: {
       stream: true,
       stream_options: { include_usage: true },
       temperature: 0.3,
-      max_tokens: CHAT_MAX_OUTPUT_TOKENS,
+      max_tokens: args.maxOutputTokens,
     }),
     signal: args.signal,
   });
@@ -210,7 +221,7 @@ async function* streamOpenAiCompatible(args: {
   yield {
     type: 'usage',
     tokensUsed: Math.min(
-      CHAT_TOKEN_BUDGET,
+      args.tokenBudget,
       tokensUsed ?? estimateTokens(fullText)
     ),
     model: args.model,
@@ -236,6 +247,8 @@ async function* streamGemini(args: {
   model: string;
   messages: ChatLlmMessage[];
   signal: AbortSignal;
+  maxOutputTokens: number;
+  tokenBudget: number;
 }): AsyncGenerator<ChatStreamChunk> {
   const client = new GoogleGenAI({ apiKey: args.apiKey }) as unknown as GeminiStreamClient;
   const systemInstruction = args.messages
@@ -255,7 +268,7 @@ async function* streamGemini(args: {
     config: {
       systemInstruction,
       temperature: 0.3,
-      maxOutputTokens: CHAT_MAX_OUTPUT_TOKENS,
+      maxOutputTokens: args.maxOutputTokens,
       abortSignal: args.signal,
     },
   });
@@ -276,7 +289,7 @@ async function* streamGemini(args: {
   yield {
     type: 'usage',
     tokensUsed: Math.min(
-      CHAT_TOKEN_BUDGET,
+      args.tokenBudget,
       tokensUsed ?? estimateTokens(fullText)
     ),
     model: args.model,
@@ -321,7 +334,9 @@ export async function* streamChatCompletion(
     );
   }
 
-  const { signal, cleanup } = createAbortSignal(init.signal);
+  const { signal, cleanup } = createAbortSignal(init.signal, init.timeoutMs);
+  const maxOutputTokens = init.maxOutputTokens ?? CHAT_MAX_OUTPUT_TOKENS;
+  const tokenBudget = init.tokenBudget ?? CHAT_TOKEN_BUDGET;
 
   try {
     if (provider === 'gemini') {
@@ -329,7 +344,14 @@ export async function* streamChatCompletion(
       if (!model) {
         throw new ChatLlmError('no_models', 'No hay modelos de IA configurados.');
       }
-      yield* streamGemini({ apiKey, model, messages, signal });
+      yield* streamGemini({
+        apiKey,
+        model,
+        messages,
+        signal,
+        maxOutputTokens,
+        tokenBudget,
+      });
       return;
     }
 
@@ -345,6 +367,8 @@ export async function* streamChatCompletion(
           messages,
           fetchImpl,
           signal,
+          maxOutputTokens,
+          tokenBudget,
         })) {
           if (chunk.type === 'delta') emitted = true;
           yield chunk;

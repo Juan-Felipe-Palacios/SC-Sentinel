@@ -135,7 +135,8 @@ export default function LoginPage() {
           <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-sc-text-muted">Acceso restringido</p>
           <h2 className="mt-2 font-display text-2xl font-semibold text-sc-text">Entrar a Sentinel</h2>
           <p className="mt-2 text-sm leading-6 text-sc-text-muted">
-            Solo personal autorizado de Strategic Connex. La sesión expira a las 8&nbsp;horas.
+            Entrá a la demo pública de solo lectura o accedé como administrador. La sesión admin expira a las
+            8&nbsp;horas; la demo, a la hora.
           </p>
 
           <Suspense fallback={<div className="mt-8 h-40 animate-pulse rounded-lg border sc-hairline bg-sc-surface" />}>

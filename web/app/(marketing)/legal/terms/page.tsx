@@ -38,7 +38,8 @@ export default function Terms() {
         <p className="text-sm leading-relaxed text-sc-text-muted">
           Strategic Connex Anomaly Shield (<strong>SC-Sentinel</strong>) es software de monitoreo de red desarrollado y
           operado por <strong>Strategic Connex</strong>. La v1 es de uso interno del propietario: la landing pública es
-          informativa y el dashboard requiere autenticación propia.
+          informativa, existe una demo pública de solo lectura y el dashboard de administración requiere autenticación
+          propia.
         </p>
       </section>
 
