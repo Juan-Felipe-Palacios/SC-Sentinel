@@ -26,8 +26,8 @@ export const metadata = {
 const medidas = [
   {
     kicker: "Anonimización",
-    title: "HMAC-SHA-256, con la clave en tu equipo",
-    body: "Los identificadores de host se reemplazan por claves derivadas con HMAC-SHA-256. La clave vive solo en el equipo y nunca viaja a la nube: la nube ve claves y conteos, no direcciones.",
+    title: "Anonimización opcional con HMAC-SHA-256",
+    body: "Por defecto el panel muestra la IP del host para que puedas identificarlo (el nombre se resuelve por DNS inverso en el servidor). Si activás anonymize_hosts=true, los identificadores se reemplazan por claves HMAC-SHA-256 derivadas en tu equipo y la nube solo ve claves y conteos, no direcciones.",
   },
   {
     kicker: "Dispositivos",

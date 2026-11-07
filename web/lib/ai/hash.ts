@@ -31,7 +31,7 @@ export function canonicalJson(value: unknown): string {
  * Versión del contrato de facts/prompt. Cambiarla invalida el caché de insights
  * para que el cron regenere el análisis con las reglas nuevas (p. ej. idioma).
  */
-export const FACTS_HASH_VERSION = 'v3-lang';
+export const FACTS_HASH_VERSION = 'v4-ip';
 
 /**
  * El idioma forma parte del hash: un análisis en español y otro en inglés del

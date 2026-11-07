@@ -11,7 +11,7 @@ const facts: AiFacts = {
   period: { start: '2026-11-03T00:00:00.000Z', end: '2026-11-03T00:00:30.000Z' },
   total_bytes: 123456,
   total_packets: 789,
-  top_hosts: [{ host_key: 'h', country: 'AR', bytes: 1000, packets: 3 }],
+  top_hosts: [{ host_key: 'h', ip: '203.0.113.9', country: 'AR', bytes: 1000, packets: 3 }],
   top_ports: [{ port: 443, protocol: 'tcp', bytes: 1000, connections: 1 }],
   top_countries: [{ country: 'AR', bytes: 1000, hosts: 1 }],
   alerts: [{ rule_id: 'volume', severity: 'medium', title: 'Pico de volumen' }],

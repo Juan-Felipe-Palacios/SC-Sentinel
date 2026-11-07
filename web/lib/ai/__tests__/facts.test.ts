@@ -12,7 +12,7 @@ const windowRow = {
   start_at: '2026-11-03T10:00:00.000Z',
   end_at: '2026-11-03T10:00:30.000Z',
   snapshot_json: {
-    top_hosts: [{ host_key: 'a', country: 'AR', bytes_in: 700, bytes_out: 800, packets: 10 }],
+    top_hosts: [{ host_key: 'a', ip_display: '203.0.113.9', country: 'AR', bytes_in: 700, bytes_out: 800, packets: 10 }],
     top_ports: [{ port: 443, protocol: 'tcp', bytes: 1500, connections: 2 }],
     top_countries: [{ country: 'AR', bytes: 1500, hosts: 1 }],
     health: { capture_status: 'ok', packets_seen: 55, packets_dropped: 1, parse_errors: 0 },
@@ -35,7 +35,7 @@ describe('fetchAiFacts', () => {
     expect(facts).not.toBeNull();
     expect(facts!.total_bytes).toBe(300);
     expect(facts!.total_packets).toBe(7);
-    expect(facts!.top_hosts[0]).toEqual({ host_key: 'a', country: 'AR', bytes: 1500, packets: 10 });
+    expect(facts!.top_hosts[0]).toEqual({ host_key: 'a', ip: '203.0.113.9', country: 'AR', bytes: 1500, packets: 10 });
     expect(facts!.top_ports[0]).toEqual({ port: 443, protocol: 'tcp', bytes: 1500, connections: 2 });
     expect(facts!.alerts).toEqual([{ rule_id: 'vol', severity: 'high', title: 'Pico' }]);
     expect(facts!.health).toMatchObject({ capture_status: 'ok', packets_seen: 55 });

@@ -48,7 +48,9 @@ export function getModelChain(): string[] {
 }
 
 const PROMPT_HEADER = `Sos un analista de seguridad de red. El motor determinista ya analizó las ventanas.
-Recibís únicamente HECHOS AGREGADOS (JSON). No hay paquetes crudos ni IPs sin anonimizar.
+Recibís únicamente HECHOS AGREGADOS (JSON). No hay paquetes crudos.
+Cuando top_hosts[].ip no sea null, el agente no anonimizó la IP: nombrala así en el análisis.
+Si ip es null, referite al host por su host_key. Nunca inventes nombres de host.
 No inventés datos que no estén en el JSON. Si no hay nada notable, decilo con claridad.
 
 En los hechos, country "LAN" significa red local/privada (no es un país) y country null

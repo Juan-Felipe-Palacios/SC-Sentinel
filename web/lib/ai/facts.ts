@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
-// Facts agregados para el modelo (§11.1): NUNCA paquetes crudos, contenido ni IPs sin anonimizar.
+// Facts agregados para el modelo (§11.1): NUNCA paquetes crudos ni contenido.
+// La IP del host solo aparece si el operador desactiva `anonymize_hosts` en el agente.
 
 import { sql } from 'drizzle-orm';
 import {
@@ -16,6 +17,7 @@ export interface AiFacts {
   total_packets: number;
   top_hosts: Array<{
     host_key: string;
+    ip: string | null;
     country: string | null;
     bytes: number;
     packets: number;
@@ -80,6 +82,7 @@ function normalizeSnapshot(raw: unknown): Pick<
   return {
     top_hosts: topHosts.slice(0, 10).map((h) => ({
       host_key: asString(h['host_key']),
+      ip: h['ip_display'] == null ? null : asString(h['ip_display']),
       country: h['country'] == null ? null : asString(h['country']),
       bytes: asNumber(h['bytes_in']) + asNumber(h['bytes_out']),
       packets: asNumber(h['packets']),
