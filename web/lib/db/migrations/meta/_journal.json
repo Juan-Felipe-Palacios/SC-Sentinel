@@ -50,6 +50,13 @@
       "when": 1793995188347,
       "tag": "0006_flow-windows-device-start",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794019616493,
+      "tag": "0007_chat",
+      "breakpoints": true
     }
   ]
 }

@@ -80,6 +80,33 @@ export const agentHealth = pgTable('agent_health', {
   recordedAtIdx: index('agent_health_recorded_at_idx').on(table.recordedAt),
 }));
 
+export const chatConversations = pgTable('chat_conversations', {
+  id: text('id').primaryKey(),
+  deviceId: text('device_id').notNull().references(() => devices.id, { onDelete: 'cascade' }),
+  title: text('title'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  deviceUpdatedIdx: index('chat_conversations_device_updated_idx').on(table.deviceId, table.updatedAt),
+}));
+
+export const chatMessages = pgTable('chat_messages', {
+  id: text('id').primaryKey(),
+  conversationId: text('conversation_id')
+    .notNull()
+    .references(() => chatConversations.id, { onDelete: 'cascade' }),
+  role: text('role').notNull(),
+  content: text('content').notNull(),
+  tokensUsed: bigint('tokens_used', { mode: 'number' }).default(0).notNull(),
+  metadataJson: jsonb('metadata_json'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  conversationCreatedIdx: index('chat_messages_conversation_created_idx').on(
+    table.conversationId,
+    table.createdAt
+  ),
+}));
+
 export const aiInsights = pgTable('ai_insights', {
   id: text('id').primaryKey(),
   deviceId: text('device_id').notNull().references(() => devices.id),

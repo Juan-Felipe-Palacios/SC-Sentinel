@@ -1,188 +1,280 @@
+// Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
+// POST /api/chat - Security Chatbot (M3.5, backend MVP).
+//
+// Seguridad: solo admin autenticado (cookie de sesión, x-sc-admin-secret o
+// Bearer admin). El device_id se resuelve del query param/DEFAULT_DEVICE_ID y
+// NUNCA de `body.context`; todo el RAG y el historial se filtran por ese device.
+
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateDeviceToken } from '@/lib/auth/device';
-import { db } from '@/lib/db';
-import { eq } from 'drizzle-orm';
-import { flowWindows, hostStats, alerts, agentHealth } from '@/lib/db/schema';
+import { verifyAdminAuth } from '@/lib/auth/admin';
+import { resolveChatDeviceId } from '@/lib/chat/device';
+import {
+  appendMessage,
+  createConversation,
+  getConversation,
+  getRecentMessages,
+  titleFromMessage,
+} from '@/lib/chat/history';
+import { fetchChatContext } from '@/lib/chat/rag';
+import { buildLlmMessages, summarizeSources } from '@/lib/chat/context-builder';
+import {
+  buildSuggestions,
+  detectQueryType,
+  isExportableQuery,
+} from '@/lib/chat/suggestions';
+import {
+  ChatLlmError,
+  estimateTokens,
+  resolveChatModelPlan,
+  streamChatCompletion,
+} from '@/lib/chat/llm';
+import { ChatRequestSchema } from '@/lib/chat/schemas';
+import { validateChatAnswer } from '@/lib/chat/validator';
+import {
+  CHAT_TOKEN_BUDGET,
+  type ChatStreamDone,
+  type ChatStreamMeta,
+} from '@/lib/chat/types';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
+const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
+const streamHeaders = {
+  'Content-Type': 'text/event-stream; charset=utf-8',
+  'Cache-Control': 'no-cache, no-transform',
+  Connection: 'keep-alive',
+  'X-Accel-Buffering': 'no',
+};
+
+const encoder = new TextEncoder();
+
+function jsonError(error: string, status: number, message?: string) {
+  return NextResponse.json(
+    { error, ...(message ? { message } : {}) },
+    { status, headers: noStoreHeaders }
+  );
+}
 
 export async function POST(request: NextRequest) {
-  // 1. Autenticación del device token
-  const auth = await authenticateDeviceToken(request.headers.get('authorization'));
-  if (!auth.valid) {
-    return NextResponse.json(
-      { error: auth.error || 'unauthorized', message: auth.reason || 'Invalid token' },
-      { status: auth.error === 'forbidden' ? 403 : 401 }
-    );
+  const auth = await verifyAdminAuth(request);
+  if (!auth.authenticated) {
+    return jsonError('unauthorized', 401);
   }
 
-  // 2. Parse request body
-  let body: {
-    message: string;
-    includeHistorical?: boolean;
-    includeAlerts?: boolean;
-    includeTrends?: boolean;
-    context?: {
-      deviceId?: string;
-    };
-  };
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
-    return NextResponse.json(
-      { error: 'bad_request', message: 'Invalid JSON payload' },
-      { status: 400 }
+    return jsonError('bad_request', 400, 'El cuerpo debe ser JSON válido.');
+  }
+
+  // `.strict()` rechaza `context.deviceId` y cualquier campo no previsto.
+  const parsed = ChatRequestSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return jsonError(
+      'bad_request',
+      400,
+      parsed.error.issues[0]?.message ?? 'Cuerpo de la consulta inválido.'
     );
   }
 
-  const message = body.message?.trim();
-  if (!message) {
-    return NextResponse.json(
-      { error: 'bad_request', message: 'Message is required' },
-      { status: 400 }
+  const { message } = parsed.data;
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const deviceId = await resolveChatDeviceId(searchParams.get('device_id'));
+    if (!deviceId) {
+      return jsonError('no_device', 404, 'No hay un device enrolado para consultar.');
+    }
+
+    let conversationId = parsed.data.conversationId;
+    if (conversationId) {
+      const existing = await getConversation(conversationId, deviceId);
+      if (!existing) {
+        return jsonError('not_found', 404, 'La conversación no existe para este device.');
+      }
+    } else {
+      const created = await createConversation(deviceId, titleFromMessage(message));
+      conversationId = created.id;
+    }
+
+    const activeConversationId = conversationId;
+    const [context, history] = await Promise.all([
+      fetchChatContext(deviceId),
+      getRecentMessages(activeConversationId, deviceId),
+    ]);
+
+    const suggestions = buildSuggestions(detectQueryType(message), context);
+    const exportable = isExportableQuery(message);
+    const sources = summarizeSources(context);
+    const llmMessages = buildLlmMessages(context, history, message);
+    const plan = resolveChatModelPlan();
+
+    // El mensaje del usuario se persiste antes de abrir el stream: si el LLM
+    // falla, la conversación conserva la pregunta y el error queda en metadata.
+    await appendMessage({
+      conversationId: activeConversationId,
+      deviceId,
+      role: 'user',
+      content: message,
+      tokensUsed: 0,
+    });
+
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        let closed = false;
+        const send = (event: string, data: unknown) => {
+          if (closed) return;
+          try {
+            controller.enqueue(
+              encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+            );
+          } catch {
+            closed = true;
+          }
+        };
+
+        const startedAt = Date.now();
+        let fullText = '';
+        let tokensUsed = 0;
+        let model = plan.models[0] ?? 'unknown';
+        let provider: string = plan.provider;
+
+        try {
+          const meta: ChatStreamMeta = {
+            conversationId: activeConversationId,
+            model,
+            provider,
+            sources,
+            suggestions,
+            exportable,
+            period: context.period,
+          };
+          send('meta', meta);
+
+          for await (const chunk of streamChatCompletion(llmMessages, {
+            signal: request.signal,
+          })) {
+            if (chunk.type === 'delta') {
+              fullText += chunk.text;
+              send('token', { delta: chunk.text });
+            } else {
+              tokensUsed = chunk.tokensUsed;
+              model = chunk.model;
+              provider = chunk.provider;
+            }
+          }
+
+          if (!fullText.trim()) {
+            fullText =
+              'No pude generar una respuesta con el contexto disponible. Probá reformular la consulta.';
+            send('token', { delta: fullText });
+          }
+
+          const executionTimeMs = Date.now() - startedAt;
+          const validation = validateChatAnswer(fullText, context);
+          const done: ChatStreamDone = {
+            conversationId: activeConversationId,
+            model,
+            provider,
+            tokensUsed: Math.min(
+              tokensUsed || estimateTokens(fullText),
+              CHAT_TOKEN_BUDGET
+            ),
+            executionTimeMs,
+            warnings: validation.warnings,
+            suggestions,
+            exportable,
+          };
+
+          try {
+            await appendMessage({
+              conversationId: activeConversationId,
+              deviceId,
+              role: 'assistant',
+              content: fullText,
+              tokensUsed: done.tokensUsed,
+              metadata: {
+                model,
+                provider,
+                warnings: validation.warnings,
+                executionTimeMs,
+                suggestions,
+                exportable,
+                sources,
+              },
+            });
+          } catch (persistenceError) {
+            console.error(
+              JSON.stringify({
+                event: 'chat_persist_failed',
+                error: persistenceError instanceof Error ? persistenceError.name : 'unknown',
+              })
+            );
+            done.warnings = [
+              ...done.warnings,
+              'La respuesta no se pudo guardar en el historial.',
+            ];
+          }
+
+          send('done', done);
+        } catch (error) {
+          const code = error instanceof ChatLlmError ? error.code : 'chat_error';
+          const failureMessage =
+            error instanceof ChatLlmError
+              ? error.message
+              : 'No se pudo generar la respuesta. Intentá de nuevo.';
+
+          // Solo el código: nunca el prompt ni la clave del proveedor.
+          console.error(JSON.stringify({ event: 'chat_stream_failed', code }));
+
+          if (fullText.trim()) {
+            try {
+              await appendMessage({
+                conversationId: activeConversationId,
+                deviceId,
+                role: 'assistant',
+                content: fullText,
+                tokensUsed: Math.min(estimateTokens(fullText), CHAT_TOKEN_BUDGET),
+                metadata: {
+                  model,
+                  provider,
+                  aborted: true,
+                  warnings: [failureMessage],
+                },
+              });
+            } catch (persistenceError) {
+              console.error(
+                JSON.stringify({
+                  event: 'chat_persist_partial_failed',
+                  error:
+                    persistenceError instanceof Error ? persistenceError.name : 'unknown',
+                })
+              );
+            }
+          }
+
+          send('error', { code, message: failureMessage });
+        } finally {
+          try {
+            controller.close();
+          } catch {
+            // El cliente ya cerró el stream.
+          }
+        }
+      },
+    });
+
+    return new Response(stream, { status: 200, headers: streamHeaders });
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: 'chat_request_failed',
+        error: error instanceof Error ? error.name : 'unknown',
+      })
     );
+    return jsonError('internal_error', 500);
   }
-
-  // 3. Build RAG context - flow windows
-  const deviceId = body.includeHistorical !== false ? (body.context?.deviceId || auth.deviceId) : undefined;
-
-  let ragText = '';
-  const sources: Array<{ type: string; id: string; summary: string }> = [];
-
-  if (deviceId) {
-    // Query flow windows - has deviceId column
-    const historicalFlows = await db
-      .select({
-        id: flowWindows.id,
-        startAt: flowWindows.startAt,
-        endAt: flowWindows.endAt,
-        sequence: flowWindows.sequence,
-      })
-      .from(flowWindows)
-      .where(eq(flowWindows.deviceId, deviceId))
-      .limit(10);
-
-    if (historicalFlows.length > 0) {
-      ragText += `Historical flow data: ${historicalFlows.length} windows detected. `;
-      historicalFlows.forEach((f) => {
-        sources.push({
-          type: 'flow_window',
-          id: f.id,
-          summary: `Window ${f.sequence}: ${f.startAt ? f.startAt.toISOString().split('T')[0] : 'unknown'}`,
-        });
-      });
-    }
-
-    // Query host stats (trends) - get limited results
-    const hostStatsData = await db
-      .select({
-        hostKey: hostStats.hostKey,
-        ip: hostStats.ipDisplay,
-        country: hostStats.country,
-        packetsSeen: hostStats.packets,
-      })
-      .from(hostStats)
-      .limit(5);
-
-    if (hostStatsData.length > 0) {
-      ragText += `Host stats: ${hostStatsData.length} hosts monitored. `;
-      hostStatsData.forEach((h) => {
-        sources.push({
-          type: 'host_stat',
-          id: h.ip ?? h.hostKey,
-          summary: `${h.country ?? 'unknown'} - ${h.packetsSeen} packets`,
-        });
-      });
-    }
-
-    // Query alerts (last 24h) - get all alerts, filter client-side by ID being a valid date
-    const allAlerts = await db
-      .select({
-        id: alerts.id,
-        severity: alerts.severity,
-        title: alerts.title,
-      })
-      .from(alerts)
-      .limit(50);
-
-    const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
-    const recentAlerts = allAlerts.filter((a) => a.id && !isNaN(new Date(a.id).getTime()) && new Date(a.id).getTime() >= twentyFourHoursAgo);
-
-    if (recentAlerts.length > 0) {
-      ragText += `Alerts (last 24h): ${recentAlerts.length} found. `;
-      recentAlerts.forEach((a) => {
-        sources.push({
-          type: 'alert',
-          id: a.id,
-          summary: `${a.severity}: ${a.title?.substring(0, 50)}`,
-        });
-      });
-    }
-
-    // Query agent health - has deviceId column
-    const healthData = await db
-      .select({
-        packetsSeen: agentHealth.packetsSeen,
-        status: agentHealth.captureStatus,
-      })
-      .from(agentHealth)
-      .where(eq(agentHealth.deviceId, deviceId))
-      .limit(1);
-
-    if (healthData.length > 0) {
-      ragText += `Agent health: ${healthData[0].packetsSeen} packets seen. `;
-      sources.push({
-        type: 'agent_health',
-        id: 'agent',
-        summary: `Status: ${healthData[0].status}`,
-      });
-    }
-  }
-
-  // 4. Detect exportability (F9) - keywords in Spanish
-  const exportable = /(reporte|exportar|pdf|markdown)/i.test(message);
-
-  // 5. Detect query type and add contextual suggestions (F12)
-  const lowerMessage = message.toLowerCase();
-  let suggestions: string[] = [
-    '¿Qué IPs me atacaron?',
-    'Explicar última alerta',
-    'Recomendaciones de remediación',
-  ];
-
-  if (/ip|dirección/i.test(lowerMessage)) {
-    suggestions.unshift('¿Explicar patrones de ataque?');
-  }
-  if (/alerta|alarm/i.test(lowerMessage)) {
-    suggestions.unshift('Detalle de la causa raíz');
-  }
-  if (/tendencia|trend/i.test(lowerMessage)) {
-    suggestions.unshift('Comparar con período anterior');
-  }
-  if (/correl|correlación/i.test(lowerMessage)) {
-    suggestions.unshift('Factores de correlación');
-  }
-  if (/audit|auditoría/i.test(lowerMessage)) {
-    suggestions.unshift('Ver historial de cambios');
-  }
-  if (/health|salud/i.test(lowerMessage)) {
-    suggestions.unshift('Ver métricas de agente');
-  }
-
-  // Limit to max 3 suggestions
-  suggestions = suggestions.slice(0, 3);
-
-  // 6. Return response
-  const response = {
-    type: 'text',
-    content: `Autenticado como device: ${auth.deviceId}. Mensaje: "${message}". ` + ragText,
-    metadata: {
-      queryType: 'search',
-      executionTimeMs: 0,
-      tokensUsed: Math.min(Math.floor(message.length / 4), 2000),
-      sources,
-    },
-    suggestions,
-    exportable,
-  };
-
-  return NextResponse.json(response, { status: 200 });
 }
