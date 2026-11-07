@@ -27,12 +27,14 @@ agent/spool/
 *.log
 mock_*.js
 mock_*.py
-0.26.0
 
 
 # Artefactos locales de trabajo
 .serena/
+.playwright-mcp/
 *.zip
+
+# Variables de entorno locales (nunca commitear)
 .env
 # credenciales locales (p.ej. URL de Neon escrita por herramientas)
 env.local
