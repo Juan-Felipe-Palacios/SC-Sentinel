@@ -4,11 +4,20 @@
 
 import { GoogleGenAI } from '@google/genai';
 import {
+  buildProviderChain,
   geminiApiKey,
   getModelsFor,
   resolveProvider,
   type AiProvider,
+  type ProviderEntry,
 } from '@/lib/ai/providers';
+import {
+  isCooling,
+  isRateLimitError,
+  markRateLimited,
+  parseRetryAfter,
+  retryAfterFromError,
+} from '@/lib/ai/rate-limit';
 import {
   CHAT_MAX_OUTPUT_TOKENS,
   CHAT_TOKEN_BUDGET,
@@ -20,7 +29,11 @@ export const CHAT_LLM_TIMEOUT_MS = 30_000;
 export class ChatLlmError extends Error {
   constructor(
     public readonly code: string,
-    message: string
+    message: string,
+    /** Status HTTP del proveedor, cuando aplica. */
+    public readonly status?: number,
+    /** `Retry-After` reportado por el proveedor (segundos). */
+    public readonly retryAfterSeconds?: number
   ) {
     super(message);
     this.name = 'ChatLlmError';
@@ -198,7 +211,9 @@ async function* streamOpenAiCompatible(args: {
   if (!response.ok || !response.body) {
     throw new ChatLlmError(
       'provider_http_error',
-      `El proveedor de IA respondió con estado ${response.status}.`
+      `El proveedor de IA respondió con estado ${response.status}.`,
+      response.status,
+      parseRetryAfter(response.headers.get('retry-after')) ?? undefined
     );
   }
 
@@ -315,74 +330,132 @@ function providerEndpoint(provider: AiProvider): string {
     : 'https://openrouter.ai/api/v1/chat/completions';
 }
 
+function buildChatChain(init: Pick<ChatLlmInit, 'provider' | 'models'>): ProviderEntry[] {
+  // `init.provider` ancla la cadena a un solo proveedor (tests / overrides);
+  // sin explícito se recorre la cadena multi-proveedor con respaldo.
+  if (init.provider) {
+    return [
+      {
+        provider: init.provider,
+        models:
+          init.models && init.models.length > 0 ? init.models : getModelsFor(init.provider),
+      },
+    ];
+  }
+  return buildProviderChain({ models: init.models });
+}
+
 /**
  * Genera la respuesta del asistente. Emite `delta` durante el stream y un
  * último evento `usage` con el modelo efectivo y los tokens consumidos.
+ * Ante un 429 marca al proveedor en cooldown y sigue con el siguiente de la
+ * cadena en lugar de fallar la conversación.
  */
 export async function* streamChatCompletion(
   messages: ChatLlmMessage[],
   init: ChatLlmInit = {}
 ): AsyncGenerator<ChatStreamChunk> {
-  const { provider, models } = resolveChatModelPlan(init);
+  const chain = buildChatChain(init);
   const fetchImpl = init.fetchImpl ?? globalThis.fetch;
-  const apiKey = providerKey(provider, init.apiKey);
-
-  if (!apiKey) {
-    throw new ChatLlmError(
-      'missing_api_key',
-      `Falta la API key del proveedor de IA (${provider}).`
-    );
-  }
 
   const { signal, cleanup } = createAbortSignal(init.signal, init.timeoutMs);
   const maxOutputTokens = init.maxOutputTokens ?? CHAT_MAX_OUTPUT_TOKENS;
   const tokenBudget = init.tokenBudget ?? CHAT_TOKEN_BUDGET;
 
+  let lastError: unknown = null;
+  let missingKey = false;
+  let rateLimited = false;
+  let coolingSkipped = false;
+
   try {
-    if (provider === 'gemini') {
-      const model = models[0];
-      if (!model) {
-        throw new ChatLlmError('no_models', 'No hay modelos de IA configurados.');
+    for (const entry of chain) {
+      if (isCooling(entry.provider)) {
+        coolingSkipped = true;
+        continue;
       }
-      yield* streamGemini({
-        apiKey,
-        model,
-        messages,
-        signal,
-        maxOutputTokens,
-        tokenBudget,
-      });
-      return;
-    }
 
-    let lastError: unknown = null;
-    for (const model of models) {
-      let emitted = false;
-      try {
-        for await (const chunk of streamOpenAiCompatible({
-          endpoint: providerEndpoint(provider),
-          apiKey,
-          model,
-          provider,
-          messages,
-          fetchImpl,
-          signal,
-          maxOutputTokens,
-          tokenBudget,
-        })) {
-          if (chunk.type === 'delta') emitted = true;
-          yield chunk;
+      // El override explícito de key aplica al primer eslabón (el primario).
+      const apiKey = providerKey(entry.provider, entry === chain[0] ? init.apiKey : undefined);
+      if (!apiKey) {
+        missingKey = true;
+        continue;
+      }
+
+      for (const model of entry.models) {
+        let emitted = false;
+        try {
+          const stream =
+            entry.provider === 'gemini'
+              ? streamGemini({
+                  apiKey,
+                  model,
+                  messages,
+                  signal,
+                  maxOutputTokens,
+                  tokenBudget,
+                })
+              : streamOpenAiCompatible({
+                  endpoint: providerEndpoint(entry.provider),
+                  apiKey,
+                  model,
+                  provider: entry.provider,
+                  messages,
+                  fetchImpl,
+                  signal,
+                  maxOutputTokens,
+                  tokenBudget,
+                });
+
+          for await (const chunk of stream) {
+            // Si ya salió texto no podemos cambiar de modelo a mitad de
+            // respuesta: se aborta en lugar de repetir el inicio.
+            if (chunk.type === 'delta') emitted = true;
+            yield chunk;
+          }
+          return;
+        } catch (error) {
+          if (isAbortError(error) || emitted) throw error;
+          lastError = error;
+
+          const status = error instanceof ChatLlmError ? error.status : undefined;
+          if (status === 429 || isRateLimitError(error)) {
+            rateLimited = true;
+            markRateLimited(
+              entry.provider,
+              error instanceof ChatLlmError
+                ? error.retryAfterSeconds
+                : retryAfterFromError(error)
+            );
+            break; // cuota agotada: salta al siguiente proveedor
+          }
         }
-        return;
-      } catch (error) {
-        if (isAbortError(error) || emitted) throw error;
-        lastError = error;
       }
     }
 
-    throw lastError instanceof Error
-      ? lastError
-      : new ChatLlmError('provider_error', 'No se pudo obtener respuesta del proveedor de IA.');
+    const lastIsRateLimit =
+      lastError !== null &&
+      (lastError instanceof ChatLlmError
+        ? lastError.status === 429
+        : isRateLimitError(lastError));
+
+    if ((rateLimited || coolingSkipped) && (lastError === null || lastIsRateLimit)) {
+      throw new ChatLlmError(
+        'rate_limited',
+        'Los proveedores de IA están en pausa por límite de consumo. Probá de nuevo en unos segundos.'
+      );
+    }
+    if (lastError) {
+      throw lastError instanceof Error
+        ? lastError
+        : new ChatLlmError('provider_error', 'No se pudo obtener respuesta del proveedor de IA.');
+    }
+    if (missingKey) {
+      throw new ChatLlmError(
+        'missing_api_key',
+        `Falta la API key del proveedor de IA (${chain[0]?.provider ?? resolveProvider()}).`
+      );
+    }
+    throw new ChatLlmError('no_models', 'No hay modelos de IA configurados.');
   } finally {
     cleanup();
   }

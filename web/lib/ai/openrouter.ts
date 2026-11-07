@@ -3,13 +3,17 @@
 
 import { z } from 'zod';
 import type { AiFacts } from './facts';
+import { parseRetryAfter } from './rate-limit';
 
 // Router de modelos gratuitos de OpenRouter: elige uno disponible que soporte
 // structured outputs, así que no se rompe cuando retiran un modelo `:free`.
 // Se puede sobreescribir con AI_MODELS (lista separada por comas).
 export const DEFAULT_AI_MODELS = ['openrouter/free'] as const;
 
-export const AI_OUTPUT_MAX_TOKENS = 1000;
+// 1000 tokens era poco: gpt-oss gasta parte del presupuesto en reasoning y el
+// JSON se truncaba → Groq respondía 400 `json_validate_failed`. Con 4000 el
+// objeto completo (dentro de los topes del schema) entra incluso con reasoning.
+export const AI_OUTPUT_MAX_TOKENS = 4000;
 export const AI_PROMPT_MAX_TOKENS = 4000;
 export const AI_TIMEOUT_MS = 30_000;
 
@@ -22,17 +26,19 @@ export function parseAiLanguage(value: unknown): AiLanguage {
   return value === 'en' ? 'en' : 'es';
 }
 
+// Topes acotados a lo que un análisis de ventana realmente necesita: con
+// topes generosos el JSON pedía más de 4000 tokens y se truncaba.
 const AiFindingSchema = z.object({
   type: z.string().min(1).max(64),
-  description: z.string().min(1).max(1000),
+  description: z.string().min(1).max(400),
   severity: z.enum(['info', 'low', 'medium', 'high', 'critical']),
 });
 
 export const AiOutputSchema = z.object({
-  summary: z.string().min(1).max(2000),
+  summary: z.string().min(1).max(1500),
   risk_level: z.enum(['low', 'medium', 'high', 'critical']),
-  findings: z.array(AiFindingSchema).max(20),
-  recommendations: z.array(z.string().min(1).max(500)).max(20),
+  findings: z.array(AiFindingSchema).max(10),
+  recommendations: z.array(z.string().min(1).max(500)).max(10),
 });
 export type AiOutput = z.infer<typeof AiOutputSchema>;
 
@@ -40,6 +46,10 @@ export interface AiChainResult {
   ok: boolean;
   model: string | null;
   output: AiOutput | null;
+  /** true si el intento falló por 429: el proveedor debe entrar en cooldown. */
+  rateLimited?: boolean;
+  /** `Retry-After` reportado por el proveedor (segundos), si venía. */
+  retryAfterSeconds?: number | null;
 }
 
 export function getModelChain(): string[] {
@@ -123,6 +133,8 @@ export async function callOpenRouterChain(
 
   // Diagnóstico sin secretos: modelo + status HTTP / tipo de error por intento.
   const attempts: Array<{ model: string; status?: number; error?: string }> = [];
+  let rateLimited = false;
+  let retryAfterSeconds: number | null = null;
 
   const bodyFor = (model: string) =>
     JSON.stringify({
@@ -154,6 +166,10 @@ export async function callOpenRouterChain(
         // El cuerpo del error de OpenRouter es corto y no contiene credenciales.
         const detail = await res.text().catch(() => '');
         attempts.push({ model, status: res.status, error: detail.slice(0, 160) });
+        if (res.status === 429) {
+          rateLimited = true;
+          retryAfterSeconds = parseRetryAfter(res.headers.get('retry-after'));
+        }
         continue;
       }
       const payload = (await res.json()) as {
@@ -182,5 +198,5 @@ export async function callOpenRouterChain(
   }
 
   console.warn(JSON.stringify({ event: 'ai_chain_failed', attempts }));
-  return { ok: false, model: null, output: null };
+  return { ok: false, model: null, output: null, rateLimited, retryAfterSeconds };
 }

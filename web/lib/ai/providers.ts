@@ -6,6 +6,12 @@ import { GoogleGenAI } from '@google/genai';
 import Groq from 'groq-sdk';
 import type { AiFacts } from './facts';
 import {
+  isCooling,
+  isRateLimitError,
+  markRateLimited,
+  retryAfterFromError,
+} from './rate-limit';
+import {
   AI_OUTPUT_MAX_TOKENS,
   AI_TIMEOUT_MS,
   AiOutputSchema,
@@ -50,6 +56,69 @@ export function getModelsFor(
 
 export function geminiApiKey(env: NodeJS.ProcessEnv = process.env): string | undefined {
   return env.GEMINI_API_KEY || env.GOOGLE_AI_API_KEY || undefined;
+}
+
+export interface ProviderEntry {
+  provider: AiProvider;
+  models: string[];
+}
+
+/**
+ * Orden de respaldo cuando el proveedor primario no está disponible o está en
+ * cooldown por cuota: Gemini (cuota free más holgada) → OpenRouter (router de
+ * modelos `:free`, muchos upstreams) → Groq (cuota chica: último recurso).
+ */
+export const PROVIDER_FALLBACK_ORDER: readonly AiProvider[] = [
+  'gemini',
+  'openrouter',
+  'groq',
+];
+
+function hasProviderKey(provider: AiProvider, env: NodeJS.ProcessEnv): boolean {
+  switch (provider) {
+    case 'gemini':
+      return Boolean(geminiApiKey(env));
+    case 'groq':
+      return Boolean(env.GROQ_API_KEY);
+    default:
+      return Boolean(env.OPENROUTER_API_KEY);
+  }
+}
+
+export interface ProviderChainOptions {
+  env?: NodeJS.ProcessEnv;
+  /** Modelos para el primer eslabón (override o `AI_MODELS`). */
+  models?: string[];
+  /** Proveedores a incluir aunque no haya key en env (clients inyectados). */
+  forcedProviders?: AiProvider[];
+}
+
+/**
+ * Cadena de proveedores con key disponible, empezando por el primario
+ * (`AI_PROVIDER` o detección). Cada eslabón usa los defaults de SU proveedor:
+ * `AI_MODELS` solo aplica al primario para no mandar modelos de un proveedor
+ * a la API de otro.
+ */
+export function buildProviderChain(options: ProviderChainOptions = {}): ProviderEntry[] {
+  const env = options.env ?? process.env;
+  const primary = resolveProvider(env);
+  const ordered = [primary, ...PROVIDER_FALLBACK_ORDER.filter((p) => p !== primary)];
+  const forced = new Set(options.forcedProviders ?? []);
+
+  const chain: ProviderEntry[] = [];
+  for (const provider of ordered) {
+    if (chain.length > 0 && !hasProviderKey(provider, env) && !forced.has(provider)) {
+      continue;
+    }
+    const models =
+      chain.length === 0
+        ? options.models && options.models.length > 0
+          ? options.models
+          : getModelsFor(provider, env)
+        : [...PROVIDER_DEFAULT_MODELS[provider]];
+    chain.push({ provider, models });
+  }
+  return chain;
 }
 
 function userPrompt(facts: AiFacts): string {
@@ -104,6 +173,8 @@ export async function callGeminiChain(
   const models = init.models ?? getModelsFor('gemini');
   const systemInstruction = buildSystemPrompt(init.language ?? 'es');
   const attempts: Array<{ model: string; status?: number; error?: string }> = [];
+  let rateLimited = false;
+  let retryAfterSeconds: number | null = null;
 
   for (const model of models) {
     try {
@@ -131,11 +202,15 @@ export async function callGeminiChain(
       return { ok: true, model, output: validated.data };
     } catch (error) {
       attempts.push({ model, error: error instanceof Error ? error.name : 'unknown_error' });
+      if (isRateLimitError(error)) {
+        rateLimited = true;
+        retryAfterSeconds = retryAfterFromError(error);
+      }
     }
   }
 
   console.warn(JSON.stringify({ event: 'ai_chain_failed', provider: 'gemini', attempts }));
-  return { ok: false, model: null, output: null };
+  return { ok: false, model: null, output: null, rateLimited, retryAfterSeconds };
 }
 
 /** Groq (SDK `groq-sdk`, compatible con la API de OpenAI): `response_format: json_object`. */
@@ -159,6 +234,8 @@ export async function callGroqChain(
   const models = init.models ?? getModelsFor('groq');
   const systemPrompt = buildSystemPrompt(init.language ?? 'es');
   const attempts: Array<{ model: string; status?: number; error?: string }> = [];
+  let rateLimited = false;
+  let retryAfterSeconds: number | null = null;
 
   for (const model of models) {
     try {
@@ -186,14 +263,21 @@ export async function callGroqChain(
       return { ok: true, model: usedModel, output: validated.data };
     } catch (error) {
       attempts.push({ model, error: error instanceof Error ? error.name : 'unknown_error' });
+      if (isRateLimitError(error)) {
+        rateLimited = true;
+        retryAfterSeconds = retryAfterFromError(error);
+      }
     }
   }
 
   console.warn(JSON.stringify({ event: 'ai_chain_failed', provider: 'groq', attempts }));
-  return { ok: false, model: null, output: null };
+  return { ok: false, model: null, output: null, rateLimited, retryAfterSeconds };
 }
 
-/** Punto de entrada del pipeline: elige el proveedor y aplica su cadena de modelos. */
+/** Punto de entrada del pipeline: recorre la cadena de proveedores hasta que
+ * uno devuelve JSON válido. Sin `init.provider` explícito usa la cadena
+ * multi-proveedor (Fase 2): primario → respaldo, saltando los que estén en
+ * cooldown por 429. */
 export async function callAiChain(
   facts: AiFacts,
   init: {
@@ -206,23 +290,78 @@ export async function callAiChain(
     openRouterApiKey?: string;
   } = {}
 ): Promise<AiChainResult> {
-  const provider = init.provider ?? resolveProvider();
-  const models = init.models ?? getModelsFor(provider);
   const language = init.language ?? 'es';
 
-  switch (provider) {
-    case 'gemini':
-      return callGeminiChain(facts, { client: init.geminiClient, models, language });
-    case 'groq':
-      return callGroqChain(facts, { client: init.groqClient, models, language });
-    default:
-      return callOpenRouterChain(facts, {
-        models,
-        language,
-        fetchImpl: init.fetchImpl,
-        apiKey: init.openRouterApiKey,
-      });
+  // Clients/keys inyectados en tests: el proveedor debe entrar en la cadena
+  // aunque el entorno no tenga su key.
+  const forcedProviders: AiProvider[] = [];
+  if (init.geminiClient) forcedProviders.push('gemini');
+  if (init.groqClient) forcedProviders.push('groq');
+  if (init.openRouterApiKey) forcedProviders.push('openrouter');
+
+  const chain: ProviderEntry[] = init.provider
+    ? [
+        {
+          provider: init.provider,
+          models:
+            init.models && init.models.length > 0
+              ? init.models
+              : getModelsFor(init.provider),
+        },
+      ]
+    : buildProviderChain({ models: init.models, forcedProviders });
+
+  let rateLimited = false;
+  let retryAfterSeconds: number | null = null;
+
+  for (const entry of chain) {
+    if (isCooling(entry.provider)) continue;
+
+    let result: AiChainResult;
+    switch (entry.provider) {
+      case 'gemini':
+        result = await callGeminiChain(facts, {
+          client: init.geminiClient,
+          models: entry.models,
+          language,
+        });
+        break;
+      case 'groq':
+        result = await callGroqChain(facts, {
+          client: init.groqClient,
+          models: entry.models,
+          language,
+        });
+        break;
+      default:
+        result = await callOpenRouterChain(facts, {
+          models: entry.models,
+          language,
+          fetchImpl: init.fetchImpl,
+          apiKey: init.openRouterApiKey,
+        });
+    }
+
+    if (result.ok) return result;
+
+    if (result.rateLimited) {
+      rateLimited = true;
+      retryAfterSeconds = result.retryAfterSeconds ?? retryAfterSeconds;
+      markRateLimited(entry.provider, result.retryAfterSeconds);
+    }
   }
+
+  if (chain.length === 0 || chain.every((entry) => isCooling(entry.provider))) {
+    console.warn(
+      JSON.stringify({
+        event: 'ai_chain_failed',
+        reason: 'all_providers_cooling',
+        chain: chain.map((entry) => entry.provider),
+      })
+    );
+  }
+
+  return { ok: false, model: null, output: null, rateLimited, retryAfterSeconds };
 }
 
 export const AI_REQUEST_TIMEOUT_MS = AI_TIMEOUT_MS;

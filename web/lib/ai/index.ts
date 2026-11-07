@@ -21,6 +21,8 @@ export {
 export {
   AI_REQUEST_TIMEOUT_MS,
   PROVIDER_DEFAULT_MODELS,
+  PROVIDER_FALLBACK_ORDER,
+  buildProviderChain,
   callAiChain,
   callGeminiChain,
   callGroqChain,
@@ -28,7 +30,17 @@ export {
   getModelsFor,
   resolveProvider,
   type AiProvider,
+  type ProviderChainOptions,
+  type ProviderEntry,
 } from './providers';
+export {
+  DEFAULT_RATE_LIMIT_COOLDOWN_MS,
+  isCooling,
+  isRateLimitError,
+  markRateLimited,
+  parseRetryAfter,
+  resetRateLimits,
+} from './rate-limit';
 export { canonicalJson, factsHash } from './hash';
 export { fetchAiFacts, type AiFacts } from './facts';
 

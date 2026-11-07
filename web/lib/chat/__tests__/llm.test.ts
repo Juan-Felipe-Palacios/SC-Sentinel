@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChatLlmMessage } from '../types';
 import { estimateTokens, resolveChatModelPlan, streamChatCompletion } from '../llm';
+import { isCooling, markRateLimited, resetRateLimits } from '@/lib/ai/rate-limit';
 
 const messages: ChatLlmMessage[] = [
   { role: 'system', content: 'Sos un asistente.' },
@@ -25,6 +26,7 @@ const OK_SSE = [
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  resetRateLimits();
 });
 
 describe('streamChatCompletion', () => {
@@ -87,6 +89,59 @@ describe('streamChatCompletion', () => {
       model: 'good-model',
       provider: 'groq',
     });
+  });
+
+  it('salta al siguiente proveedor cuando el primario responde 429', async () => {
+    vi.stubEnv('AI_PROVIDER', 'groq');
+    vi.stubEnv('GROQ_API_KEY', 'gsk_test');
+    vi.stubEnv('OPENROUTER_API_KEY', 'sk-or-test');
+    vi.stubEnv('GEMINI_API_KEY', '');
+    vi.stubEnv('GOOGLE_AI_API_KEY', '');
+
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response('rate_limit_exceeded', {
+          status: 429,
+          headers: { 'retry-after': '30' },
+        })
+      )
+      .mockResolvedValueOnce(new Response(sseStream(OK_SSE), { status: 200 }));
+
+    const chunks = [];
+    for await (const chunk of streamChatCompletion(messages, {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })) {
+      chunks.push(chunk);
+    }
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(String(fetchImpl.mock.calls[0][0])).toContain('api.groq.com');
+    expect(String(fetchImpl.mock.calls[1][0])).toContain('openrouter.ai');
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'usage',
+      provider: 'openrouter',
+    });
+    // El proveedor rate-limiteado queda en cooldown para las siguientes llamadas.
+    expect(isCooling('groq')).toBe(true);
+  });
+
+  it('devuelve rate_limited cuando todos los proveedores están en cooldown', async () => {
+    vi.stubEnv('AI_PROVIDER', 'groq');
+    vi.stubEnv('GROQ_API_KEY', 'gsk_test');
+    vi.stubEnv('OPENROUTER_API_KEY', '');
+    vi.stubEnv('GEMINI_API_KEY', '');
+    vi.stubEnv('GOOGLE_AI_API_KEY', '');
+    markRateLimited('groq', 120);
+
+    async function drain() {
+      const generator = streamChatCompletion(messages, {
+        fetchImpl: vi.fn() as unknown as typeof fetch,
+      });
+      await generator.next();
+    }
+
+    await expect(drain()).rejects.toMatchObject({ code: 'rate_limited' });
   });
 
   it('falla con un código seguro cuando falta la API key', async () => {

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  AI_OUTPUT_MAX_TOKENS,
+  AiOutputSchema,
   callOpenRouterChain,
   DEFAULT_AI_MODELS,
   extractJsonObject,
@@ -49,6 +51,29 @@ describe('getModelChain', () => {
     vi.stubEnv('AI_MODELS', '');
     expect(getModelChain()).toEqual([...DEFAULT_AI_MODELS]);
     vi.unstubAllEnvs();
+  });
+});
+
+describe('presupuesto de salida (Fase 1)', () => {
+  it('el peor caso permitido por el schema entra en AI_OUTPUT_MAX_TOKENS', () => {
+    const worstCase = {
+      summary: 's'.repeat(1500),
+      risk_level: 'critical' as const,
+      findings: Array.from({ length: 10 }, (_, index) => ({
+        type: `finding_${index}`,
+        description: 'd'.repeat(400),
+        severity: 'high' as const,
+      })),
+      recommendations: Array.from({ length: 10 }, () => 'r'.repeat(500)),
+    };
+
+    expect(AiOutputSchema.safeParse(worstCase).success).toBe(true);
+
+    // El JSON completo tiene que caber en el tope de tokens: si no, Groq
+    // responde 400 `json_validate_failed` por truncamiento.
+    const estimatedTokens = Math.ceil(JSON.stringify(worstCase).length / 4);
+    expect(estimatedTokens).toBeLessThan(AI_OUTPUT_MAX_TOKENS);
+    expect(AI_OUTPUT_MAX_TOKENS).toBeGreaterThanOrEqual(3000);
   });
 });
 
