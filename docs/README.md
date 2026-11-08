@@ -11,7 +11,7 @@
 | `adr/` | 14 decisiones de arquitectura (0001–0014) | espec §3 |
 | `contracts/` | contratos `/api/ingest` v1 y `/api/chat` v1 + 3 schemas JSON + 4 ejemplos | spec §5, §6 |
 | `diagrams/` | 7 mermaid `.mmd` + 4 drawio + reglas de exports (`README.md` propio) | spec §17 |
-| `runbooks/` | 8: local-dev, inst. Windows/Linux, troubleshoot pcap/sync, rotación token, cleanup DB, incident-response | spec §8, §9, §12, §13 |
+| `runbooks/` | 9: local-dev, inst. Windows/Linux, troubleshoot pcap/sync, colector MikroTik/Cisco, rotación token, cleanup DB, incident-response | spec §8, §9, §12, §13 |
 | `testing/` | test-plan, acceptance-criteria por hito, fixtures, release-checklist | spec §14, §15 |
 | `ux/` | landing-sitemap, dashboard-wireframes, design-tokens, copywriting | spec §18 |
 | `legal/` | THIRD_PARTY_NOTICES, maxmind-notice, npcap-notice, privacidad (draft), términos (draft) | licencias §3 del spec |
@@ -34,7 +34,7 @@
 | adr/ | ✅ 14 ADRs (0001–0014) | M0, M3.5, M4 |
 | contracts/ | ✅ v1 congelados (schemas + ejemplos) | M0 |
 | diagrams/ | ✅ 11 fuentes creados | M0–M5 |
-| runbooks/ | ✅ 8 escritos (a verificar contra instalación real en M5) | M1–M5 |
+| runbooks/ | ✅ 9 escritos (a verificar contra instalación real en M5) | M1–M5 |
 | testing/ | ✅ 4 verificados (ejecutables a medida del repo) | M0–M5 |
 | ux/ | ✅ 4 (tokens de marca: valores definidos en la extracción M3) | M3 |
 | legal/ | ✅ 5 (2 drafts pendientes de revisión legal antes de M3) | M3 |
