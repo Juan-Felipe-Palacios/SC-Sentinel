@@ -16,3 +16,7 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
+
+[[bench]]
+name = "collector_throughput"
+harness = false
