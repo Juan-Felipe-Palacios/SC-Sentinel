@@ -1,35 +1,55 @@
 <mxfile host="app.diagrams.net" version="24.7.7">
   <diagram id="network-topology-ipfix" name="Topologia IPFIX (M4 - sc-collector)">
-    <mxGraphModel dx="900" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="700" math="0" shadow="0">
+    <mxGraphModel dx="1100" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="720" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="lan" value="LAN clientes" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
-          <mxGeometry x="60" y="110" width="160" height="70" as="geometry" />
+        <mxCell id="lan" value="LAN clientes&#10;(198.51.100.0/24 en la validacion sintetica)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="90" width="200" height="80" as="geometry" />
         </mxCell>
-        <mxCell id="mikrotik" value="MikroTik RouterOS v7&#10;(IPFIX export)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
-          <mxGeometry x="330" y="60" width="220" height="70" as="geometry" />
+        <mxCell id="capture" value="sc-capture --live&#10;(Npcap/libpcap, captura por paquete&#10;en la interfaz elegida)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="240" width="200" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="cisco" value="Cisco (NetFlow v9&#10;/ iPFIX export)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
-          <mxGeometry x="330" y="180" width="220" height="70" as="geometry" />
+        <mxCell id="mikrotik" value="MikroTik RouterOS v7&#10;/ip traffic-flow target&#10;version=ipfix (o v9)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="330" y="50" width="220" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="collector" value="sc-collector&#10;(UDP listener + template cache +&#10;baseline - heredado de Sniffnet ipfix/)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
-          <mxGeometry x="660" y="120" width="260" height="80" as="geometry" />
+        <mxCell id="cisco" value="Cisco IOS-XE&#10;(NetFlow v9 export)&#10;apendice no validado" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="330" y="180" width="220" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="aggregate" value="FlowUpdate -> sc-aggregate&#10;(mismo pipeline que pcap)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
-          <mxGeometry x="660" y="250" width="260" height="70" as="geometry" />
+        <mxCell id="collector" value="sc-collector (en sc-sentinel-agent)&#10;listener UDP 0.0.0.0:2055/4739 (auto, configurable)&#10;deteccion de version 5 / 9 / 10 (IPFIX)&#10;cache de templates por (IP origen, template ID)&#10;LRU 10k/listener + TTL 1h, independiente por listener" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="640" y="50" width="320" height="110" as="geometry" />
         </mxCell>
-        <mxCell id="cloud" value="/api/ingest&#10;(Ventana y snapshot identicos a M1/M2)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
-          <mxGeometry x="700" y="390" width="200" height="60" as="geometry" />
+        <mxCell id="normalizer" value="Normalizer -&gt; sc_capture::FlowUpdate&#10;(Direction::In: host = src_ip, ver ADR-0014)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="640" y="200" width="320" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="note" value="Diferencias pcap vs flow (documentar en M4):&#10;- flows no son packets: sin bytes por paquete ni MAC&#10;- sampling del router puede omitir flujos&#10;- activo/inactivo timeout afecta granularity&#10;- medidas configuracion export MikroTik (activo timeout corto)" style="text;html=1;align=left;" vertex="1" parent="1">
-          <mxGeometry x="60" y="280" width="360" height="120" as="geometry" />
+        <mxCell id="merge" value="Merge de canales (try_push del colector +&#10;FlowProducer de captura) -&gt; un solo consumidor&#10;sin cambiar el contrato del aggregator" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="640" y="310" width="320" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="lan" target="mikrotik" ><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="e2" value="UDP 2055/6343" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="mikrotik" target="collector" ><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="e3" value="UDP 2055/9995" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="cisco" target="collector" ><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="collector" target="aggregate" ><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="e5" value="HTTPS" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="aggregate" target="cloud" ><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="aggregate" value="sc-aggregate&#10;ventanas de 30 s (flush event-driven: se cierra&#10;cuando llega un flujo con now &gt;= window_end)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="640" y="420" width="320" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="spool" value="spool SQLite local (gzip) -&gt; sync por lotes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="640" y="530" width="320" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="cloud" value="/api/ingest (HTTPS)&#10;ventanas y snapshot identicos a M1/M2 -&gt; dashboard" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="640" y="620" width="320" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="note" value="Diferencias pcap vs flow: docs/testing/pcap-vs-flow.md&#10;- flows no son packets: sin bytes por paquete ni MAC&#10;- sampling del router puede omitir flujos (options template se ignora)&#10;- active/inactive-flow-timeout afecta la granularidad&#10;- Direction::In provisional: host = src_ip&#10;- sin dedup pcap+flow del mismo segmento (P1)&#10;&#10;Limitaciones M4: sin TLS/DTLS para IPFIX;&#10;metricas del colector no estan en health (T4.1);" style="text;html=1;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="390" width="380" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="cfg" value="Config / flags: [collector] en sc-agent.toml,&#10;env SC_COLLECTOR_*, --collector, --no-collector,&#10;--collector-port 2055,4739&#10;fallo de bind no es fatal (last_error del health)" style="shape=note;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="40" y="610" width="380" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="lan" target="mikrotik"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" value="UDP 4739 (IPFIX) / 2055 (v9)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="mikrotik" target="collector"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" value="UDP 2055 / 9996 (v9)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="cisco" target="collector"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="lan" target="capture"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5" value="FlowUpdate (pcap)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="capture" target="merge"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="collector" target="normalizer"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7" value="FlowUpdate (flow)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="normalizer" target="merge"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="merge" target="aggregate"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="aggregate" target="spool"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e10" value="HTTPS (token del dispositivo)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="spool" target="cloud"><mxGeometry relative="1" as="geometry" /></mxCell>
       </root>
     </mxGraphModel>
   </diagram>

@@ -79,18 +79,21 @@ Alcance de cierre: backend seguro, RAG agregado de 24 h, streaming SSE, persiste
 ## M4 — sc-collector MikroTik/Cisco (1,5 semanas)
 
 - [ ] IPFIX/NetFlow recibe tráfico real de router MikroTik (y Cisco si hay hardware).
-- [ ] Topología IPFIX documentada (`diagrams/drawio/network-topology-ipfix.drawio` actualizada).
-- [ ] Fixtures de collector (paquetes de muestra, sin datos sensibles).
-- [ ] Diferencias pcap vs flow documentadas (sampling, timeouts, bytes por paquete).
-- [ ] Marca la agregación de windows de la misma calidad que en capturas.
+- [x] Topología IPFIX documentada (`diagrams/drawio/network-topology-ipfix.drawio` actualizada).
+- [x] Fixtures de collector (paquetes de muestra, sin datos sensibles).
+- [x] Diferencias pcap vs flow documentadas (sampling, timeouts, bytes por paquete) → `docs/testing/pcap-vs-flow.md`.
+- [x] Marca la agregación de windows de la misma calidad que en capturas.
 
-> M4 (2026-11-08): parsers, listener, cache de templates e integración con el
-> aggregator verificados con fixtures sintéticos y tests de loopback UDP. La
-> validación con un exportador real **sigue pendiente**: falta configurar un
-> MikroTik/Cisco para exportar a los puertos del colector, correr el agente con
-> `--collector`, confirmar las ventanas en el dashboard y actualizar la topología
-> IPFIX. Ver ADR-0014 §9: los pcaps reales de Wireshark/MikroTik aún no se probaron.
-> Procedimiento y checklist: `docs/runbooks/collector-mikrotik.md`.
+> M4 (2026-11-08, actualizado): validación sintética end-to-end completada con
+> evidencia: fixtures saneados en `docs/testing/fixtures/` (+ README y test
+> `fixtures_from_disk`, 6 tests), ejemplo `synthetic_exporter` (v5/v9/IPFIX),
+> agente real con `--collector` → `collector_started` en log, hosts/ventanas en
+> el dashboard Vercel (3 hosts TEST-NET, sumas exactas, sin duplicados), y
+> recuperación de templates tras reinicio del agente. Topología IPFIX y
+> diferencias pcap vs flow documentadas. **Siguen pendientes** (M4 NO cerrado):
+> tráfico real de un router MikroTik/Cisco (hardware), captura desde la IP del
+> router, dedup pcap+flow en el mismo segmento LAN (P1) y soak de 24 h.
+> Procedimiento y checklist: `docs/runbooks/collector-mikrotik.md` §4.
 
 ## M5 — Servicio + instalador + GUI (1–2 semanas)
 

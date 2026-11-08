@@ -690,13 +690,13 @@ T3.1 completada: Normalizador + tests.
 T3.2 completada: Integración con aggregator + tests E2E.
 T3.3 completada: Configuración + tests.
 Fase 4: Robustez
-T4.1 completada: Métricas en dashboard.
-T4.2 completada: Fuzzing sin panics.
-T4.3 completada: Fixtures reales + tests de regresión.
+T4.1 pendiente: Métricas del colector en health/dashboard (solo logs y evidencia indirecta hoy).
+T4.2 pendiente: Fuzzing formal de parsers.
+T4.3 parcial: fixtures sintéticos saneados en docs/testing/fixtures/ + tests de regresión (2026-11-08); fixtures reales de Wireshark pendientes.
 Fase 5: Cierre
-T5.1 completada: Documentación completa.
-T5.2 completada: Smoke test E2E verificado.
-T5.3 completada: Commit de cierre mergeado.
+T5.1 completada: Documentación completa (ADR-0014, runbook MikroTik, README, sample de config, topología IPFIX, docs/testing/pcap-vs-flow.md).
+T5.2 completada con evidencia sintética (2026-11-08): agente real + synthetic_exporter → hosts/ventanas en el dashboard Vercel, recuperación de templates tras reinicio. Falta la variante con exportador real (video/screenshot con router MikroTik).
+T5.3 pendiente: Commit de cierre de M4 (el hito no está cerrado).
 Post-M4
 M4 marcado como 100% en docs/testing/acceptance-criteria.md.
 Changelog actualizado.

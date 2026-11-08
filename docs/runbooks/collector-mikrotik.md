@@ -178,16 +178,28 @@ Los tests cubren NetFlow v5, v9, IPFIX, templates, IPv4/IPv6, options templates 
 Marcar solo con evidencia adjunta en el PR o en el plan M4.
 
 - [ ] Un router MikroTik real exporta IPFIX o NetFlow v9 al agente y el log muestra `collector_started`.
+  - _Pendiente (hardware)._ Parcial 2026-11-08: con el exportador sintético `synthetic_exporter` el log sí muestra `collector_started listeners=[0.0.0.0:2055, 0.0.0.0:4739]`; falta repetir con un MikroTik real.
 - [ ] `tcpdump`/Wireshark confirma datagramas UDP desde la IP del router al puerto configurado.
-- [ ] Los hosts y el tráfico aparecen en el dashboard dentro de dos ventanas de agregación.
-- [ ] Reinicio del agente: tras perder la cache, los flujos vuelven dentro de `v9-template-timeout` (o del `v9-template-refresh` con tráfico).
-- [ ] Se probó al menos un puerto IPFIX y uno NetFlow v9; v5 solo si hay un exportador que lo requiera.
-- [ ] Topología actualizada en `diagrams/drawio/network-topology-ipfix.drawio`.
-- [ ] Fixture/pcap de muestra saneado (sin payloads ni IPs sensibles) y guardado en `docs/testing/fixtures/`.
-- [ ] Documentadas las diferencias pcap vs flow: sampling, `active-flow-timeout`, `inactive-flow-timeout`, bytes por paquete y dirección atribuida.
+  - _Pendiente (hardware)._ Parcial 2026-11-08: recepción UDP verificada en el propio host (listener activo + datagramas desde 127.0.0.1), no desde la IP de un router.
+- [x] Los hosts y el tráfico aparecen en el dashboard dentro de dos ventanas de agregación.
+  - Evidencia 2026-11-08: `/api/query?metric=hosts&range=1h` → exactamente 3 hosts `198.51.100.11/.12/.13`, `bytes_in` 2371200 → 2508000 tras el burst final (suma exacta: 120 flujos/host × 1140 B); `overview` con ventanas de 30 s correctas.
+- [x] Reinicio del agente: tras perder la cache, los flujos vuelven dentro de `v9-template-timeout` (o del `v9-template-refresh` con tráfico).
+  - Evidencia 2026-11-08: agente reiniciado; `--skip-template` no produce flujos (cache vacía → `TemplateNotFound`); con el template reenviado, los flujos aparecen en la ventana siguiente.
+- [x] Se probó al menos un puerto IPFIX y uno NetFlow v9; v5 solo si hay un exportador que lo requiera.
+  - Evidencia 2026-11-08: IPFIX → 4739, NetFlow v9 → 2055 y NetFlow v5 → 2055 con `synthetic_exporter`.
+- [x] Topología actualizada en `diagrams/drawio/network-topology-ipfix.drawio`.
+  - Evidencia 2026-11-08: dibujo refleja la implementación real (bind `0.0.0.0` auto, template cache, merge de canales, flush event-driven, limitaciones).
+- [x] Fixture/pcap de muestra saneado (sin payloads ni IPs sensibles) y guardado en `docs/testing/fixtures/`.
+  - Evidencia 2026-11-08: 5 datagramas binarios + `exporter-sample.pcap`, IPs RFC 5737, timestamps fijos, README de regeneración y test `fixtures_from_disk` (6 tests).
+- [x] Documentadas las diferencias pcap vs flow: sampling, `active-flow-timeout`, `inactive-flow-timeout`, bytes por paquete y dirección atribuida → `docs/testing/pcap-vs-flow.md` (2026-11-08).
 - [ ] La agregación por ventanas conserva la calidad de la captura: mismos hosts, sin duplicar tráfico cuando pcap y flow ven el mismo segmento.
+  - Parcial 2026-11-08: con pcap (loopback) y flow activos a la vez no hubo hosts duplicados ni sumas infladas; las ventanas flow tienen la misma estructura/calidad que las de captura. **Falta** el caso real pcap+flow sobre el mismo segmento LAN: el dedup queda como P1 (`docs/testing/pcap-vs-flow.md` §7).
 - [ ] Soak de 24 h sin panic, sin crecimiento anómalo del spool y con sync continuo.
-- [ ] Limitaciones registradas: sin TLS/DTLS, `Direction::In` provisional y throughput de 50k flows/s no verificado.
+  - _Pendiente._ La validación sintética corrió minutos, no horas; el flush event-driven (§6 de `pcap-vs-flow.md`) obliga a apagado limpio para no perder la última ventana.
+- [x] Limitaciones registradas: sin TLS/DTLS, `Direction::In` provisional y throughput de 50k flows/s no verificado.
+  - Evidencia: ADR-0014 §7 y §7 de este runbook (2026-11-08).
+
+> Evidencia sintética 2026-11-08 (agente real + `synthetic_exporter` + dashboard Vercel). **M4 sigue abierto**: los items 1, 2, 9 y 10 requieren hardware MikroTik, captura desde el router, el caso de dedup en LAN y el soak de 24 h.
 
 ## 5. Troubleshooting
 
@@ -251,6 +263,8 @@ Para NetFlow v9, cambiar `export-protocol ipfix` por `export-protocol netflow-v9
 
 - `docs/adr/0014-collector-ipfix.md`
 - `docs/testing/acceptance-criteria.md` (M4)
+- `docs/testing/pcap-vs-flow.md` (diferencias captura pcap vs flujo)
+- `docs/testing/fixtures/README.md` (fixtures saneados del colector)
 - `agent/README.md` (§ Colector de flujos)
 - `agent/config/sc-agent-collector.toml.sample`
 - [RouterOS Traffic Flow](https://manual.mikrotik.com/docs/7.24/diagnostics-monitoring-and-troubleshooting/traffic-flow/)
