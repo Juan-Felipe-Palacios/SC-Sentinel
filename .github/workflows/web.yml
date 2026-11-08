@@ -1,9 +1,11 @@
 name: Web CI
 on:
   push:
-    paths: ["web/**", ".github/workflows/web.yml"]
+    paths:
+      ["web/**", "scripts/test-contracts-zod.mjs", ".github/workflows/web.yml"]
   pull_request:
-    paths: ["web/**", ".github/workflows/web.yml"]
+    paths:
+      ["web/**", "scripts/test-contracts-zod.mjs", ".github/workflows/web.yml"]
 
 jobs:
   test:
@@ -18,7 +20,7 @@ jobs:
           version: 9
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile

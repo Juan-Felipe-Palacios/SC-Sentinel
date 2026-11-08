@@ -317,6 +317,7 @@ Content-Encoding: gzip | zstd        (opcional; el servidor descomprime en el ro
 
 - Dispara el mismo pipeline que el cron de IA (§11.3) para el lote más reciente aún no analizado.
 - Respeta el gate: si pasó un análisis < 5 min, devuelve el insight cacheado con `200 {cached:true}` — nunca re-analiza los mismos hechos (dedup por `facts_hash`).
+- Ese gate de 5 min protege solo contra pedidos on-demand repetidos; el cron de 15 min (§11.3) tiene su propio early-return por ventanas nuevas y no depende de esta ventana.
 - Si la cadena de fallback agotó modelos: `200 {status:"degraded"}` (no error).
 
 ### 5.4 Endpoints de cron y secretos
@@ -684,6 +685,9 @@ La IA solo recibe hechos agregados y normalizados:
 | rollups diarios | 90 días (si se implementan) |
 
 > Los datos de puertos y países viven dentro de `flow_windows.snapshot_json` — no hay tablas separadas en v1 (decisión: evitar duplicación innecesaria; se agregarían post-v1 si las queries lo requieren).
+> `host_stats` es la excepción deliberada: se precalcula por host para las queries de
+> dashboard, IA y chat, y su retención es la misma que `flow_windows` (7 días). No es
+> un drift respecto de §6.1.
 
 ### 12.2 Cálculo de capacidad
 
@@ -1017,7 +1021,7 @@ CHANGELOG.md
 |------|-------|
 | Async runtime | tokio |
 | Serialización | serde, serde_json |
-| Schema JSON | schemars |
+| Schema JSON | Manuales en `docs/contracts/*.schema.json` (sin `schemars`) |
 | Errores librerías | thiserror |
 | Errores aplicación | anyhow |
 | Logging | tracing, tracing-subscriber |
@@ -1037,6 +1041,11 @@ CHANGELOG.md
 | Windows service | windows-service |
 | Captura | pcap (Npcap en Windows) |
 | Parsing | etherparse |
+
+> Los contratos JSON se mantienen manualmente en `docs/contracts/` para conservar
+> compatibilidad multi-lenguaje y no acoplar su evolución a las macros de Rust.
+> El gate de CI compara el fixture normativo contra serde y contra Zod
+> (`scripts/verify-contracts.sh`).
 
 ---
 

@@ -277,4 +277,29 @@ mod tests {
         assert!(envelope.snapshot.alerts.is_empty());
         assert_eq!(envelope.snapshot.health.packets_dropped, 0);
     }
+
+    /// El fixture normativo también debe serializar **idéntico**: si Rust agrega
+    /// un campo obligatorio y no se actualiza `docs/contracts`, este test falla.
+    /// Así el fixture queda pineado en ambos sentidos (Rust ↔ Zod) y no solo en
+    /// la deserialización.
+    #[test]
+    fn ejemplo_del_contrato_serializa_identico() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../docs/contracts/examples/ingest-request.valid.json"
+        );
+        let raw =
+            std::fs::read_to_string(path).expect("ejemplo del contrato presente en docs/contracts");
+        let fixture: serde_json::Value = serde_json::from_str(&raw).expect("JSON válido");
+        let envelope: IngestEnvelope =
+            serde_json::from_str(&raw).expect("ejemplo válido para los tipos v1");
+        let serializado = serde_json::to_value(&envelope).expect("el envelope serializa");
+
+        // Comparación de `Value`: el orden de claves es irrelevante, pero cualquier
+        // campo agregado, eliminado o con otro tipo rompe el gate.
+        assert_eq!(
+            serializado, fixture,
+            "el JSON de Rust difiere del fixture normativo: actualizá el contrato o el tipo"
+        );
+    }
 }

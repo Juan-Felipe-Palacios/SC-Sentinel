@@ -22,6 +22,21 @@ Aplica a `sc-capture` en Windows (Npcap) y Linux (libpcap). Regla del spec §8.2
 4. Windows: `netsh trace` no hace falta — pero sí probar un `ping` externo y verificar que `packets_seen` suba.
 5. Si `packets_dropped > 0` reproducible: colapsar carga y abrir issue con la tasa y el health del snapshot.
 
+## Compilar con la feature `live` (Windows)
+
+Tener Npcap instalado no alcanza para compilar: el linker necesita los `.lib` del
+Npcap SDK. La variable es **`LIBPCAP_LIBDIR`** (no `LIBPCAP_DIR`) y conviene fijar
+`LIBPCAP_VER` para que el build script no intente cargar `wpcap.dll` desde el SDK:
+
+```powershell
+$env:LIBPCAP_VER = "1.0.0"
+$env:LIBPCAP_LIBDIR = "C:\npcap-sdk-1.13\Lib\x64"
+cargo check -p sc-capture --features live
+```
+
+El detalle del SDK y del script `agent\scripts\restart-agent.ps1` está en
+`agent/README.md` (§ Captura en vivo).
+
 ## Reglas de reporting (obligatorias)
 
 - **Nunca** adjuntar raw packets ni contenido de payloads en tickets (logging rules §9.3).

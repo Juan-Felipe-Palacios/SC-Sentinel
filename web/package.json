@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run && node --experimental-strip-types ../scripts/test-contracts-zod.mjs"
+    "test": "vitest run && pnpm test:contracts",
+    "test:contracts": "node --experimental-strip-types ../scripts/test-contracts-zod.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.32.0",

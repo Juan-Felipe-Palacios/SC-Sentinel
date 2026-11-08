@@ -8,14 +8,14 @@ Workspace Cargo del agente headless (daemon). Mapa de crates y jerarquía de dep
 sc-core  (tipos de dominio — sin deps de runtime ni de otros crates internos)
 sc-capture / sc-collector / sc-geo  (fuentes) → sc-aggregate → sc-detect → sc-sync
 sc-config / sc-telemetry  (transversales)
-sc-agent (bin daemon, M1) · sc-gui (bin iced, M5)
+sc-sentinel-agent (bin daemon, M1) · sc-gui (bin iced, M5)
 ```
 
 | Crate | Rol | Estado |
 |-------|-----|--------|
 | `sc-core` | Tipos de dominio versionados con los contratos de `docs/contracts/` (`v: 1`) | completo (M0) |
 | `sc-capture` | Captura pcap en thread bloqueante puenteado a `tokio mpsc` con backpressure | completo (M1) |
-| `sc-collector` | Fuentes de flujo (ipfix/NetFlow diferido a M4) | esqueleto (M4) |
+| `sc-collector` | Colector pasivo UDP: NetFlow v5/v9 + IPFIX, integrado en `sc-agent` con config y CLI (M4 fases 1–3) | en curso (M4) |
 | `sc-geo` | MaxMind GeoLite2 embebido con firma de integridad SHA-256 (ISO alpha-2) | completo (M1) |
 | `sc-aggregate` | Agregación por ventanas de 30–60 s → `WindowSnapshot` con HMAC host_mark | completo (M1) |
 | `sc-detect` | Motor determinista de `Alert` (blacklist/umbrales) | esqueleto (M3) |
@@ -52,10 +52,10 @@ La feature `live` de `sc-capture` (pcap) necesita las librerías de importación
    Comprobación rápida del binario recién compilado (no captura, sólo enumera):
 
    ```bash
-   ./target/release/sc-agent.exe --list-interfaces
+   ./target/release/sc-sentinel-agent.exe --list-interfaces
    ```
 
-3. La feature se declara namespaced en `sc-capture`: invocarla como `--features sc-capture/live` (el binario `sc-agent` no declara una feature `live` propia).
+3. La feature se declara namespaced en `sc-capture`: invocarla como `--features sc-capture/live` (el binario `sc-sentinel-agent` no declara una feature `live` propia).
 
 Sin el SDK configurado, el build falla en el link con `LNK1181: cannot open input file 'wpcap.lib'`. Sin la feature, el crate compila igual y `run_live` devuelve un error orientador en runtime.
 
@@ -63,7 +63,7 @@ Reinicio del agente en Windows (con captura live): recompilar con el comando de 
 
 ```powershell
 $env:SC_INGEST_TOKEN = (Get-Content .\config\.device-token -Raw).Trim()
-.\target\release\sc-agent.exe `
+.\target\release\sc-sentinel-agent.exe `
   --device-id dev_bee8a7f6-8191-47ef-9dc2-f1ef3a9d7636 `
   --interface '\Device\NPF_{5ED97C9D-575C-401F-A3C9-1397C3BD738A}' `
   --config config\sc-agent.toml
@@ -101,3 +101,46 @@ Los `window_id` se derivan de la secuencia persistida en el spool más una base 
 - El **device id es obligatorio**: `--device-id dev_<uuid>` o `SC_SENTINEL_DEVICE_ID`. Ya no existe el fallback silencioso `dev-001`, que terminaba en 403 porque el `device.id` del sobre no coincidía con el token. El script de reinicio lo pasa siempre desde `config/.device-id`.
 - `hostname` y `boot_id` del sobre se resuelven del sistema (`COMPUTERNAME`/`/etc/hostname`, `/proc/sys/kernel/random/boot_id`); en plataformas sin boot id estable se usa un UUID por proceso.
 - `host_mark` usa una clave HMAC que **no** está en el binario. Precedencia: `SC_HMAC_KEY` → `privacy.hmac_key_file` → clave aleatoria generada y persistida en el primer arranque (`config/.host-key`, ignorado por git). Conservá ese archivo: si cambia la clave, los `host_key` nuevos dejan de coincidir con el historial del dashboard. Para mantener continuidad con instalaciones previas, fijá `SC_HMAC_KEY=sc-sentinel-dev-key` hasta hacer la migración.
+
+### Colector de flujos (NetFlow/IPFIX)
+
+El agente puede recibir exportaciones UDP de routers y switches y sumarlas a la captura pcap en la misma ventana de 30 s. Se configura en `config.toml`:
+
+```toml
+[collector]
+enabled = true
+bind_addr = "0.0.0.0"          # 127.0.0.1 para aceptar solo exportadores locales
+listeners = [
+    { port = 2055, protocol = "auto" },  # detecta v5/v9/IPFIX por datagrama
+    { port = 4739, protocol = "ipfix" }, # fija el formato del socket
+]
+template_cache_capacity = 10000
+template_cache_ttl_secs = 3600
+```
+
+Flags equivalentes (pisan al archivo y a `SC_*`):
+
+- `--collector` habilita el colector aunque el archivo lo desactive.
+- `--no-collector` lo desactiva aunque el archivo lo habilite.
+- `--collector-port 2055,4739` reemplaza los listeners y habilita el colector.
+
+Un ejemplo completo listo para copiar es `config/sc-agent-collector.toml.sample`.
+
+#### Variables de entorno
+
+```bash
+SC_COLLECTOR_ENABLED=true
+SC_COLLECTOR_PORTS=2055,4739,9995
+```
+
+`SC_COLLECTOR_PORTS` reemplaza la lista de listeners (todos en `auto`) y `SC_COLLECTOR_ENABLED` habilita o deshabilita el colector. Los flags de CLI siguen teniendo prioridad sobre el archivo y el entorno.
+
+#### Requisitos
+
+- Puertos UDP libres (no usados por otro servicio del equipo).
+- Firewall del equipo permitiendo tráfico UDP entrante en esos puertos.
+- Routers o switches configurados para exportar NetFlow v5/v9 o IPFIX hacia la IP del agente.
+
+Los puertos deben ser ≥1024 y no repetirse; `protocol` acepta `auto`, `v5`, `v9` o `ipfix`.
+
+Cada listener tiene su propia cache de templates. Si un puerto no se puede abrir, el agente registra el error, lo publica en `last_error` del health y sigue con la captura pcap: no se cae el monitoreo local. Las métricas del colector (`packets_received`, `flows_normalized`, `parse_errors`, `templates_cached`, etc.) todavía no se envían al dashboard (T4.1).

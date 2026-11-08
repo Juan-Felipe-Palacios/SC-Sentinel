@@ -161,3 +161,20 @@ Desplegar la infraestructura de nube (Neon Postgres + Vercel API) y el Dashboard
 - **Auth:** Cookie httpOnly, secure en producción
 - **Rate limiting:** Implementación simple inicial, puede migrar a Upstash después
 - **Dependencia M1:** Agente ya soporta endpoint configurable ✓
+
+---
+
+## Estado de cierre (2026-11-08)
+
+M2 quedó cerrado con los commits hasta `3fe3a24`, gates verdes y preview de Neon
+(`m2-preview`); ver `docs/superpowers/plans/2026-11-05-m3-landing-ia-design.md` §3.
+Los checkboxes de arriba se conservan como registro de ejecución; el estado real es:
+
+| Task | Estado | Evidencia |
+|---|---|---|
+| 1 · Neon + Drizzle | ✅ | `web/lib/db/`, migraciones `0000`–`0007` |
+| 2 · `/api/ingest` | ✅ | route, Zod, auth SHA-256, idempotencia y rate limit |
+| 3 · `/api/query` | ✅ | `web/app/api/query/route.ts` y queries por métrica |
+| 4 · Dashboard v0 | ✅ | `web/components/dashboard/` con componentes propios (sin shadcn) |
+| 5 · Cleanup | ✅ | `web/app/api/cron/cleanup/`, `web/lib/cleanup/retention.ts`, `web/vercel.json` |
+| 6 · Smoke E2E | ✅ | preview M2 + gates verdes (M3 §3) |

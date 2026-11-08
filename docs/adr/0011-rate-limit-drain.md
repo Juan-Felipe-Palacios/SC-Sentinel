@@ -22,3 +22,19 @@ Tras reconectar, el agente debe drenar un spool de hasta 500 MB / 7 días (≈ 2
 
 - Un spool vacío drena a lo sumo en ~2.880/día → con 60 req/min ≈ 48 min max por día completo acumulado promedio.
 - Los 401 anti-abuse cuentan por IP y no deben afectar al token legítimo (rutas de ataque independientes).
+
+## Actualización 2026-11-08 — alcance real del límite en memoria
+
+El token bucket vive en el proceso de la función serverless. Vercel puede ejecutar
+varias instancias en paralelo y reciclarlas, así que el estado **no se comparte**:
+cada instancia aplica su propio límite.
+
+- Se mantiene como mitigación **best-effort** contra ruido accidental y reintentos
+descontrolados, no como defensa contra ataques distribuidos.
+- La autenticación por token y el límite de 20 req/min por IP sin token siguen
+siendo el filtro principal de v1; ambos heredan la misma limitación de instancia.
+- Un WAF o rate limit de borde en Vercel sería la mitigación de red adecuada, pero
+no está configurado en v1.
+- La migración a un almacén distribuido (Upstash Redis u equivalente) se pospone
+hasta que el volumen de dispositivos o los incidentes justifiquen su costo y
+complejidad (spec §21).

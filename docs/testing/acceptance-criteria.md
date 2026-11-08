@@ -2,6 +2,10 @@
 
 Fuente: spec §14.3. Cada hito cierra cuando TODOS los checks correspondientes pasan (y el checklist del `release-checklist.md` si aplica).
 
+> Nota de nombres: el binario se llamó `sc-agent` hasta el 2026-11-08; desde entonces
+> el artefacto es `sc-sentinel-agent` (el crate sigue siendo `sc-agent`). Las notas
+> históricas conservan el nombre usado en su fecha.
+
 ## M0 — Scaffold + CI (3–4 días)
 
 - [x] Repo con estructura completa del árbol §4 del spec (agent/, web/, docs/).
@@ -79,6 +83,13 @@ Alcance de cierre: backend seguro, RAG agregado de 24 h, streaming SSE, persiste
 - [ ] Fixtures de collector (paquetes de muestra, sin datos sensibles).
 - [ ] Diferencias pcap vs flow documentadas (sampling, timeouts, bytes por paquete).
 - [ ] Marca la agregación de windows de la misma calidad que en capturas.
+
+> M4 (2026-11-08): parsers, listener, cache de templates e integración con el
+> aggregator verificados con fixtures sintéticos y tests de loopback UDP. La
+> validación con un exportador real **sigue pendiente**: falta configurar un
+> MikroTik/Cisco para exportar a los puertos del colector, correr el agente con
+> `--collector`, confirmar las ventanas en el dashboard y actualizar la topología
+> IPFIX. Ver ADR-0014 §9: los pcaps reales de Wireshark/MikroTik aún no se probaron.
 
 ## M5 — Servicio + instalador + GUI (1–2 semanas)
 

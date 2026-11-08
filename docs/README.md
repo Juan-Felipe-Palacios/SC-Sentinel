@@ -8,7 +8,7 @@
 
 | Directorio | Contenido | Autoridad |
 |---|---|---|
-| `adr/` | 13 decisiones de arquitectura (0001–0013) | espec §3 |
+| `adr/` | 14 decisiones de arquitectura (0001–0014) | espec §3 |
 | `contracts/` | contratos `/api/ingest` v1 y `/api/chat` v1 + 3 schemas JSON + 4 ejemplos | spec §5, §6 |
 | `diagrams/` | 7 mermaid `.mmd` + 4 drawio + reglas de exports (`README.md` propio) | spec §17 |
 | `runbooks/` | 8: local-dev, inst. Windows/Linux, troubleshoot pcap/sync, rotación token, cleanup DB, incident-response | spec §8, §9, §12, §13 |
@@ -31,7 +31,7 @@
 | Grupo | Estado | Alineado con hito |
 |---|---|---|
 | specs/ | ✅ v2.2 (consolidación IA free-tier 2026-11-08) | base |
-| adr/ | ✅ 13 ADRs (0001–0013) | M0, M3.5 |
+| adr/ | ✅ 14 ADRs (0001–0014) | M0, M3.5, M4 |
 | contracts/ | ✅ v1 congelados (schemas + ejemplos) | M0 |
 | diagrams/ | ✅ 11 fuentes creados | M0–M5 |
 | runbooks/ | ✅ 8 escritos (a verificar contra instalación real en M5) | M1–M5 |

@@ -8,6 +8,7 @@
 
 use serde::Deserialize;
 use std::io::Write;
+use std::net::{IpAddr, Ipv4Addr};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -24,6 +25,14 @@ const DEFAULT_ANONYMIZE_HOSTS: bool = false;
 const DEFAULT_HMAC_KEY_ENV: &str = "SC_HMAC_KEY";
 /// Archivo donde se persiste la clave generada en el primer arranque.
 const DEFAULT_HMAC_KEY_FILE: &str = "./config/.host-key";
+/// Puertos de escucha del colector cuando el archivo no los define.
+const DEFAULT_COLLECTOR_PORTS: [u16; 2] = [2055, 4739];
+/// Un puerto por debajo de 1024 exige privilegios y suele ser un error de tipeo.
+const MIN_COLLECTOR_PORT: u16 = 1024;
+const DEFAULT_TEMPLATE_CACHE_CAPACITY: usize = 10_000;
+const DEFAULT_TEMPLATE_CACHE_TTL_SECS: u64 = 3_600;
+const DEFAULT_COLLECTOR_PROTOCOL: &str = "auto";
+const COLLECTOR_PROTOCOLS: [&str; 4] = ["auto", "v5", "v9", "ipfix"];
 /// 32 bytes (dos UUID v4) de entropía del CSPRNG del sistema.
 const HMAC_KEY_LEN: usize = 32;
 /// El cliente de `sc-sync` solo comprime con gzip; `zstd` queda para cuando
@@ -61,6 +70,7 @@ pub struct AgentConfig {
     pub privacy: PrivacySection,
     pub spool: SpoolSection,
     pub log: LogSection,
+    pub collector: CollectorSection,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -149,6 +159,55 @@ impl Default for LogSection {
     }
 }
 
+/// Colector pasivo de flujos por UDP (NetFlow v5/v9 e IPFIX).
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields, default)]
+pub struct CollectorSection {
+    /// El colector es opt-in: sin esto el agente solo captura tráfico local.
+    pub enabled: bool,
+    /// Interfaz de escucha; `0.0.0.0` acepta exportadores de toda la red.
+    pub bind_addr: IpAddr,
+    pub listeners: Vec<ListenerSection>,
+    /// Templates recordados por cada socket (cache LRU independiente).
+    pub template_cache_capacity: usize,
+    pub template_cache_ttl_secs: u64,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ListenerSection {
+    pub port: u16,
+    /// `auto` detecta la versión por datagrama; `v5`, `v9` o `ipfix` la fijan.
+    #[serde(default = "default_collector_protocol")]
+    pub protocol: String,
+}
+
+fn default_collector_protocol() -> String {
+    DEFAULT_COLLECTOR_PROTOCOL.to_string()
+}
+
+fn default_collector_listeners() -> Vec<ListenerSection> {
+    DEFAULT_COLLECTOR_PORTS
+        .iter()
+        .map(|port| ListenerSection {
+            port: *port,
+            protocol: default_collector_protocol(),
+        })
+        .collect()
+}
+
+impl Default for CollectorSection {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            bind_addr: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+            listeners: default_collector_listeners(),
+            template_cache_capacity: DEFAULT_TEMPLATE_CACHE_CAPACITY,
+            template_cache_ttl_secs: DEFAULT_TEMPLATE_CACHE_TTL_SECS,
+        }
+    }
+}
+
 impl AgentConfig {
     /// Lee y valida un `config.toml`, aplicando luego los overrides `SC_*`.
     pub fn load(path: &Path) -> Result<Self, ConfigError> {
@@ -184,8 +243,8 @@ impl AgentConfig {
         Ok(config)
     }
 
-    /// Aplica `SC_INGEST_URL`, `SC_SPOOL_PATH`, `SC_SPOOL_MAX_BYTES`, `SC_LOG`
-    /// y `SC_ANONYMIZE_HOSTS`.
+    /// Aplica `SC_INGEST_URL`, `SC_SPOOL_PATH`, `SC_SPOOL_MAX_BYTES`, `SC_LOG`,
+    /// `SC_ANONYMIZE_HOSTS`, `SC_COLLECTOR_ENABLED` y `SC_COLLECTOR_PORTS`.
     pub fn with_env(&mut self) -> Result<&mut Self, ConfigError> {
         self.with_env_from(|key| std::env::var(key).ok().filter(|v| !v.is_empty()))
     }
@@ -212,17 +271,39 @@ impl AgentConfig {
             self.log.level = level;
         }
         if let Some(raw) = lookup("SC_ANONYMIZE_HOSTS") {
-            self.privacy.anonymize_hosts = match raw.trim().to_ascii_lowercase().as_str() {
-                "1" | "true" | "yes" | "on" => true,
-                "0" | "false" | "no" | "off" => false,
-                _ => {
-                    return Err(ConfigError::Invalid {
-                        field: "SC_ANONYMIZE_HOSTS",
-                        value: raw,
-                        expected: "true o false",
-                    })
-                }
-            };
+            self.privacy.anonymize_hosts = parse_bool("SC_ANONYMIZE_HOSTS", &raw)?;
+        }
+        if let Some(raw) = lookup("SC_COLLECTOR_ENABLED") {
+            self.collector.enabled = parse_bool("SC_COLLECTOR_ENABLED", &raw)?;
+        }
+        if let Some(raw) = lookup("SC_COLLECTOR_PORTS") {
+            self.collector.listeners = parse_collector_ports(&raw)?;
+        }
+        self.validate()?;
+        Ok(self)
+    }
+
+    /// Precedencia de CLI sobre archivo y entorno. Elegir puertos por CLI
+    /// habilita el colector salvo que `enabled` diga explícitamente lo contrario.
+    pub fn with_collector_cli(
+        &mut self,
+        enabled: Option<bool>,
+        ports: &[u16],
+    ) -> Result<&mut Self, ConfigError> {
+        if let Some(enabled) = enabled {
+            self.collector.enabled = enabled;
+        }
+        if !ports.is_empty() {
+            self.collector.listeners = ports
+                .iter()
+                .map(|port| ListenerSection {
+                    port: *port,
+                    protocol: default_collector_protocol(),
+                })
+                .collect();
+            if enabled.is_none() {
+                self.collector.enabled = true;
+            }
         }
         self.validate()?;
         Ok(self)
@@ -291,6 +372,57 @@ impl AgentConfig {
                 field: "privacy.hmac_key_file",
                 value: self.privacy.hmac_key_file.display().to_string(),
                 expected: "ruta para persistir la clave HMAC",
+            });
+        }
+        self.validate_collector()?;
+        Ok(())
+    }
+
+    fn validate_collector(&self) -> Result<(), ConfigError> {
+        if self.collector.enabled && self.collector.listeners.is_empty() {
+            return Err(ConfigError::Invalid {
+                field: "collector.listeners",
+                value: "[]".to_string(),
+                expected: "al menos un puerto cuando el colector está habilitado",
+            });
+        }
+        let mut seen = std::collections::HashSet::new();
+        for listener in &self.collector.listeners {
+            if listener.port < MIN_COLLECTOR_PORT {
+                return Err(ConfigError::Invalid {
+                    field: "collector.listeners.port",
+                    value: listener.port.to_string(),
+                    expected: "puerto entre 1024 y 65535",
+                });
+            }
+            if !seen.insert(listener.port) {
+                return Err(ConfigError::Invalid {
+                    field: "collector.listeners.port",
+                    value: listener.port.to_string(),
+                    expected: "puertos distintos (un socket por puerto)",
+                });
+            }
+            let protocol = listener.protocol.to_ascii_lowercase();
+            if !COLLECTOR_PROTOCOLS.contains(&protocol.as_str()) {
+                return Err(ConfigError::Invalid {
+                    field: "collector.listeners.protocol",
+                    value: listener.protocol.clone(),
+                    expected: "auto, v5, v9 o ipfix",
+                });
+            }
+        }
+        if self.collector.template_cache_capacity == 0 {
+            return Err(ConfigError::Invalid {
+                field: "collector.template_cache_capacity",
+                value: "0".to_string(),
+                expected: "capacidad mayor que 0",
+            });
+        }
+        if self.collector.template_cache_ttl_secs == 0 {
+            return Err(ConfigError::Invalid {
+                field: "collector.template_cache_ttl_secs",
+                value: "0".to_string(),
+                expected: "TTL de al menos 1 segundo",
             });
         }
         Ok(())
@@ -384,6 +516,43 @@ impl AgentConfig {
     }
 }
 
+fn parse_bool(field: &'static str, raw: &str) -> Result<bool, ConfigError> {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => Ok(true),
+        "0" | "false" | "no" | "off" => Ok(false),
+        _ => Err(ConfigError::Invalid {
+            field,
+            value: raw.to_string(),
+            expected: "true o false",
+        }),
+    }
+}
+
+/// `2055,4739` → listeners con detección automática de protocolo.
+fn parse_collector_ports(raw: &str) -> Result<Vec<ListenerSection>, ConfigError> {
+    let mut listeners = Vec::new();
+    for item in raw.split(',') {
+        let item = item.trim();
+        let port = item.parse::<u16>().map_err(|_| ConfigError::Invalid {
+            field: "SC_COLLECTOR_PORTS",
+            value: raw.to_string(),
+            expected: "puertos UDP separados por coma, p. ej. 2055,4739",
+        })?;
+        listeners.push(ListenerSection {
+            port,
+            protocol: default_collector_protocol(),
+        });
+    }
+    if listeners.is_empty() {
+        return Err(ConfigError::Invalid {
+            field: "SC_COLLECTOR_PORTS",
+            value: raw.to_string(),
+            expected: "al menos un puerto",
+        });
+    }
+    Ok(listeners)
+}
+
 /// Clave nueva con entropía del CSPRNG del sistema (dos UUID v4).
 fn random_hmac_key() -> Vec<u8> {
     let mut key = Vec::with_capacity(HMAC_KEY_LEN);
@@ -439,6 +608,16 @@ mod tests {
             config.privacy.hmac_key_file,
             PathBuf::from("./config/.host-key")
         );
+        assert!(config.collector.enabled);
+        assert_eq!(
+            config.collector.bind_addr,
+            IpAddr::V4(Ipv4Addr::UNSPECIFIED)
+        );
+        assert_eq!(config.collector.listeners.len(), 4);
+        assert_eq!(config.collector.listeners[0].port, 2055);
+        assert_eq!(config.collector.listeners[0].protocol, "auto");
+        assert_eq!(config.collector.template_cache_capacity, 10_000);
+        assert_eq!(config.collector.template_cache_ttl_secs, 3_600);
     }
 
     #[test]
@@ -478,6 +657,168 @@ mod tests {
     fn rechaza_claves_desconocidas() {
         let error = AgentConfig::parse("[ingest]\nendpont = \"x\"\n").expect_err("typo");
         assert!(matches!(error, ConfigError::Parse { .. }));
+    }
+
+    #[test]
+    fn parsea_el_sample_del_colector() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../config/sc-agent-collector.toml.sample");
+        let raw = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("no se pudo leer {}: {error}", path.display()));
+        let config = AgentConfig::parse(&raw).expect("sample del colector válido");
+
+        assert!(config.collector.enabled);
+        assert_eq!(
+            config.collector.bind_addr,
+            IpAddr::V4(Ipv4Addr::UNSPECIFIED)
+        );
+        assert_eq!(
+            config
+                .collector
+                .listeners
+                .iter()
+                .map(|listener| (listener.port, listener.protocol.as_str()))
+                .collect::<Vec<_>>(),
+            vec![(2055, "auto"), (4739, "auto")]
+        );
+        assert_eq!(config.collector.template_cache_capacity, 10_000);
+        assert_eq!(config.collector.template_cache_ttl_secs, 3_600);
+    }
+
+    #[test]
+    fn colector_deshabilitado_por_defecto() {
+        let config = AgentConfig::default();
+        assert!(!config.collector.enabled);
+        assert_eq!(config.collector.listeners.len(), 2);
+        assert_eq!(config.collector.listeners[0].port, 2055);
+        assert_eq!(config.collector.listeners[1].port, 4739);
+    }
+
+    #[test]
+    fn rechaza_puerto_de_colector_por_debajo_de_1024() {
+        let error =
+            AgentConfig::parse("[collector]\nenabled = true\nlisteners = [{ port = 514 }]\n")
+                .expect_err("puerto privilegiado");
+        assert!(matches!(
+            error,
+            ConfigError::Invalid {
+                field: "collector.listeners.port",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn rechaza_protocolo_de_colector_desconocido() {
+        let error = AgentConfig::parse(
+            "[collector]\nlisteners = [{ port = 2055, protocol = \"sflow\" }]\n",
+        )
+        .expect_err("protocolo no soportado");
+        assert!(matches!(
+            error,
+            ConfigError::Invalid {
+                field: "collector.listeners.protocol",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn rechaza_puertos_duplicados_y_lista_vacia_habilitada() {
+        let duplicated =
+            AgentConfig::parse("[collector]\nlisteners = [{ port = 2055 }, { port = 2055 }]\n")
+                .expect_err("puerto repetido");
+        assert!(matches!(
+            duplicated,
+            ConfigError::Invalid {
+                field: "collector.listeners.port",
+                ..
+            }
+        ));
+
+        let empty = AgentConfig::parse("[collector]\nenabled = true\nlisteners = []\n")
+            .expect_err("sin listeners");
+        assert!(matches!(
+            empty,
+            ConfigError::Invalid {
+                field: "collector.listeners",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn overrides_de_entorno_del_colector() {
+        let mut config = AgentConfig::default();
+        config
+            .with_env_from(|key| match key {
+                "SC_COLLECTOR_ENABLED" => Some("yes".to_string()),
+                "SC_COLLECTOR_PORTS" => Some("9995, 9996".to_string()),
+                _ => None,
+            })
+            .expect("overrides válidos");
+
+        assert!(config.collector.enabled);
+        assert_eq!(config.collector.listeners.len(), 2);
+        assert_eq!(config.collector.listeners[1].port, 9996);
+        assert_eq!(config.collector.listeners[1].protocol, "auto");
+    }
+
+    #[test]
+    fn puertos_invalidos_por_entorno_son_error_claro() {
+        let error = AgentConfig::default()
+            .with_env_from(|key| (key == "SC_COLLECTOR_PORTS").then(|| "2055,abc".to_string()))
+            .expect_err("puerto no numérico");
+        assert!(matches!(
+            error,
+            ConfigError::Invalid {
+                field: "SC_COLLECTOR_PORTS",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn la_cli_habilita_el_colector_al_elegir_puertos() {
+        let mut config = AgentConfig::default();
+        config
+            .with_collector_cli(None, &[2055, 4739])
+            .expect("puertos válidos");
+
+        assert!(config.collector.enabled);
+        assert_eq!(
+            config
+                .collector
+                .listeners
+                .iter()
+                .map(|listener| listener.port)
+                .collect::<Vec<_>>(),
+            vec![2055, 4739]
+        );
+    }
+
+    #[test]
+    fn la_cli_puede_deshabilitar_lo_que_el_archivo_habilita() {
+        let mut config = AgentConfig::parse(&sample_toml()).expect("sample válido");
+        assert!(config.collector.enabled);
+        config
+            .with_collector_cli(Some(false), &[])
+            .expect("deshabilitar");
+        assert!(!config.collector.enabled);
+    }
+
+    #[test]
+    fn la_cli_valida_los_puertos() {
+        let error = AgentConfig::default()
+            .with_collector_cli(None, &[0])
+            .expect_err("puerto 0 inválido");
+        assert!(matches!(
+            error,
+            ConfigError::Invalid {
+                field: "collector.listeners.port",
+                ..
+            }
+        ));
     }
 
     #[test]
