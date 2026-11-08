@@ -218,7 +218,7 @@ export default function MarketingHome() {
                     </div>
                   </div>
 
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-850 space-y-1.5 text-[11px]">
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5 text-[11px]">
                     <div className="flex justify-between text-slate-400">
                       <span>Último Snapshot:</span>
                       <span className="text-slate-200">hace 2s (Ventana #4812)</span>

@@ -13,9 +13,9 @@ import { timeAgo } from '@/lib/format';
 const REFRESH_MS = 30_000;
 
 const STATUS_STYLES: Record<string, string> = {
-  active: 'text-sc-risk-low border-sc-risk-low/40 bg-sc-risk-low/10',
-  enrolled_pending: 'text-sc-risk-medium border-sc-risk-medium/40 bg-sc-risk-medium/10',
-  revoked: 'text-sc-risk-critical border-sc-risk-critical/40 bg-sc-risk-critical/10',
+  active: 'text-emerald-400 border-emerald-400/40 bg-emerald-400/10',
+  enrolled_pending: 'text-amber-400 border-amber-400/40 bg-amber-400/10',
+  revoked: 'text-red-400 border-red-400/40 bg-red-400/10',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -25,7 +25,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function StatusChip({ status }: { status: string }) {
-  const style = STATUS_STYLES[status] ?? 'text-sc-text-muted border-white/10 bg-white/5';
+  const style = STATUS_STYLES[status] ?? 'text-slate-400 border-white/10 bg-slate-800/60';
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded border px-2 py-0.5 font-mono text-[8px] uppercase tracking-[0.2em] ${style}`}
@@ -131,10 +131,10 @@ export function SettingsView() {
 
   if (error instanceof FetchError && error.status === 401) {
     return (
-      <div className="mx-auto max-w-md rounded-lg border sc-hairline bg-sc-surface p-8 text-center">
-        <TriangleAlert className="mx-auto size-6 text-sc-warn" strokeWidth={1.5} aria-hidden="true" />
-        <h2 className="mt-4 font-display text-lg font-semibold text-sc-text">Tu sesión expiró</h2>
-        <p className="mt-2 text-sm leading-6 text-sc-text-muted">
+      <div className="mx-auto max-w-md rounded-xl border-slate-800/80 bg-slate-900/60 p-8 text-center">
+        <TriangleAlert className="mx-auto size-6 text-amber-400" strokeWidth={1.5} aria-hidden="true" />
+        <h2 className="mt-4 font-display text-lg font-semibold text-slate-100">Tu sesión expiró</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-400">
           Por seguridad, la sesión de administrador dura 8 horas. Volvé a entrar para gestionar los
           dispositivos.
         </p>
@@ -145,29 +145,29 @@ export function SettingsView() {
   return (
     <div className="space-y-6">
       {actionError ? (
-        <p className="flex items-start gap-2 rounded-md border border-sc-risk-high/30 bg-sc-risk-high/10 px-3 py-2 text-xs leading-5 text-sc-risk-high">
+        <p className="flex items-start gap-2 rounded-lg border border-orange-400/30 bg-orange-400/10 px-3 py-2 text-xs leading-5 text-orange-400">
           <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
           {actionError}
         </p>
       ) : null}
 
-      <section aria-label="Enrolar dispositivo" className="rounded-lg border sc-hairline bg-sc-surface">
-        <header className="border-b sc-hairline px-5 py-4">
-          <h2 className="font-mono text-[10px] uppercase tracking-[0.24em] text-sc-text-muted">
+      <section aria-label="Enrolar dispositivo" className="rounded-xl border-slate-800/80 bg-slate-900/60">
+        <header className="border-b border-slate-800/80 px-5 py-4">
+          <h2 className="font-mono text-[10px] uppercase tracking-[0.24em] text-slate-400">
             Enrolar dispositivo
           </h2>
-          <p className="mt-1.5 text-xs leading-5 text-sc-text-muted">
+          <p className="mt-1.5 text-xs leading-5 text-slate-400">
             Genera un token permanente. Se muestra una sola vez: copialo como
-            <code className="mx-1 rounded bg-sc-surface-alt px-1 py-0.5 font-mono text-[10px]">SC_INGEST_TOKEN</code>
+            <code className="mx-1 rounded bg-slate-800 px-1 py-0.5 font-mono text-[10px]">SC_INGEST_TOKEN</code>
             en la máquina del agente, con el id del device en
-            <code className="mx-1 rounded bg-sc-surface-alt px-1 py-0.5 font-mono text-[10px]">SC_SENTINEL_DEVICE_ID</code>
+            <code className="mx-1 rounded bg-slate-800 px-1 py-0.5 font-mono text-[10px]">SC_SENTINEL_DEVICE_ID</code>
             (si no coinciden, el ingest responde 403).
           </p>
         </header>
 
         <form onSubmit={handleEnroll} className="flex flex-wrap items-end gap-3 px-5 py-4">
           <label className="flex min-w-56 flex-1 flex-col gap-1.5">
-            <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-sc-text-muted">
+            <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-slate-400">
               Nombre del nodo (opcional)
             </span>
             <input
@@ -176,13 +176,13 @@ export function SettingsView() {
               onChange={(event) => setName(event.target.value)}
               maxLength={120}
               placeholder="Equipo de casa"
-              className="rounded-md border sc-hairline bg-sc-bg px-3 py-2 text-sm text-sc-text placeholder:text-sc-text-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sc-viz-in/50"
+              className="rounded-xl border-slate-800/80 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50"
             />
           </label>
           <button
             type="submit"
             disabled={busy !== null}
-            className="inline-flex items-center gap-2 rounded-md border border-sc-viz-in/40 bg-sc-viz-in/10 px-4 py-2 font-display text-sm font-semibold text-sc-viz-in transition-colors hover:bg-sc-viz-in/20 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sc-viz-in/50"
+            className="inline-flex items-center gap-2 rounded-lg border border-sky-400/40 bg-sky-400/10 px-4 py-2 font-display text-sm font-semibold text-sky-400 transition-colors hover:bg-sky-400/20 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50"
           >
             {busy === 'enroll' ? (
               <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -194,23 +194,23 @@ export function SettingsView() {
         </form>
 
         {issued ? (
-          <div className="mx-5 mb-5 rounded-md border border-sc-risk-medium/40 bg-sc-risk-medium/10 p-3">
-            <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-sc-risk-medium">
+          <div className="mx-5 mb-5 rounded-lg border border-amber-400/40 bg-amber-400/10 p-3">
+            <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-amber-400">
               Token de {issued.device_id} · visible solo ahora
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <code className="min-w-0 flex-1 overflow-x-auto rounded bg-sc-bg px-2 py-1.5 font-mono text-[11px] text-sc-text">
+              <code className="min-w-0 flex-1 overflow-x-auto rounded bg-slate-950/60 px-2 py-1.5 font-mono text-[11px] text-slate-100">
                 {issued.token}
               </code>
               <button
                 type="button"
                 onClick={() => void copyToken()}
-                className="rounded-md border sc-hairline px-3 py-1.5 font-display text-xs font-semibold text-sc-text transition-colors hover:bg-sc-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sc-viz-in/50"
+                className="rounded-xl border-slate-800/80 px-3 py-1.5 font-display text-xs font-semibold text-slate-100 transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50"
               >
                 {copied ? 'Copiado' : 'Copiar'}
               </button>
             </div>
-            <p className="mt-2 text-[11px] leading-5 text-sc-text-muted">
+            <p className="mt-2 text-[11px] leading-5 text-slate-400">
               El token no expira. No se puede volver a consultar: guardalo en un lugar seguro. Si lo
               perdés, vas a tener que eliminar el dispositivo y enrolarlo de nuevo.
             </p>
@@ -218,15 +218,15 @@ export function SettingsView() {
         ) : null}
       </section>
 
-      <section aria-label="Dispositivos enrolados" className="rounded-lg border sc-hairline bg-sc-surface">
-        <header className="flex items-center justify-between gap-3 border-b sc-hairline px-5 py-4">
-          <h2 className="font-mono text-[10px] uppercase tracking-[0.24em] text-sc-text-muted">
+      <section aria-label="Dispositivos enrolados" className="rounded-xl border-slate-800/80 bg-slate-900/60">
+        <header className="flex items-center justify-between gap-3 border-b border-slate-800/80 px-5 py-4">
+          <h2 className="font-mono text-[10px] uppercase tracking-[0.24em] text-slate-400">
             Dispositivos enrolados
           </h2>
           <button
             type="button"
             onClick={() => void mutate()}
-            className="inline-flex items-center gap-2 rounded-md border sc-hairline px-3 py-1.5 font-display text-xs font-semibold text-sc-text transition-colors hover:bg-sc-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sc-viz-in/50"
+            className="inline-flex items-center gap-2 rounded-xl border-slate-800/80 px-3 py-1.5 font-display text-xs font-semibold text-slate-100 transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50"
           >
             <RefreshCw className="size-3.5" aria-hidden="true" />
             Actualizar
@@ -236,35 +236,35 @@ export function SettingsView() {
         <div className="px-5 py-4">
           {isLoading && !data ? (
             <div aria-busy="true" aria-label="Cargando dispositivos" className="space-y-2">
-              <div className="h-10 animate-pulse rounded bg-sc-surface-alt/70" aria-hidden="true" />
-              <div className="h-10 animate-pulse rounded bg-sc-surface-alt/70" aria-hidden="true" />
+              <div className="h-10 animate-pulse rounded bg-slate-800/70" aria-hidden="true" />
+              <div className="h-10 animate-pulse rounded bg-slate-800/70" aria-hidden="true" />
             </div>
           ) : error ? (
-            <p className="flex items-start gap-2 text-xs leading-5 text-sc-text-muted">
-              <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-sc-warn" aria-hidden="true" />
+            <p className="flex items-start gap-2 text-xs leading-5 text-slate-400">
+              <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-400" aria-hidden="true" />
               No se pudo cargar la lista de dispositivos.
             </p>
           ) : devices.length === 0 ? (
             <div className="flex items-start gap-3">
-              <KeyRound className="mt-0.5 size-4 shrink-0 text-sc-text-muted" strokeWidth={1.5} aria-hidden="true" />
+              <KeyRound className="mt-0.5 size-4 shrink-0 text-slate-400" strokeWidth={1.5} aria-hidden="true" />
               <div>
-                <p className="font-display text-sm font-semibold text-sc-text">Todavía no hay dispositivos.</p>
-                <p className="mt-1 text-xs leading-5 text-sc-text-muted">
+                <p className="font-display text-sm font-semibold text-slate-100">Todavía no hay dispositivos.</p>
+                <p className="mt-1 text-xs leading-5 text-slate-400">
                   Enrolá el primero arriba y usá el token en el agente. Sin un dispositivo enrolado no
                   llega ninguna ventana de tráfico y el panel queda vacío.
                 </p>
               </div>
             </div>
           ) : (
-            <ul className="divide-y divide-white/5 rounded-md border sc-hairline">
+            <ul className="divide-y divide-slate-800/60 rounded-xl border-slate-800/80">
               {devices.map((device) => (
                 <li key={device.id} className="flex flex-wrap items-center gap-3 px-3 py-3">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-sc-text">{device.name ?? 'Sin nombre'}</p>
-                    <p className="truncate font-mono text-[10px] uppercase tracking-[0.14em] text-sc-text-muted/70">
+                    <p className="truncate text-sm font-medium text-slate-100">{device.name ?? 'Sin nombre'}</p>
+                    <p className="truncate font-mono text-[10px] uppercase tracking-[0.14em] text-slate-400/70">
                       {device.id}
                     </p>
-                    <p className="mt-1 text-[11px] leading-5 text-sc-text-muted">
+                    <p className="mt-1 text-[11px] leading-5 text-slate-400">
                       Enrolado {timeAgo(device.enrolled_at)} ·{' '}
                       {device.last_seen_at ? `último envío ${timeAgo(device.last_seen_at)}` : 'sin envíos aún'}
                     </p>
@@ -274,7 +274,7 @@ export function SettingsView() {
                     type="button"
                     onClick={() => void handleDelete(device)}
                     disabled={busy !== null}
-                    className="inline-flex items-center gap-2 rounded-md border border-sc-risk-high/30 px-3 py-1.5 font-display text-xs font-semibold text-sc-risk-high transition-colors hover:bg-sc-risk-high/10 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sc-risk-high/50"
+                    className="inline-flex items-center gap-2 rounded-lg border border-orange-400/30 px-3 py-1.5 font-display text-xs font-semibold text-orange-400 transition-colors hover:bg-orange-400/10 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/50"
                   >
                     {busy === `delete:${device.id}` ? (
                       <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />

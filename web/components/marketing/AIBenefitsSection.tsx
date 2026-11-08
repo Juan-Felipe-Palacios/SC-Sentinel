@@ -162,7 +162,7 @@ export default function AIBenefitsSection() {
                   <th className="py-3 px-4 font-semibold text-emerald-400">Garantía Arquitectónica</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-850">
+              <tbody className="divide-y divide-slate-800">
                 {COMPARATIVE_MATRIX.map((row, idx) => (
                   <tr key={idx} className="hover:bg-slate-900/40 transition-colors">
                     <td className="py-4 px-4 font-display font-semibold text-slate-200 text-sm">
@@ -183,7 +183,7 @@ export default function AIBenefitsSection() {
             </table>
           </div>
 
-          <div className="mt-8 flex flex-wrap items-center justify-between gap-4 pt-6 border-t border-slate-850">
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-4 pt-6 border-t border-slate-800">
             <div className="flex items-center gap-2 text-xs text-slate-400">
               <Lock className="h-4 w-4 text-emerald-400" />
               <span>Garantía Contractual: Nunca compartimos tus datos con modelos públicos de entrenamiento.</span>

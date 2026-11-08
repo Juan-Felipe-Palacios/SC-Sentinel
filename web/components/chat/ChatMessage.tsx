@@ -28,7 +28,7 @@ function TypingDots() {
       {[0, 1, 2].map((index) => (
         <span
           key={index}
-          className="h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.8)]"
+          className="h-1.5 w-1.5 animate-bounce rounded-full bg-sky-400"
           style={{ animationDelay: `${index * 140}ms` }}
         />
       ))}
@@ -48,15 +48,15 @@ export function ChatMessage({
     return (
       <article className="sc-fade-up flex items-end justify-end gap-2">
         <div className="max-w-[88%]">
-          <div className="mb-1 flex items-center justify-end gap-2 font-mono text-[9px] uppercase tracking-[0.22em] text-orange-300/65">
+          <div className="mb-1 flex items-center justify-end gap-2 font-mono text-[9px] uppercase tracking-[0.22em] text-slate-400">
             <span>operador</span>
-            <span className="h-1 w-1 rounded-full bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.9)]" />
+            <span className="h-1 w-1 rounded-full bg-amber-400" />
           </div>
-          <div className="rounded-2xl rounded-br-sm border border-orange-400/35 bg-gradient-to-br from-orange-500/20 via-red-500/10 to-slate-950/40 px-3.5 py-2.5 text-[13px] leading-6 text-orange-50 shadow-[0_0_24px_rgba(249,115,22,0.12)] backdrop-blur">
+          <div className="rounded-2xl rounded-br-sm border border-slate-700 bg-slate-800/80 px-3.5 py-2.5 text-[13px] leading-6 text-slate-100">
             <p className="whitespace-pre-wrap break-words">{content}</p>
           </div>
         </div>
-        <div className="mb-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-orange-400/35 bg-orange-500/10 text-orange-300 shadow-[0_0_16px_rgba(249,115,22,0.18)]">
+        <div className="mb-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800/80 text-slate-300">
           <UserRound size={14} />
         </div>
       </article>
@@ -65,32 +65,32 @@ export function ChatMessage({
 
   return (
     <article className="sc-fade-up flex items-start gap-2.5">
-      <div className="sc-chat-avatar-pulse mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-400/30 bg-slate-950/90 p-1 shadow-[0_0_18px_rgba(34,211,238,0.18)]">
+      <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-500/30 bg-slate-950/80 p-1">
         <ChatRobot variant="compact" className="h-7 w-7" />
       </div>
 
       <div className="min-w-0 max-w-[90%] flex-1">
-        <div className="mb-1 flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.22em] text-cyan-300/70">
-          <span className="sc-chat-neon-text">Sentinel AI</span>
+        <div className="mb-1 flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.22em] text-sky-400">
+          <span>Sentinel AI</span>
           <span
             className={`h-1.5 w-1.5 rounded-full ${
               streaming
-                ? 'animate-pulse bg-cyan-300 shadow-[0_0_8px_rgba(34,211,238,0.9)]'
-                : 'bg-emerald-400/80 shadow-[0_0_6px_rgba(52,211,153,0.6)]'
+                ? 'animate-pulse bg-sky-400'
+                : 'bg-emerald-400'
             }`}
           />
-          <span className="text-cyan-200/35">{streaming ? 'analizando' : 'en línea'}</span>
+          <span className="text-slate-500">{streaming ? 'analizando' : 'en línea'}</span>
         </div>
 
         <div
           aria-live="polite"
-          className="rounded-2xl rounded-tl-sm border border-cyan-400/20 bg-slate-900/80 px-3.5 py-3 text-[13px] leading-6 text-slate-100 shadow-[0_0_30px_rgba(34,211,238,0.08),inset_0_0_28px_rgba(34,211,238,0.025)] backdrop-blur"
+          className="rounded-2xl rounded-tl-sm border border-slate-800 bg-slate-900/60 px-3.5 py-3 text-[13px] leading-6 text-slate-200"
         >
           {content ? (
             <div>
               <ChatMarkdown content={content} />
               {streaming ? (
-                <span className="sc-chat-caret ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 bg-cyan-300 shadow-[0_0_8px_rgba(34,211,238,0.9)]" />
+                <span className="sc-chat-caret ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 bg-sky-400" />
               ) : null}
             </div>
           ) : streaming ? (
@@ -101,7 +101,7 @@ export function ChatMessage({
         </div>
 
         {warnings.length > 0 ? (
-          <div className="mt-2 space-y-1.5 rounded-xl border border-amber-400/30 bg-amber-500/[0.08] px-3 py-2 shadow-[0_0_20px_rgba(245,158,11,0.08)]">
+          <div className="mt-2 space-y-1.5 rounded-xl border border-amber-500/30 bg-amber-500/[0.08] px-3 py-2">
             {warnings.map((warning) => (
               <p key={warning} className="flex items-start gap-1.5 text-[11px] leading-5 text-amber-200/90">
                 <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-amber-400" />
@@ -112,16 +112,16 @@ export function ChatMessage({
         ) : null}
 
         {sources.length > 0 ? (
-          <details className="group mt-2 rounded-xl border border-cyan-400/15 bg-slate-950/50 px-3 py-2 font-mono text-[10px] text-slate-400 backdrop-blur">
-            <summary className="flex cursor-pointer list-none items-center gap-1.5 text-cyan-300/65 transition hover:text-cyan-200">
+          <details className="group mt-2 rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 font-mono text-[10px] text-slate-400">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sky-400 transition hover:text-sky-300">
               <BookOpen className="h-3 w-3" />
               <span>Fuentes RAG ({sources.length})</span>
-              <span className="ml-auto text-cyan-200/30 transition group-open:rotate-180">▾</span>
+              <span className="ml-auto text-slate-500 transition group-open:rotate-180">▾</span>
             </summary>
-            <ul className="mt-2 space-y-1 border-t border-cyan-400/10 pt-2">
+            <ul className="mt-2 space-y-1 border-t border-slate-800 pt-2">
               {sources.map((source) => (
                 <li key={source} className="flex gap-1.5 leading-4">
-                  <span className="text-orange-300/60">›</span>
+                  <span className="text-slate-600">›</span>
                   <span>{source}</span>
                 </li>
               ))}
@@ -132,8 +132,8 @@ export function ChatMessage({
         {meta && (meta.model || meta.provider || meta.tokensUsed) ? (
           <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[9px] uppercase tracking-[0.14em] text-slate-500">
             {meta.model ? <span>{meta.model}</span> : null}
-            {meta.provider ? <span className="text-cyan-400/35">/ {meta.provider}</span> : null}
-            {meta.tokensUsed ? <span className="text-orange-300/35">{meta.tokensUsed} tok</span> : null}
+            {meta.provider ? <span className="text-slate-500">/ {meta.provider}</span> : null}
+            {meta.tokensUsed ? <span className="text-slate-500">{meta.tokensUsed} tok</span> : null}
           </div>
         ) : null}
       </div>

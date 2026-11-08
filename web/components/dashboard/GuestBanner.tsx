@@ -31,16 +31,16 @@ export function GuestBanner({ expiresAt }: { expiresAt: number }) {
   return (
     <div
       role="status"
-      className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-md border border-sc-warn/30 bg-sc-warn/10 px-4 py-2.5 text-sc-warn"
+      className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-2.5 text-amber-400"
     >
       <span className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em]">
         <Eye className="size-3.5" strokeWidth={1.8} aria-hidden="true" />
         Demo pública
       </span>
-      <span className="text-xs leading-5 text-sc-text/80">
+      <span className="text-xs leading-5 text-slate-100/80">
         Solo lectura, sin registro. Las acciones de administración están deshabilitadas.
       </span>
-      <span className="ml-auto inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.18em] text-sc-warn/80">
+      <span className="ml-auto inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.18em] text-amber-400/80">
         <LockKeyhole className="size-3" aria-hidden="true" />
         {remainingLabel}
       </span>

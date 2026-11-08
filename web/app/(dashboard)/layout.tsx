@@ -18,10 +18,13 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       role={auth.role}
       guestExpiresAt={auth.role === 'guest' ? auth.guest.expiresAt : undefined}
     >
-      <div className="flex min-h-dvh bg-sc-bg text-sc-text">
+      <div className="sc-grid-bg relative flex min-h-dvh bg-[#050a14] text-slate-100 antialiased selection:bg-sky-500/25 selection:text-sky-200">
+        {/* Glows ambientales sutiles (Raycast/Cloudflare dark SOC) */}
+        <div className="pointer-events-none fixed top-0 left-1/4 h-[380px] w-[480px] rounded-full bg-sky-500/5 blur-[120px]" aria-hidden="true" />
+        <div className="pointer-events-none fixed bottom-0 right-1/4 h-[380px] w-[480px] rounded-full bg-purple-500/5 blur-[140px]" aria-hidden="true" />
         <Sidebar />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <Suspense fallback={<div className="h-16 border-b sc-hairline bg-sc-bg/85" aria-hidden="true" />}>
+        <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+          <Suspense fallback={<div className="h-16 border-b border-slate-800/80 bg-slate-950/85" aria-hidden="true" />}>
             <Topbar />
           </Suspense>
           <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">

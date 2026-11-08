@@ -15,7 +15,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
       return (
-        <strong key={key} className="font-semibold text-sc-text">
+        <strong key={key} className="font-semibold text-slate-100">
           {part.slice(2, -2)}
         </strong>
       );
@@ -25,7 +25,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
       return (
         <code
           key={key}
-          className="rounded border border-sc-viz-in/20 bg-sc-bg/80 px-1 py-0.5 font-mono text-[0.85em] text-sc-viz-in"
+          className="rounded border border-sky-400/20 bg-slate-950/80 px-1 py-0.5 font-mono text-[0.85em] text-sky-400"
         >
           {part.slice(1, -1)}
         </code>
@@ -42,7 +42,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
             href={href}
             target="_blank"
             rel="noreferrer noopener"
-            className="text-sc-viz-in underline decoration-sc-viz-in/40 underline-offset-2 hover:decoration-sc-viz-in"
+            className="text-sky-400 underline decoration-sky-400/40 underline-offset-2 hover:decoration-sky-400"
           >
             {label}
           </a>
@@ -53,7 +53,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 
     if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
       return (
-        <em key={key} className="italic text-sc-text/90">
+        <em key={key} className="italic text-slate-100/90">
           {part.slice(1, -1)}
         </em>
       );
@@ -81,7 +81,7 @@ function renderTextBlock(block: string, blockKey: string): ReactNode[] {
       nodes.push(
         <p
           key={`${blockKey}-h-${index}`}
-          className="font-display text-[13px] font-semibold tracking-wide text-sc-text"
+          className="font-display text-[13px] font-semibold tracking-wide text-slate-100"
         >
           {renderInline(heading[2], `${blockKey}-h-${index}`)}
         </p>
@@ -97,7 +97,7 @@ function renderTextBlock(block: string, blockKey: string): ReactNode[] {
         index += 1;
       }
       nodes.push(
-        <ul key={`${blockKey}-ul-${index}`} className="my-1.5 list-disc space-y-1 pl-5 marker:text-sc-viz-in/80">
+        <ul key={`${blockKey}-ul-${index}`} className="my-1.5 list-disc space-y-1 pl-5 marker:text-sky-400/80">
           {items.map((item, itemIndex) => (
             <li key={`${blockKey}-li-${index}-${itemIndex}`}>
               {renderInline(item, `${blockKey}-li-${index}-${itemIndex}`)}
@@ -115,7 +115,7 @@ function renderTextBlock(block: string, blockKey: string): ReactNode[] {
         index += 1;
       }
       nodes.push(
-        <ol key={`${blockKey}-ol-${index}`} className="my-1.5 list-decimal space-y-1 pl-5 marker:text-sc-viz-in/80">
+        <ol key={`${blockKey}-ol-${index}`} className="my-1.5 list-decimal space-y-1 pl-5 marker:text-sky-400/80">
           {items.map((item, itemIndex) => (
             <li key={`${blockKey}-oli-${index}-${itemIndex}`}>
               {renderInline(item, `${blockKey}-oli-${index}-${itemIndex}`)}
@@ -162,7 +162,7 @@ export function ChatMarkdown({ content }: { content: string }) {
   const segments = content.split(/(```[\s\S]*?```)/g);
 
   return (
-    <div className="space-y-2 text-[13px] leading-6 text-sc-text/90">
+    <div className="space-y-2 text-[13px] leading-6 text-slate-100/90">
       {segments.map((segment, index) => {
         if (!segment) return null;
 
@@ -172,7 +172,7 @@ export function ChatMarkdown({ content }: { content: string }) {
           return (
             <pre
               key={`code-${index}`}
-              className="overflow-x-auto rounded-lg border border-sc-viz-in/20 bg-sc-bg/90 p-3 font-mono text-[11px] leading-5 text-sc-viz-in/90"
+              className="overflow-x-auto rounded-lg border border-sky-400/20 bg-slate-950/90 p-3 font-mono text-[11px] leading-5 text-sky-400/90"
             >
               <code>{code}</code>
             </pre>

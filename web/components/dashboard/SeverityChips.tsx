@@ -2,11 +2,11 @@
 import type { OverviewAlertSeverityCounts } from '@/lib/api-types';
 
 const SEVERITIES = [
-  { key: 'critical', label: 'Críticas', style: 'text-sc-risk-critical border-sc-risk-critical/35 bg-sc-risk-critical/10' },
-  { key: 'high', label: 'Altas', style: 'text-sc-risk-high border-sc-risk-high/35 bg-sc-risk-high/10' },
-  { key: 'medium', label: 'Medias', style: 'text-sc-risk-medium border-sc-risk-medium/35 bg-sc-risk-medium/10' },
-  { key: 'low', label: 'Bajas', style: 'text-sc-risk-low border-sc-risk-low/35 bg-sc-risk-low/10' },
-  { key: 'info', label: 'Informativas', style: 'text-sc-text-muted border-white/10 bg-white/5' },
+  { key: 'critical', label: 'Críticas', style: 'text-red-400 border-red-400/35 bg-red-400/10' },
+  { key: 'high', label: 'Altas', style: 'text-orange-400 border-orange-400/35 bg-orange-400/10' },
+  { key: 'medium', label: 'Medias', style: 'text-amber-400 border-amber-400/35 bg-amber-400/10' },
+  { key: 'low', label: 'Bajas', style: 'text-emerald-400 border-emerald-400/35 bg-emerald-400/10' },
+  { key: 'info', label: 'Informativas', style: 'text-slate-400 border-white/10 bg-slate-800/60' },
 ] as const satisfies ReadonlyArray<{ key: keyof OverviewAlertSeverityCounts; label: string; style: string }>;
 
 /** Desglose de alertas por severidad (las informativas solo aparecen si existen). */

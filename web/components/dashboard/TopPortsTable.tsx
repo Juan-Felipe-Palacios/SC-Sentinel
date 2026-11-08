@@ -43,21 +43,21 @@ const SERVICE_NAMES: Record<number, string> = {
 
 const PROTOCOL_STYLES: Record<string, { chip: string; bar: string; dot: string; label: string }> = {
   tcp: {
-    chip: 'text-sc-viz-in border-sc-viz-in/30 bg-sc-viz-in/10',
-    bar: 'bg-sc-viz-in',
-    dot: 'bg-sc-viz-in',
+    chip: 'text-sky-400 border-sky-400/30 bg-sky-400/10',
+    bar: 'bg-sky-400',
+    dot: 'bg-sky-400',
     label: 'TCP',
   },
   udp: {
-    chip: 'text-sc-viz-out border-sc-viz-out/30 bg-sc-viz-out/10',
-    bar: 'bg-sc-viz-out',
-    dot: 'bg-sc-viz-out',
+    chip: 'text-purple-400 border-purple-400/30 bg-purple-400/10',
+    bar: 'bg-purple-400',
+    dot: 'bg-purple-400',
     label: 'UDP',
   },
   other: {
-    chip: 'text-sc-text-muted border-white/10 bg-white/5',
-    bar: 'bg-sc-text-muted',
-    dot: 'bg-sc-text-muted',
+    chip: 'text-slate-400 border-white/10 bg-slate-800/60',
+    bar: 'bg-slate-500',
+    dot: 'bg-slate-500',
     label: 'Otros',
   },
 };
@@ -77,26 +77,26 @@ export function TopPortsTable({
   const protocolTotal = protocols.reduce((sum, item) => sum + item.bytes, 0);
 
   return (
-    <section aria-label="Puertos y protocolos" className="flex flex-col rounded-lg border sc-hairline bg-sc-surface">
-      <header className="flex items-center justify-between gap-3 border-b sc-hairline px-5 py-4">
+    <section aria-label="Puertos y protocolos" className="flex flex-col rounded-xl border-slate-800/80 bg-slate-900/60">
+      <header className="flex items-center justify-between gap-3 border-b border-slate-800/80 px-5 py-4">
         <div className="flex items-center gap-2.5">
-          <Network className="size-4 text-sc-viz-out" strokeWidth={1.5} aria-hidden="true" />
-          <h2 className="font-mono text-[10px] uppercase tracking-[0.24em] text-sc-text-muted">Puertos y protocolos</h2>
+          <Network className="size-4 text-purple-400" strokeWidth={1.5} aria-hidden="true" />
+          <h2 className="font-mono text-[10px] uppercase tracking-[0.24em] text-slate-400">Puertos y protocolos</h2>
         </div>
-        <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-sc-text-muted/60">
+        <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-slate-400/60">
           {ports.length > 0 ? `Top ${ports.length}` : 'Sin datos'}
         </span>
       </header>
 
       {ports.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center px-5 py-10 text-center">
-          <p className="font-display text-sm font-semibold text-sc-text">Sin puertos en el período</p>
-          <p className="mt-2 max-w-[16rem] text-xs leading-5 text-sc-text-muted">
+          <p className="font-display text-sm font-semibold text-slate-100">Sin puertos en el período</p>
+          <p className="mt-2 max-w-[16rem] text-xs leading-5 text-slate-400">
             Cuando el agente agregue ventanas con puertos de destino, el ranking aparece acá.
           </p>
         </div>
       ) : (
-        <ol className="flex-1 divide-y divide-white/5">
+        <ol className="flex-1 divide-y divide-slate-800/60">
           {ports.map((entry) => {
             const style = protocolStyle(entry.protocol);
             const service = SERVICE_NAMES[entry.port];
@@ -105,23 +105,23 @@ export function TopPortsTable({
             return (
               <li key={`${entry.port}-${entry.protocol}`} className="px-5 py-2.5">
                 <div className="flex items-center gap-3">
-                  <span className="w-11 shrink-0 font-mono text-[13px] font-medium tabular-nums text-sc-text">
+                  <span className="w-11 shrink-0 font-mono text-[13px] font-medium tabular-nums text-slate-100">
                     {entry.port}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-display text-[12px] text-sc-text">{service ?? 'Sin identificar'}</p>
-                    <p className="mt-0.5 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-sc-text-muted">
+                    <p className="truncate font-display text-[12px] text-slate-100">{service ?? 'Sin identificar'}</p>
+                    <p className="mt-0.5 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">
                       <span className={`rounded border px-1 py-px text-[8px] tracking-[0.14em] ${style.chip}`}>
                         {style.label}
                       </span>
                       {formatNum(entry.connections)} conex.
                     </p>
                   </div>
-                  <p className="shrink-0 text-right font-display text-[13px] font-semibold tabular-nums text-sc-text">
+                  <p className="shrink-0 text-right font-display text-[13px] font-semibold tabular-nums text-slate-100">
                     {formatBytes(entry.bytes)}
                   </p>
                 </div>
-                <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/5" aria-hidden="true">
+                <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-800/60" aria-hidden="true">
                   <div className={`h-full rounded-full ${style.bar} opacity-70`} style={{ width: `${width}%` }} />
                 </div>
               </li>
@@ -131,11 +131,11 @@ export function TopPortsTable({
       )}
 
       {protocolTotal > 0 ? (
-        <div className="border-t sc-hairline px-5 py-4">
-          <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-sc-text-muted">
+        <div className="border-t border-slate-800/80 px-5 py-4">
+          <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-slate-400">
             Distribución por protocolo
           </p>
-          <div className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-white/5" aria-hidden="true">
+          <div className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-slate-800/60" aria-hidden="true">
             {protocols.map((item) => (
               <div
                 key={item.protocol}
@@ -148,11 +148,11 @@ export function TopPortsTable({
             {protocols.map((item) => (
               <li
                 key={item.protocol}
-                className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-sc-text-muted"
+                className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400"
               >
                 <span className={`size-1.5 rounded-full ${protocolStyle(item.protocol).dot}`} aria-hidden="true" />
                 {protocolStyle(item.protocol).label}
-                <span className="tabular-nums text-sc-text">{Math.round((item.bytes / protocolTotal) * 100)}%</span>
+                <span className="tabular-nums text-slate-100">{Math.round((item.bytes / protocolTotal) * 100)}%</span>
               </li>
             ))}
           </ul>

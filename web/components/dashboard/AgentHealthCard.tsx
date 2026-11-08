@@ -19,36 +19,36 @@ function captureStatusOf(raw: string | null | undefined): CaptureStatus {
 const STATUS_CONFIG: Record<CaptureStatus, { label: string; dot: string; text: string; ring: string }> = {
   ok: {
     label: 'Captura en línea',
-    dot: 'bg-sc-ok',
-    text: 'text-sc-ok',
-    ring: 'border-sc-ok/30 bg-sc-ok/5',
+    dot: 'bg-emerald-400',
+    text: 'text-emerald-400',
+    ring: 'border-emerald-400/30 bg-emerald-400/5',
   },
   degraded: {
     label: 'Captura degradada',
-    dot: 'bg-sc-degraded',
-    text: 'text-sc-degraded',
-    ring: 'border-sc-degraded/30 bg-sc-degraded/5',
+    dot: 'bg-purple-400',
+    text: 'text-purple-400',
+    ring: 'border-purple-400/30 bg-purple-400/5',
   },
   error: {
     label: 'Captura con error',
-    dot: 'bg-sc-risk-critical',
-    text: 'text-sc-risk-critical',
-    ring: 'border-sc-risk-critical/30 bg-sc-risk-critical/5',
+    dot: 'bg-red-400',
+    text: 'text-red-400',
+    ring: 'border-red-400/30 bg-red-400/5',
   },
   unknown: {
     label: 'Sin datos del agente',
-    dot: 'bg-sc-text-muted',
-    text: 'text-sc-text-muted',
-    ring: 'border-white/5 bg-sc-surface-alt/40',
+    dot: 'bg-slate-500',
+    text: 'text-slate-400',
+    ring: 'border-slate-800/60 bg-slate-800/40',
   },
 };
 
 type Tone = 'neutral' | 'warn' | 'critical';
 
 const TONE_TEXT: Record<Tone, string> = {
-  neutral: 'text-sc-text',
-  warn: 'text-sc-risk-high',
-  critical: 'text-sc-risk-critical',
+  neutral: 'text-slate-100',
+  warn: 'text-orange-400',
+  critical: 'text-red-400',
 };
 
 /** Tasa de descarte: por encima de 1 % es degradación real, por encima de 5 % es crítico. */
@@ -70,13 +70,13 @@ function Tile({
   hint?: string;
 }) {
   return (
-    <div className="min-w-0 rounded-md border border-white/5 bg-sc-bg/40 px-3 py-2.5">
-      <dt className="font-mono text-[9px] uppercase leading-4 tracking-[0.2em] text-sc-text-muted">{label}</dt>
-      <dd className={`mt-1 truncate font-display text-lg font-semibold tabular-nums ${TONE_TEXT[tone]}`} title={value}>
+    <div className="min-w-0 rounded-xl border border-slate-800/80 bg-slate-950/60 px-3 py-2.5">
+      <dt className="font-mono text-[9px] uppercase leading-4 tracking-[0.18em] text-slate-400">{label}</dt>
+      <dd className={`mt-1 truncate font-display text-lg font-bold tabular-nums ${TONE_TEXT[tone]}`} title={value}>
         {value}
       </dd>
       {hint ? (
-        <p className="mt-0.5 font-mono text-[8px] uppercase tracking-[0.16em] text-sc-text-muted/70">{hint}</p>
+        <p className="mt-0.5 font-mono text-[8px] uppercase tracking-[0.16em] text-slate-400/70">{hint}</p>
       ) : null}
     </div>
   );
@@ -94,29 +94,29 @@ export function AgentHealthCard({ health }: { health: HealthMetric | undefined }
   return (
     <section
       aria-label="Salud del agente de captura"
-      className={`rounded-lg border transition-colors ${config.ring}`}
+      className={`rounded-xl border-slate-800 bg-slate-900/60 transition-colors ${config.ring}`}
     >
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 px-5 py-4">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 px-5 py-4">
         <div className="flex items-center gap-4">
-          <span className="relative grid size-11 shrink-0 place-items-center rounded-md border border-white/5 bg-sc-bg">
-            <Activity className="size-5 text-sc-text-muted" strokeWidth={1.5} aria-hidden="true" />
+          <span className="relative grid size-11 shrink-0 place-items-center rounded-xl border border-slate-800 bg-slate-950/80">
+            <Activity className="size-5 text-sky-400" strokeWidth={1.5} aria-hidden="true" />
             <span className="absolute -right-1.5 -top-1.5 flex size-3.5">
               {status === 'ok' ? (
                 <span className={`absolute inline-flex size-full animate-ping rounded-full ${config.dot} opacity-60`} aria-hidden="true" />
               ) : null}
-              <span className={`relative inline-flex size-3.5 rounded-full border-2 border-sc-surface ${config.dot}`} aria-hidden="true" />
+              <span className={`relative inline-flex size-3.5 rounded-full border-2 border-slate-950 ${config.dot}`} aria-hidden="true" />
             </span>
           </span>
           <div className="leading-tight">
-            <p className="font-mono text-[9px] uppercase tracking-[0.28em] text-sc-text-muted">Agente de captura</p>
-            <p className={`mt-1 font-display text-base font-semibold ${config.text}`}>{config.label}</p>
-            <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.16em] text-sc-text-muted">
+            <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-slate-400">Agente de captura</p>
+            <p className={`mt-1 font-display text-base font-bold ${config.text}`}>{config.label}</p>
+            <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400">
               Última señal · {timeAgo(health?.recorded_at)}
             </p>
           </div>
         </div>
 
-        <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-sc-text-muted/70">
+        <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400/70">
           {hasReport ? 'Health reportado por el agente' : 'El agente todavía no reportó salud'}
         </p>
       </header>
@@ -148,13 +148,13 @@ export function AgentHealthCard({ health }: { health: HealthMetric | undefined }
       </dl>
 
       <p
-        className={`flex items-start gap-2 border-t border-white/5 px-5 py-3 font-mono text-[10px] uppercase leading-5 tracking-[0.12em] ${
-          health?.last_error ? 'text-sc-risk-critical' : 'text-sc-text-muted/70'
+        className={`flex items-start gap-2 border-t border-slate-800/80 px-5 py-3 font-mono text-[10px] uppercase leading-5 tracking-[0.12em] ${
+          health?.last_error ? 'text-red-400' : 'text-slate-400/70'
         }`}
         title={health?.last_error ?? undefined}
       >
         <AlertTriangle
-          className={`mt-0.5 size-3.5 shrink-0 ${health?.last_error ? 'text-sc-risk-critical' : 'text-sc-text-muted/40'}`}
+          className={`mt-0.5 size-3.5 shrink-0 ${health?.last_error ? 'text-red-400' : 'text-slate-400/40'}`}
           aria-hidden="true"
         />
         <span className="min-w-0 break-words">

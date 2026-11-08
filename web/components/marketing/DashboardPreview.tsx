@@ -132,7 +132,7 @@ export default function DashboardPreview() {
           </div>
 
           {/* Widget de estado del agente en sidebar */}
-          <div className="mt-4 pt-4 border-t border-slate-850/80 rounded-xl bg-slate-900/40 p-3 border border-slate-800/60">
+          <div className="mt-4 pt-4 border-t border-slate-800/80 rounded-xl bg-slate-900/40 p-3 border border-slate-800/60">
             <div className="flex items-center justify-between text-xs font-mono text-slate-400 mb-2">
               <span className="flex items-center gap-1.5">
                 <Terminal className="h-3.5 w-3.5 text-sky-400" />
@@ -315,7 +315,7 @@ export default function DashboardPreview() {
                       { hash: "h_d892e441... [DNS Resolver]", country: "🇧🇷 BR", in: "620 MB", risk: "medium" },
                       { hash: "h_e1194ac2... [Unknown ASN]", country: "🇷🇺 RU", in: "480 MB", risk: "critical" },
                     ].map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-slate-950/60 border border-slate-850">
+                      <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-slate-950/60 border border-slate-800">
                         <div className="flex items-center gap-2">
                           <span className="text-slate-400">{item.country}</span>
                           <span className="text-slate-200">{item.hash}</span>
@@ -352,7 +352,7 @@ export default function DashboardPreview() {
                       { title: "Ráfaga de Consultas DNS Anómala", host: "h_d892e441", time: "hace 18 min", sev: "medium" },
                       { title: "Escaneo de Puertos TCP Inusual", host: "h_3c17a90f", time: "hace 42 min", sev: "low" },
                     ].map((alert, idx) => (
-                      <div key={idx} className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-850 flex items-start justify-between gap-3">
+                      <div key={idx} className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 flex items-start justify-between gap-3">
                         <div>
                           <div className="flex items-center gap-2">
                             <span
@@ -405,7 +405,7 @@ export default function DashboardPreview() {
                   <div className="col-span-1 text-right">Detalle</div>
                 </div>
 
-                <div className="divide-y divide-slate-850">
+                <div className="divide-y divide-slate-800">
                   {[
                     { key: "h_e1194ac27b99...", country: "🇷🇺 Rusia (RU)", in: "480 MB", out: "1.2 GB", risk: "CRITICAL", color: "text-red-400" },
                     { key: "h_d892e441aa21...", country: "🇧🇷 Brasil (BR)", in: "620 MB", out: "140 MB", risk: "HIGH", color: "text-orange-400" },
@@ -413,7 +413,7 @@ export default function DashboardPreview() {
                     { key: "h_8f4b219e5512...", country: "🇦🇷 Argentina (AR)", in: "1.82 GB", out: "420 MB", risk: "LOW", color: "text-emerald-400" },
                     { key: "h_09aa311b78ee...", country: "🇩🇪 Alemania (DE)", in: "210 MB", out: "34 MB", risk: "LOW", color: "text-emerald-400" },
                   ].map((row, idx) => (
-                    <div key={idx} className="grid grid-cols-12 p-3 items-center hover:bg-slate-850/50 transition-colors">
+                    <div key={idx} className="grid grid-cols-12 p-3 items-center hover:bg-slate-800/50 transition-colors">
                       <div className="col-span-5 flex items-center gap-2">
                         <Server className="h-3.5 w-3.5 text-sky-400" />
                         <span className="text-slate-200 font-semibold">{row.key}</span>
@@ -560,7 +560,7 @@ export default function DashboardPreview() {
                 </h4>
 
                 <div className="space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg bg-slate-950 border border-slate-850">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg bg-slate-950 border border-slate-800">
                     <div>
                       <div className="font-semibold text-slate-200">Token de Ingesta Autorizado</div>
                       <div className="text-slate-500 text-[11px]">Rotable con confirmación en dos pasos</div>
@@ -571,7 +571,7 @@ export default function DashboardPreview() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-850">
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-800">
                     <div>
                       <div className="font-semibold text-slate-200">Anonimización Estricta de Hosts</div>
                       <div className="text-slate-500 text-[11px]">Convierte IPs en hash criptográfico local antes de reportar</div>
@@ -581,7 +581,7 @@ export default function DashboardPreview() {
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-850">
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-800">
                     <div>
                       <div className="font-semibold text-slate-200">Retención de Datos en la Nube</div>
                       <div className="text-slate-500 text-[11px]">Limpieza cron automática irreversible</div>
