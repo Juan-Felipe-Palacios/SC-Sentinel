@@ -22,7 +22,7 @@ Fuente de verdad del contenido: `docs/specs/SC-Sentinel-Spec-Completo-2026-11-03
 |---|---|---|
 | `deployment-vercel-neon.drawio` | Alta — antes de M1 | Deployment Vercel (landing/dashboard/api) + Neon + cadena IA free (Gemini/OpenRouter/Groq) |
 | `network-topology-pcap.drawio` | Alta — antes de M1 | Topología de captura pcap: NIC → Npcap → sc-capture → aggregate → sync |
-| `network-topology-ipfix.drawio` | Media — antes de M4 | Topología M4: MikroTik IPFIX / Cisco NetFlow → sc-collector (diferencias pcap vs flow) |
+| `network-topology-ipfix.drawio` | Media — actualizada 2026-11-08 (M4) | Topología M4 real: MikroTik IPFIX / Cisco NetFlow → sc-collector (bind 0.0.0.0, auto) → normalizer → merge con pcap → aggregate → spool → /api/ingest; limitaciones y ref a `testing/pcap-vs-flow.md` |
 | `windows-service-layout.drawio` | Media — antes de M5 | Rutas y layout del servicio Windows (SCM, Program Files, ProgramData, token env) |
 
 ## exports/
