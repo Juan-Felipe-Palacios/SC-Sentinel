@@ -9,9 +9,9 @@ GitHub (main) ──► Vercel (sc-sentinel.vercel.app)
                      ├─ app/(marketing)  público SSG
                      ├─ app/(dashboard)  middleware + cookie admin
                      ├─ api/ingest query ai/cron cron/cleanup
-                     └─ crons: ai cada 5 min · cleanup diario 03:00 UTC
+                     └─ crons: ai cada 15 min (GitHub Actions) · cleanup diario 03:00 UTC
                             ├──► Neon Postgres (branch main free)
-                            └──► OpenRouter (:free, fallback chain)
+                            └──► Cadena IA: Gemini → OpenRouter (:free) → Groq
 ```
 
 ## 1. Vercel (web)
@@ -34,11 +34,12 @@ GitHub (main) ──► Vercel (sc-sentinel.vercel.app)
 | `DATABASE_URL` | Vercel env (main) | Neon pooled connection string |
 | `SC_SESSION_SECRET` | Vercel env (main + preview, valores distintos) | firma cookie admin (`sc_session`) — el código lee `SC_SESSION_SECRET`, no `SESSION_SECRET` |
 | `ADMIN_SECRET` | Vercel env (server) | contraseña del login admin + `x-sc-admin-secret` para tooling |
-| `AI_PROVIDER` | Vercel env (server, opcional) | `openrouter` \| `gemini` \| `groq`. Si falta, se detecta por la key presente (Groq → Gemini → OpenRouter) |
-| `OPENROUTER_API_KEY` | Vercel env (server; solo producción y previews) | jamás a browser (ADR-0005). Sin valor ⇒ IA en modo `degraded` |
-| `GEMINI_API_KEY` (o `GOOGLE_AI_API_KEY`) | Vercel env (server, opcional) | Google AI Studio, SDK `@google/genai`; modelo por defecto `gemini-3.8-flash` |
+| `AI_PROVIDER` | Vercel env (server, opcional) | `gemini` \| `openrouter` \| `groq`: proveedor **primario** de la cadena. Si falta, se detecta por la key presente. La cadena completa (Fase 2) es Gemini → OpenRouter → Groq y los respaldos entran solo si tienen key |
+| `OPENROUTER_API_KEY` | Vercel env (server; solo producción y previews) | jamás a browser (ADR-0005). Sin valor ⇒ ese eslabón se salta |
+| `GEMINI_API_KEY` (o `GOOGLE_AI_API_KEY`) | Vercel env (server, opcional) | Google AI Studio, SDK `@google/genai`; modelos por defecto `gemini-3.6-flash, gemini-3.5-flash` (timeout 15 s por intento; `gemini-3.8-flash` responde 503/timeout y `gemini-1.5-flash` está retirado) |
 | `GROQ_API_KEY` | Vercel env (server, opcional) | Groq, SDK `groq-sdk`; modelos por defecto `openai/gpt-oss-120b,openai/gpt-oss-20b` |
-| `AI_MODELS` | Vercel env (server, opcional) | modelos separados por comas; si falta, se usan los defaults del proveedor |
+| `AI_MODELS` | Vercel env (server, opcional) | modelos separados por comas; aplica solo al proveedor primario. Si falta, se usan los defaults del proveedor |
+| `AI_DAILY_CALL_BUDGET` | Vercel env (server, opcional) | fusible diario del cron de IA: máximo N insights/día (sugerido `150`). 0 o ausente = sin límite |
 | `DEFAULT_DEVICE_ID` | Vercel env (server, opcional) | device único de v1; si falta se usa el primer device enrolado |
 | `SC_GUEST_DEVICE_ID` | Vercel env (server, opcional) | demo pública de solo lectura: fija el device expuesto. Si falta, usa `DEFAULT_DEVICE_ID` o el primer device no revocado. `/demo` y `/api/auth/guest-login` emiten cookie `sc_guest` de 1 h, sin persistencia |
 | `CRON_SECRET` | Vercel env (server) | header `x-cron-secret` de los crons |
@@ -53,9 +54,23 @@ GitHub (main) ──► Vercel (sc-sentinel.vercel.app)
 
 ## 4. Crons
 
-- `/api/ai/cron` cada ~5 min → **NO** va en `vercel.json` (D1: Hobby no garantiza crons de 5 min y los previews no disparan crons). Se ejecuta con **cron externo** (cron-job.org) vía `POST` + header `x-cron-secret: <CRON_SECRET>`.
+- `/api/ai/cron` cada **15 min** → **NO** va en `vercel.json` (el plan Hobby no garantiza crons cortos y los previews no disparan crons). Se ejecuta con **GitHub Actions** (`.github/workflows/ai-cron.yml`, `schedule: '*/15 * * * *'` + `workflow_dispatch`) vía `POST` + header `x-cron-secret: <CRON_SECRET>`.
 - `/api/cron/cleanup` diario 03:00 UTC vía Vercel Cron (+ secret en producción).
+- El cron de IA hace **early-return** si no hay ventanas nuevas desde el último análisis (sin llamada a la API) y respeta el dedup por `facts_hash` (5 min) y el presupuesto diario `AI_DAILY_CALL_BUDGET`.
 - Verificación post-deploy: ejecutar una llamada manual y ver resultado en logs de Vercel.
+
+### 4.1 Eventos de log de IA (diagnóstico sin secretos)
+
+| Evento | Cuándo | Contenido clave |
+|---|---|---|
+| `ai_call` | cada llamada exitosa a un proveedor | `provider`, `model`, `input_tokens`, `output_tokens`, `latency_ms` |
+| `ai_provider_fallback` | el primario falla y se cambia de proveedor | `from`, `to`, `reason` (`rate_limited` \| `error`) |
+| `ai_ratelimit` | respuesta con headers de cuota | `provider`, `model`, headers `x-ratelimit-*` (para anticipar el 429) |
+| `ai_rate_limited` | 429 detectado | `target`, `retry_after_s`, `cooldown_ms` |
+| `ai_chain_failed` | un proveedor agotó sus modelos | `provider`, `attempts` (modelo + status + mensaje) |
+| `ai_cron` | fin de cada ejecución del cron | `status` (`ok` \| `cached` \| `degraded` \| `no_data`), `duration_ms` |
+| `ai_cron_no_new_data` | early-return por falta de datos | `last_window_start`, `covered_until` |
+| `chat_ok` / `chat_fallback` | fin de un stream de chat / cambio de proveedor | `provider`, `model`, `tokens_used`, `execution_time_ms` / `from`, `to`, `reason` |
 
 ## 5. Checks por deployment (smoke mínimo)
 

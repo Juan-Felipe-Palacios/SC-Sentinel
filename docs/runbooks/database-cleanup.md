@@ -28,7 +28,7 @@ Checklist semanal:
 
 ## Si el cron no corre
 
-1. Verificar el schedule de Vercel Cron (retención diaria 03:00 UTC; los intervals de 5 min son solo del cron de IA).
+1. Verificar el schedule del cron de IA (GitHub Actions `ai-cron.yml`, cada 15 min) y del cleanup (retención diaria 03:00 UTC).
 2. Plan B (spec §5.4): cron externo (cron-job.org) contra `POST /api/cron/cleanup` con header `x-cron-secret: <CRON_SECRET>` (env de servidor; nunca en cliente).
 3. Ejecutar cleanup una vez manualmente (curl) con el secret y confirmar el log.
 

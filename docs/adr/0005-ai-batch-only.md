@@ -2,6 +2,8 @@
 
 **Fecha:** 2026-11-03 · **Estado:** Aceptada · **Deriva del spec:** §11
 
+> **Nota de aclaración (2026-11-08, spec v2.2):** la cadencia operativa del cron pasó a **15 min** vía GitHub Actions (`ai-cron.yml`) con early-return cuando no hay datos nuevos; la cadena de fallback es ahora **multi-proveedor** (Gemini → OpenRouter → Groq) con cooldown 429 y backoff 1 s/2 s; la salida máxima subió a 4.000 tokens y se agregó el presupuesto diario opcional `AI_DAILY_CALL_BUDGET`. La decisión batch-only y el dedup por `facts_hash` siguen vigentes.
+
 ## Contexto
 
 Se quiere análisis de anomalías con IA, pero lasquieras modelos de OpenRouter free tienen rate limits estrictos y la nube no debe ver tráfico por-flujo. El motor determinista (etherparse + ~6000 servicios + MaxMind) ya detecta y es la fuente de verdad.

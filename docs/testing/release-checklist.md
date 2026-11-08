@@ -30,9 +30,9 @@ Aplica a cada tag `vX.Y.Z` (SemVer estricto: breaking=major · features=minor ·
 ## 4. Deployment web (Vercel)
 
 - [ ] Deploy de producción desde main (o pipeline manual del release) verde.
-- [ ] Env de producción presente: `OPENROUTER_API_KEY`, `CRON_SECRET`, secret de sesión admin (SOLO env server-side).
+- [ ] Env de producción presente: `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `AI_PROVIDER`, `CRON_SECRET`, secret de sesión admin (SOLO env server-side).
 - [ ] Neon: migraciones aplicadas en main branch; verificación de schemas.
-- [ ] Crons activos: `/api/ai/cron` cada 5 min (o plan B externo) y `/api/cron/cleanup` diario 03:00 UTC.
+- [ ] Crons activos: `/api/ai/cron` cada 15 min vía GitHub Actions (`ai-cron.yml`) y `/api/cron/cleanup` diario 03:00 UTC.
 - [ ] Smoke post-deploy: ingest de prueba (con token de test), dashboard carga, IA responde (o degraded documentado).
 
 ## 5. Publicación

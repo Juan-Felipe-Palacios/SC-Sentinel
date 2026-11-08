@@ -40,7 +40,7 @@ Purga automática diaria (03:00 UTC). Si el spool local del agente supera su cot
 |---|---|---|
 | Vercel | hosting y ejecución de la aplicación | aplica su DPA estándar; la ingesta viaja cifrada (HTTPS) |
 | Neon | base de datos Postgres gestionada | verificar área/región y DPA de Neon antes de publicar |
-| OpenRouter | procesamiento temporal de hechos agregados para el análisis IA | modelos "free" de OpenRouter; recibe solo señales agregadas normalizadas, sin PII (ADR-0005) |
+| Google Gemini, OpenRouter y Groq | procesamiento temporal de hechos agregados para el análisis IA | modelos "free"; reciben solo señales agregadas normalizadas, sin PII (ADR-0005) |
 | MaxMind | geolocalización off-line (base embebida) | el país se calcula en el nodo local; no hay consulta online |
 
 ## 5. Seguridad
@@ -58,6 +58,6 @@ El responsable del tratamiento es Strategic Connex. Los titulares de los datos p
 
 **Pendientes antes de M3** (checklist del revisor legal):
 - [x] Definir titular/domicilio/contacto oficial de Strategic Connex → decisión del equipo (nov 2026): titular "Strategic Connex" sin domicilio físico publicado; contacto exclusivamente por `/contacto`.
-- [x] Confirmar condiciones de cada DPA de terceros (Vercel, Neon, OpenRouter) → se mantiene la tabla de §4; sin publicación de DPA propios.
+- [x] Confirmar condiciones de cada DPA de terceros (Vercel, Neon, Google, OpenRouter, Groq) → se mantiene la tabla de §4; sin publicación de DPA propios.
 - [x] Verificar formulación aplicable (Ley 25.326) → el sistema procesa señales agregadas de red y el sitio publica un canal de contacto, por lo que rige Ley 25.326.
 - [x] Publicar en `/legal/privacy` la versión pulida → publicada en M3 (feat(legal)).

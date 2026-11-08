@@ -27,8 +27,9 @@ Escenarios predefinidos con playbook. Regla transversal del spec §8.1: **nunca 
 ## 4. IA en `degraded` persistente
 
 1. Confirmar con `/api/ai/analyze` (bajo demanda) si devuelve `status:"degraded"`.
-2. Verificar la cadena de fallback: probar modelos `:free` individualmente (env `OPENROUTER_API_KEY`, solo server-side).
-3. Si es límite de cuota del free tier: esperar ventana; el sistema permanece 100% determinista (no es out-of-service). El cron de IA reintenta cada 5 min con dedup por `facts_hash`.
+2. Revisar los logs de Vercel con los eventos de IA (tabla 4.1 de `deployment.md`): `ai_chain_failed` (modelo + status por intento), `ai_provider_fallback` (motivo del cambio de proveedor) y `ai_ratelimit` (headers `x-ratelimit-*` para anticipar un 429).
+3. Verificar la cadena de fallback completa: Gemini (`gemini-3.6-flash`/`3.5-flash`) → OpenRouter (`:free`) → Groq (`gpt-oss-120b`/`20b`); probar los keys individualmente (solo server-side).
+4. Si es límite de cuota del free tier: esperar ventana; el sistema permanece 100% determinista (no es out-of-service). El cron de IA reintenta cada 15 min con dedup por `facts_hash` y un cooldown por proveedor (1–5 min) respeta `Retry-After`.
 
 ## 5. Violación de privacidad (IP real/hostname en la nube)
 
@@ -47,13 +48,13 @@ Escenarios predefinidos con playbook. Regla transversal del spec §8.1: **nunca 
 - Acción: revisar por qué el nodo estuvo offline tanto tiempo (conectividad, token, servicio caído — runbook `troubleshoot-sync.md`).
 - Registrar en el log de operaciones el rango de ventanas perdidas (figuran en el log local).
 
-## 7. Incidente de proveedor (Vercel / Neon / OpenRouter)
+## 7. Incidente de proveedor (Vercel / Neon / proveedores IA)
 
 | Proveedor | Efecto | Mitigación |
 |---|---|---|
 | Vercel caído | Sin dashboard ni ingesta | Spool absorbe todo (hasta 500 MB/7 d); al volver drena |
 | Neon caído / cold start | POST con error temporal | Backoff del agente; dashboard vacío temporal |
-| OpenRouter sin servicio | `ai_status: degraded` | Producto sigue 100% determinista |
+| Un proveedor IA sin servicio (Gemini/OpenRouter/Groq) | `ai_status: degraded` | La cadena salta al siguiente proveedor; si caen todos, producto sigue 100% determinista |
 
 ## Post-mortems (obligatorio si hay pérdida de datos)
 

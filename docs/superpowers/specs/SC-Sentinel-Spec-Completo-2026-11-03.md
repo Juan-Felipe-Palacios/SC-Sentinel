@@ -3,9 +3,10 @@
 **Proyecto:** Strategic Connex Anomaly Shield
 **Repositorio:** SC-Sentinel
 **Fecha:** 2026-11-03
-**Estado:** Aprobado por el propietario (Spec completo v2.1 — normalizado)
+**Estado:** Aprobado por el propietario (Spec completo v2.2 — consolidación IA free-tier)
 **Propiedad:** Strategic Connex — software PROPIETARIO
 
+> v2.2 (2026-11-08) = consolidación IA free-tier: cron de IA a 15 min vía GitHub Actions, cadena multi-proveedor Gemini → OpenRouter → Groq, modelos Gemini 3.6/3.5 Flash, presupuesto diario `AI_DAILY_CALL_BUDGET`, cooldown 429 + backoff 5xx 1 s/2 s, logging estructurado y respuesta máxima a 4.000 tokens. Ver Apéndice C.
 > v2.1 = v2.0 normalizado: se restauró la estructura Markdown (headers, tablas, code fences), se eliminó un bloque duplicado, se resolvieron 6 contradicciones internas y se definieron contratos faltantes (enrollment, AI analyze, duplicados idempotentes, rate-limit de drenaje, plan B de cron). Ver Apéndice C.
 
 ---
@@ -44,7 +45,7 @@
 Strategic Connex Anomaly Shield (SC-Sentinel) es un sistema de monitoreo y detección de anomalías de red en dos partes:
 
 - **Agent local (Rust)** — corre en la PC/nodo; captura tráfico (pcap) y/o recibe NetFlow v9/IPFIX; pre-agrega ventanas de 30–60 s y publica snapshots HTTPS a la nube.
-- **Nube (Next.js + Vercel)** — landing pública + dashboard privado con overview, hosts, conexiones, alertas y panel de análisis IA (OpenRouter modelos free).
+- **Nube (Next.js + Vercel)** — landing pública + dashboard privado con overview, hosts, conexiones, alertas y panel de análisis IA (modelos free: Gemini → OpenRouter → Groq).
 
 **Principio rector:** el motor determinista (parser etherparse, tablas de ~6000 servicios, GeoIP MaxMind) SIEMPRE corre y es la fuente de verdad. La IA enriquece con análisis por lotes, nunca reemplaza al motor y nunca opera por-flujo.
 
@@ -81,7 +82,7 @@ Strategic Connex Anomaly Shield (SC-Sentinel) es un sistema de monitoreo y detec
 | Licencia | Propietaria Strategic Connex; módulos extraídos de Sniffnet quedan con headers MIT/Apache-2.0 + `THIRD_PARTY_NOTICES.md`; sin marca "Sniffnet" en superficies de usuario |
 | Identidad visual | Design tokens extraídos de strategicconnex.com.ar |
 | DB | Neon Postgres free |
-| IA | Modelos free de OpenRouter (sufijo `:free`) con cadena de fallback; batch ≤1 llamada/~5 min |
+| IA | Modelos free de Gemini, OpenRouter (`:free`) y Groq con cadena de fallback multi-proveedor; batch ≤1 llamada/15 min |
 | Paleta realtime | SWR polling 5 s (no websockets) |
 | Idempotencia | `UNIQUE(device_id, window_id)`; duplicado → 200 `{status:"duplicate"}`, nunca error ni doble métrica |
 | Compresión | **gzip con soporte obligatorio; zstd opcional recomendado (deshabilitado por defecto en v1)** — descompresión SIEMPRE explícita en el route (ADR-0009) |
@@ -325,7 +326,7 @@ POST /api/ai/cron        Header: x-cron-secret: <CRON_SECRET>
 POST /api/cron/cleanup   Header: x-cron-secret: <CRON_SECRET>
 ```
 
-- Invocados por Vercel Cron si el plan lo permite; si el plan free no permite intervalos de 5 min, plan B: cron externo (p. ej. cron-job.org) cada 5 min contra `/api/ai/cron` con el secret. `CRON_SECRET` vive solo en env de servidor Vercel.
+- Invocados por cron externo: GitHub Actions (`.github/workflows/ai-cron.yml`) dispara `POST /api/ai/cron` cada 15 min con header `x-cron-secret` (Vercel Cron solo cubre `/api/cron/cleanup`: el plan Hobby no garantiza intervalos cortos). `CRON_SECRET` vive solo en env de servidor Vercel.
 - `/api/cron/cleanup` corre diario 03:00 UTC (retención §12).
 
 ---
@@ -458,8 +459,8 @@ flowchart LR
         Ingest -->|zod validate<br/>token auth| Neon[(Neon Postgres)]
         Query[/api/query/] --> Neon
         Dashboard[Dashboard<br/>SWR 5s] --> Query
-        AICron[/api/ai/cron<br/>cada 5 min] --> Neon
-        AICron -->|hechos agregados| OpenRouter[OpenRouter :free]
+        AICron[/api/ai/cron<br/>cada 15 min] --> Neon
+        AICron -->|hechos agregados| Providers[Cadena IA<br/>Gemini → OpenRouter → Groq]
     end
 
     Dashboard -->|GET /api/query| Query
@@ -468,7 +469,7 @@ flowchart LR
 **Reglas:**
 
 - El snapshot contiene SOLO señales agregadas (top hosts/puertos/países, picos, alertas); nunca raw packets ni flujos individuales.
-- Máximo 1 llamada IA por lote de ~5 min; si hay una en curso se cancela la siguiente (sin colas).
+- Máximo 1 llamada IA por lote de ~15 min; si hay una en curso se cancela la siguiente (sin colas).
 - Si la IA no está disponible permanentemente, el sistema funciona 100% determinista (`ai_status=degraded`).
 
 ---
@@ -488,7 +489,7 @@ flowchart LR
 | 413 payload too large | batch se divide si es posible; si no, dead_letter |
 | Spool lleno o antigüedad > 7 días | FIFO controlado, registrando `data_loss_bytes` y `data_loss_windows` |
 | Token inválido | flag `needs_enrollment`; spool conservado |
-| Límite OpenRouter free | cadena de fallback; agotado → modo determinista puro |
+| Límite de cuota free (Gemini/OpenRouter/Groq) | cooldown por proveedor (429 + `Retry-After`) + cadena de fallback; presupuesto diario opcional `AI_DAILY_CALL_BUDGET`; agotado → modo determinista puro |
 | DB fría (Neon cold start) | ~1 s de latencia tolerable; el agente reintenta |
 
 **Regla crítica:** nunca se descartan silenciosamente datos: toda pérdida debe quedar reflejada en salud del agente.
@@ -512,7 +513,7 @@ flowchart LR
 
 ### 9.1 Activos protegidos
 
-Token del agente · tráfico agregado · IPs LAN · API key OpenRouter · cookie admin · base Neon.
+Token del agente · tráfico agregado · IPs LAN · API keys de IA (Gemini/OpenRouter/Groq) · cookie admin · base Neon.
 
 ### 9.2 Amenazas y mitigaciones
 
@@ -650,12 +651,15 @@ La IA solo recibe hechos agregados y normalizados:
 
 ### 11.3 Política de ejecución
 
-- Cron cada 5 min (§5.4) o bajo demanda desde dashboard (`/api/ai/analyze`, §5.3).
-- Timeout: 30 segundos.
-- Cadena de fallback: modelo 1 → modelo 2 → modelo 3 → modo determinista.
+- Cron cada 15 min (§5.4) con early-return si no hay ventanas nuevas desde el último análisis, o bajo demanda desde dashboard (`/api/ai/analyze`, §5.3).
+- Timeout: 30 segundos (Gemini: 15 s por intento para que un modelo colgado no se coma el budget de la función).
+- Cadena de fallback multi-proveedor: Gemini (`gemini-3.6-flash` → `gemini-3.5-flash`) → OpenRouter (`:free`) → Groq (`gpt-oss-120b` → `gpt-oss-20b`), saltando los proveedores en cooldown por 429.
+- Backoff exponencial 1 s / 2 s ante 5xx/503; el 429 activa cooldown por proveedor respetando `Retry-After`.
 - Si todos fallan: `ai_status=degraded`, el sistema sigue funcionando 100%.
+- Presupuesto diario opcional de llamadas: `AI_DAILY_CALL_BUDGET` (0 o ausente = sin límite).
 - No hay colas: si hay una llamada en curso se cancela la siguiente.
-- Prompt máximo: 4.000 tokens. Respuesta máxima: 1.000 tokens.
+- Prompt máximo: 4.000 tokens. Respuesta máxima: 4.000 tokens (acotada además por el schema de salida).
+- Logging estructurado sin secretos: `ai_call` (proveedor, modelo, tokens de entrada/salida, latencia), `ai_provider_fallback` (motivo del cambio), `ai_ratelimit` (headers `x-ratelimit-*`), `ai_rate_limited`, `ai_cron`.
 
 ### 11.4 Almacenamiento
 
@@ -1080,7 +1084,7 @@ flowchart LR
     Dashboard --> Query
 
     AICron --> Neon
-    AICron --> OpenRouter[OpenRouter :free]
+    AICron --> Providers[Cadena IA: Gemini → OpenRouter → Groq]
 ```
 
 **Agent Components** (`docs/diagrams/mermaid/agent-components.mmd`):
@@ -1287,9 +1291,18 @@ stateDiagram-v2
 
 ## Apéndice B: Referencias
 
-Neon Postgres · Vercel · OpenRouter · MaxMind GeoIP · Npcap · Next.js · Rust · shadcn/ui · Drizzle ORM · fzstd
+Neon Postgres · Vercel · Google Gemini · OpenRouter · Groq · MaxMind GeoIP · Npcap · Next.js · Rust · shadcn/ui · Drizzle ORM · fzstd
 
 ## Apéndice C: Changelog del spec
+
+**v2.2 (2026-11-08) — consolidación IA free-tier:**
+
+- Cron de IA de 5 min → **15 min** vía GitHub Actions (`.github/workflows/ai-cron.yml`), con early-return cuando no hay ventanas nuevas desde el último análisis (§5.4, §11.3).
+- Cadena multi-proveedor (§11.3): Gemini (`3.6-flash` → `3.5-flash`, timeout 15 s) → OpenRouter (`:free`) → Groq (`gpt-oss-120b` → `20b`), con cooldown por proveedor ante 429 (respeta `Retry-After`) y backoff exponencial 1 s / 2 s ante 5xx/503.
+- Presupuesto diario opcional `AI_DAILY_CALL_BUDGET`; dedup por `facts_hash` (5 min) en `/api/ai/analyze`.
+- Respuesta máxima de análisis 1.000 → **4.000 tokens** (el tope viejo truncaba el JSON y Groq respondía 400 `json_validate_failed`).
+- Logging estructurado sin secretos: `ai_call`, `ai_provider_fallback`, `ai_ratelimit`, `ai_rate_limited`, `ai_cron`, `chat_ok`, `chat_fallback`.
+- Chat: contexto acotado a 8 mensajes / 1.200 chars por mensaje; límite de invitados 100 chats/día (además de rate limits por minuto/hora).
 
 **v2.1 (2026-11-03) — normalización:**
 

@@ -98,7 +98,8 @@ DELETE /api/chat/history/conv_...?device_id=dev_...
 
 ## 6. Proveedores y streaming
 
-- `resolveProvider()` usa `AI_PROVIDER` o la primera clave disponible: Groq → Gemini → OpenRouter.
+- `resolveProvider()` usa `AI_PROVIDER` como primario; la cadena completa (Fase 2) es Gemini → OpenRouter → Groq y salta los proveedores en cooldown por 429. Sin `AI_PROVIDER` el primario se detecta por la key disponible.
 - Groq/OpenRouter se consumen por SSE compatible con OpenAI; Gemini por `generateContentStream`.
 - Timeout de 30 s; el stream se aborta si el cliente cierra la conexión.
 - El modelo puede degradar al siguiente de `AI_MODELS` solo si falla antes de emitir el primer token.
+- Logs de diagnóstico sin secretos: `chat_ok` (proveedor, modelo, tokens, latencia) y `chat_fallback` (motivo del cambio de proveedor).

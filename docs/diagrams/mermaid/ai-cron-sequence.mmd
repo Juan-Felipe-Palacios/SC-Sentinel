@@ -1,19 +1,19 @@
 sequenceDiagram
     autonumber
-    participant CR as Vercel Cron (5 min)<br/>o plan B: cron-job.org
+    participant CR as GitHub Actions<br/>cada 15 min (ai-cron.yml)
     participant AC as /api/ai/cron
-    participant GATE as gate 5 min + no colas
+    participant GATE as gate 15 min + datos nuevos + no colas
     participant DB as Neon Postgres
-    participant ORR as OpenRouter :free
+    participant AI as Cadena IA<br/>Gemini → OpenRouter → Groq
     participant AI2 as /api/ai/analyze<br/>(bajo demanda, cookie admin)
 
     CR->>AC: POST + x-cron-secret
     alt secret incorrecto
         AC-->>CR: 401
     else secret valido
-        AC->>GATE: hay analisis corriendo o hecho hace < 5 min?
+        AC->>GATE: analisis reciente (< 15 min) o sin ventanas nuevas?
         alt si
-            GATE-->>CR: 200 {skipped:true}
+            GATE-->>CR: 200 {cached:true} (sin llamada a la IA)
         else no
             GATE->>DB: leer hechos del ultimo lote (top hosts/ports/countries, alerts, health)
             AC->>AC: facts_hash = SHA-256(hechos normalizados)
@@ -21,9 +21,9 @@ sequenceDiagram
             alt facts ya analizados
                 AC-->>CR: 200 {cached:true}
             else hechos nuevos
-                loop cadena de fallback
-                    AC->>ORR: POST modelo n (:free) <= 4000 tokens in / <= 1000 out
-                    ORR-->>AC: summary + risk_level + findings + recommendations
+                loop cadena de proveedores (saltando cooldowns 429)
+                    AC->>AI: POST modelo n <= 4000 tokens in / <= 4000 out (backoff 1s/2s en 5xx)
+                    AI-->>AC: summary + risk_level + findings + recommendations
                     end
                 alt algun modelo respondio
                     AC->>DB: INSERT ai_insights {model, facts_hash, status:"ok"}
@@ -37,4 +37,4 @@ sequenceDiagram
     end
 
     AI2->>GATE: mismo pipeline para el lote no analizado mas reciente
-    Note over AI2,ORR: cached:true si < 5 min desde el ultimo analisis (nunca re-analiza mismos hechos)
+    Note over AI2,AI: cached:true si < 5 min desde el ultimo analisis (nunca re-analiza mismos hechos)<br/>Presupuesto diario opcional AI_DAILY_CALL_BUDGET

@@ -2,7 +2,7 @@
 
 **Producto:** Strategic Connex Anomaly Shield (SC-Sentinel) · **Propiedad:** Strategic Connex (software propietario) · **Dominio:** sc-sentinel.vercel.app (ADR-0012)
 
-**Fuente de verdad:** `specs/SC-Sentinel-Spec-Completo-2026-11-03.md` (v2.1). El resto de la documentación se deriva de él y se mantiene sincronizada por checklist (ver "Reglas de mantenimiento" abajo).
+**Fuente de verdad:** `specs/SC-Sentinel-Spec-Completo-2026-11-03.md` (v2.2). El resto de la documentación se deriva de él y se mantiene sincronizada por checklist (ver "Reglas de mantenimiento" abajo).
 
 ## Mapa
 
@@ -16,7 +16,7 @@
 | `ux/` | landing-sitemap, dashboard-wireframes, design-tokens, copywriting | spec §18 |
 | `legal/` | THIRD_PARTY_NOTICES, maxmind-notice, npcap-notice, privacidad (draft), términos (draft) | licencias §3 del spec |
 | `release/` | versioning, changelog, signing, deployment | spec §15, §20 |
-| `specs/` | Spec-Completo v2.1 (actual) + archive de v1.0 (superseded) | — |
+| `specs/` | Spec-Completo v2.2 (actual) + archive de v1.0 (superseded) | — |
 
 ## Reglas de mantenimiento
 
@@ -30,7 +30,7 @@
 
 | Grupo | Estado | Alineado con hito |
 |---|---|---|
-| specs/ | ✅ v2.1 congelado (commit `17c5ee1`) | base |
+| specs/ | ✅ v2.2 (consolidación IA free-tier 2026-11-08) | base |
 | adr/ | ✅ 13 ADRs (0001–0013) | M0, M3.5 |
 | contracts/ | ✅ v1 congelados (schemas + ejemplos) | M0 |
 | diagrams/ | ✅ 11 fuentes creados | M0–M5 |

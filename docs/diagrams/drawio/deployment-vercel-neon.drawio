@@ -31,7 +31,7 @@
         <mxCell id="neon" value="Neon Postgres (free)&#10;snapshots JSONB + tablas derivadas&#10;retencion estricta" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
           <mxGeometry x="820" y="320" width="170" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="openrouter" value="OpenRouter :free&#10;(fallback chain)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+        <mxCell id="openrouter" value="Cadena IA (free)&#10;Gemini → OpenRouter → Groq" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
           <mxGeometry x="820" y="470" width="170" height="60" as="geometry" />
         </mxCell>
         <mxCell id="admin" value="Administrador&#10;(navegador)" style="shape=actor;whiteSpace=wrap;html=1;" vertex="1" parent="1">
