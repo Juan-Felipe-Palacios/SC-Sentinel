@@ -85,7 +85,7 @@ describe('getModelsFor', () => {
 
   it('cae a los defaults vigentes de cada proveedor', () => {
     vi.stubEnv('AI_MODELS', '');
-    expect(getModelsFor('gemini')).toEqual(['gemini-3.8-flash']);
+    expect(getModelsFor('gemini')).toEqual(['gemini-3.6-flash', 'gemini-3.5-flash']);
     expect(getModelsFor('groq')).toEqual(['openai/gpt-oss-120b', 'openai/gpt-oss-20b']);
     expect(getModelsFor('openrouter')).toEqual(['openrouter/free']);
   });
@@ -94,15 +94,15 @@ describe('getModelsFor', () => {
 describe('callGeminiChain', () => {
   it('devuelve ok con JSON válido', async () => {
     const client = geminiClient(JSON.stringify(validOutput));
-    const result = await callGeminiChain(facts, { client, models: ['gemini-3.8-flash'] });
+    const result = await callGeminiChain(facts, { client, models: ['gemini-3.6-flash'] });
     expect(result.ok).toBe(true);
-    expect(result.model).toBe('gemini-3.8-flash');
+    expect(result.model).toBe('gemini-3.6-flash');
     expect(result.output?.risk_level).toBe('low');
   });
 
   it('degrada ante contenido inválido', async () => {
     const client = geminiClient('no-json');
-    const result = await callGeminiChain(facts, { client, models: ['gemini-3.8-flash'] });
+    const result = await callGeminiChain(facts, { client, models: ['gemini-3.6-flash'] });
     expect(result.ok).toBe(false);
     expect(result.output).toBeNull();
   });
@@ -118,7 +118,7 @@ describe('callGeminiChain', () => {
       .mockResolvedValueOnce({ text: JSON.stringify(validOutput) });
     const client: GeminiClientLike = { models: { generateContent } };
 
-    const result = await callGeminiChain(facts, { client, models: ['gemini-3.8-flash'] });
+    const result = await callGeminiChain(facts, { client, models: ['gemini-3.6-flash'] });
 
     expect(result.ok).toBe(true);
     expect(result.output?.risk_level).toBe('low');
@@ -132,7 +132,7 @@ describe('callGeminiChain', () => {
     );
     const client: GeminiClientLike = { models: { generateContent } };
 
-    const result = await callGeminiChain(facts, { client, models: ['gemini-3.8-flash'] });
+    const result = await callGeminiChain(facts, { client, models: ['gemini-3.6-flash'] });
 
     expect(result.ok).toBe(false);
     expect(generateContent).toHaveBeenCalledTimes(2); // reintento único incluido

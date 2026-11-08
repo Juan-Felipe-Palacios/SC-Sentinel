@@ -27,8 +27,10 @@ export type AiProvider = 'openrouter' | 'gemini' | 'groq';
 /** Modelos por defecto cuando `AI_MODELS` no está definido. */
 export const PROVIDER_DEFAULT_MODELS: Record<AiProvider, readonly string[]> = {
   openrouter: ['openrouter/free'],
-  // `gemini-1.5-flash` está retirado; 3.8 Flash es el estable actual con structured outputs.
-  gemini: ['gemini-3.8-flash'],
+  // `gemini-1.5-flash` está retirado (404) y `gemini-3.8-flash` responde 503/timeout
+  // (alta demanda de Google). 3.6 y 3.5 Flash responden con structured outputs,
+  // mismos 65 536 tokens de salida que el resto de la familia Flash.
+  gemini: ['gemini-3.6-flash', 'gemini-3.5-flash'],
   // Groq retiró Llama 3.1/3.3 del tier self-serve: quedan los GPT-OSS.
   groq: ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'],
 };
@@ -60,6 +62,10 @@ export function geminiApiKey(env: NodeJS.ProcessEnv = process.env): string | und
 
 /** Espera entre reintentos ante 5xx transitorios (p. ej. gemini 503 UNAVAILABLE). */
 const SERVER_ERROR_RETRY_DELAY_MS = 750;
+// Un modelo saturado puede colgarse (3.8 Flash tardó >20 s sin responder): sin este
+// tope un solo intento se come los 60 s de la función de Vercel. Los Flash sanos
+// responden en 2–4 s.
+const GEMINI_TIMEOUT_MS = 15_000;
 
 /** Status HTTP del error del proveedor, si lo expone (ApiError de gemini, GroqError, …). */
 function errorStatus(error: unknown): number | undefined {
@@ -196,7 +202,11 @@ export async function callGeminiChain(
   }
 
   const client: GeminiClientLike =
-    init.client ?? (new GoogleGenAI({ apiKey }) as unknown as GeminiClientLike);
+    init.client ??
+    (new GoogleGenAI({
+      apiKey,
+      httpOptions: { timeout: GEMINI_TIMEOUT_MS },
+    }) as unknown as GeminiClientLike);
   const models = init.models ?? getModelsFor('gemini');
   const systemInstruction = buildSystemPrompt(init.language ?? 'es');
   const attempts: Array<{ model: string; status?: number; error?: string }> = [];
