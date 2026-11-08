@@ -90,6 +90,7 @@ Alcance de cierre: backend seguro, RAG agregado de 24 h, streaming SSE, persiste
 > MikroTik/Cisco para exportar a los puertos del colector, correr el agente con
 > `--collector`, confirmar las ventanas en el dashboard y actualizar la topología
 > IPFIX. Ver ADR-0014 §9: los pcaps reales de Wireshark/MikroTik aún no se probaron.
+> Procedimiento y checklist: `docs/runbooks/collector-mikrotik.md`.
 
 ## M5 — Servicio + instalador + GUI (1–2 semanas)
 
