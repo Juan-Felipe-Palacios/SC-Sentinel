@@ -1,4 +1,4 @@
-Estado: 🚧 En curso — fases 1–3 entregadas 2026-11-08 (ADR-0014, crate, listener UDP, detección, parsers NetFlow v5/v9 e IPFIX, integración con sc-agent vía merge de canales, config `[collector]` y flags de CLI); métricas en dashboard, fuzz/benchmarks y fixtures reales pendientes
+Estado: 🚧 En curso — fases 1–3 entregadas 2026-11-08 (ADR-0014, crate, listener UDP, detección, parsers NetFlow v5/v9 e IPFIX, integración con sc-agent vía merge de canales, config `[collector]` y flags de CLI); métricas en dashboard, fuzz y fixtures reales pendientes; benchmark inicial en `docs/testing/throughput-benchmark.md`
 Creado: 2026-11-06
 Autor: Equipo SC-Sentinel
 Dependencias previas: M1 ✅ (100%, verificado 2026-11-07), M2 ✅, M3 ✅

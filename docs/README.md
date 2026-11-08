@@ -12,7 +12,7 @@
 | `contracts/` | contratos `/api/ingest` v1 y `/api/chat` v1 + 3 schemas JSON + 4 ejemplos | spec §5, §6 |
 | `diagrams/` | 7 mermaid `.mmd` + 4 drawio + reglas de exports (`README.md` propio) | spec §17 |
 | `runbooks/` | 9: local-dev, inst. Windows/Linux, troubleshoot pcap/sync, colector MikroTik/Cisco, rotación token, cleanup DB, incident-response | spec §8, §9, §12, §13 |
-| `testing/` | test-plan, acceptance-criteria por hito, fixtures, release-checklist | spec §14, §15 |
+| `testing/` | test-plan, acceptance-criteria por hito, fixtures, release-checklist, throughput-benchmark, pcap-vs-flow | spec §14, §15 |
 | `ux/` | landing-sitemap, dashboard-wireframes, design-tokens, copywriting | spec §18 |
 | `legal/` | THIRD_PARTY_NOTICES, maxmind-notice, npcap-notice, privacidad (draft), términos (draft) | licencias §3 del spec |
 | `release/` | versioning, changelog, signing, deployment | spec §15, §20 |
@@ -35,7 +35,7 @@
 | contracts/ | ✅ v1 congelados (schemas + ejemplos) | M0 |
 | diagrams/ | ✅ 11 fuentes creados | M0–M5 |
 | runbooks/ | ✅ 9 escritos (a verificar contra instalación real en M5) | M1–M5 |
-| testing/ | ✅ 4 verificados (ejecutables a medida del repo) | M0–M5 |
+| testing/ | ✅ 6 verificados (ejecutables a medida del repo) | M0–M5 |
 | ux/ | ✅ 4 (tokens de marca: valores definidos en la extracción M3) | M3 |
 | legal/ | ✅ 5 (2 drafts pendientes de revisión legal antes de M3) | M3 |
 | release/ | ✅ 4 | M2–M5 |
