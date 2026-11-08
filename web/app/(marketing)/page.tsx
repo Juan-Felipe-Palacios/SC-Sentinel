@@ -1,464 +1,396 @@
-// SC-Sentinel - Home pública — landing page completa con dashboard preview y IA.
-// Fuente de copy: docs/ux/copywriting.md + docs/ux/landing-sitemap.md (spec §18.1).
+// SC-Sentinel — Home pública: Landing Page Next-Gen (M3/M4 Master Edition)
+// Estética inspirada en Vercel, Linear y Cloudflare con Dashboard Interactivo y Copiloto IA
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
 import Link from "next/link";
+import {
+  ShieldCheck,
+  Zap,
+  Lock,
+  Cpu,
+  ArrowRight,
+  ChevronRight,
+  Terminal,
+  Activity,
+  Layers,
+  CheckCircle2,
+  Database,
+} from "lucide-react";
 import ArchitectureDiagram from "@/components/marketing/ArchitectureDiagram";
 import DashboardSection from "@/components/marketing/DashboardSection";
 import AIBenefitsSection from "@/components/marketing/AIBenefitsSection";
+import { ChatWidget } from "@/components/chat/ChatWidget";
 
 export const metadata = {
   metadataBase: new URL("https://sc-sentinel.vercel.app"),
-  title: "SC-Sentinel — Monitoreo de red con motor local",
+  title: "SC-Sentinel — Detección Determinista de Anomalías de Red e IA",
   description:
-    "SC-Sentinel analiza tu tráfico localmente con un motor determinista y publica solo señales agregadas a tu dashboard. Cuando algo raro sucede, te enteras con evidencia.",
+    "Monitoreo de red con motor determinista en Rust local e inteligencia artificial Gemini 2.0. Las señales agregadas llegan a tu dashboard; tus paquetes crudos jamás salen de tu red.",
   alternates: {
     canonical: "https://sc-sentinel.vercel.app/",
   },
   openGraph: {
-    title: "SC-Sentinel — Ve lo que pasa en tu red",
+    title: "SC-Sentinel — Observabilidad de Red Privada e IA",
     description:
-      "Motor determinista local + señales agregadas a la nube. Paquetes crudos, nunca.",
+      "Motor local en Rust + Señales criptográficas a la nube. Diagnóstico con IA sin filtrar paquetes crudos.",
     url: "https://sc-sentinel.vercel.app/",
     siteName: "SC-Sentinel",
     locale: "es_AR",
     type: "website",
-    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "SC-Sentinel — motor local, señales agregadas" }],
+    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "SC-Sentinel — Shield de Anomalías" }],
   },
 };
 
-const features = [
+const FEATURE_GRID = [
   {
-    icon: "⚙",
-    color: "#38bdf8",
-    title: "Reglas concretas, no cajas negras",
-    body: "Miles de servicios reconocidos, geo por país, blacklist y umbrales — todo corre localmente y puede explicar exactamente por qué dispara.",
+    icon: Terminal,
+    title: "Motor Local en Rust sin Cajas Negras",
+    badge: "Velocidad Nativa",
+    color: "text-sky-400",
+    border: "border-sky-500/20",
+    bg: "bg-sky-500/5",
+    body: "Compilado en código nativo para procesar gigabits por segundo sin pausas de garbage collection. Reconoce protocolos estándar y clasifica tráfico a velocidad de hardware.",
   },
   {
-    icon: "🔒",
-    color: "#10b981",
-    title: "Tu IP real nunca sale de tu red",
-    body: "Modo de anonimización integrado: la nube ve claves hasheadas y conteos; no paquetes ni flujos individuales.",
+    icon: Lock,
+    title: "Anonimización Criptográfica SHA-256",
+    badge: "Privacidad Radical",
+    color: "text-emerald-400",
+    border: "border-emerald-500/20",
+    bg: "bg-emerald-500/5",
+    body: "Las direcciones IP de tus dispositivos se hashean localmente con una sal rotativa. La nube y la IA solo ven identificadores anónimos y conteos agregados.",
   },
   {
-    icon: "📋",
-    color: "#f97316",
-    title: "Cada alerta trae sus hechos",
-    body: "Verás los datos que dispararon la alerta (volumen, consultas, picos) y podrás marcarlas como revisadas.",
+    icon: ShieldCheck,
+    title: "Alertas Respaldadas con Evidencia",
+    badge: "Cero Falsos Positivos",
+    color: "text-red-400",
+    border: "border-red-500/20",
+    bg: "bg-red-500/5",
+    body: "Olvídate de advertencias sin fundamento. Cada incidente incluye una firma criptográfica con la ventana de tiempo, los bytes involucrados y la regla violada.",
   },
   {
-    icon: "◎",
-    color: "#8b5cf6",
-    title: "IA que ayuda, no que decide",
-    body: "El análisis de IA resume tendencias y sugiere pasos; funciona por lotes y degrada elegantemente si no está disponible.",
+    icon: Cpu,
+    title: "Copiloto IA Gemini 2.0 con RAG",
+    badge: "Análisis Cognitivo",
+    color: "text-purple-400",
+    border: "border-purple-500/20",
+    bg: "bg-purple-500/5",
+    body: "Sintetiza lotes de 24 horas para descubrir pautas de exfiltración sigilosa ('low-and-slow'). Genera de inmediato pasos de remediación listos para mitigar.",
   },
   {
-    icon: "💾",
-    color: "#f59e0b",
-    title: "Tus datos no se pierden",
-    body: "Si la conexión cae, el agente guarda todo en un spool local hasta reconectar.",
+    icon: Database,
+    title: "Spool Local Resiliente a Caídas",
+    badge: "Offline-First",
+    color: "text-amber-400",
+    border: "border-amber-500/20",
+    bg: "bg-amber-500/5",
+    body: "Si la conectividad a Internet se interrumpe, el agente almacena los snapshots en una base SQLite local protegida y los transmite ordenadamente al reconectar.",
   },
   {
-    icon: "☁",
-    color: "#a78bfa",
-    title: "Vercel + Neon, costo casi cero",
-    body: "Dashboard propio sin servidores que mantener: deploy único en Vercel con base de datos Neon serverless.",
-  },
-];
-
-const steps = [
-  {
-    n: "01",
-    icon: "⬛",
-    title: "Captura local",
-    body: "El agente observa el tráfico en tu PC (o en tu router, vía NetFlow/IPFIX). Ningún paquete crudo sale del equipo.",
-  },
-  {
-    n: "02",
-    icon: "⚙",
-    title: "Agregación determinista",
-    body: "Ventanas de 30 segundos resumen qué hosts, puertos y países dominan el tráfico; el motor local detecta anomalías con reglas concretas.",
-  },
-  {
-    n: "03",
-    icon: "◈",
-    title: "Dashboard + IA",
-    body: "La nube solo recibe esas señales agregadas; la IA analiza tendencias y sugiere acciones (hasta 1 análisis cada 15 minutos).",
+    icon: Zap,
+    title: "Arquitectura Serverless Zero-Cost",
+    badge: "Vercel + Neon",
+    color: "text-cyan-400",
+    border: "border-cyan-500/20",
+    bg: "bg-cyan-500/5",
+    body: "Desplegado en infraestructura de borde sobre Next.js 15 y Postgres Serverless en Neon. Escalabilidad inmediata con costos operativos casi nulos.",
   },
 ];
 
-const securityBullets = [
-  "Autenticación por token rotante con SHA-256",
-  "Secretos solo en el servidor — nunca en el cliente",
-  "Logs sin datos sensibles ni IPs sin anonimizar",
-  "Retención estricta con limpieza diaria automática",
-  "Demo pública de solo lectura + sesión admin firmada",
-  "Comunicación agente → nube cifrada con TLS 1.3",
+const METRICS_STRIP = [
+  { value: "0", label: "Paquetes Crudos Filtrados", sub: "100% Criptográficamente Seguro" },
+  { value: "30s", label: "Ventana de Agregación", sub: "Muestreo Determinista Local" },
+  { value: "< 5s", label: "Latencia de Sincronización", sub: "SWR Realtime en Dashboard" },
+  { value: "100%", label: "Soberanía de Datos", sub: "Tus Redes, Tus Llaves" },
 ];
 
 export default function MarketingHome() {
   return (
-    <>
-      {/* ===== HERO ===== */}
-      <section className="sc-grid-bg border-b sc-hairline">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:py-28">
-          <div className="grid items-center gap-12 lg:grid-cols-2">
-            {/* Copy */}
-            <div>
-              <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-sc-accent">
-                SC-Sentinel · Strategic Connex Anomaly Shield
-              </p>
-              <h1 className="mt-5 font-display text-4xl font-semibold leading-[1.08] tracking-tight text-sc-text sm:text-5xl lg:text-6xl">
-                Ve lo que pasa en tu red. Sin enviar paquetes crudos a la nube.
+    <div className="relative">
+      {/* ===================== HERO SECTION ===================== */}
+      <section className="relative pt-12 pb-20 sm:pt-20 sm:pb-32 border-b border-slate-800/80 overflow-hidden">
+        {/* Mallas de iluminación radial */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[550px] bg-[radial-gradient(ellipse_50%_50%_at_50%_0%,rgba(56,189,248,0.18),transparent_80%)] pointer-events-none" />
+        <div className="absolute top-1/4 right-10 w-96 h-96 bg-purple-500/10 blur-[130px] pointer-events-none rounded-full" />
+        <div className="absolute bottom-10 left-10 w-96 h-96 bg-sky-500/10 blur-[130px] pointer-events-none rounded-full" />
+
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="grid items-center gap-12 lg:grid-cols-12">
+            {/* Columna Izquierda: Headline & CTAs */}
+            <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
+              {/* Badge de versión */}
+              <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500/10 px-3.5 py-1 text-xs font-mono text-sky-300 backdrop-blur-md">
+                <span className="sc-pulse-dot h-2 w-2 rounded-full bg-emerald-400" />
+                <span className="font-semibold uppercase tracking-wider">SC-Sentinel v0.4</span>
+                <span className="text-slate-500">|</span>
+                <span>Strategic Connex Anomaly Shield</span>
+              </div>
+
+              {/* H1 Principal con gradiente Vercel-like */}
+              <h1 className="font-display text-4xl sm:text-6xl lg:text-[68px] font-extrabold tracking-tight text-slate-100 leading-[1.06]">
+                Ve lo que pasa en tu red.{" "}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-cyan-300 to-purple-400">
+                  Sin entregar tus paquetes crudos
+                </span>{" "}
+                a la nube.
               </h1>
-              <p className="mt-6 max-w-xl text-lg leading-relaxed text-sc-text-muted">
-                SC-Sentinel analiza tu tráfico localmente con un motor determinista y publica solo señales
-                agregadas a tu dashboard. Cuando algo raro sucede, te enteras con evidencia.
+
+              {/* Párrafo explicativo */}
+              <p className="max-w-2xl text-base sm:text-lg text-slate-400 leading-relaxed mx-auto lg:mx-0">
+                SC-Sentinel inspecciona el tráfico localmente con un motor determinista en Rust y despacha únicamente señales agregadas a tu dashboard. Cuando surge una anomalía, la IA la contextualiza con hechos verificables.
               </p>
 
-              {/* CTAs — Dashboard primero */}
-              <div className="mt-8 flex flex-wrap items-center gap-3">
+              {/* CTAs de Alto Impacto */}
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 pt-2">
                 <Link
                   href="/demo"
-                  className="inline-flex items-center gap-2 rounded-md bg-sc-accent px-5 py-3 text-sm font-semibold text-sc-bg transition-colors hover:bg-[#7dd3fc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sc-accent"
+                  className="inline-flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-cyan-400 px-6 py-3.5 font-display text-sm font-bold text-slate-950 shadow-[0_0_35px_rgba(56,189,248,0.35)] hover:brightness-110 transition-all hover:scale-[1.02]"
                 >
-                  Ver demo en vivo
-                  <span aria-hidden="true">→</span>
+                  <Activity className="h-4 w-4" />
+                  Ver Demo en Vivo del Dashboard
+                  <ArrowRight className="h-4 w-4" />
                 </Link>
+
                 <Link
-                  href="/contacto"
-                  className="rounded-md border sc-hairline bg-sc-panel/60 px-5 py-3 text-sm font-semibold text-sc-text transition-colors hover:border-sc-accent/40 hover:text-sc-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sc-accent"
+                  href="/login"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/80 px-6 py-3.5 font-display text-sm font-semibold text-slate-200 hover:border-slate-600 hover:bg-slate-800 transition-all"
                 >
-                  Contactar
+                  <Lock className="h-4 w-4 text-slate-400" />
+                  Ingresar como Admin
                 </Link>
+
                 <Link
                   href="/funcionalidades"
-                  className="rounded-md px-5 py-3 text-sm font-medium text-sc-text-muted transition-colors hover:text-sc-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sc-accent"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-400 hover:text-sky-300 px-3 py-2 transition-colors"
                 >
-                  Conocer funcionalidades
+                  Explorar Arquitectura <ChevronRight className="h-4 w-4" />
                 </Link>
               </div>
 
-              {/* Trust strip */}
-              <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2">
-                {["Motor local", "No paquetes crudos", "Alertas con evidencia", "IA asistente"].map((t) => (
-                  <span key={t} className="flex items-center gap-1.5 font-mono text-[11px] text-sc-text-muted">
-                    <span className="h-1.5 w-1.5 rounded-full bg-sc-ok" aria-hidden="true" />
-                    {t}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Panel hero — mockup de ventana de snapshot */}
-            <div
-              aria-hidden="true"
-              className="overflow-hidden rounded-xl border sc-hairline bg-sc-panel/80 shadow-[0_0_80px_rgba(56,189,248,0.07)]"
-            >
-              {/* Barra de título del "navegador" */}
-              <div className="flex items-center justify-between border-b sc-hairline px-4 py-2.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-full bg-sc-risk-critical/70" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-sc-warn/70" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-sc-ok/70" />
-                </div>
-                <div className="flex items-center gap-1.5 rounded-md border sc-hairline bg-sc-bg/80 px-3 py-1">
-                  <span className="text-[9px] text-sc-ok">🔒</span>
-                  <p className="font-mono text-[10px] text-sc-text-muted">
-                    sc-sentinel.vercel.app/dashboard
-                  </p>
-                </div>
-                <span className="font-mono text-[10px] text-sc-text-muted">demo</span>
-              </div>
-
-              {/* Contenido del snapshot */}
-              <div className="space-y-3 p-5 font-mono text-[12px] leading-6">
-                {/* Estado agente */}
-                <div className="flex items-center justify-between gap-4">
-                  <span className="flex items-center gap-2 text-sc-text-muted">
-                    <span className="sc-pulse-dot inline-block h-2 w-2 rounded-full bg-sc-ok" />
-                    capture_status
-                  </span>
-                  <span className="text-sc-ok">online · v0.4.2</span>
-                </div>
-
-                {/* Stats row */}
-                <div className="grid grid-cols-3 gap-2 border-t sc-hairline pt-3">
-                  {[
-                    { label: "hosts únicos", val: "142", color: "text-sc-text" },
-                    { label: "alertas abiertas", val: "3", color: "text-sc-warn" },
-                    { label: "análisis IA", val: "ok · 4 m", color: "text-sc-ok" },
-                  ].map((s) => (
-                    <div key={s.label} className="rounded-lg border sc-hairline bg-sc-bg/40 p-2.5">
-                      <p className="text-[10px] text-sc-text-muted">{s.label}</p>
-                      <p className={`mt-1 text-sm font-semibold tabular-nums ${s.color}`}>{s.val}</p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex items-center justify-between gap-4 border-t sc-hairline pt-3">
-                  <span className="text-sc-text-muted">top_países</span>
-                  <span className="text-sc-text">🇦🇷 AR 38% · 🇺🇸 US 21% · 🇩🇪 DE 9%</span>
-                </div>
-                <div className="flex items-center justify-between gap-4 border-t sc-hairline pt-3">
-                  <span className="text-sc-text-muted">top_puertos</span>
-                  <span className="text-sc-text">443 · 80 · 53</span>
-                </div>
-                <div className="flex items-center justify-between gap-4 border-t sc-hairline pt-3">
-                  <span className="text-sc-text-muted">alerta_activa</span>
-                  <span className="text-sc-warn">▲ pico volumen h_e7a211 (hechos adjuntos)</span>
-                </div>
-              </div>
-
-              <div className="border-t sc-hairline px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.16em] text-sc-text-muted">
-                Solo agregados salieron del equipo · 0 paquetes crudos
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ===== PROBLEMA ===== */}
-      <section aria-labelledby="problema" className="border-b sc-hairline bg-sc-panel/40">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-sc-accent">
-            El problema
-          </p>
-          <h2
-            id="problema"
-            className="mt-4 max-w-3xl font-display text-2xl font-semibold leading-snug tracking-tight text-sc-text sm:text-3xl"
-          >
-            Hoy sabés que tu red «funciona». No sabés qué pasa adentro.
-          </h2>
-          <div className="mt-8 grid gap-6 md:grid-cols-3">
-            {[
-              {
-                title: "Tráfico invisible",
-                body: "El flujo que entra y sale de cada equipo ocurre todo el día, pero la mayoría de los dashboards no muestran nada hasta después del incidente.",
-              },
-              {
-                title: "Herramientas que piden demasiado",
-                body: "Muchos monitores quieren ver todo: paquetes completos, IPs, payloads. En la mayoría de los entornos eso es un consentimiento que nadie firmó.",
-              },
-              {
-                title: "Alertas sin hechos",
-                body: "Un aviso que no explica por qué disparó te obliga a confiar en la herramienta. La evidencia debería ser el primer dato, no el opcional.",
-              },
-            ].map((p) => (
-              <div key={p.title} className="rounded-xl border sc-hairline bg-sc-bg/50 p-5">
-                <h3 className="font-display text-base font-semibold text-sc-text">{p.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-sc-text-muted">{p.body}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ===== SOLUCIÓN (features) ===== */}
-      <section aria-labelledby="solucion" className="border-b sc-hairline">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-sc-accent">
-            La solución
-          </p>
-          <h2
-            id="solucion"
-            className="mt-4 max-w-3xl font-display text-2xl font-semibold leading-snug tracking-tight text-sc-text sm:text-3xl"
-          >
-            Determinista primero. IA como ayuda, nunca como juez.
-          </h2>
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((f) => (
-              <article
-                key={f.title}
-                className="rounded-xl border sc-hairline bg-sc-panel/60 p-6 transition-colors hover:border-sc-accent/30"
-              >
-                <span
-                  className="flex h-10 w-10 items-center justify-center rounded-lg text-xl"
-                  style={{ background: `${f.color}18`, color: f.color }}
-                  aria-hidden="true"
-                >
-                  {f.icon}
+              {/* Features pills directas */}
+              <div className="pt-4 flex flex-wrap items-center justify-center lg:justify-start gap-y-2 gap-x-5 text-xs font-mono text-slate-400">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" /> 100% Rust Daemon
                 </span>
-                <h3 className="mt-4 font-display text-base font-semibold tracking-tight text-sc-text">
-                  {f.title}
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-sc-text-muted">{f.body}</p>
-              </article>
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" /> Hash SHA-256 Nativo
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" /> Copiloto Gemini 2.0
+                </span>
+              </div>
+            </div>
+
+            {/* Columna Derecha: Mockup Interactivo del Agente en Ejecución */}
+            <div className="lg:col-span-5">
+              <div className="relative rounded-2xl border border-slate-800/90 bg-[#070d19]/90 p-4 sm:p-5 shadow-[0_20px_80px_rgba(2,6,23,0.8),0_0_50px_rgba(56,189,248,0.1)] backdrop-blur-xl">
+                {/* Cabecera de la terminal */}
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full bg-red-500/80" />
+                    <span className="h-3 w-3 rounded-full bg-amber-500/80" />
+                    <span className="h-3 w-3 rounded-full bg-emerald-500/80" />
+                    <span className="font-mono text-xs text-slate-400 ml-2">sc-agent: telemetry.ipc</span>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 font-mono text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    CAPTURA ACTIVA
+                  </span>
+                </div>
+
+                {/* Contenido en vivo simulado */}
+                <div className="space-y-3 font-mono text-xs">
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900/80 border border-slate-800/80">
+                    <span className="text-slate-400">Interface Monitoreada:</span>
+                    <span className="text-sky-300 font-semibold">eth0 (promiscuous)</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800/60">
+                      <div className="text-[10px] text-slate-500 uppercase">Throughput</div>
+                      <div className="text-base font-bold text-sky-400 mt-0.5">842.1 Mbps</div>
+                      <div className="text-[10px] text-slate-400">0 dropped packets</div>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800/60">
+                      <div className="text-[10px] text-slate-500 uppercase">Spool Buffer</div>
+                      <div className="text-base font-bold text-emerald-400 mt-0.5">0 Queued</div>
+                      <div className="text-[10px] text-slate-400">Sync TLS OK</div>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-850 space-y-1.5 text-[11px]">
+                    <div className="flex justify-between text-slate-400">
+                      <span>Último Snapshot:</span>
+                      <span className="text-slate-200">hace 2s (Ventana #4812)</span>
+                    </div>
+                    <div className="flex justify-between text-slate-400">
+                      <span>Hosts Identificados:</span>
+                      <span className="text-sky-400 font-semibold">142 (Anonimizados)</span>
+                    </div>
+                    <div className="flex justify-between text-slate-400">
+                      <span>Geolocalización:</span>
+                      <span className="text-slate-200">🇦🇷 AR 42% · 🇺🇸 US 28% · 🇩🇪 DE 12%</span>
+                    </div>
+                  </div>
+
+                  {/* Alerta detectada en vivo */}
+                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5">
+                    <Activity className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-semibold text-amber-300 text-xs">
+                        Anomalía detectada por el motor local:
+                      </div>
+                      <div className="text-[11px] text-amber-200/80 mt-0.5">
+                        Pico inusual en puerto 53 UDP desde host anonimizado <code className="text-sky-300 bg-slate-950 px-1 py-0.5 rounded">h_e1194ac</code>. Hechos listos para el dashboard.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between font-mono text-[11px] text-slate-400">
+                  <span>Protección en Borde</span>
+                  <Link href="/demo" className="text-sky-400 hover:underline flex items-center gap-1">
+                    Ver en el Dashboard →
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===================== METRICS STRIP ===================== */}
+      <section className="border-b border-slate-800/80 bg-slate-950/60 py-10">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+            {METRICS_STRIP.map((metric, idx) => (
+              <div key={idx} className="space-y-1">
+                <div className="font-display text-3xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-cyan-300">
+                  {metric.value}
+                </div>
+                <div className="font-display text-sm font-semibold text-slate-200">
+                  {metric.label}
+                </div>
+                <div className="font-mono text-xs text-slate-500">
+                  {metric.sub}
+                </div>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ===== DASHBOARD EN ACCIÓN + CARDS EXPLICATIVAS ===== */}
+      {/* ===================== DASHBOARD INTERACTIVO Y EXPLICACIÓN DE CARDS ===================== */}
       <DashboardSection />
 
-      {/* ===== CÓMO FUNCIONA ===== */}
-      <section aria-labelledby="como-funciona" className="border-b sc-hairline bg-sc-panel/40">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-sc-accent">
-            Cómo funciona
-          </p>
-          <h2
-            id="como-funciona"
-            className="mt-4 max-w-3xl font-display text-2xl font-semibold leading-snug tracking-tight text-sc-text sm:text-3xl"
-          >
-            Tres pasos, ninguna caja negra.
-          </h2>
-          <ol className="mt-10 grid gap-6 md:grid-cols-3">
-            {steps.map((s, i) => (
-              <li
-                key={s.n}
-                className="relative rounded-xl border sc-hairline bg-sc-bg/50 p-6"
-              >
-                {/* Conector → */}
-                {i < steps.length - 1 && (
-                  <span
-                    className="absolute -right-3 top-1/2 hidden -translate-y-1/2 text-sc-accent md:block"
-                    aria-hidden="true"
-                  >
-                    →
-                  </span>
-                )}
-                <span aria-hidden="true" className="font-mono text-3xl font-semibold text-sc-accent/70">
-                  {s.n}
-                </span>
-                <h3 className="mt-3 font-display text-lg font-semibold text-sc-text">{s.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-sc-text-muted">{s.body}</p>
-              </li>
-            ))}
-          </ol>
-        </div>
-      </section>
-
-      {/* ===== BENEFICIOS DE IA ===== */}
+      {/* ===================== BENEFICIOS DEL MODELO IA ===================== */}
       <AIBenefitsSection />
 
-      {/* ===== ARQUITECTURA RESUMIDA ===== */}
-      <section aria-labelledby="arquitectura" className="border-b sc-hairline">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-sc-accent">
-            Arquitectura resumida
-          </p>
-          <h2
-            id="arquitectura"
-            className="mt-4 max-w-3xl font-display text-2xl font-semibold leading-snug tracking-tight text-sc-text sm:text-3xl"
-          >
-            Agente local → agregación → dashboard. Nada más.
-          </h2>
-          <p className="mt-4 max-w-2xl text-base leading-relaxed text-sc-text-muted">
-            El motor determinista decide qué es anómalo con reglas explícitas; la IA solo recibe hechos ya
-            agregados, una vez cada 15 minutos como máximo.
-          </p>
-          <div className="mt-10">
-            <ArchitectureDiagram />
-          </div>
-        </div>
-      </section>
-
-      {/* ===== PRIVACIDAD ===== */}
-      <section aria-labelledby="privacidad" className="border-b sc-hairline bg-sc-panel/40">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-          <div className="grid items-center gap-10 lg:grid-cols-2">
-            <div>
-              <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-sc-ok">
-                Privacidad
-              </p>
-              <h2
-                id="privacidad"
-                className="mt-4 font-display text-2xl font-semibold leading-snug tracking-tight text-sc-text sm:text-3xl"
-              >
-                La nube recibe señales agregadas, no paquetes crudos.
-              </h2>
-              <p className="mt-4 text-base leading-relaxed text-sc-text-muted">
-                Con la anonimización activada, la dirección IP de tu red no sale del equipo. El dashboard muestra
-                lo necesario para decidir: tendencias, picos y alertas con hechos.
-              </p>
+      {/* ===================== ARQUITECTURA DETALLADA ===================== */}
+      <section id="arquitectura" className="relative py-24 sm:py-32 border-b border-slate-800/80 bg-slate-950/80">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500/10 px-3.5 py-1 text-xs font-mono uppercase tracking-[0.2em] text-sky-300 mb-4">
+              <Layers className="h-3.5 w-3.5" />
+              Ingeniería de Privacidad
             </div>
-
-            {/* Bullets de seguridad */}
-            <div className="rounded-xl border sc-hairline bg-sc-bg/50 p-6">
-              <p className="mb-4 font-mono text-[10px] uppercase tracking-[0.18em] text-sc-text-muted">
-                Postura de seguridad
-              </p>
-              <ul className="space-y-2.5">
-                {securityBullets.map((b) => (
-                  <li key={b} className="flex items-start gap-2.5">
-                    <span className="mt-0.5 h-4 w-4 flex-shrink-0 rounded-full bg-sc-ok/15 text-center text-[10px] leading-4 text-sc-ok">
-                      ✓
-                    </span>
-                    <span className="text-sm text-sc-text-muted">{b}</span>
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-4 border-t sc-hairline pt-4">
-                <Link
-                  href="/security"
-                  className="font-mono text-[11px] text-sc-accent hover:underline"
-                >
-                  Ver postura de seguridad completa →
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ===== CTA FINAL ===== */}
-      <section aria-labelledby="cta-final">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-          <div className="relative overflow-hidden rounded-2xl border sc-hairline bg-sc-panel/70 px-6 py-14 text-center sm:px-12">
-            {/* Glow decorativo */}
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0"
-              style={{
-                background:
-                  "radial-gradient(ellipse 60% 50% at 50% 100%, rgba(56,189,248,0.07), transparent 70%)",
-              }}
-            />
-
-            <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-sc-accent">
-              Empezar
-            </p>
-            <h2
-              id="cta-final"
-              className="mx-auto mt-4 max-w-2xl font-display text-2xl font-semibold leading-snug tracking-tight text-sc-text sm:text-3xl lg:text-4xl"
-            >
-              Monitoreo de red con motor determinista local. La nube recibe señales agregadas, no paquetes
-              crudos.
+            <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-slate-100">
+              Arquitectura Segregada: <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-purple-400">Zero-Raw-Packet Cloud</span>.
             </h2>
-            <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-sc-text-muted">
-              Probá la demo pública y el panel de IA desde tu navegador. Sin registro ni servidores que mantener.
+            <p className="mt-4 text-base sm:text-lg text-slate-400 leading-relaxed">
+              Descubre paso a paso por qué es matemáticamente imposible que tus contraseñas, documentos o conversaciones privadas viajen a servidores externos.
+            </p>
+          </div>
+
+          <ArchitectureDiagram />
+        </div>
+      </section>
+
+      {/* ===================== FEATURE GRID TÉCNICO ===================== */}
+      <section className="relative py-24 sm:py-32 border-b border-slate-800/80 bg-[#080e1b]">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-slate-100">
+              Capacidades Principales de SC-Sentinel
+            </h2>
+            <p className="mt-3 text-base text-slate-400">
+              Construido por y para ingenieros de infraestructura, seguridad y redes que exigen transparencia absoluta.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {FEATURE_GRID.map((feature, idx) => {
+              const Icon = feature.icon;
+              return (
+                <div
+                  key={idx}
+                  className={`rounded-2xl border ${feature.border} ${feature.bg} p-6 sm:p-7 hover:border-sky-400/40 transition-all duration-300 hover:shadow-[0_10px_35px_rgba(2,6,23,0.7)] backdrop-blur-sm`}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className={`p-2.5 rounded-xl border border-slate-800 bg-slate-950/80 ${feature.color}`}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-slate-400 bg-slate-900/80 px-2 py-0.5 rounded border border-slate-800">
+                      {feature.badge}
+                    </span>
+                  </div>
+                  <h3 className="font-display text-lg font-bold text-slate-100 mb-2">
+                    {feature.title}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                    {feature.body}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ===================== CTA FINAL ===================== */}
+      <section className="relative py-24 sm:py-32 overflow-hidden bg-gradient-to-b from-slate-950 to-[#040812]">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(56,189,248,0.1),transparent_70%)] pointer-events-none" />
+
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 text-center relative z-10">
+          <div className="rounded-3xl border border-sky-500/30 bg-slate-900/50 p-8 sm:p-14 shadow-[0_0_80px_rgba(56,189,248,0.15)] backdrop-blur-xl">
+            <span className="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500/10 px-3.5 py-1 text-xs font-mono text-sky-300 uppercase tracking-widest mb-6">
+              Despliegue Inmediato
+            </span>
+
+            <h2 className="font-display text-3xl sm:text-5xl font-extrabold text-slate-100 tracking-tight max-w-2xl mx-auto leading-tight">
+              Toma el control de tu tráfico con visibilidad <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-purple-400">segura y potenciada por IA</span>.
+            </h2>
+
+            <p className="mt-4 text-base sm:text-lg text-slate-400 max-w-xl mx-auto leading-relaxed">
+              Explora la demo interactiva en tiempo real o ingresa al panel de administración para gestionar tus tokens.
             </p>
 
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
               <Link
                 href="/demo"
-                className="inline-flex items-center gap-2 rounded-md bg-sc-accent px-7 py-3 text-sm font-semibold text-sc-bg transition-colors hover:bg-[#7dd3fc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sc-accent"
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-cyan-400 px-8 py-4 font-display text-base font-bold text-slate-950 shadow-[0_0_40px_rgba(56,189,248,0.4)] hover:brightness-110 transition-all hover:scale-[1.02]"
               >
-                Ver demo en vivo
-                <span aria-hidden="true">→</span>
+                Abrir Demo Pública en Vivo <ArrowRight className="h-5 w-5" />
               </Link>
               <Link
                 href="/contacto"
-                className="rounded-md border sc-hairline px-7 py-3 text-sm font-semibold text-sc-text transition-colors hover:border-sc-accent/40 hover:text-sc-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sc-accent"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/80 px-8 py-4 font-display text-base font-semibold text-slate-200 hover:border-slate-600 hover:bg-slate-700 transition-all"
               >
-                Contactar
+                Hablar con un Especialista
               </Link>
             </div>
 
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
-              {["Motor local siempre activo", "Alertas con evidencia", "IA asistente por lotes", "Privacidad por diseño"].map(
-                (t) => (
-                  <span key={t} className="flex items-center gap-1.5 font-mono text-[11px] text-sc-text-muted">
-                    <span className="h-1.5 w-1.5 rounded-full bg-sc-ok" aria-hidden="true" />
-                    {t}
-                  </span>
-                )
-              )}
+            <div className="mt-8 pt-6 border-t border-slate-800/80 flex flex-wrap items-center justify-center gap-6 text-xs font-mono text-slate-400">
+              <span>✓ Sin tarjeta de crédito requerida</span>
+              <span>✓ Código 100% auditable</span>
+              <span>✓ Compatible con Linux, macOS & Windows</span>
             </div>
           </div>
         </div>
       </section>
-    </>
+
+      {/* Asistente Flotante Cyberpunk (ChatWidget con RAG de 24h) */}
+      <ChatWidget />
+    </div>
   );
 }

@@ -1,893 +1,599 @@
-// SC-Sentinel — DashboardPreview: mockup interactivo del dashboard (puro CSS/SVG, sin assets).
-// Muestra cada card del dashboard con tabs para navegar entre vistas.
-// Usado en la landing page (sección §18.1 "Dashboard en acción").
+// SC-Sentinel — DashboardPreview: Mockup de alta fidelidad interactivo del dashboard
+// Estilo Enterprise SOC / Dark Cyberpunk sobrio (Raycast + Cloudflare + Vercel)
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
 "use client";
-import { useState } from "react";
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+import { useState } from "react";
+import Link from "next/link";
+import {
+  ShieldAlert,
+  Server,
+  Activity,
+  Cpu,
+  Sliders,
+  ExternalLink,
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle2,
+  Lock,
+  Terminal,
+  Zap,
+  RefreshCw,
+  Search,
+} from "lucide-react";
+
 type TabId = "overview" | "hosts" | "alerts" | "ai" | "settings";
 
-interface Tab {
+interface TabMeta {
   id: TabId;
   label: string;
-  icon: string;
-  description: string;
+  badge?: string;
+  icon: typeof Server;
+  desc: string;
 }
 
-// ─── Configuración de tabs ─────────────────────────────────────────────────────
-const TABS: Tab[] = [
-  {
-    id: "overview",
-    label: "Overview",
-    icon: "▦",
-    description: "Estado global del agente, tráfico y alertas recientes.",
-  },
-  {
-    id: "hosts",
-    label: "Hosts",
-    icon: "⬡",
-    description: "Tabla de hosts con riesgo, país y bytes en tiempo real.",
-  },
-  {
-    id: "alerts",
-    label: "Alertas",
-    icon: "◈",
-    description: "Alertas con evidencia adjunta y lifecycle open → resolved.",
-  },
-  {
-    id: "ai",
-    label: "Panel IA",
-    icon: "◎",
-    description: "Análisis por lotes: tendencias, hallazgos y recomendaciones.",
-  },
-  {
-    id: "settings",
-    label: "Ajustes",
-    icon: "⊛",
-    description: "Token de dispositivo, anonimización y estado de sincronización.",
-  },
+const TABS: TabMeta[] = [
+  { id: "overview", label: "Overview", icon: Activity, desc: "Telemetría global, estado del agente y throughput en tiempo real" },
+  { id: "hosts", label: "Hosts Monitoreados", badge: "142", icon: Server, desc: "Inventario de endpoints analizados con scoring de riesgo" },
+  { id: "alerts", label: "Alertas y Anomalías", badge: "3", icon: ShieldAlert, desc: "Detecciones heurísticas con evidencia criptográfica adjunta" },
+  { id: "ai", label: "Copiloto IA RAG", badge: "Gemini 2.0", icon: Cpu, desc: "Síntesis cognitiva, razonamiento contextual y mitigaciones" },
+  { id: "settings", label: "Ajustes & Token", icon: Sliders, desc: "Gobernanza de secretos, anonimización hash y políticas de sync" },
 ];
 
-// ─── Paleta (mirror de globals.css sin var() — necesaria fuera de Tailwind) ────
-const C = {
-  bg: "#0b1220",
-  panel: "#0e162e",
-  surface: "#111827",
-  surfaceAlt: "#1f2937",
-  border: "rgba(148,163,184,0.14)",
-  text: "#e5e7eb",
-  muted: "#94a3b8",
-  accent: "#38bdf8",
-  ok: "#10b981",
-  warn: "#f59e0b",
-  degraded: "#8b5cf6",
-  critical: "#ef4444",
-  high: "#f97316",
-  medium: "#eab308",
-  low: "#22c55e",
-  chartIn: "#38bdf8",
-  chartOut: "#a78bfa",
-} as const;
-
-// ─── Mock de mini línea de tráfico ─────────────────────────────────────────────
-function SparkLine({
-  color,
-  points,
-}: {
-  color: string;
-  points: number[];
-}) {
-  const h = 36;
-  const w = 120;
-  const max = Math.max(...points);
-  const xs = points.map((_, i) => (i / (points.length - 1)) * w);
-  const ys = points.map((v) => h - (v / max) * (h - 4));
-  const d = xs.map((x, i) => `${i === 0 ? "M" : "L"} ${x} ${ys[i]}`).join(" ");
-  return (
-    <svg width={w} height={h} aria-hidden="true">
-      <defs>
-        <linearGradient id={`sg-${color.replace("#", "")}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.25" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path
-        d={`${d} L ${w} ${h} L 0 ${h} Z`}
-        fill={`url(#sg-${color.replace("#", "")})`}
-      />
-      <path d={d} stroke={color} strokeWidth="1.6" fill="none" />
-    </svg>
-  );
-}
-
-// ─── OVERVIEW ──────────────────────────────────────────────────────────────────
-function OverviewMockup() {
-  const inPoints = [12, 18, 15, 22, 19, 28, 25, 31, 24, 38, 29, 42, 35, 48, 40];
-  const outPoints = [8, 11, 9, 13, 11, 16, 14, 18, 15, 22, 18, 26, 21, 30, 24];
-
-  return (
-    <div className="space-y-3">
-      {/* Row 1 — stat cards */}
-      <div className="grid grid-cols-3 gap-2">
-        {/* Agente */}
-        <div
-          style={{ background: C.surface, border: `1px solid ${C.border}` }}
-          className="rounded-lg p-3"
-        >
-          <p style={{ color: C.muted, fontSize: 10 }} className="font-mono uppercase tracking-widest">
-            Agente
-          </p>
-          <div className="mt-1.5 flex items-center gap-1.5">
-            <span
-              style={{ background: C.ok }}
-              className="inline-block h-2 w-2 rounded-full"
-            />
-            <span style={{ color: C.ok, fontSize: 13 }} className="font-semibold">
-              online
-            </span>
-          </div>
-          <p style={{ color: C.muted, fontSize: 10 }} className="mt-1 font-mono">
-            v0.4.2 · hace 2 s
-          </p>
-        </div>
-
-        {/* Hosts únicos */}
-        <div
-          style={{ background: C.surface, border: `1px solid ${C.border}` }}
-          className="rounded-lg p-3"
-        >
-          <p style={{ color: C.muted, fontSize: 10 }} className="font-mono uppercase tracking-widest">
-            Hosts únicos
-          </p>
-          <p style={{ color: C.text, fontSize: 20 }} className="mt-1 font-semibold tabular-nums">
-            142
-          </p>
-          <p style={{ color: C.muted, fontSize: 10 }} className="mt-0.5 font-mono">
-            hashes · 24 h
-          </p>
-        </div>
-
-        {/* Alertas */}
-        <div
-          style={{ background: C.surface, border: `1px solid ${C.border}` }}
-          className="rounded-lg p-3"
-        >
-          <p style={{ color: C.muted, fontSize: 10 }} className="font-mono uppercase tracking-widest">
-            Alertas abiertas
-          </p>
-          <p style={{ color: C.warn, fontSize: 20 }} className="mt-1 font-semibold tabular-nums">
-            3
-          </p>
-          <p style={{ color: C.muted, fontSize: 10 }} className="mt-0.5 font-mono">
-            1 high · 2 medium
-          </p>
-        </div>
-      </div>
-
-      {/* Row 2 — traffic chart */}
-      <div
-        style={{ background: C.surface, border: `1px solid ${C.border}` }}
-        className="rounded-lg p-3"
-      >
-        <div className="mb-2 flex items-center justify-between">
-          <p style={{ color: C.muted, fontSize: 10 }} className="font-mono uppercase tracking-widest">
-            Tráfico — últimas 6 h
-          </p>
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1" style={{ color: C.chartIn, fontSize: 10 }}>
-              <span className="inline-block h-1.5 w-3 rounded-full" style={{ background: C.chartIn }} />
-              in
-            </span>
-            <span className="flex items-center gap-1" style={{ color: C.chartOut, fontSize: 10 }}>
-              <span className="inline-block h-1.5 w-3 rounded-full" style={{ background: C.chartOut }} />
-              out
-            </span>
-          </div>
-        </div>
-        <div className="relative flex gap-1">
-          <SparkLine color={C.chartIn} points={inPoints} />
-          <div className="absolute inset-0 flex" style={{ marginLeft: 4 }}>
-            <SparkLine color={C.chartOut} points={outPoints} />
-          </div>
-        </div>
-        <div className="mt-1 flex justify-between font-mono" style={{ color: C.muted, fontSize: 9 }}>
-          <span>-6h</span>
-          <span>-3h</span>
-          <span>ahora</span>
-        </div>
-      </div>
-
-      {/* Row 3 — top 5 hosts + alertas recientes */}
-      <div className="grid grid-cols-2 gap-2">
-        {/* Top 5 hosts */}
-        <div
-          style={{ background: C.surface, border: `1px solid ${C.border}` }}
-          className="rounded-lg p-3"
-        >
-          <p style={{ color: C.muted, fontSize: 10 }} className="mb-2 font-mono uppercase tracking-widest">
-            Top 5 hosts
-          </p>
-          {[
-            { host: "h_a3f8c1", country: "🇦🇷", bytes: "2.4 GB", risk: "low" },
-            { host: "h_b92e44", country: "🇺🇸", bytes: "1.1 GB", risk: "medium" },
-            { host: "h_d14c99", country: "🇩🇪", bytes: "890 MB", risk: "low" },
-            { host: "h_e7a211", country: "🇧🇷", bytes: "640 MB", risk: "high" },
-            { host: "h_f3310b", country: "🇷🇺", bytes: "380 MB", risk: "critical" },
-          ].map((h) => (
-            <div
-              key={h.host}
-              className="flex items-center justify-between py-0.5"
-              style={{ borderTop: `1px solid ${C.border}` }}
-            >
-              <span style={{ color: C.muted, fontSize: 10 }} className="font-mono">
-                {h.country} {h.host}
-              </span>
-              <span
-                style={{
-                  fontSize: 9,
-                  color:
-                    h.risk === "critical"
-                      ? C.critical
-                      : h.risk === "high"
-                      ? C.high
-                      : h.risk === "medium"
-                      ? C.medium
-                      : C.low,
-                  background:
-                    h.risk === "critical"
-                      ? "rgba(239,68,68,0.12)"
-                      : h.risk === "high"
-                      ? "rgba(249,115,22,0.12)"
-                      : h.risk === "medium"
-                      ? "rgba(234,179,8,0.12)"
-                      : "rgba(34,197,94,0.12)",
-                  padding: "1px 5px",
-                  borderRadius: 4,
-                }}
-                className="font-mono font-semibold uppercase"
-              >
-                {h.risk}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* Alertas recientes */}
-        <div
-          style={{ background: C.surface, border: `1px solid ${C.border}` }}
-          className="rounded-lg p-3"
-        >
-          <p style={{ color: C.muted, fontSize: 10 }} className="mb-2 font-mono uppercase tracking-widest">
-            Alertas recientes
-          </p>
-          {[
-            { sev: "high", msg: "Pico volumen h_e7a211" },
-            { sev: "medium", msg: "DNS flood port 53" },
-            { sev: "medium", msg: "Geo desconocido RU" },
-          ].map((a, i) => (
-            <div
-              key={i}
-              className="flex items-start gap-2 py-1"
-              style={{ borderTop: `1px solid ${C.border}` }}
-            >
-              <span
-                style={{
-                  fontSize: 9,
-                  color: a.sev === "high" ? C.high : C.medium,
-                  background: a.sev === "high" ? "rgba(249,115,22,0.12)" : "rgba(234,179,8,0.12)",
-                  padding: "1px 5px",
-                  borderRadius: 4,
-                  flexShrink: 0,
-                  marginTop: 1,
-                }}
-                className="font-mono font-semibold uppercase"
-              >
-                {a.sev}
-              </span>
-              <span style={{ color: C.muted, fontSize: 10 }} className="font-mono leading-tight">
-                {a.msg}
-              </span>
-            </div>
-          ))}
-          {/* AI status */}
-          <div
-            className="mt-2 flex items-center justify-between pt-2"
-            style={{ borderTop: `1px solid ${C.border}` }}
-          >
-            <span style={{ color: C.muted, fontSize: 10 }} className="font-mono">
-              Estado IA
-            </span>
-            <span
-              className="flex items-center gap-1 font-mono font-semibold"
-              style={{ color: C.ok, fontSize: 10 }}
-            >
-              <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: C.ok }} />
-              ok · hace 4 min
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── HOSTS ────────────────────────────────────────────────────────────────────
-function HostsMockup() {
-  const hosts = [
-    { host: "h_a3f8c1", country: "🇦🇷 AR", bIn: "2.4 GB", bOut: "890 MB", pkts: "1.2 M", risk: "low", last: "2 s" },
-    { host: "h_b92e44", country: "🇺🇸 US", bIn: "1.1 GB", bOut: "340 MB", pkts: "620 K", risk: "medium", last: "5 s" },
-    { host: "h_d14c99", country: "🇩🇪 DE", bIn: "890 MB", bOut: "210 MB", pkts: "480 K", risk: "low", last: "12 s" },
-    { host: "h_e7a211", country: "🇧🇷 BR", bIn: "640 MB", bOut: "180 MB", pkts: "290 K", risk: "high", last: "18 s" },
-    { host: "h_f3310b", country: "🇷🇺 RU", bIn: "380 MB", bOut: "90 MB", pkts: "140 K", risk: "critical", last: "31 s" },
-    { host: "h_c5520e", country: "🇨🇳 CN", bIn: "210 MB", bOut: "55 MB", pkts: "88 K", risk: "medium", last: "1 m" },
-  ];
-
-  const riskColor = (r: string) =>
-    r === "critical" ? C.critical : r === "high" ? C.high : r === "medium" ? C.medium : C.low;
-  const riskBg = (r: string) =>
-    r === "critical"
-      ? "rgba(239,68,68,0.12)"
-      : r === "high"
-      ? "rgba(249,115,22,0.12)"
-      : r === "medium"
-      ? "rgba(234,179,8,0.12)"
-      : "rgba(34,197,94,0.12)";
-
-  return (
-    <div>
-      {/* Barra de búsqueda */}
-      <div className="mb-3 flex items-center gap-2">
-        <div
-          style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, flex: 1 }}
-          className="flex items-center gap-2 rounded-md px-3 py-1.5"
-        >
-          <span style={{ color: C.muted, fontSize: 11 }}>🔍</span>
-          <span style={{ color: C.muted, fontSize: 11 }} className="font-mono">
-            Filtrar por host, IP o país...
-          </span>
-        </div>
-        <div
-          style={{ background: C.surfaceAlt, border: `1px solid ${C.border}` }}
-          className="rounded-md px-3 py-1.5"
-        >
-          <span style={{ color: C.muted, fontSize: 11 }} className="font-mono">
-            Riesgo ▾
-          </span>
-        </div>
-      </div>
-
-      {/* Tabla */}
-      <div
-        style={{ background: C.surface, border: `1px solid ${C.border}` }}
-        className="overflow-hidden rounded-lg"
-      >
-        {/* Cabecera */}
-        <div
-          className="grid gap-1 px-3 py-2 font-mono"
-          style={{
-            gridTemplateColumns: "1.8fr 0.8fr 1fr 1fr 0.8fr 0.65fr 0.5fr",
-            borderBottom: `1px solid ${C.border}`,
-            color: C.muted,
-            fontSize: 9,
-          }}
-        >
-          <span className="uppercase tracking-widest">Host</span>
-          <span className="uppercase tracking-widest">País</span>
-          <span className="uppercase tracking-widest">Bytes in</span>
-          <span className="uppercase tracking-widest">Bytes out</span>
-          <span className="uppercase tracking-widest">Paquetes</span>
-          <span className="uppercase tracking-widest">Riesgo</span>
-          <span className="uppercase tracking-widest">Último</span>
-        </div>
-
-        {hosts.map((h, i) => (
-          <div
-            key={h.host}
-            className="grid gap-1 px-3 py-2 transition-colors"
-            style={{
-              gridTemplateColumns: "1.8fr 0.8fr 1fr 1fr 0.8fr 0.65fr 0.5fr",
-              borderTop: i > 0 ? `1px solid ${C.border}` : undefined,
-              fontSize: 10,
-              color: C.text,
-            }}
-          >
-            <span className="font-mono" style={{ color: C.accent }}>
-              {h.host}
-            </span>
-            <span className="font-mono" style={{ color: C.muted }}>
-              {h.country}
-            </span>
-            <span className="font-mono tabular-nums">{h.bIn}</span>
-            <span className="font-mono tabular-nums">{h.bOut}</span>
-            <span className="font-mono tabular-nums" style={{ color: C.muted }}>
-              {h.pkts}
-            </span>
-            <span>
-              <span
-                style={{
-                  fontSize: 8,
-                  color: riskColor(h.risk),
-                  background: riskBg(h.risk),
-                  padding: "1px 5px",
-                  borderRadius: 4,
-                  fontFamily: "var(--font-mono)",
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                }}
-              >
-                {h.risk}
-              </span>
-            </span>
-            <span className="font-mono" style={{ color: C.muted }}>
-              {h.last}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── ALERTS ───────────────────────────────────────────────────────────────────
-function AlertsMockup() {
-  const alerts = [
-    {
-      date: "14:38:12",
-      sev: "high",
-      rule: "vol_threshold",
-      title: "Pico de volumen en h_e7a211",
-      status: "open",
-      ev: "bytes_in=640MB en 30s, umbral=200MB, host=h_e7a211",
-    },
-    {
-      date: "14:22:05",
-      sev: "medium",
-      rule: "dns_flood",
-      title: "Flood DNS desde port 53",
-      status: "acknowledged",
-      ev: "queries=4800/min, umbral=1000/min, proto=UDP",
-    },
-    {
-      date: "13:51:40",
-      sev: "medium",
-      rule: "geo_unknown",
-      title: "País desconocido RU detectado",
-      status: "open",
-      ev: "country=RU, host=h_f3310b, bytes_out=90MB",
-    },
-    {
-      date: "12:18:33",
-      sev: "low",
-      rule: "port_scan",
-      title: "Escaneo port 22 detectado",
-      status: "resolved",
-      ev: "ports_scanned=48, host=h_b92e44, duration=12s",
-    },
-  ];
-
-  const sevColor = (s: string) =>
-    s === "high" ? C.high : s === "medium" ? C.medium : s === "low" ? C.low : C.critical;
-  const sevBg = (s: string) =>
-    s === "high"
-      ? "rgba(249,115,22,0.12)"
-      : s === "medium"
-      ? "rgba(234,179,8,0.12)"
-      : s === "low"
-      ? "rgba(34,197,94,0.12)"
-      : "rgba(239,68,68,0.12)";
-  const statusColor = (s: string) =>
-    s === "resolved" ? C.ok : s === "acknowledged" ? C.degraded : C.warn;
-
-  return (
-    <div className="space-y-2">
-      {/* Filtros */}
-      <div className="flex flex-wrap gap-1.5">
-        {["Todos", "open", "acknowledged", "resolved"].map((f) => (
-          <span
-            key={f}
-            style={{
-              background: f === "Todos" ? C.accent : C.surfaceAlt,
-              color: f === "Todos" ? C.bg : C.muted,
-              fontSize: 9,
-              borderRadius: 4,
-              padding: "2px 8px",
-              border: `1px solid ${f === "Todos" ? C.accent : C.border}`,
-              fontFamily: "var(--font-mono)",
-            }}
-          >
-            {f}
-          </span>
-        ))}
-        <div className="flex-1" />
-        <span
-          style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, fontSize: 9, borderRadius: 4, padding: "2px 8px", color: C.muted, fontFamily: "var(--font-mono)" }}
-        >
-          Severidad ▾
-        </span>
-      </div>
-
-      {/* Alertas */}
-      {alerts.map((a, i) => (
-        <div
-          key={i}
-          style={{ background: C.surface, border: `1px solid ${C.border}` }}
-          className="rounded-lg p-3"
-        >
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span
-                style={{ fontSize: 9, color: sevColor(a.sev), background: sevBg(a.sev), padding: "1px 6px", borderRadius: 4, fontFamily: "var(--font-mono)", fontWeight: 700, textTransform: "uppercase" }}
-              >
-                {a.sev}
-              </span>
-              <span style={{ color: C.text, fontSize: 11 }} className="font-semibold">
-                {a.title}
-              </span>
-            </div>
-            <span
-              style={{ fontSize: 9, color: statusColor(a.status), background: "rgba(255,255,255,0.05)", padding: "1px 6px", borderRadius: 4, fontFamily: "var(--font-mono)", flexShrink: 0 }}
-            >
-              {a.status}
-            </span>
-          </div>
-          <div className="mt-2 flex items-center gap-3">
-            <span style={{ color: C.muted, fontSize: 9 }} className="font-mono">
-              {a.date}
-            </span>
-            <span style={{ color: C.muted, fontSize: 9 }} className="font-mono">
-              regla: {a.rule}
-            </span>
-          </div>
-          {/* Evidencia */}
-          <div
-            className="mt-2 rounded-md px-2 py-1.5 font-mono"
-            style={{ background: C.bg, border: `1px solid ${C.border}`, fontSize: 9, color: C.muted }}
-          >
-            <span style={{ color: C.accent }}>evidence: </span>
-            {a.ev}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ─── AI PANEL ─────────────────────────────────────────────────────────────────
-function AiMockup() {
-  return (
-    <div className="space-y-3">
-      {/* Meta del análisis */}
-      <div
-        style={{ background: C.surface, border: `1px solid ${C.border}` }}
-        className="rounded-lg p-3"
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span
-              className="inline-block h-2 w-2 rounded-full"
-              style={{ background: C.ok }}
-            />
-            <span style={{ color: C.ok, fontSize: 10 }} className="font-mono font-semibold uppercase">
-              IA activa
-            </span>
-          </div>
-          <span
-            style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, fontSize: 9, color: C.degraded, padding: "2px 7px", borderRadius: 4, fontFamily: "var(--font-mono)" }}
-          >
-            gemini-2.0-flash
-          </span>
-        </div>
-        <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-          <div>
-            <span style={{ color: C.muted, fontSize: 9 }} className="font-mono">Último análisis</span>
-            <p style={{ color: C.text, fontSize: 11 }} className="mt-0.5 font-semibold">hace 4 min · 14:34:00</p>
-          </div>
-          <div>
-            <span style={{ color: C.muted, fontSize: 9 }} className="font-mono">Período del lote</span>
-            <p style={{ color: C.text, fontSize: 11 }} className="mt-0.5 font-semibold">08:00 → 14:34</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Summary */}
-      <div
-        style={{ background: C.surface, border: `1px solid ${C.border}` }}
-        className="rounded-lg p-3"
-      >
-        <p style={{ color: C.muted, fontSize: 10 }} className="mb-1.5 font-mono uppercase tracking-widest">
-          Resumen
-        </p>
-        <p style={{ color: C.text, fontSize: 11, lineHeight: 1.55 }}>
-          El tráfico de salida hacia RU aumentó un 340% respecto al período anterior. El host{" "}
-          <span style={{ color: C.accent }} className="font-mono">h_e7a211</span> muestra patrones
-          consistentes con exfiltración por volumen. Se detectaron 3 anomalías activas; 1 resuelta.
-        </p>
-        <div
-          style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, padding: "4px 8px", marginTop: 8 }}
-          className="flex items-center gap-1.5"
-        >
-          <span style={{ color: C.critical, fontSize: 10 }} className="font-mono font-semibold">
-            risk_level:
-          </span>
-          <span style={{ color: C.critical, fontSize: 10 }} className="font-mono">
-            HIGH
-          </span>
-        </div>
-      </div>
-
-      {/* Hallazgos */}
-      <div
-        style={{ background: C.surface, border: `1px solid ${C.border}` }}
-        className="rounded-lg p-3"
-      >
-        <p style={{ color: C.muted, fontSize: 10 }} className="mb-2 font-mono uppercase tracking-widest">
-          Hallazgos
-        </p>
-        {[
-          "Pico de bytes out hacia AS en RU (3.4× promedio semanal)",
-          "DNS flood persistente en port 53 durante 18 minutos",
-          "Host h_e7a211 con volumen in anómalo en ventana de 30 s",
-        ].map((f, i) => (
-          <div
-            key={i}
-            className="flex items-start gap-2 py-1.5"
-            style={{ borderTop: i > 0 ? `1px solid ${C.border}` : undefined }}
-          >
-            <span style={{ color: C.warn, fontSize: 10, flexShrink: 0 }}>⚠</span>
-            <span style={{ color: C.text, fontSize: 10, lineHeight: 1.4 }}>{f}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Recomendaciones */}
-      <div
-        style={{ background: C.surface, border: `1px solid ${C.border}` }}
-        className="rounded-lg p-3"
-      >
-        <p style={{ color: C.muted, fontSize: 10 }} className="mb-2 font-mono uppercase tracking-widest">
-          Recomendaciones
-        </p>
-        {[
-          "Revisar y bloquear tráfico saliente hacia ASN detectado en RU",
-          "Verificar reglas del firewall para port 53 UDP",
-          "Marcar h_e7a211 como watchlist y auditar procesos locales",
-        ].map((r, i) => (
-          <div
-            key={i}
-            className="flex items-start gap-2 py-1.5"
-            style={{ borderTop: i > 0 ? `1px solid ${C.border}` : undefined }}
-          >
-            <span style={{ color: C.ok, fontSize: 10, flexShrink: 0 }}>→</span>
-            <span style={{ color: C.text, fontSize: 10, lineHeight: 1.4 }}>{r}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── SETTINGS ─────────────────────────────────────────────────────────────────
-function SettingsMockup() {
-  return (
-    <div className="space-y-3">
-      {/* Device token */}
-      <div
-        style={{ background: C.surface, border: `1px solid ${C.border}` }}
-        className="rounded-lg p-4"
-      >
-        <div className="mb-3 flex items-center justify-between">
-          <div>
-            <p style={{ color: C.text, fontSize: 12 }} className="font-semibold">Token de dispositivo</p>
-            <p style={{ color: C.muted, fontSize: 10 }} className="mt-0.5 font-mono">Autenticación del agente local</p>
-          </div>
-          <span
-            style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.3)", color: C.ok, fontSize: 9, padding: "2px 7px", borderRadius: 4, fontFamily: "var(--font-mono)" }}
-          >
-            activo
-          </span>
-        </div>
-        <div
-          style={{ background: C.bg, border: `1px solid ${C.border}` }}
-          className="flex items-center gap-2 rounded-md px-3 py-2"
-        >
-          <span style={{ color: C.muted, fontSize: 11 }} className="flex-1 font-mono">
-            sc_tok_••••••••••••••••••••••••••••••••
-          </span>
-          <span style={{ color: C.accent, fontSize: 10 }} className="cursor-pointer font-mono">
-            mostrar
-          </span>
-        </div>
-        <div className="mt-2 flex gap-2">
-          <span
-            style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, fontSize: 10, color: C.muted, padding: "3px 10px", borderRadius: 5, fontFamily: "var(--font-mono)", cursor: "pointer" }}
-          >
-            Rotar token
-          </span>
-          <span
-            style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, fontSize: 10, color: C.muted, padding: "3px 10px", borderRadius: 5, fontFamily: "var(--font-mono)", cursor: "pointer" }}
-          >
-            Copiar
-          </span>
-        </div>
-      </div>
-
-      {/* Anonimización */}
-      <div
-        style={{ background: C.surface, border: `1px solid ${C.border}` }}
-        className="rounded-lg p-4"
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <p style={{ color: C.text, fontSize: 12 }} className="font-semibold">Anonimizar hosts</p>
-            <p style={{ color: C.muted, fontSize: 10 }} className="mt-0.5">
-              La nube solo ve hashes. IPs nunca salen del equipo.
-            </p>
-          </div>
-          <div
-            style={{ background: C.ok, width: 36, height: 20, borderRadius: 10, position: "relative" }}
-          >
-            <div
-              style={{ position: "absolute", right: 3, top: 3, width: 14, height: 14, borderRadius: 7, background: "white" }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Estado de sync */}
-      <div
-        style={{ background: C.surface, border: `1px solid ${C.border}` }}
-        className="rounded-lg p-4"
-      >
-        <p style={{ color: C.muted, fontSize: 10 }} className="mb-2 font-mono uppercase tracking-widest">
-          Estado de sincronización
-        </p>
-        {[
-          { label: "Estado actual", val: "idle", color: C.ok },
-          { label: "Último éxito", val: "14:38:14 · hace 2 s", color: C.muted },
-          { label: "Snapshots en spool", val: "0 (vacío)", color: C.muted },
-          { label: "Retención configurada", val: "30 días (política v1)", color: C.muted },
-        ].map((r, i) => (
-          <div
-            key={i}
-            className="flex items-center justify-between py-1.5"
-            style={{ borderTop: i > 0 ? `1px solid ${C.border}` : undefined }}
-          >
-            <span style={{ color: C.muted, fontSize: 10 }} className="font-mono">{r.label}</span>
-            <span style={{ color: r.color, fontSize: 10 }} className="font-mono font-semibold">{r.val}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Componente principal ──────────────────────────────────────────────────────
 export default function DashboardPreview() {
-  const [active, setActive] = useState<TabId>("overview");
-  const tab = TABS.find((t) => t.id === active)!;
+  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const renderContent = () => {
-    switch (active) {
-      case "overview":  return <OverviewMockup />;
-      case "hosts":     return <HostsMockup />;
-      case "alerts":    return <AlertsMockup />;
-      case "ai":        return <AiMockup />;
-      case "settings":  return <SettingsMockup />;
-    }
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    setTimeout(() => setIsRefreshing(false), 800);
   };
 
+  const activeTabMeta = TABS.find((t) => t.id === activeTab)!;
+
   return (
-    <div
-      aria-label="Vista previa del dashboard SC-Sentinel"
-      style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14 }}
-      className="overflow-hidden shadow-[0_0_80px_rgba(56,189,248,0.07)]"
-    >
-      {/* Barra de título del "navegador" */}
-      <div
-        style={{ background: C.bg, borderBottom: `1px solid ${C.border}` }}
-        className="flex items-center justify-between px-4 py-2.5"
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ background: C.critical }} />
-          <span className="h-2.5 w-2.5 rounded-full" style={{ background: C.warn }} />
-          <span className="h-2.5 w-2.5 rounded-full" style={{ background: C.ok }} />
+    <div className="relative rounded-2xl border border-slate-800/90 bg-[#090f1d]/95 shadow-[0_20px_90px_rgba(2,6,23,0.9),0_0_50px_rgba(56,189,248,0.07)] backdrop-blur-2xl overflow-hidden">
+      {/* Barra superior de la ventana interactiva */}
+      <div className="flex flex-wrap items-center justify-between border-b border-slate-800/80 bg-slate-950/80 px-4 py-3 gap-3">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 mr-2">
+            <span className="h-3 w-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+            <span className="h-3 w-3 rounded-full bg-amber-500/80 shadow-[0_0_8px_rgba(245,158,11,0.5)]" />
+            <span className="h-3 w-3 rounded-full bg-emerald-500/80 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+          </div>
+          <span className="font-mono text-xs text-slate-500 hidden sm:inline">|</span>
+          <div className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900/90 px-3 py-1 font-mono text-xs text-slate-300">
+            <Lock className="h-3 w-3 text-emerald-400" />
+            <span className="text-slate-400">https://</span>sc-sentinel.vercel.app/dashboard
+          </div>
         </div>
-        <div
-          style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 6 }}
-          className="flex items-center gap-2 px-3 py-1"
-        >
-          <span style={{ color: C.ok, fontSize: 9 }}>🔒</span>
-          <span style={{ color: C.muted, fontSize: 10 }} className="font-mono">
-            sc-sentinel.vercel.app/dashboard
+
+        <div className="flex items-center gap-3">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 font-mono text-[11px] text-emerald-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            MOTOR LOCAL ONLINE
           </span>
+          <button
+            onClick={handleRefresh}
+            title="Simular refresco SWR"
+            className="flex items-center gap-1.5 rounded-md border border-slate-800 bg-slate-900/70 px-2.5 py-1 font-mono text-xs text-slate-400 hover:text-slate-200 transition-colors"
+          >
+            <RefreshCw className={`h-3 w-3 ${isRefreshing ? "animate-spin text-sky-400" : ""}`} />
+            <span className="hidden md:inline">5s SWR</span>
+          </button>
+          <Link
+            href="/demo"
+            className="inline-flex items-center gap-1 rounded-md bg-sky-500 px-3 py-1 font-mono text-xs font-semibold text-slate-950 hover:bg-sky-400 transition-colors"
+          >
+            Abrir Demo <ExternalLink className="h-3 w-3" />
+          </Link>
         </div>
-        <span style={{ color: C.muted, fontSize: 10 }} className="font-mono">
-          demo
-        </span>
       </div>
 
-      {/* Shell del dashboard: sidebar + contenido */}
-      <div className="flex" style={{ minHeight: 480 }}>
-        {/* Sidebar */}
-        <div
-          style={{ background: C.surface, borderRight: `1px solid ${C.border}`, width: 120, flexShrink: 0 }}
-          className="flex flex-col py-3"
-        >
-          {/* Logo en sidebar */}
-          <div className="mb-4 flex items-center gap-2 px-3">
-            <span style={{ color: C.accent, fontSize: 14 }}>◈</span>
-            <span style={{ color: C.text, fontSize: 11 }} className="font-semibold">
-              SC-Sentinel
-            </span>
+      {/* Grid del Dashboard: Sidebar de navegación + Viewport de contenido */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 min-h-[580px]">
+        {/* Sidebar interactivo */}
+        <div className="lg:col-span-3 border-b lg:border-b-0 lg:border-r border-slate-800/80 bg-slate-950/50 p-3 sm:p-4 flex flex-col justify-between">
+          <div className="space-y-1">
+            <div className="px-3 py-2 text-[11px] font-mono uppercase tracking-[0.2em] text-slate-500">
+              Vistas Principales
+            </div>
+            {TABS.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`w-full flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 font-display text-sm font-medium transition-all text-left ${
+                    isActive
+                      ? "bg-sky-500/15 text-sky-400 border border-sky-500/30 shadow-[0_0_20px_rgba(56,189,248,0.15)]"
+                      : "text-slate-400 hover:bg-slate-900/60 hover:text-slate-200 border border-transparent"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-sky-400" : "text-slate-500"}`} />
+                    <span className="truncate">{tab.label}</span>
+                  </div>
+                  {tab.badge && (
+                    <span
+                      className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold ${
+                        isActive
+                          ? "bg-sky-400/20 text-sky-300"
+                          : "bg-slate-800/80 text-slate-400"
+                      }`}
+                    >
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setActive(t.id)}
-              style={{
-                background: active === t.id ? C.surfaceAlt : "transparent",
-                borderLeft: active === t.id ? `2px solid ${C.accent}` : "2px solid transparent",
-                color: active === t.id ? C.text : C.muted,
-                fontSize: 11,
-                textAlign: "left",
-                padding: "7px 10px 7px 12px",
-                display: "flex",
-                alignItems: "center",
-                gap: 7,
-                width: "100%",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                transition: "all 0.15s",
-              }}
-            >
-              <span style={{ fontSize: 13 }}>{t.icon}</span>
-              {t.label}
-            </button>
-          ))}
-
-          {/* Rango temporal */}
-          <div className="mt-auto px-3 pb-1">
-            <span
-              style={{
-                background: C.surfaceAlt,
-                border: `1px solid ${C.border}`,
-                color: C.muted,
-                fontSize: 9,
-                padding: "3px 6px",
-                borderRadius: 4,
-                fontFamily: "var(--font-mono)",
-                display: "block",
-                textAlign: "center",
-              }}
-            >
-              6 h ▾
-            </span>
+          {/* Widget de estado del agente en sidebar */}
+          <div className="mt-4 pt-4 border-t border-slate-850/80 rounded-xl bg-slate-900/40 p-3 border border-slate-800/60">
+            <div className="flex items-center justify-between text-xs font-mono text-slate-400 mb-2">
+              <span className="flex items-center gap-1.5">
+                <Terminal className="h-3.5 w-3.5 text-sky-400" />
+                <span>sc-agent daemon</span>
+              </span>
+              <span className="text-emerald-400 font-semibold">OK</span>
+            </div>
+            <div className="space-y-1 font-mono text-[11px] text-slate-500">
+              <div className="flex justify-between">
+                <span>Versión:</span>
+                <span className="text-slate-300">v0.4.2 (Rust)</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Modo:</span>
+                <span className="text-slate-300">PCAP Promiscuo</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Buffer Spool:</span>
+                <span className="text-emerald-400 font-medium">0 queued (Sync)</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Área de contenido */}
-        <div className="flex-1 overflow-auto p-4">
-          {/* Header de vista */}
-          <div className="mb-3 flex items-baseline justify-between">
+        {/* Viewport Principal */}
+        <div className="lg:col-span-9 p-4 sm:p-6 bg-slate-950/30 overflow-y-auto">
+          {/* Header de la vista activa */}
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-800/60">
             <div>
-              <h3 style={{ color: C.text, fontSize: 14 }} className="font-semibold">
-                {tab.icon} {tab.label}
+              <div className="flex items-center gap-2 font-mono text-xs text-sky-400 uppercase tracking-wider">
+                <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
+                Módulo en ejecución
+              </div>
+              <h3 className="font-display text-xl sm:text-2xl font-bold text-slate-100 mt-1">
+                {activeTabMeta.label}
               </h3>
-              <p style={{ color: C.muted, fontSize: 10 }} className="mt-0.5">
-                {tab.description}
+              <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+                {activeTabMeta.desc}
               </p>
             </div>
-            <span style={{ color: C.muted, fontSize: 9 }} className="font-mono">
-              Refresco SWR · 5 s
-            </span>
+            <div className="flex items-center gap-2 font-mono text-xs bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800 text-slate-400">
+              <span className="text-slate-500">Rango:</span>
+              <span className="text-slate-200 font-medium">Últimas 24h</span>
+            </div>
           </div>
 
-          {renderContent()}
+          {/* VISTAS DINÁMICAS */}
+
+          {/* 1. OVERVIEW VIEW */}
+          {activeTab === "overview" && (
+            <div className="space-y-5">
+              {/* KPIs Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5">
+                  <span className="font-mono text-[11px] uppercase tracking-wider text-slate-400">Throughput In</span>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className="font-display text-xl sm:text-2xl font-bold text-sky-400">4.82 GB</span>
+                    <span className="font-mono text-[11px] text-emerald-400 flex items-center">
+                      <TrendingUp className="h-3 w-3 mr-0.5" /> +12%
+                    </span>
+                  </div>
+                  <span className="font-mono text-[10px] text-slate-500">1.24 M paquetes/h</span>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5">
+                  <span className="font-mono text-[11px] uppercase tracking-wider text-slate-400">Throughput Out</span>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className="font-display text-xl sm:text-2xl font-bold text-purple-400">1.45 GB</span>
+                    <span className="font-mono text-[11px] text-slate-400">nominal</span>
+                  </div>
+                  <span className="font-mono text-[10px] text-slate-500">TLS 1.3 predominante</span>
+                </div>
+
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3.5">
+                  <span className="font-mono text-[11px] uppercase tracking-wider text-amber-400">Anomalías Activas</span>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className="font-display text-xl sm:text-2xl font-bold text-amber-400">3</span>
+                    <span className="font-mono text-[11px] text-amber-300">1 Crítica</span>
+                  </div>
+                  <span className="font-mono text-[10px] text-amber-400/70">Evidencia capturada</span>
+                </div>
+
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3.5">
+                  <span className="font-mono text-[11px] uppercase tracking-wider text-emerald-400">Privacidad</span>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className="font-display text-xl sm:text-2xl font-bold text-emerald-400">100%</span>
+                  </div>
+                  <span className="font-mono text-[10px] text-emerald-400/80">0 raw packets enviados</span>
+                </div>
+              </div>
+
+              {/* Gráfico de flujo de tráfico en vivo (SVG Vectorial dinámico) */}
+              <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-sky-400" />
+                    <span className="font-display text-sm font-semibold text-slate-200">
+                      Dinámica de Tráfico Temporal (Bytes In vs Bytes Out)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 font-mono text-xs">
+                    <span className="flex items-center gap-1.5 text-sky-400">
+                      <span className="h-2 w-2 rounded-full bg-sky-400" /> Bytes In
+                    </span>
+                    <span className="flex items-center gap-1.5 text-purple-400">
+                      <span className="h-2 w-2 rounded-full bg-purple-400" /> Bytes Out
+                    </span>
+                  </div>
+                </div>
+
+                <div className="h-44 w-full relative">
+                  <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 600 160">
+                    <defs>
+                      <linearGradient id="chartInGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.35" />
+                        <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.0" />
+                      </linearGradient>
+                      <linearGradient id="chartOutGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#c084fc" stopOpacity="0.25" />
+                        <stop offset="100%" stopColor="#c084fc" stopOpacity="0.0" />
+                      </linearGradient>
+                    </defs>
+
+                    {/* Grilla horizontal */}
+                    <line x1="0" y1="40" x2="600" y2="40" stroke="#1e293b" strokeDasharray="4 4" />
+                    <line x1="0" y1="80" x2="600" y2="80" stroke="#1e293b" strokeDasharray="4 4" />
+                    <line x1="0" y1="120" x2="600" y2="120" stroke="#1e293b" strokeDasharray="4 4" />
+
+                    {/* Área y línea In */}
+                    <path
+                      d="M 0 130 Q 80 50, 160 90 T 320 40 T 480 85 T 600 30 L 600 160 L 0 160 Z"
+                      fill="url(#chartInGrad)"
+                    />
+                    <path
+                      d="M 0 130 Q 80 50, 160 90 T 320 40 T 480 85 T 600 30"
+                      fill="none"
+                      stroke="#38bdf8"
+                      strokeWidth="2.5"
+                    />
+
+                    {/* Área y línea Out */}
+                    <path
+                      d="M 0 145 Q 90 110, 180 120 T 360 85 T 490 100 T 600 70 L 600 160 L 0 160 Z"
+                      fill="url(#chartOutGrad)"
+                    />
+                    <path
+                      d="M 0 145 Q 90 110, 180 120 T 360 85 T 490 100 T 600 70"
+                      fill="none"
+                      stroke="#c084fc"
+                      strokeWidth="2"
+                    />
+
+                    {/* Punto de pico de alerta */}
+                    <circle cx="320" cy="40" r="5" fill="#f59e0b" className="animate-ping" />
+                    <circle cx="320" cy="40" r="4" fill="#f59e0b" />
+                  </svg>
+                </div>
+                <div className="flex justify-between font-mono text-[10px] text-slate-500 mt-2">
+                  <span>-24h (00:00)</span>
+                  <span>-18h (06:00)</span>
+                  <span>-12h (12:00) [Pico de Tráfico Detectado]</span>
+                  <span>-6h (18:00)</span>
+                  <span className="text-sky-400 font-semibold">Ahora (Live)</span>
+                </div>
+              </div>
+
+              {/* Top Hosts & Alertas Snapshot */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-display text-sm font-semibold text-slate-200">
+                      Top Endpoints de Mayor Consumo
+                    </span>
+                    <span className="font-mono text-[11px] text-slate-400">Hash SHA-256</span>
+                  </div>
+                  <div className="space-y-2 font-mono text-xs">
+                    {[
+                      { hash: "h_8f4b219e... [Local Gateway]", country: "🇦🇷 AR", in: "1.82 GB", risk: "low" },
+                      { hash: "h_3c17a90f... [Cloud API]", country: "🇺🇸 US", in: "940 MB", risk: "low" },
+                      { hash: "h_d892e441... [DNS Resolver]", country: "🇧🇷 BR", in: "620 MB", risk: "medium" },
+                      { hash: "h_e1194ac2... [Unknown ASN]", country: "🇷🇺 RU", in: "480 MB", risk: "critical" },
+                    ].map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-slate-950/60 border border-slate-850">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-400">{item.country}</span>
+                          <span className="text-slate-200">{item.hash}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sky-400 font-semibold">{item.in}</span>
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                              item.risk === "critical"
+                                ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                                : item.risk === "medium"
+                                ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                                : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                            }`}
+                          >
+                            {item.risk}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-display text-sm font-semibold text-slate-200">
+                      Feed de Alertas Recientes
+                    </span>
+                    <span className="font-mono text-[11px] text-amber-400">3 no resueltas</span>
+                  </div>
+                  <div className="space-y-2">
+                    {[
+                      { title: "Exfiltración de Ancho de Banda", host: "h_e1194ac2", time: "hace 3 min", sev: "critical" },
+                      { title: "Ráfaga de Consultas DNS Anómala", host: "h_d892e441", time: "hace 18 min", sev: "medium" },
+                      { title: "Escaneo de Puertos TCP Inusual", host: "h_3c17a90f", time: "hace 42 min", sev: "low" },
+                    ].map((alert, idx) => (
+                      <div key={idx} className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-850 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`h-2 w-2 rounded-full ${
+                                alert.sev === "critical" ? "bg-red-500 animate-pulse" : alert.sev === "medium" ? "bg-amber-500" : "bg-sky-400"
+                              }`}
+                            />
+                            <span className="font-display text-xs font-semibold text-slate-200">{alert.title}</span>
+                          </div>
+                          <div className="font-mono text-[11px] text-slate-400 mt-0.5">
+                            Target: <span className="text-sky-300">{alert.host}</span> · {alert.time}
+                          </div>
+                        </div>
+                        <span className="font-mono text-[10px] text-slate-500 shrink-0">Regla M1-04</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 2. HOSTS VIEW */}
+          {activeTab === "hosts" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3 bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                <div className="flex items-center gap-2 flex-1 max-w-sm bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs">
+                  <Search className="h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    readOnly
+                    value="Filtrar por hash, país o riesgo..."
+                    className="bg-transparent text-slate-300 focus:outline-none w-full"
+                  />
+                </div>
+                <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
+                  <span>Modo Privacidad:</span>
+                  <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+                    HASH ACTIVO
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden font-mono text-xs">
+                <div className="grid grid-cols-12 bg-slate-950/80 p-3 text-slate-400 uppercase tracking-wider text-[11px] border-b border-slate-800 font-semibold">
+                  <div className="col-span-5">Host / Endpoint Key</div>
+                  <div className="col-span-2">Geolocalización</div>
+                  <div className="col-span-2">Tráfico In/Out</div>
+                  <div className="col-span-2">Riesgo Calculado</div>
+                  <div className="col-span-1 text-right">Detalle</div>
+                </div>
+
+                <div className="divide-y divide-slate-850">
+                  {[
+                    { key: "h_e1194ac27b99...", country: "🇷🇺 Rusia (RU)", in: "480 MB", out: "1.2 GB", risk: "CRITICAL", color: "text-red-400" },
+                    { key: "h_d892e441aa21...", country: "🇧🇷 Brasil (BR)", in: "620 MB", out: "140 MB", risk: "HIGH", color: "text-orange-400" },
+                    { key: "h_3c17a90f110c...", country: "🇺🇸 USA (US)", in: "940 MB", out: "89 MB", risk: "MEDIUM", color: "text-amber-400" },
+                    { key: "h_8f4b219e5512...", country: "🇦🇷 Argentina (AR)", in: "1.82 GB", out: "420 MB", risk: "LOW", color: "text-emerald-400" },
+                    { key: "h_09aa311b78ee...", country: "🇩🇪 Alemania (DE)", in: "210 MB", out: "34 MB", risk: "LOW", color: "text-emerald-400" },
+                  ].map((row, idx) => (
+                    <div key={idx} className="grid grid-cols-12 p-3 items-center hover:bg-slate-850/50 transition-colors">
+                      <div className="col-span-5 flex items-center gap-2">
+                        <Server className="h-3.5 w-3.5 text-sky-400" />
+                        <span className="text-slate-200 font-semibold">{row.key}</span>
+                      </div>
+                      <div className="col-span-2 text-slate-300">{row.country}</div>
+                      <div className="col-span-2 text-slate-300">
+                        {row.in} <span className="text-slate-500">/</span> {row.out}
+                      </div>
+                      <div className={`col-span-2 font-bold ${row.color}`}>{row.risk}</div>
+                      <div className="col-span-1 text-right text-sky-400 cursor-pointer hover:underline">Ver →</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 3. ALERTS VIEW */}
+          {activeTab === "alerts" && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex gap-3">
+                    <ShieldAlert className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-red-500/20 text-red-300 px-2 py-0.5 font-mono text-[10px] font-bold uppercase border border-red-500/30">
+                          CRITICAL · REGLA #VOL-EXFIL
+                        </span>
+                        <span className="font-mono text-xs text-slate-400">Disparado hace 3 minutos</span>
+                      </div>
+                      <h4 className="font-display text-base font-bold text-slate-100 mt-1">
+                        Pico anómalo de transferencia de salida hacia ASN no clasificado
+                      </h4>
+                      <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                        El endpoint <code className="bg-slate-900 px-1 py-0.5 rounded text-sky-300 font-mono">h_e1194ac27b99</code> transmitió 1.2 GB en ráfagas de 30 segundos continuas hacia destinos externos sin registro DNS inverso conocido.
+                      </p>
+                    </div>
+                  </div>
+                  <button className="shrink-0 rounded-lg bg-red-500 px-3 py-1.5 font-display text-xs font-semibold text-white hover:bg-red-400 transition-colors">
+                    Marcar Mitigado
+                  </button>
+                </div>
+
+                <div className="mt-3 rounded-lg bg-slate-950/80 p-3 border border-red-500/20 font-mono text-xs text-slate-300">
+                  <div className="text-slate-400 mb-1 font-semibold flex items-center gap-1.5">
+                    <Terminal className="h-3.5 w-3.5 text-sky-400" />
+                    Evidencia criptográfica e inmutable capturada:
+                  </div>
+                  <pre className="text-[11px] text-sky-300 overflow-x-auto whitespace-pre">
+{`{
+  "rule_id": "rule_exfil_high_vol",
+  "snapshot_window": "2026-11-08T17:02:30Z",
+  "bytes_out_spike": 1288490188,
+  "threshold_limit": 209715200,
+  "flow_entropy": 0.892,
+  "signature_sha256": "9f833bc4e92e01bbf847291a..."
+}`}
+                  </pre>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex gap-3">
+                    <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-amber-500/20 text-amber-300 px-2 py-0.5 font-mono text-[10px] font-bold uppercase border border-amber-500/30">
+                          MEDIUM · REGLA #DNS-FLOOD
+                        </span>
+                        <span className="font-mono text-xs text-slate-400">Disparado hace 18 minutos</span>
+                      </div>
+                      <h4 className="font-display text-base font-bold text-slate-100 mt-1">
+                        Cadencia anormal de solicitudes DNS sobre puerto 53 UDP
+                      </h4>
+                      <p className="text-xs text-slate-300 mt-1">
+                        4,800 consultas/minuto superando el umbral base configurado de 1,000 req/min.
+                      </p>
+                    </div>
+                  </div>
+                  <button className="shrink-0 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 font-display text-xs font-semibold text-slate-200 hover:bg-slate-700 transition-colors">
+                    Revisar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 4. AI PANEL VIEW */}
+          {activeTab === "ai" && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-4">
+                <div className="flex items-center justify-between border-b border-sky-500/20 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-sky-400 animate-pulse" />
+                    <span className="font-display text-sm font-bold text-slate-100">
+                      Análisis Cognitivo Autónomo (Gemini 2.0 Flash)
+                    </span>
+                  </div>
+                  <span className="font-mono text-xs text-sky-400 font-semibold bg-sky-500/20 px-2 py-0.5 rounded border border-sky-500/30">
+                    LOTE 24H SINCRONIZADO
+                  </span>
+                </div>
+
+                <div className="mt-3 text-xs sm:text-sm text-slate-200 leading-relaxed space-y-2">
+                  <p>
+                    <strong>Diagnóstico General:</strong> La red exhibe estabilidad nominal en el 98.4% de los endpoints evaluados. Sin embargo, se confirma una discrepancia severa de exfiltración en el host anonimizado <code className="text-sky-300 font-mono">h_e1194ac27b99</code>.
+                  </p>
+                  <p className="text-slate-300">
+                    <strong>Correlación de Hechos:</strong> El pico de tráfico de 1.2 GB coincide exactamente con un incremento previo en consultas de puertos no estándar. No se observó inyección de malware gracias a la segmentación local.
+                  </p>
+                </div>
+
+                <div className="mt-4 rounded-lg bg-slate-950/70 p-3 border border-sky-500/20">
+                  <div className="text-xs font-mono uppercase tracking-wider text-sky-400 font-bold mb-2">
+                    Recomendaciones Automatizadas de Defensa
+                  </div>
+                  <ul className="space-y-1.5 text-xs text-slate-300 font-mono">
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>Aislar inmediatamente el adaptador Ethernet del host h_e1194ac27b99.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>Limitar egress en router para tráfico UDP 53 a resolvers corporativos.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>Auditar la lista blanca de puertos en la configuración del agente local.</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 5. SETTINGS VIEW */}
+          {activeTab === "settings" && (
+            <div className="space-y-4 font-mono text-xs">
+              <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-4">
+                <h4 className="font-display text-sm font-semibold text-slate-200">
+                  Gobernanza de Seguridad del Agente
+                </h4>
+
+                <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg bg-slate-950 border border-slate-850">
+                    <div>
+                      <div className="font-semibold text-slate-200">Token de Ingesta Autorizado</div>
+                      <div className="text-slate-500 text-[11px]">Rotable con confirmación en dos pasos</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 bg-slate-900 px-2 py-1 rounded">sc_live_••••••••••••8f2a</span>
+                      <button className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200">Rotar</button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-850">
+                    <div>
+                      <div className="font-semibold text-slate-200">Anonimización Estricta de Hosts</div>
+                      <div className="text-slate-500 text-[11px]">Convierte IPs en hash criptográfico local antes de reportar</div>
+                    </div>
+                    <span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold border border-emerald-500/30">
+                      HABILITADO
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-850">
+                    <div>
+                      <div className="font-semibold text-slate-200">Retención de Datos en la Nube</div>
+                      <div className="text-slate-500 text-[11px]">Limpieza cron automática irreversible</div>
+                    </div>
+                    <span className="text-slate-300">30 Días (GDPR Friendly)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
-

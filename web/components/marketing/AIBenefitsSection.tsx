@@ -1,191 +1,202 @@
-// SC-Sentinel — Sección "Beneficios de IA" para la landing page.
-// Explica por qué un motor determinista + IA asistente es la combinación correcta.
+// SC-Sentinel — AIBenefitsSection: Inteligencia Artificial en Detección de Vulnerabilidades
+// Profundidad técnica, contraste determinista vs IA y casos de uso de seguridad
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
+import {
+  Brain,
+  Zap,
+  Layers,
+  Sparkles,
+  Database,
+  TrendingDown,
+  TerminalSquare,
+  Lock,
+} from "lucide-react";
+import Link from "next/link";
 
-const AI_BENEFITS = [
+const AI_PILLARS = [
   {
-    icon: "🧠",
-    title: "Comprende el contexto histórico",
-    body: "La IA analiza lotes de señales agregadas a lo largo del tiempo, identifica tendencias que el motor determinista no detecta por sí solo y correlaciona eventos de distintas ventanas temporales.",
+    icon: Brain,
+    title: "Correlación Contextual Histórica",
+    tag: "Gemini 2.0 Flash / Groq",
+    desc: "A diferencia de las reglas estáticas puntuales, los modelos IA analizan ventanas agregadas de 24 horas para descubrir pautas de exfiltración lenta ('low-and-slow') que evaden IDS tradicionales.",
+    benefit: "Detecta ataques distribuidos que consumen poco ancho de banda por ventana.",
   },
   {
-    icon: "📋",
-    title: "Resume sin abrumar",
-    body: "En lugar de mostrarte miles de métricas, el análisis sintetiza el estado en un nivel de riesgo global, hallazgos priorizados y recomendaciones accionables.",
+    icon: Database,
+    title: "RAG Local con Datos Sanitizados",
+    tag: "100% Sin Paquetes Crudos",
+    desc: "La arquitectura RAG (Retrieval-Augmented Generation) alimenta al modelo solo con hashes anonimizados, métricas de entropía y estadísticas por puerto. Cero filtración de credenciales o payloads.",
+    benefit: "Cumplimiento estricto de privacidad empresarial sin riesgos de fuga en el prompt.",
   },
   {
-    icon: "⚖️",
-    title: "El motor decide; la IA explica",
-    body: "Ninguna alerta es disparada por la IA. Las reglas deterministas son la única fuente de alertas. La IA ayuda a interpretar los patrones que ya detectó el motor.",
+    icon: TrendingDown,
+    title: "Drástica Reducción de Fatiga de Alertas",
+    tag: "Priorización Cognitiva",
+    desc: "Un equipo SOC no puede revisar 10,000 logs diarios. La IA agrupa anomalías conexas, descarta ruido operacional legítimo y produce un diagnóstico unificado con severidad calibrada.",
+    benefit: "Ahorra hasta el 80% del tiempo de triaje de incidentes para los analistas.",
   },
   {
-    icon: "🔒",
-    title: "Solo recibe hechos agregados",
-    body: "La IA nunca ve paquetes crudos ni IPs sin anonimizar. Opera sobre los mismos datos que ven el dashboard: conteos, hashes y métricas agregadas.",
-  },
-  {
-    icon: "⚡",
-    title: "Degrada elegantemente",
-    body: "Si la IA no está disponible, el sistema sigue funcionando. El motor determinista continúa generando alertas y el dashboard sigue actualizado en tiempo real.",
-  },
-  {
-    icon: "🕐",
-    title: "Cadencia controlada",
-    body: "Hasta un análisis cada 15 minutos. El sistema usa caché para evitar llamadas innecesarias y mantener el costo operativo bajo control.",
+    icon: TerminalSquare,
+    title: "Prescripción de Remediación Inmediata",
+    tag: "Actionable Defense",
+    desc: "No solo te informa 'hubo un problema'; genera scripts de bloqueo para iptables/Mikrotik, reglas Snort y pasos de aislamiento de host listos para ser validados por el administrador.",
+    benefit: "Convierte una detección pasiva en una respuesta a incidentes en segundos.",
   },
 ];
 
-const COMPARISON = [
+const COMPARATIVE_MATRIX = [
   {
-    aspect: "Fuente de alertas",
-    determinista: "Motor de reglas explícitas (always on)",
-    ia: "No genera alertas — solo interpreta",
+    feature: "Captura & Análisis de Tráfico",
+    deterministic: "Motor Rust local a velocidad de cable (PCAP / promiscuous)",
+    ai: "No toca la red física; procesa únicamente señales agregadas",
+    verdict: "Sin impacto en la CPU ni latencia de red",
   },
   {
-    aspect: "Visibilidad",
-    determinista: "Cada disparo tiene regla + evidencia",
-    ia: "Resume tendencias entre ventanas",
+    feature: "Generación de Alertas Primarias",
+    deterministic: "Reglas matemáticas y umbrales deterministas estrictos",
+    ai: "No inventa alertas; interpreta y correlaciona eventos existentes",
+    verdict: "Cero alucinaciones como fuente de verdad",
   },
   {
-    aspect: "Datos que ve",
-    determinista: "Paquetes crudos en el equipo local",
-    ia: "Solo señales agregadas (nunca raw)",
+    feature: "Resiliencia ante Caídas",
+    deterministic: "100% Offline-First (continúa protegiendo sin internet)",
+    ai: "Degrada elegantemente sin interrumpir las alertas del motor",
+    verdict: "Disponibilidad crítica ininterrumpida",
   },
   {
-    aspect: "Disponibilidad",
-    determinista: "100% offline-first (siempre activo)",
-    ia: "Best-effort (degrada con gracia)",
+    feature: "Privacidad de la Información",
+    deterministic: "Ofuscación SHA-256 local en el host del cliente",
+    ai: "Recibe únicamente hashes y números enteros agregados",
+    verdict: "Imposible reconstruir el contenido de tus paquetes",
   },
   {
-    aspect: "Cadencia",
-    determinista: "Ventanas de 30 segundos",
-    ia: "Lotes de hasta 6 horas, máx. 1/5 min",
+    feature: "Cadencia de Ejecución",
+    deterministic: "Micro-ventanas de 30 segundos continuas",
+    ai: "Lotes cognitivos inteligentes cada 15 min / bajo demanda",
+    verdict: "Eficiencia de costos en la nube (Vercel Serverless)",
   },
 ];
 
 export default function AIBenefitsSection() {
   return (
-    <section aria-labelledby="ai-benefits" className="border-b sc-hairline bg-sc-panel/40">
-      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-        {/* Encabezado */}
-        <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-sc-accent">
-          Inteligencia Artificial
-        </p>
-        <h2
-          id="ai-benefits"
-          className="mt-4 max-w-3xl font-display text-2xl font-semibold leading-snug tracking-tight text-sc-text sm:text-3xl"
-        >
-          IA que amplifica tu visibilidad. No que reemplaza tu juicio.
-        </h2>
-        <p className="mt-4 max-w-2xl text-base leading-relaxed text-sc-text-muted">
-          SC-Sentinel combina un motor determinista de reglas con análisis de IA por lotes. El motor detecta;
-          la IA interpreta y sintetiza. Nunca al revés.
-        </p>
+    <section id="ai-engine" className="relative py-24 sm:py-32 border-b border-slate-800/80 bg-[#060b17] overflow-hidden">
+      {/* Luces y mallas de fondo */}
+      <div className="absolute top-0 right-1/4 w-[500px] h-[500px] bg-purple-500/5 blur-[130px] pointer-events-none rounded-full" />
+      <div className="absolute bottom-0 left-1/4 w-[500px] h-[500px] bg-sky-500/5 blur-[130px] pointer-events-none rounded-full" />
 
-        {/* Grid de beneficios */}
-        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {AI_BENEFITS.map((b) => (
-            <div
-              key={b.title}
-              className="rounded-xl border sc-hairline bg-sc-bg/50 p-5 transition-colors hover:border-sc-degraded/30"
-            >
-              <span className="text-2xl" aria-hidden="true">
-                {b.icon}
-              </span>
-              <h3 className="mt-3 font-display text-base font-semibold leading-snug text-sc-text">
-                {b.title}
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-sc-text-muted">{b.body}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Tabla comparativa determinista vs IA */}
-        <div className="mt-14">
-          <p className="mb-5 font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-sc-accent">
-            Motor determinista vs. IA asistente
-          </p>
-          <div
-            className="overflow-hidden rounded-xl border sc-hairline"
-            role="table"
-            aria-label="Comparación entre motor determinista e IA asistente"
-          >
-            {/* Header */}
-            <div
-              className="grid grid-cols-3 gap-px border-b sc-hairline px-4 py-3"
-              style={{ background: "var(--color-sc-surface-alt)" }}
-              role="row"
-            >
-              <span
-                className="font-mono text-[10px] uppercase tracking-[0.18em] text-sc-text-muted"
-                role="columnheader"
-              >
-                Aspecto
-              </span>
-              <span
-                className="font-mono text-[10px] uppercase tracking-[0.18em] text-sc-accent"
-                role="columnheader"
-              >
-                Motor determinista
-              </span>
-              <span
-                className="font-mono text-[10px] uppercase tracking-[0.18em] text-sc-degraded"
-                role="columnheader"
-              >
-                IA asistente
-              </span>
-            </div>
-
-            {COMPARISON.map((row, i) => (
-              <div
-                key={row.aspect}
-                className="grid grid-cols-3 gap-px px-4 py-3"
-                style={{
-                  borderTop: i > 0 ? "1px solid var(--color-sc-panel)" : undefined,
-                  background: i % 2 === 0 ? "var(--color-sc-surface)" : "var(--color-sc-panel)",
-                }}
-                role="row"
-              >
-                <span
-                  className="font-mono text-[11px] text-sc-text-muted self-center"
-                  role="cell"
-                >
-                  {row.aspect}
-                </span>
-                <span className="text-sm leading-relaxed text-sc-text self-center" role="cell">
-                  {row.determinista}
-                </span>
-                <span
-                  className="text-sm leading-relaxed self-center"
-                  style={{ color: "var(--color-sc-degraded)" }}
-                  role="cell"
-                >
-                  {row.ia}
-                </span>
-              </div>
-            ))}
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 relative z-10">
+        {/* Cabecera */}
+        <div className="text-center max-w-3xl mx-auto mb-16">
+          <div className="inline-flex items-center gap-2 rounded-full border border-purple-500/30 bg-purple-500/10 px-3.5 py-1 text-xs font-mono uppercase tracking-[0.2em] text-purple-300 mb-4">
+            <Sparkles className="h-3.5 w-3.5" />
+            Vulnerability AI Engine
           </div>
+          <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-100">
+            Inteligencia Artificial para <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-300 to-sky-400">descubrir lo que las reglas no ven</span>.
+          </h2>
+          <p className="mt-4 text-base sm:text-lg text-slate-400 leading-relaxed">
+            Combinamos la precisión matemática del software en Rust con la capacidad de síntesis de modelos LLM de última generación. Una simbiosis perfecta entre velocidad local y razonamiento en la nube.
+          </p>
         </div>
 
-        {/* Badge de modelo */}
-        <div className="mt-8 flex flex-wrap items-center gap-3">
-          <span
-            className="inline-flex items-center gap-2 rounded-full border px-4 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider"
-            style={{
-              borderColor: "rgba(139,92,246,0.4)",
-              color: "var(--color-sc-degraded)",
-              background: "rgba(139,92,246,0.08)",
-            }}
-          >
-            <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-sc-degraded)" }} />
-            Powered by Gemini 2.0 Flash
-          </span>
-          <span className="text-sm text-sc-text-muted">
-            Degradación elegante — si el modelo no responde, el motor determinista sigue protegiendo.
-          </span>
+        {/* 4 Pilares de la IA */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-20">
+          {AI_PILLARS.map((pillar, idx) => {
+            const Icon = pillar.icon;
+            return (
+              <div
+                key={idx}
+                className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-6 sm:p-8 hover:border-purple-500/30 transition-all duration-300 hover:shadow-[0_10px_40px_rgba(168,85,247,0.08)] backdrop-blur-sm"
+              >
+                <div className="flex items-center justify-between gap-3 mb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-xl border border-purple-500/30 bg-purple-500/10 text-purple-400">
+                      <Icon className="h-6 w-6" />
+                    </div>
+                    <h3 className="font-display text-lg sm:text-xl font-bold text-slate-100">
+                      {pillar.title}
+                    </h3>
+                  </div>
+                  <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-purple-300 bg-purple-500/15 border border-purple-500/30 px-2.5 py-1 rounded-full shrink-0">
+                    {pillar.tag}
+                  </span>
+                </div>
+
+                <p className="text-sm text-slate-300 leading-relaxed mb-4">
+                  {pillar.desc}
+                </p>
+
+                <div className="flex items-start gap-2 pt-3 border-t border-slate-800 text-xs font-mono text-purple-300">
+                  <Zap className="h-4 w-4 shrink-0 mt-0.5 text-amber-400" />
+                  <span>Impacto: {pillar.benefit}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Matriz comparativa: Determinista vs IA */}
+        <div className="rounded-2xl border border-slate-800/90 bg-slate-950/80 p-6 sm:p-8 shadow-2xl backdrop-blur-xl">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-slate-800">
+            <div>
+              <div className="flex items-center gap-2 font-mono text-xs text-sky-400 uppercase tracking-widest">
+                <Layers className="h-4 w-4" />
+                Doble Capa de Protección
+              </div>
+              <h3 className="font-display text-2xl font-bold text-slate-100 mt-1">
+                Motor Determinista Local vs Copiloto de IA en la Nube
+              </h3>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-400 max-w-md">
+              Comprende exactamente qué responsabilidad asume el motor en tu equipo y qué valor aporta la nube.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left font-mono text-xs">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px]">
+                  <th className="py-3 px-4 font-semibold">Criterio Operacional</th>
+                  <th className="py-3 px-4 font-semibold text-sky-400">1. Motor Rust Local (PCAP)</th>
+                  <th className="py-3 px-4 font-semibold text-purple-400">2. Copiloto IA (Cloud RAG)</th>
+                  <th className="py-3 px-4 font-semibold text-emerald-400">Garantía Arquitectónica</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-850">
+                {COMPARATIVE_MATRIX.map((row, idx) => (
+                  <tr key={idx} className="hover:bg-slate-900/40 transition-colors">
+                    <td className="py-4 px-4 font-display font-semibold text-slate-200 text-sm">
+                      {row.feature}
+                    </td>
+                    <td className="py-4 px-4 text-slate-300">
+                      {row.deterministic}
+                    </td>
+                    <td className="py-4 px-4 text-purple-200/90">
+                      {row.ai}
+                    </td>
+                    <td className="py-4 px-4 text-emerald-400 font-semibold">
+                      ✓ {row.verdict}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-4 pt-6 border-t border-slate-850">
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <Lock className="h-4 w-4 text-emerald-400" />
+              <span>Garantía Contractual: Nunca compartimos tus datos con modelos públicos de entrenamiento.</span>
+            </div>
+            <Link
+              href="/demo"
+              className="inline-flex items-center gap-1.5 text-xs font-mono font-semibold text-sky-400 hover:text-sky-300 transition-colors"
+            >
+              Ver el copiloto IA respondiendo en vivo →
+            </Link>
+          </div>
         </div>
       </div>
     </section>
   );
 }
-

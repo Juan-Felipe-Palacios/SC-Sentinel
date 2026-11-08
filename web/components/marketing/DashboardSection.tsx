@@ -1,212 +1,215 @@
-// SC-Sentinel — Sección "Dashboard en acción" para la landing page.
-// Explica cada card/vista del dashboard con descripción textual + mockup interactivo.
+// SC-Sentinel — DashboardSection: Explicación exhaustiva de cada card del dashboard
+// Estructura visual de alto calibre inspirada en Stripe & Linear
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
+import Link from "next/link";
 import DashboardPreview from "./DashboardPreview";
+import {
+  Activity,
+  Server,
+  ShieldAlert,
+  Cpu,
+  Sliders,
+  Network,
+  ArrowRight,
+  CheckCircle2,
+  Lock,
+  Layers,
+} from "lucide-react";
 
-// Descripción de cada card del dashboard (spec §18.2 + dashboard-wireframes.md)
-const CARDS = [
+const CARDS_INFO = [
   {
-    icon: "▦",
-    name: "Overview",
-    color: "#38bdf8",
-    headline: "El estado de tu red en un vistazo",
+    id: "overview",
+    title: "Overview de Telemetría",
+    subtitle: "Observabilidad determinista en vivo",
+    icon: Activity,
+    accent: "text-sky-400",
+    border: "border-sky-500/20",
+    bg: "bg-sky-500/5",
     description:
-      "Muestra el estado del agente (online/offline/degraded), el último snapshot recibido, un gráfico de tráfico bytes in/out en el rango temporal seleccionado, los 5 hosts con más actividad y las alertas más recientes. El estado de la IA también se refleja aquí.",
-    pills: ["Agente status", "Bytes in/out chart", "Top 5 hosts", "Alertas recientes", "Estado IA"],
+      "Panel de control unificado que consolida el estado del agente (Rust daemon), latencia de sincronización SWR (5s), curva de ancho de banda entrante/saliente y las anomalías de mayor criticidad.",
+    details: [
+      "Throughput de red (bytes in/out) renderizado en SVG sin delay.",
+      "Monitor de ciclo de vida del spool local en caso de desconexión.",
+      "Top 5 de endpoints de mayor consumo para diagnóstico rápido.",
+    ],
   },
   {
-    icon: "⬡",
-    name: "Hosts",
-    color: "#a78bfa",
-    headline: "Tabla completa de hosts monitoreados",
+    id: "hosts",
+    title: "Inventario de Endpoints",
+    subtitle: "Mapeo de hosts con scoring de riesgo",
+    icon: Server,
+    accent: "text-purple-400",
+    border: "border-purple-500/20",
+    bg: "bg-purple-500/5",
     description:
-      "Tabla con filtros por host, país y nivel de riesgo mínimo. Columnas ordenables: IP anonimizada (hash), país, bytes entrantes y salientes, paquetes, nivel de riesgo y última actividad. Con anonimización activa, la IP real nunca sale del equipo local.",
-    pills: ["Filtros dinámicos", "Host hash anonimizado", "Riesgo por host", "Sortable"],
+      "Tabla analítica de alto rendimiento con filtrado dinámico. Rastrea cada host, geolocalización por país de destino, volumen de paquetes y clasificación de amenaza según umbrales de heurística local.",
+    details: [
+      "Modo de anonimización: las direcciones IP reales se ofuscan con SHA-256 local.",
+      "Métricas desglosadas por volumen de entrada, salida y conteo de paquetes.",
+      "Ordenamiento instantáneo por nivel de riesgo (Crítico, Alto, Medio, Bajo).",
+    ],
   },
   {
-    icon: "◈",
-    name: "Alertas",
-    color: "#f97316",
-    headline: "Cada alerta incluye los hechos que la dispararon",
+    id: "alerts",
+    title: "Motor de Alertas con Evidencia",
+    subtitle: "Cero falsos positivos sin respaldo empírico",
+    icon: ShieldAlert,
+    accent: "text-red-400",
+    border: "border-red-500/20",
+    bg: "bg-red-500/5",
     description:
-      "Tabla con filtros por severidad, regla y estado (open / acknowledged / resolved). Al hacer clic en una alerta se expande la evidencia: volúmenes, consultas, picos y valores concretos. Las alertas no son opiniones — son el resultado determinista del motor de reglas.",
-    pills: ["Evidence adjunta", "Lifecycle open→resolved", "Filtros severity/regla", "Acknowledge / resolve"],
+      "Las alertas en SC-Sentinel nunca son 'opiniones'. Cada incidente incluye un payload criptográfico inmutable con la ventana temporal, el umbral violado y los bytes exactos que dispararon la regla.",
+    details: [
+      "Auditoría con reglas deterministas probadas (exfiltración, flood DNS, port scans).",
+      "Ciclo de vida operacional: Abierta → Aceptada → Resuelta con trazabilidad.",
+      "Filtros por severidad para priorizar la respuesta del equipo de seguridad.",
+    ],
   },
   {
-    icon: "◎",
-    name: "Panel IA",
-    color: "#8b5cf6",
-    headline: "IA que resume tendencias, no que decide por ti",
+    id: "ai",
+    title: "Copiloto IA & Análisis RAG",
+    subtitle: "Modelos cognitivos Gemini 2.0 / Groq",
+    icon: Cpu,
+    accent: "text-amber-400",
+    border: "border-amber-500/20",
+    bg: "bg-amber-500/5",
     description:
-      "Muestra el resumen del último análisis por lotes (hasta cada 15 minutos), el modelo utilizado, el nivel de riesgo global, los hallazgos detectados y las recomendaciones sugeridas. Los hechos que ingirió la IA son expandibles. Si la IA no está disponible, el motor determinista sigue activo.",
-    pills: ["Análisis por lotes", "Risk level global", "Hallazgos + recomendaciones", "Degrada elegantemente"],
+      "El modelo de IA no reemplaza al motor de red: actúa como analista senior sintetizando correlaciones entre lotes de 24 horas y emitiendo órdenes de remediación concretas.",
+    details: [
+      "Procesamiento exclusivo sobre señales agregadas: la IA jamás ve paquetes crudos.",
+      "Degradación elegante: si el servicio de IA se suspende, las defensas siguen activas.",
+      "Chat interactivo Cyberpunk con RAG integrado para consultar el estado en lenguaje natural.",
+    ],
   },
   {
-    icon: "⊛",
-    name: "Ajustes",
-    color: "#10b981",
-    headline: "Control total sobre privacidad y sincronización",
+    id: "connections",
+    title: "Matriz de Conexiones & Geo",
+    subtitle: "Distribución de puertos y protocolos",
+    icon: Network,
+    accent: "text-emerald-400",
+    border: "border-emerald-500/20",
+    bg: "bg-emerald-500/5",
     description:
-      "Gestión del token de dispositivo (rotación en 2 pasos, visible solo al crear). Toggle de anonimización de hosts. Estado de sincronización del agente (idle / sending / backoff / dead_letter). Métricas de salud del agente y retención configurada.",
-    pills: ["Token rotante", "Anonimizar hosts", "Estado de sync", "Salud del agente"],
+      "Agrupación estadística por puertos destino (443 TLS, 53 DNS, 80 HTTP, etc.) y dispersión geográfica mundial para detectar comunicaciones sospechosas hacia ASNs hostiles.",
+    details: [
+      "Representación visual de tráfico geográfico por país con banderas SVG.",
+      "Detección de puertos anómalos o túneles cifrados fuera de línea base.",
+      "Solo conteos agregados en ventanas de 30 segundos; sin rastreo individual invasivo.",
+    ],
+  },
+  {
+    id: "settings",
+    title: "Gobernanza y Privacidad",
+    subtitle: "Control criptográfico del propietario",
+    icon: Sliders,
+    accent: "text-sky-300",
+    border: "border-sky-400/20",
+    bg: "bg-sky-400/5",
+    description:
+      "Administración total del perímetro: rotación de tokens de dispositivo en 2 pasos, políticas de retención con borrado cron definitivo y auditoría de sincronización TLS 1.3.",
+    details: [
+      "Token de dispositivo con hash SHA-256 determinista en el servidor.",
+      "Interruptor de anonimización local sincronizado directamente con el daemon.",
+      "Cumplimiento GDPR estricto: retención de 30 días con depuración irrevocable.",
+    ],
   },
 ];
 
 export default function DashboardSection() {
   return (
-    <section aria-labelledby="dashboard-section" className="border-b sc-hairline">
-      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-        {/* Encabezado */}
-        <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-sc-accent">
-          Dashboard en acción
-        </p>
-        <h2
-          id="dashboard-section"
-          className="mt-4 max-w-3xl font-display text-2xl font-semibold leading-snug tracking-tight text-sc-text sm:text-3xl"
-        >
-          Seis vistas. Un solo panel. Todo lo que necesitás para decidir.
-        </h2>
-        <p className="mt-4 max-w-2xl text-base leading-relaxed text-sc-text-muted">
-          El dashboard de SC-Sentinel organiza la información en vistas especializadas. Interactuá con el
-          mockup para explorar cada una.
-        </p>
+    <section id="dashboard" className="relative py-24 sm:py-32 border-b border-slate-800/80 bg-slate-950/60 overflow-hidden">
+      {/* Glow ambiental de fondo */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] bg-sky-500/5 blur-[120px] pointer-events-none rounded-full" />
 
-        {/* CTA al dashboard */}
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          <a
-            href="/demo"
-            className="inline-flex items-center gap-2 rounded-md bg-sc-accent px-5 py-2.5 text-sm font-semibold text-sc-bg transition-colors hover:bg-[#7dd3fc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sc-accent"
-          >
-            Ver demo en vivo
-            <span aria-hidden="true">→</span>
-          </a>
-          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-sc-text-muted">
-            Demo pública de solo lectura · sin registro
-          </span>
-        </div>
-
-        {/* Mockup interactivo */}
-        <div className="mt-10">
-          <DashboardPreview />
-        </div>
-
-        {/* Grid de cards explicativas */}
-        <div className="mt-14">
-          <p className="mb-6 font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-sc-accent">
-            Qué hace cada sección
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 relative z-10">
+        {/* Encabezado de la sección */}
+        <div className="text-center max-w-3xl mx-auto mb-16">
+          <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500/10 px-3.5 py-1 text-xs font-mono uppercase tracking-[0.2em] text-sky-300 mb-4">
+            <Layers className="h-3.5 w-3.5" />
+            SOC Enterprise Ready
+          </div>
+          <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-100">
+            Una consola de comando <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-cyan-300 to-purple-400">diseñada para la claridad total</span>.
+          </h2>
+          <p className="mt-4 text-base sm:text-lg text-slate-400 leading-relaxed">
+            Sin ruido visual ni paneles sobrecargados. Cada widget del dashboard de SC-Sentinel responde a un objetivo operacional concreto: saber qué ocurre en tu infraestructura sin sacrificar privacidad.
           </p>
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {CARDS.map((card) => (
-              <article
-                key={card.name}
-                className="rounded-xl border sc-hairline bg-sc-panel/60 p-5 transition-colors hover:border-sc-accent/25"
-              >
-                {/* Ícono + nombre */}
-                <div className="flex items-center gap-2.5">
-                  <span
-                    className="flex h-9 w-9 items-center justify-center rounded-lg text-lg font-bold"
-                    style={{ background: `${card.color}18`, color: card.color }}
-                    aria-hidden="true"
-                  >
-                    {card.icon}
-                  </span>
-                  <span className="font-display text-sm font-semibold text-sc-text">
-                    {card.name}
-                  </span>
-                </div>
 
-                {/* Headline */}
-                <h3 className="mt-3 font-display text-base font-semibold leading-snug text-sc-text">
-                  {card.headline}
-                </h3>
-
-                {/* Descripción */}
-                <p className="mt-2 text-sm leading-relaxed text-sc-text-muted">
-                  {card.description}
-                </p>
-
-                {/* Pills */}
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {card.pills.map((pill) => (
-                    <span
-                      key={pill}
-                      className="rounded-md px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wider"
-                      style={{
-                        background: `${card.color}12`,
-                        color: card.color,
-                        border: `1px solid ${card.color}30`,
-                      }}
-                    >
-                      {pill}
-                    </span>
-                  ))}
-                </div>
-              </article>
-            ))}
-
-            {/* Card extra: Connections */}
-            <article className="rounded-xl border sc-hairline bg-sc-panel/60 p-5 transition-colors hover:border-sc-accent/25">
-              <div className="flex items-center gap-2.5">
-                <span
-                  className="flex h-9 w-9 items-center justify-center rounded-lg text-lg font-bold"
-                  style={{ background: "rgba(56,189,248,0.10)", color: "#38bdf8" }}
-                  aria-hidden="true"
-                >
-                  ◉
-                </span>
-                <span className="font-display text-sm font-semibold text-sc-text">Conexiones</span>
-              </div>
-              <h3 className="mt-3 font-display text-base font-semibold leading-snug text-sc-text">
-                Distribución de tráfico por puerto y país
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-sc-text-muted">
-                Vista de conexiones agregadas por puerto/protocolo y distribución geográfica de países. No
-                muestra flujos individuales — solo conteos ya agregados por el motor local.
-              </p>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {["Top puertos/protocolo", "País distribution", "Solo agregados", "Sin flujos raw"].map(
-                  (pill) => (
-                    <span
-                      key={pill}
-                      className="rounded-md px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wider"
-                      style={{
-                        background: "rgba(56,189,248,0.10)",
-                        color: "#38bdf8",
-                        border: "1px solid rgba(56,189,248,0.25)",
-                      }}
-                    >
-                      {pill}
-                    </span>
-                  )
-                )}
-              </div>
-            </article>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/demo"
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-cyan-400 px-6 py-3 font-display text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(56,189,248,0.3)] hover:brightness-110 transition-all"
+            >
+              Probar Demo en Vivo <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/80 px-6 py-3 font-display text-sm font-semibold text-slate-300 hover:border-slate-700 hover:text-white transition-all"
+            >
+              <Lock className="h-4 w-4 text-slate-400" /> Acceso Administrativo
+            </Link>
           </div>
         </div>
 
-        {/* CTA secundario al dashboard */}
-        <div className="mt-10 flex justify-center">
-          <a
-            href="/demo"
-            className="group inline-flex items-center gap-2 rounded-xl border sc-hairline bg-sc-panel/80 px-6 py-4 text-sm font-semibold text-sc-text transition-all hover:border-sc-accent/40 hover:bg-sc-panel focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sc-accent"
-          >
-            <span
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-base"
-              style={{ background: "rgba(56,189,248,0.12)", color: "#38bdf8" }}
-            >
-              ◈
-            </span>
-            <div className="text-left">
-              <span className="block">Abrir la demo pública</span>
-              <span className="block font-mono text-[10px] font-normal uppercase tracking-widest text-sc-text-muted">
-                Solo lectura · sin registro
+        {/* MOCKUP INTERACTIVO EN VIVO */}
+        <div className="mb-20">
+          <DashboardPreview />
+        </div>
+
+        {/* EXPLICACIÓN DETALLADA DE CADA CARD */}
+        <div className="mt-16">
+          <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-800/80">
+            <div>
+              <span className="font-mono text-xs text-sky-400 uppercase tracking-widest">
+                Arquitectura de Cards
               </span>
+              <h3 className="font-display text-2xl font-bold text-slate-100 mt-1">
+                Anatomía de los Módulos del Dashboard
+              </h3>
             </div>
-            <span className="text-sc-accent transition-transform group-hover:translate-x-0.5">→</span>
-          </a>
+            <span className="font-mono text-xs text-slate-500 hidden sm:inline">
+              6 Vistas Sincronizadas
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {CARDS_INFO.map((card) => {
+              const Icon = card.icon;
+              return (
+                <div
+                  key={card.id}
+                  className={`group rounded-2xl border ${card.border} ${card.bg} p-6 transition-all duration-300 hover:translate-y-[-2px] hover:border-sky-400/40 hover:shadow-[0_15px_40px_rgba(2,6,23,0.7)] backdrop-blur-sm`}
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`p-2.5 rounded-xl border border-slate-800 bg-slate-950/80 ${card.accent}`}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-display text-lg font-bold text-slate-100 group-hover:text-sky-300 transition-colors">
+                        {card.title}
+                      </h4>
+                      <p className="font-mono text-[11px] text-slate-400">{card.subtitle}</p>
+                    </div>
+                  </div>
+
+                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-5">
+                    {card.description}
+                  </p>
+
+                  <div className="space-y-2 pt-4 border-t border-slate-800/80">
+                    {card.details.map((detail, idx) => (
+                      <div key={idx} className="flex items-start gap-2 text-xs text-slate-400">
+                        <CheckCircle2 className={`h-3.5 w-3.5 shrink-0 mt-0.5 ${card.accent}`} />
+                        <span>{detail}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </section>
   );
 }
-

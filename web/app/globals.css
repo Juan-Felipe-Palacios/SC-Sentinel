@@ -79,6 +79,48 @@ body {
   animation: sc-fade-up 0.55s ease-out both;
 }
 
+/* Glassmorphism cybernético y glow dinámico */
+.sc-glass-panel {
+  background: rgba(14, 22, 46, 0.72);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.sc-glass-panel:hover {
+  border-color: rgba(56, 189, 248, 0.35);
+  box-shadow: 0 0 35px rgba(56, 189, 248, 0.08);
+}
+
+.sc-glow-cyan {
+  box-shadow: 0 0 45px rgba(56, 189, 248, 0.16);
+}
+
+.sc-badge-pulse {
+  position: relative;
+}
+.sc-badge-pulse::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.4), transparent 70%);
+  animation: sc-dot-pulse 2.5s infinite;
+  z-index: -1;
+}
+
+/* Animación de flujo de paquetes en SVG */
+@keyframes sc-dash {
+  to {
+    stroke-dashoffset: -40;
+  }
+}
+
+.sc-animate-dash {
+  stroke-dasharray: 6 6;
+  animation: sc-dash 1.6s linear infinite;
+}
+
 /* Marketing — línea de scan del mockup hero */
 @keyframes sc-scan {
   0%   { top: 0%; opacity: 0.6; }
