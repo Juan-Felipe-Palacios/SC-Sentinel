@@ -58,6 +58,33 @@ export function geminiApiKey(env: NodeJS.ProcessEnv = process.env): string | und
   return env.GEMINI_API_KEY || env.GOOGLE_AI_API_KEY || undefined;
 }
 
+/** Espera entre reintentos ante 5xx transitorios (p. ej. gemini 503 UNAVAILABLE). */
+const SERVER_ERROR_RETRY_DELAY_MS = 750;
+
+/** Status HTTP del error del proveedor, si lo expone (ApiError de gemini, GroqError, …). */
+function errorStatus(error: unknown): number | undefined {
+  const status = (error as { status?: unknown } | null)?.status;
+  return typeof status === 'number' ? status : undefined;
+}
+
+/** 5xx (excluye 429): vale la pena un reintento rápido — suelen ser transitorios. */
+function isRetryableServerError(error: unknown): boolean {
+  const status = errorStatus(error);
+  return status !== undefined && status >= 500 && status <= 599;
+}
+
+/**
+ * Describe un error de proveedor para los logs de `ai_chain_failed`:
+ * `{ status, error: "Name: message truncada" }`. Sin esto solo se loguea el
+ * nombre del error (p. ej. "ApiError") y no se puede diagnosticar en producción.
+ */
+function describeAiError(error: unknown): { status?: number; error: string } {
+  if (!(error instanceof Error)) return { error: 'unknown_error' };
+  const status = errorStatus(error);
+  const message = error.message.replace(/\s+/g, ' ').trim().slice(0, 200);
+  return { status, error: message ? `${error.name}: ${message}` : error.name };
+}
+
 export interface ProviderEntry {
   provider: AiProvider;
   models: string[];
@@ -177,34 +204,44 @@ export async function callGeminiChain(
   let retryAfterSeconds: number | null = null;
 
   for (const model of models) {
-    try {
-      const response = await client.models.generateContent({
-        model,
-        contents: userPrompt(facts),
-        config: {
-          systemInstruction,
-          responseMimeType: 'application/json',
-          temperature: 0.2,
-          maxOutputTokens: AI_OUTPUT_MAX_TOKENS,
-        },
-      });
-      const raw = typeof response.text === 'function' ? response.text() : response.text;
-      const text = textOf(raw);
-      if (!text) {
-        attempts.push({ model, error: 'empty_content' });
-        continue;
-      }
-      const validated = AiOutputSchema.safeParse(extractJsonObject(text));
-      if (!validated.success) {
-        attempts.push({ model, error: 'invalid_output' });
-        continue;
-      }
-      return { ok: true, model, output: validated.data };
-    } catch (error) {
-      attempts.push({ model, error: error instanceof Error ? error.name : 'unknown_error' });
-      if (isRateLimitError(error)) {
-        rateLimited = true;
-        retryAfterSeconds = retryAfterFromError(error);
+    let retries = 0;
+    for (;;) {
+      try {
+        const response = await client.models.generateContent({
+          model,
+          contents: userPrompt(facts),
+          config: {
+            systemInstruction,
+            responseMimeType: 'application/json',
+            temperature: 0.2,
+            maxOutputTokens: AI_OUTPUT_MAX_TOKENS,
+          },
+        });
+        const raw = typeof response.text === 'function' ? response.text() : response.text;
+        const text = textOf(raw);
+        if (!text) {
+          attempts.push({ model, error: 'empty_content' });
+          break;
+        }
+        const validated = AiOutputSchema.safeParse(extractJsonObject(text));
+        if (!validated.success) {
+          attempts.push({ model, error: 'invalid_output' });
+          break;
+        }
+        return { ok: true, model, output: validated.data };
+      } catch (error) {
+        // 5xx transitorio (p. ej. gemini 503 "high demand"): un reintento rápido por modelo.
+        if (retries < 1 && !isRateLimitError(error) && isRetryableServerError(error)) {
+          retries += 1;
+          await new Promise((resolve) => setTimeout(resolve, SERVER_ERROR_RETRY_DELAY_MS));
+          continue;
+        }
+        attempts.push({ model, ...describeAiError(error) });
+        if (isRateLimitError(error)) {
+          rateLimited = true;
+          retryAfterSeconds = retryAfterFromError(error);
+        }
+        break;
       }
     }
   }
@@ -238,34 +275,44 @@ export async function callGroqChain(
   let retryAfterSeconds: number | null = null;
 
   for (const model of models) {
-    try {
-      const completion = await client.chat.completions.create({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt(facts) },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.2,
-        max_tokens: AI_OUTPUT_MAX_TOKENS,
-      });
-      const content = completion.choices?.[0]?.message?.content;
-      if (typeof content !== 'string' || !content) {
-        attempts.push({ model, error: 'empty_content' });
-        continue;
-      }
-      const validated = AiOutputSchema.safeParse(extractJsonObject(content));
-      if (!validated.success) {
-        attempts.push({ model, error: 'invalid_output' });
-        continue;
-      }
-      const usedModel = typeof completion.model === 'string' && completion.model ? completion.model : model;
-      return { ok: true, model: usedModel, output: validated.data };
-    } catch (error) {
-      attempts.push({ model, error: error instanceof Error ? error.name : 'unknown_error' });
-      if (isRateLimitError(error)) {
-        rateLimited = true;
-        retryAfterSeconds = retryAfterFromError(error);
+    let retries = 0;
+    for (;;) {
+      try {
+        const completion = await client.chat.completions.create({
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt(facts) },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.2,
+          max_tokens: AI_OUTPUT_MAX_TOKENS,
+        });
+        const content = completion.choices?.[0]?.message?.content;
+        if (typeof content !== 'string' || !content) {
+          attempts.push({ model, error: 'empty_content' });
+          break;
+        }
+        const validated = AiOutputSchema.safeParse(extractJsonObject(content));
+        if (!validated.success) {
+          attempts.push({ model, error: 'invalid_output' });
+          break;
+        }
+        const usedModel = typeof completion.model === 'string' && completion.model ? completion.model : model;
+        return { ok: true, model: usedModel, output: validated.data };
+      } catch (error) {
+        // 5xx transitorio: un reintento rápido por modelo antes de pasar al siguiente.
+        if (retries < 1 && !isRateLimitError(error) && isRetryableServerError(error)) {
+          retries += 1;
+          await new Promise((resolve) => setTimeout(resolve, SERVER_ERROR_RETRY_DELAY_MS));
+          continue;
+        }
+        attempts.push({ model, ...describeAiError(error) });
+        if (isRateLimitError(error)) {
+          rateLimited = true;
+          retryAfterSeconds = retryAfterFromError(error);
+        }
+        break;
       }
     }
   }

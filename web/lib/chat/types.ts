@@ -2,7 +2,9 @@
 // Contrato interno del Security Chatbot (M3.5): contexto RAG, historial y SSE.
 
 export const CHAT_MAX_MESSAGE_LENGTH = 2000;
-export const CHAT_MAX_CONTEXT_MESSAGES = 12;
+/** Turnos de historial que viajan al modelo (antes 12; 8 alcanzan para
+ *  preguntas de seguimiento y recorta ~33% de tokens de entrada). */
+export const CHAT_MAX_CONTEXT_MESSAGES = 8;
 export const CHAT_HISTORY_LIMIT = 20;
 export const CHAT_MAX_OUTPUT_TOKENS = 1200;
 export const CHAT_TOKEN_BUDGET = 2000;

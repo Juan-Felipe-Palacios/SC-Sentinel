@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runAnalysisPipeline } from '@/lib/ai/analyze';
 import type { AiFacts } from '@/lib/ai/facts';
 
@@ -56,6 +56,10 @@ function fakeDb(responses: unknown[][]) {
   return { execute } as never;
 }
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe('runAnalysisPipeline', () => {
   it('no_data sin facts (sin llamadas a la base)', async () => {
     const db = fakeDb([]);
@@ -91,5 +95,58 @@ describe('runAnalysisPipeline', () => {
     const insight = (await runAnalysisPipeline(facts, 'dev_x', db)).insight;
     expect(insight?.findings).toEqual([]);
     expect(insight?.recommendations).toEqual(['Revisar umbrales']);
+  });
+});
+
+describe('modo cron (Estrategias A y B)', () => {
+  const cronOptions = { minIntervalMs: 15 * 60_000 };
+
+  it('A: cached si el último insight es más reciente que el intervalo', async () => {
+    const recentRow = {
+      ...insightRow,
+      id: 'ins_recent',
+      created_at: new Date(Date.now() - 60_000).toISOString(),
+    };
+    // 1) dedup por hash sin match; 2) último insight reciente ⇒ sin más queries.
+    const db = fakeDb([[], [recentRow]]);
+
+    const result = await runAnalysisPipeline(facts, 'dev_x', db, 'es', cronOptions);
+
+    expect(result.status).toBe('cached');
+    expect(result.insight?.id).toBe('ins_recent');
+  });
+
+  it('B: cached sin llamar a la IA si no hay ventanas nuevas desde el insight', async () => {
+    const oldRow = {
+      ...insightRow,
+      created_at: new Date(Date.now() - 20 * 60_000).toISOString(), // > intervalo
+    };
+    // 3ª query: MAX(start_at) = 09:59 anterior a period_end (10:00:30) ⇒ sin datos nuevos.
+    const db = fakeDb([[], [oldRow], [{ start_at: '2026-11-03T09:59:00.000Z' }]]);
+
+    const result = await runAnalysisPipeline(facts, 'dev_x', db, 'es', cronOptions);
+
+    expect(result.status).toBe('cached');
+    expect(result.insight?.id).toBe('ins_cached');
+  });
+
+  it('B: analiza cuando hay ventanas nuevas posteriores al último insight', async () => {
+    vi.stubEnv('GROQ_API_KEY', '');
+    vi.stubEnv('GEMINI_API_KEY', '');
+    vi.stubEnv('GOOGLE_AI_API_KEY', '');
+    vi.stubEnv('OPENROUTER_API_KEY', '');
+    vi.stubEnv('AI_PROVIDER', 'openrouter');
+    const oldRow = {
+      ...insightRow,
+      created_at: new Date(Date.now() - 20 * 60_000).toISOString(),
+    };
+    // Tras detectar ventana nueva: cadena sin keys ⇒ degraded (sin INSERT ni
+    // fetch) y la relectura posterior no devuelve filas.
+    const db = fakeDb([[], [oldRow], [{ start_at: '2026-11-07T23:00:00.000Z' }], []]);
+
+    const result = await runAnalysisPipeline(facts, 'dev_x', db, 'es', cronOptions);
+
+    expect(result.status).toBe('degraded');
+    expect(result.insight?.model).toBe('deterministic-fallback');
   });
 });

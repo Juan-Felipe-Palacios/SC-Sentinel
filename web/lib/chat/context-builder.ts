@@ -56,21 +56,19 @@ export function buildChatSystemPrompt(language: AiLanguage = 'es'): string {
   return language === 'en' ? ENGLISH_RULES : BASE_RULES;
 }
 
-/** Contexto serializado que ve el modelo. No incluye paquetes crudos. */
+/** Contexto serializado que ve el modelo. No incluye paquetes crudos.
+ *  JSON compacto (sin indentación): el pretty-print duplicaba los tokens
+ *  del contexto RAG sin aportar nada al modelo. */
 export function formatContextForPrompt(context: ChatContext): string {
-  return JSON.stringify(
-    {
-      period: context.period,
-      totals: context.totals,
-      top_hosts: context.topHosts,
-      top_ports: context.topPorts,
-      top_countries: context.topCountries,
-      alerts: context.alerts,
-      health: context.health,
-    },
-    null,
-    2
-  );
+  return JSON.stringify({
+    period: context.period,
+    totals: context.totals,
+    top_hosts: context.topHosts,
+    top_ports: context.topPorts,
+    top_countries: context.topCountries,
+    alerts: context.alerts,
+    health: context.health,
+  });
 }
 
 /**
@@ -88,7 +86,9 @@ export function buildLlmMessages(
     .slice(-CHAT_MAX_CONTEXT_MESSAGES)
     .map((message) => ({
       role: message.role,
-      content: message.content.slice(0, 2000),
+      // 1200 caracteres por mensaje: suficiente para preguntas de seguimiento
+      // y evita arrastrar respuestas largas viejas a cada llamada.
+      content: message.content.slice(0, 1200),
     }));
 
   const last = recent[recent.length - 1];

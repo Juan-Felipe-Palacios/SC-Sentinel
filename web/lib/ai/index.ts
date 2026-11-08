@@ -3,7 +3,7 @@
 
 import { fetchAiFacts } from './facts';
 import type { QueryDb } from '@/lib/query/db-rows';
-import { runAnalysisPipeline } from './analyze';
+import { runAnalysisPipeline, type RunAnalysisOptions } from './analyze';
 import type { AiLanguage } from './openrouter';
 
 export {
@@ -42,13 +42,16 @@ export {
   resetRateLimits,
 } from './rate-limit';
 export { canonicalJson, factsHash } from './hash';
+export { AI_CRON_MIN_INTERVAL_MS } from './analyze';
+export type { RunAnalysisOptions } from './analyze';
 export { fetchAiFacts, type AiFacts } from './facts';
 
 export async function runAiPipeline(
   deviceId: string,
   database?: QueryDb,
-  language: AiLanguage = 'es'
+  language: AiLanguage = 'es',
+  options: RunAnalysisOptions = {}
 ) {
   const facts = await fetchAiFacts(deviceId, database);
-  return runAnalysisPipeline(facts, deviceId, database, language);
+  return runAnalysisPipeline(facts, deviceId, database, language, options);
 }

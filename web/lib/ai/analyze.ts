@@ -35,6 +35,19 @@ export interface AnalysisResult {
   insight: AiInsightRecord | null;
 }
 
+export interface RunAnalysisOptions {
+  /**
+   * Dedup por tiempo (cron): si el device ya tiene un insight en este idioma
+   * más reciente que el intervalo, se devuelve como `cached` sin llamar a la
+   * IA. El panel manual no lo pasa y sigue controlando por facts_hash.
+   */
+  minIntervalMs?: number;
+}
+
+/** Cadencia del cron de IA: máximo un insight nuevo cada 15 min por device.
+ *  Debe acompañar al scheduler de ai-cron.yml (dispara cada 15 minutos). */
+export const AI_CRON_MIN_INTERVAL_MS = 15 * 60_000;
+
 
 
 interface InsightRow {
@@ -125,6 +138,61 @@ async function findRecentInsight(
   return rows[0] ? mapInsightRow(rows[0]) : null;
 }
 
+/** Último insight del device en el idioma pedido (sin importar facts_hash). */
+async function findLatestInsight(
+  deviceId: string,
+  language: AiLanguage,
+  database: QueryDb
+): Promise<AiInsightRecord | null> {
+  const rows = await queryRows<InsightRow>(
+    database,
+    sql`SELECT *
+        FROM ai_insights
+        WHERE device_id = ${deviceId}
+          AND COALESCE(language, 'es') = ${language}
+        ORDER BY created_at DESC
+        LIMIT 1`
+  );
+  return rows[0] ? mapInsightRow(rows[0]) : null;
+}
+
+/**
+ * Presupuesto diario de llamadas a la IA (aproximación de consumo de tokens):
+ * cuenta las filas de `ai_insights` creadas hoy (UTC). `0` o ausente ⇒ sin límite.
+ * Protege la cuota free ante rachas de cron o clicks repetidos del panel.
+ */
+function dailyCallBudget(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = Number.parseInt(env.AI_DAILY_CALL_BUDGET ?? '', 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : 0;
+}
+
+async function countInsightsToday(database: QueryDb): Promise<number> {
+  const todayUtc = `${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`;
+  const rows = await queryRows<{ total: string }>(
+    database,
+    sql`SELECT COUNT(*) AS total
+        FROM ai_insights
+        WHERE created_at >= ${todayUtc}::timestamptz`
+  );
+  return Number(rows[0]?.total ?? 0);
+}
+
+/** Inicio (ISO) de la ventana de flow más reciente del device; null si no hay. */
+async function latestFlowWindowStart(
+  deviceId: string,
+  database: QueryDb
+): Promise<string | null> {
+  const rows = await queryRows<{ start_at: Date | string | null }>(
+    database,
+    sql`SELECT MAX(start_at) AS start_at
+        FROM flow_windows
+        WHERE device_id = ${deviceId}`
+  );
+  const raw = rows[0]?.start_at;
+  if (raw === null || raw === undefined) return null;
+  return isoOrNull(raw) ?? String(raw);
+}
+
 const DEGRADED_SUMMARY: Record<AiLanguage, string> = {
   es: 'El motor determinista analizó las ventanas con normalidad; el análisis con IA no está disponible en modo degradado. Revisa las alertas y las métricas de la ventana.',
   en: 'The deterministic engine analyzed the windows normally; the AI analysis is unavailable in degraded mode. Review the alerts and the window metrics.',
@@ -152,7 +220,8 @@ export async function runAnalysisPipeline(
   facts: AiFacts | null,
   deviceId: string,
   database: QueryDb = defaultQueryDb,
-  language: AiLanguage = 'es'
+  language: AiLanguage = 'es',
+  options: RunAnalysisOptions = {}
 ): Promise<AnalysisResult> {
   if (!facts) return { status: 'no_data', insight: null };
 
@@ -160,6 +229,49 @@ export async function runAnalysisPipeline(
 
   const cached = await findRecentInsight(hash, deviceId, database);
   if (cached) return { status: 'cached', insight: cached };
+
+  // Modo cron (Estrategia A + B):
+  //  A) intervalo mínimo: un insight nuevo como máximo cada `minIntervalMs`;
+  //  B) datos nuevos: si la última ventana de flow no llegó más allá de lo que
+  //     cubrió el último insight (agente detenido o sin tráfico), se sale sin
+  //     gastar una sola llamada a la IA.
+  if (options.minIntervalMs && options.minIntervalMs > 0) {
+    const latest = await findLatestInsight(deviceId, language, database);
+    if (latest) {
+      const ageMs = Date.now() - Date.parse(latest.created_at);
+      if (Number.isFinite(ageMs) && ageMs >= 0 && ageMs < options.minIntervalMs) {
+        return { status: 'cached', insight: latest };
+      }
+      const lastWindowStart = await latestFlowWindowStart(deviceId, database);
+      const coveredUntil = Date.parse(latest.period_end);
+      const hasNewData =
+        lastWindowStart !== null &&
+        Number.isFinite(coveredUntil) &&
+        Date.parse(lastWindowStart) >= coveredUntil;
+      if (!hasNewData) {
+        console.log(
+          JSON.stringify({
+            event: 'ai_cron_no_new_data',
+            last_window_start: lastWindowStart,
+            covered_until: latest.period_end,
+          })
+        );
+        return { status: 'cached', insight: latest };
+      }
+    }
+  }
+
+  // Presupuesto diario de llamadas: agotado ⇒ no se gasta cuota free.
+  const budget = dailyCallBudget();
+  if (budget > 0) {
+    const used = await countInsightsToday(database);
+    if (used >= budget) {
+      console.warn(JSON.stringify({ event: 'ai_budget_exhausted', used, budget }));
+      const latest = await findLatestInsight(deviceId, language, database);
+      if (latest) return { status: 'cached', insight: latest };
+      return { status: 'degraded', insight: null };
+    }
+  }
 
   const chain = await callAiChain(facts, { language });
   const output = chain.ok && chain.output ? chain.output : buildDegradedOutput(language);

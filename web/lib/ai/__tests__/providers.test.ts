@@ -106,6 +106,41 @@ describe('callGeminiChain', () => {
     expect(result.ok).toBe(false);
     expect(result.output).toBeNull();
   });
+
+  it('reintenta una vez ante 5xx transitorio y devuelve ok', async () => {
+    const generateContent = vi
+      .fn()
+      .mockRejectedValueOnce(
+        Object.assign(new Error('This model is currently experiencing high demand.'), {
+          status: 503,
+        })
+      )
+      .mockResolvedValueOnce({ text: JSON.stringify(validOutput) });
+    const client: GeminiClientLike = { models: { generateContent } };
+
+    const result = await callGeminiChain(facts, { client, models: ['gemini-3.8-flash'] });
+
+    expect(result.ok).toBe(true);
+    expect(result.output?.risk_level).toBe('low');
+    expect(generateContent).toHaveBeenCalledTimes(2);
+  });
+
+  it('loguea status y mensaje del error cuando el 5xx es definitivo', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const generateContent = vi.fn().mockRejectedValue(
+      Object.assign(new Error('UNAVAILABLE: high demand'), { status: 503 })
+    );
+    const client: GeminiClientLike = { models: { generateContent } };
+
+    const result = await callGeminiChain(facts, { client, models: ['gemini-3.8-flash'] });
+
+    expect(result.ok).toBe(false);
+    expect(generateContent).toHaveBeenCalledTimes(2); // reintento único incluido
+    const logged = warn.mock.calls.map((call) => String(call[0])).join('\n');
+    expect(logged).toContain('"status":503');
+    expect(logged).toContain('UNAVAILABLE: high demand');
+    warn.mockRestore();
+  });
 });
 
 describe('callGroqChain', () => {

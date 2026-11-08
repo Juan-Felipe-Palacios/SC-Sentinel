@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { safeEqual } from '@/lib/auth/secrets';
 import { resolveDeviceId } from '@/lib/query/device';
-import { runAiPipeline } from '@/lib/ai';
+import { AI_CRON_MIN_INTERVAL_MS, runAiPipeline } from '@/lib/ai';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -48,7 +48,11 @@ export async function POST(request: NextRequest) {
     }
 
     const started = Date.now();
-    const result = await runAiPipeline(deviceId);
+    // Modo cron: dedup por intervalo (15 min) + salida temprana si no hay
+    // datos nuevos desde el último insight (Estrategias A y B).
+    const result = await runAiPipeline(deviceId, undefined, 'es', {
+      minIntervalMs: AI_CRON_MIN_INTERVAL_MS,
+    });
 
     console.log(
       JSON.stringify({

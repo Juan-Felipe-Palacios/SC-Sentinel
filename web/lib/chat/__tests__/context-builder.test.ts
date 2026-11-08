@@ -76,7 +76,7 @@ describe('prompt del chatbot', () => {
       stored(index % 2 === 0 ? 'user' : 'assistant', `mensaje ${index}`)
     );
     const messages = buildLlmMessages(context, history, 'mensaje actual');
-    expect(messages).toHaveLength(1 + 12 + 1);
+    expect(messages).toHaveLength(1 + 8 + 1);
   });
 
   it('tiene una versión en inglés y serializa sin paquetes crudos', () => {
