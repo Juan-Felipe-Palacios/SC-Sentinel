@@ -7,6 +7,19 @@ $ErrorActionPreference = 'Stop'
 
 $Spool = "agent/spool/sc-spool.sqlite"
 $Backup = "agent/spool/sc-spool.sqlite.bak"
+$ToolDir = (Join-Path (Get-Location).Path 'agent/spool/.tools')
+$SqliteExe = "sqlite3"
+
+if (-not (Get-Command -Name $SqliteExe -ErrorAction SilentlyContinue)) {
+    $LocalSqlite = Join-Path $ToolDir 'sqlite3.exe'
+    if (Test-Path $LocalSqlite) {
+        $SqliteExe = $LocalSqlite
+        Write-Host "Usando sqlite3 local: $SqliteExe"
+    } else {
+        Write-Host "[ERROR] sqlite3 no está en PATH ni en $ToolDir"
+        exit 1
+    }
+}
 
 if (-not (Test-Path $Spool)) {
     Write-Host "[WARN] No se encontró el spool en $Spool. Nada que hacer."
@@ -14,7 +27,7 @@ if (-not (Test-Path $Spool)) {
 }
 
 function Run-Sqlite([string]$Sql) {
-    sqlite3 $Spool $Sql
+    & $SqliteExe $Spool $Sql
     if ($LASTEXITCODE -ne 0) {
         throw "sqlite3 falló para: $Sql"
     }
@@ -31,7 +44,7 @@ Run-Sqlite "VACUUM;"
 
 Write-Host "[4/4] Verificación de integridad"
 $Integrity = Run-Sqlite "PRAGMA integrity_check;"
-if ($ Integrity.Trim() -eq 'ok') {
+if ($Integrity.Trim() -eq 'ok') {
     Write-Host "OK: integridad correcta"
 } else {
     Write-Host "[PELIGRO] integridad: $Integrity"
