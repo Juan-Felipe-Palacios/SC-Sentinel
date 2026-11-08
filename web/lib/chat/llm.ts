@@ -430,6 +430,30 @@ export async function* streamChatCompletion(
           }
         }
       }
+
+      // Fase 4: registra por qué se abandonó este proveedor (sin secretos).
+      // Solo si el bucle de modelos terminó sin respuesta (los `return` y los
+      // `continue` de cooling/missing-key no llegan acá).
+      const nextEntry = chain
+        .slice(chain.indexOf(entry) + 1)
+        .find((candidate) => !isCooling(candidate.provider));
+      if (nextEntry) {
+        const fallbackReason =
+          (lastError instanceof ChatLlmError && lastError.status === 429) ||
+          (lastError !== null && isRateLimitError(lastError))
+            ? 'rate_limited'
+            : missingKey
+              ? 'missing_key'
+              : 'error';
+        console.log(
+          JSON.stringify({
+            event: 'chat_fallback',
+            from: entry.provider,
+            to: nextEntry.provider,
+            reason: fallbackReason,
+          })
+        );
+      }
     }
 
     const lastIsRateLimit =

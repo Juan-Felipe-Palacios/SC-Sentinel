@@ -9,6 +9,8 @@ import {
   type GroqClientLike,
 } from '@/lib/ai/providers';
 import type { AiFacts } from '@/lib/ai/facts';
+import { SERVER_ERROR_RETRY_DELAYS_MS } from '@/lib/ai/retry';
+import { resetRateLimits } from '@/lib/ai/rate-limit';
 
 const facts: AiFacts = {
   period: { start: '2026-11-04T00:00:00.000Z', end: '2026-11-04T00:00:30.000Z' },
@@ -48,6 +50,8 @@ function groqClient(content: string, model = 'openai/gpt-oss-120b'): GroqClientL
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+  resetRateLimits();
 });
 
 describe('resolveProvider', () => {
@@ -118,11 +122,61 @@ describe('callGeminiChain', () => {
       .mockResolvedValueOnce({ text: JSON.stringify(validOutput) });
     const client: GeminiClientLike = { models: { generateContent } };
 
-    const result = await callGeminiChain(facts, { client, models: ['gemini-3.6-flash'] });
+    const result = await callGeminiChain(facts, {
+      client,
+      models: ['gemini-3.6-flash'],
+      retryDelaysMs: [0],
+    });
 
     expect(result.ok).toBe(true);
     expect(result.output?.risk_level).toBe('low');
     expect(generateContent).toHaveBeenCalledTimes(2);
+  });
+
+  it('reintenta dos veces con el backoff exponencial configurado (Fase 4)', async () => {
+    const generateContent = vi
+      .fn()
+      .mockRejectedValueOnce(Object.assign(new Error('boom 1'), { status: 503 }))
+      .mockRejectedValueOnce(Object.assign(new Error('boom 2'), { status: 503 }))
+      .mockResolvedValueOnce({ text: JSON.stringify(validOutput) });
+    const client: GeminiClientLike = { models: { generateContent } };
+
+    const result = await callGeminiChain(facts, {
+      client,
+      models: ['gemini-3.6-flash'],
+      retryDelaysMs: [0, 0],
+    });
+
+    expect(result.ok).toBe(true);
+    expect(generateContent).toHaveBeenCalledTimes(3);
+  });
+
+  it('el backoff por defecto espera 1 s y luego 2 s (Fase 4)', () => {
+    expect(SERVER_ERROR_RETRY_DELAYS_MS).toEqual([1_000, 2_000]);
+  });
+
+  it('loguea ai_call con proveedor, modelo, tokens y latencia (Fase 4)', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const client: GeminiClientLike = {
+      models: {
+        generateContent: vi.fn().mockResolvedValue({
+          text: JSON.stringify(validOutput),
+          usageMetadata: { promptTokenCount: 1146, candidatesTokenCount: 321 },
+        }),
+      },
+    };
+
+    const result = await callGeminiChain(facts, { client, models: ['gemini-3.6-flash'] });
+
+    expect(result.ok).toBe(true);
+    const logged = log.mock.calls.map((call) => String(call[0])).join('\n');
+    expect(logged).toContain('"event":"ai_call"');
+    expect(logged).toContain('"provider":"gemini"');
+    expect(logged).toContain('"model":"gemini-3.6-flash"');
+    expect(logged).toContain('"input_tokens":1146');
+    expect(logged).toContain('"output_tokens":321');
+    expect(logged).toMatch(/"latency_ms":\d+/);
+    log.mockRestore();
   });
 
   it('loguea status y mensaje del error cuando el 5xx es definitivo', async () => {
@@ -132,7 +186,11 @@ describe('callGeminiChain', () => {
     );
     const client: GeminiClientLike = { models: { generateContent } };
 
-    const result = await callGeminiChain(facts, { client, models: ['gemini-3.6-flash'] });
+    const result = await callGeminiChain(facts, {
+      client,
+      models: ['gemini-3.6-flash'],
+      retryDelaysMs: [0],
+    });
 
     expect(result.ok).toBe(false);
     expect(generateContent).toHaveBeenCalledTimes(2); // reintento único incluido
@@ -195,5 +253,52 @@ describe('callAiChain', () => {
     });
     expect(result.ok).toBe(true);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('registra ai_provider_fallback cuando el primario falla (Fase 4)', async () => {
+    vi.stubEnv('AI_PROVIDER', 'gemini');
+    vi.stubEnv('GEMINI_API_KEY', 'goog_x');
+    vi.stubEnv('GROQ_API_KEY', 'gsk_x');
+    vi.stubEnv('OPENROUTER_API_KEY', '');
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const result = await callAiChain(facts, {
+      geminiClient: geminiClient('no-json'), // falla (invalid_output)
+      groqClient: groqClient(JSON.stringify(validOutput)), // respaldo ok
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.model).toBe('openai/gpt-oss-120b');
+    const logged = log.mock.calls.map((call) => String(call[0])).join('\n');
+    expect(logged).toContain('"event":"ai_provider_fallback"');
+    expect(logged).toContain('"from":"gemini"');
+    expect(logged).toContain('"to":"groq"');
+    expect(logged).toContain('"reason":"error"');
+    log.mockRestore();
+  });
+
+  it('el motivo del fallback es rate_limited ante un 429 (Fase 4)', async () => {
+    vi.stubEnv('AI_PROVIDER', 'gemini');
+    vi.stubEnv('GEMINI_API_KEY', 'goog_x');
+    vi.stubEnv('GROQ_API_KEY', 'gsk_x');
+    vi.stubEnv('OPENROUTER_API_KEY', '');
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const generateContent = vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error('rate_limit_exceeded'), { status: 429 }));
+    const geminiFails: GeminiClientLike = { models: { generateContent } };
+
+    const result = await callAiChain(facts, {
+      geminiClient: geminiFails,
+      groqClient: groqClient(JSON.stringify(validOutput)),
+    });
+
+    expect(result.ok).toBe(true);
+    const logged = log.mock.calls.map((call) => String(call[0])).join('\n');
+    expect(logged).toContain('"event":"ai_provider_fallback"');
+    expect(logged).toContain('"from":"gemini"');
+    expect(logged).toContain('"to":"groq"');
+    expect(logged).toContain('"reason":"rate_limited"');
+    log.mockRestore();
   });
 });

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   AI_OUTPUT_MAX_TOKENS,
   AiOutputSchema,
@@ -39,6 +39,10 @@ function jsonResponse(body: unknown, status = 200) {
     headers: { 'Content-Type': 'application/json' },
   });
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('getModelChain', () => {
   it('usa AI_MODELS cuando está definido', () => {
@@ -135,6 +139,99 @@ describe('callOpenRouterChain', () => {
     });
     expect(result.ok).toBe(true);
     expect(result.model).toBe('m2');
+  });
+
+  it('reintenta ante 503 con backoff antes de rendir el modelo (Fase 4)', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({}, 503))
+      .mockResolvedValueOnce(jsonResponse({}, 503))
+      .mockResolvedValueOnce(
+        jsonResponse({ choices: [{ message: { content: JSON.stringify(validOutput) } }] })
+      );
+    const result = await callOpenRouterChain(facts, {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiKey: 'k',
+      models: ['m1'],
+      retryDelaysMs: [0, 0],
+    });
+    expect(result.ok).toBe(true);
+    expect(result.model).toBe('m1');
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it('ante un 500 (no 503) pasa directo al siguiente modelo, sin retry', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({}, 500))
+      .mockResolvedValueOnce(
+        jsonResponse({ choices: [{ message: { content: JSON.stringify(validOutput) } }] })
+      );
+    const result = await callOpenRouterChain(facts, {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiKey: 'k',
+      models: ['m1', 'm2'],
+      retryDelaysMs: [0, 0],
+    });
+    expect(result.ok).toBe(true);
+    expect(result.model).toBe('m2');
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('registra los headers x-ratelimit-* de la respuesta (Fase 4)', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const response = new Response(
+      JSON.stringify({ choices: [{ message: { content: JSON.stringify(validOutput) } }] }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-ratelimit-remaining-requests': '7',
+          'x-ratelimit-remaining-tokens': '8000',
+        },
+      }
+    );
+    const fetchImpl = vi.fn().mockResolvedValue(response);
+
+    const result = await callOpenRouterChain(facts, {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiKey: 'k',
+      models: ['m1'],
+    });
+
+    expect(result.ok).toBe(true);
+    const logged = log.mock.calls.map((call) => String(call[0])).join('\n');
+    expect(logged).toContain('"event":"ai_ratelimit"');
+    expect(logged).toContain('"provider":"openrouter"');
+    expect(logged).toContain('"x-ratelimit-remaining-requests":"7"');
+    expect(logged).toContain('"x-ratelimit-remaining-tokens":"8000"');
+    log.mockRestore();
+  });
+
+  it('loguea ai_call con tokens y latencia (Fase 4)', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        model: 'openrouter/free',
+        choices: [{ message: { content: JSON.stringify(validOutput) } }],
+        usage: { prompt_tokens: 1200, completion_tokens: 350 },
+      })
+    );
+
+    const result = await callOpenRouterChain(facts, {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiKey: 'k',
+      models: ['openrouter/free'],
+    });
+
+    expect(result.ok).toBe(true);
+    const logged = log.mock.calls.map((call) => String(call[0])).join('\n');
+    expect(logged).toContain('"event":"ai_call"');
+    expect(logged).toContain('"provider":"openrouter"');
+    expect(logged).toContain('"input_tokens":1200');
+    expect(logged).toContain('"output_tokens":350');
+    expect(logged).toMatch(/"latency_ms":\d+/);
+    log.mockRestore();
   });
 
   it('devuelve degraded cuando todos los modelos fallan', async () => {

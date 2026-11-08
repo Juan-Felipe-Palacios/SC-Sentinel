@@ -4,6 +4,8 @@
 import { z } from 'zod';
 import type { AiFacts } from './facts';
 import { parseRetryAfter } from './rate-limit';
+import { logAiCall, logRateLimitHeaders } from './log';
+import { SERVER_ERROR_RETRY_DELAYS_MS, sleep } from './retry';
 
 // Router de modelos gratuitos de OpenRouter: elige uno disponible que soporte
 // structured outputs, así que no se rompe cuando retiran un modelo `:free`.
@@ -119,11 +121,14 @@ export async function callOpenRouterChain(
     apiKey?: string;
     models?: string[];
     language?: AiLanguage;
+    /** Overrides de test: esperas del backoff ante 503 (default 1 s / 2 s). */
+    retryDelaysMs?: number[];
   } = {}
 ): Promise<AiChainResult> {
   const apiKey = init.apiKey ?? process.env.OPENROUTER_API_KEY;
   const fetchImpl = init.fetchImpl ?? globalThis.fetch;
   const models = init.models ?? getModelChain();
+  const retryDelays = init.retryDelaysMs ?? SERVER_ERROR_RETRY_DELAYS_MS;
   const systemPrompt = buildSystemPrompt(init.language ?? 'es');
 
   if (!apiKey) {
@@ -149,51 +154,74 @@ export async function callOpenRouterChain(
     });
 
   for (const model of models) {
-    try {
-      const res = await fetchImpl(
-        'https://openrouter.ai/api/v1/chat/completions',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: bodyFor(model),
-          signal: AbortSignal.timeout(AI_TIMEOUT_MS),
+    let retries = 0;
+    for (;;) {
+      const attemptStartedAt = Date.now();
+      try {
+        const res = await fetchImpl(
+          'https://openrouter.ai/api/v1/chat/completions',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: bodyFor(model),
+            signal: AbortSignal.timeout(AI_TIMEOUT_MS),
+          }
+        );
+        // Fase 4: headers de cuota para anticipar el próximo 429.
+        logRateLimitHeaders('openrouter', model, res);
+        if (!res.ok) {
+          // El cuerpo del error de OpenRouter es corto y no contiene credenciales.
+          const detail = await res.text().catch(() => '');
+          attempts.push({ model, status: res.status, error: detail.slice(0, 160) });
+          if (res.status === 429) {
+            rateLimited = true;
+            retryAfterSeconds = parseRetryAfter(res.headers.get('retry-after'));
+          }
+          // 503 transitorio: backoff 1 s / 2 s sobre el MISMO modelo antes de
+          // rendirlo. Los demás errores pasan directo al siguiente modelo.
+          if (res.status === 503 && retries < retryDelays.length) {
+            const delay = retryDelays[retries];
+            retries += 1;
+            await sleep(delay);
+            continue;
+          }
+          break;
         }
-      );
-      if (!res.ok) {
-        // El cuerpo del error de OpenRouter es corto y no contiene credenciales.
-        const detail = await res.text().catch(() => '');
-        attempts.push({ model, status: res.status, error: detail.slice(0, 160) });
-        if (res.status === 429) {
-          rateLimited = true;
-          retryAfterSeconds = parseRetryAfter(res.headers.get('retry-after'));
+        const payload = (await res.json()) as {
+          model?: string;
+          choices?: Array<{ message?: { content?: string } }>;
+          usage?: { prompt_tokens?: number; completion_tokens?: number };
+        };
+        const content = payload.choices?.[0]?.message?.content;
+        if (typeof content !== 'string' || !content) {
+          attempts.push({ model, status: res.status, error: 'empty_content' });
+          break;
         }
-        continue;
+        const parsed = extractJsonObject(content);
+        const validated = AiOutputSchema.safeParse(parsed);
+        if (!validated.success) {
+          attempts.push({ model, status: res.status, error: 'invalid_output' });
+          break;
+        }
+        // Con un router la respuesta trae el modelo realmente usado ("openrouter/free").
+        const usedModel = typeof payload.model === 'string' && payload.model ? payload.model : model;
+        logAiCall({
+          provider: 'openrouter',
+          model: usedModel,
+          ok: true,
+          input_tokens: payload.usage?.prompt_tokens ?? null,
+          output_tokens: payload.usage?.completion_tokens ?? null,
+          latency_ms: Date.now() - attemptStartedAt,
+        });
+        return { ok: true, model: usedModel, output: validated.data };
+      } catch (error) {
+        // Timeout, red o body inválido: probamos el siguiente modelo (§11.3).
+        attempts.push({ model, error: error instanceof Error ? error.name : 'unknown_error' });
+        break;
       }
-      const payload = (await res.json()) as {
-        model?: string;
-        choices?: Array<{ message?: { content?: string } }>;
-      };
-      const content = payload.choices?.[0]?.message?.content;
-      if (typeof content !== 'string' || !content) {
-        attempts.push({ model, status: res.status, error: 'empty_content' });
-        continue;
-      }
-      const parsed = extractJsonObject(content);
-      const validated = AiOutputSchema.safeParse(parsed);
-      if (!validated.success) {
-        attempts.push({ model, status: res.status, error: 'invalid_output' });
-        continue;
-      }
-      // Con un router la respuesta trae el modelo realmente usado ("openrouter/free").
-      const usedModel = typeof payload.model === 'string' && payload.model ? payload.model : model;
-      return { ok: true, model: usedModel, output: validated.data };
-    } catch (error) {
-      // Timeout, red o body inválido: probamos el siguiente modelo (§11.3).
-      attempts.push({ model, error: error instanceof Error ? error.name : 'unknown_error' });
-      continue;
     }
   }
 

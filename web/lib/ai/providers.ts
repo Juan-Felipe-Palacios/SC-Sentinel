@@ -11,6 +11,8 @@ import {
   markRateLimited,
   retryAfterFromError,
 } from './rate-limit';
+import { logAiCall, logRateLimitHeaders } from './log';
+import { SERVER_ERROR_RETRY_DELAYS_MS, sleep } from './retry';
 import {
   AI_OUTPUT_MAX_TOKENS,
   AI_TIMEOUT_MS,
@@ -60,8 +62,7 @@ export function geminiApiKey(env: NodeJS.ProcessEnv = process.env): string | und
   return env.GEMINI_API_KEY || env.GOOGLE_AI_API_KEY || undefined;
 }
 
-/** Espera entre reintentos ante 5xx transitorios (p. ej. gemini 503 UNAVAILABLE). */
-const SERVER_ERROR_RETRY_DELAY_MS = 750;
+// Backoff exponencial ante 5xx (Fase 4): 1 s / 2 s — ver retry.ts.
 // Un modelo saturado puede colgarse (3.8 Flash tardó >20 s sin responder): sin este
 // tope un solo intento se come los 60 s de la función de Vercel. Los Flash sanos
 // responden en 2–4 s.
@@ -165,6 +166,8 @@ function textOf(value: unknown): string | null {
 
 export interface GeminiResponseLike {
   text?: string | (() => string);
+  /** Solo en respuestas reales del SDK; los fixtures de tests no lo traen. */
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
 }
 export interface GeminiModelLike {
   generateContent: (args: { model: string; contents: string; config?: Record<string, unknown> }) => Promise<GeminiResponseLike>;
@@ -176,6 +179,8 @@ export interface GeminiClientLike {
 export interface GroqResponseLike {
   model?: string;
   choices?: Array<{ message?: { content?: string | null } }>;
+  /** Solo en respuestas reales del SDK; los fixtures de tests no lo traen. */
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
 export interface GroqClientLike {
   chat: {
@@ -193,6 +198,8 @@ export async function callGeminiChain(
     models?: string[];
     apiKey?: string;
     language?: AiLanguage;
+    /** Overrides de test: esperas del backoff ante 5xx (default 1 s / 2 s). */
+    retryDelaysMs?: number[];
   } = {}
 ): Promise<AiChainResult> {
   const apiKey = init.apiKey ?? geminiApiKey();
@@ -208,6 +215,7 @@ export async function callGeminiChain(
       httpOptions: { timeout: GEMINI_TIMEOUT_MS },
     }) as unknown as GeminiClientLike);
   const models = init.models ?? getModelsFor('gemini');
+  const retryDelays = init.retryDelaysMs ?? SERVER_ERROR_RETRY_DELAYS_MS;
   const systemInstruction = buildSystemPrompt(init.language ?? 'es');
   const attempts: Array<{ model: string; status?: number; error?: string }> = [];
   let rateLimited = false;
@@ -216,6 +224,7 @@ export async function callGeminiChain(
   for (const model of models) {
     let retries = 0;
     for (;;) {
+      const attemptStartedAt = Date.now();
       try {
         const response = await client.models.generateContent({
           model,
@@ -238,12 +247,21 @@ export async function callGeminiChain(
           attempts.push({ model, error: 'invalid_output' });
           break;
         }
+        logAiCall({
+          provider: 'gemini',
+          model,
+          ok: true,
+          input_tokens: response.usageMetadata?.promptTokenCount ?? null,
+          output_tokens: response.usageMetadata?.candidatesTokenCount ?? null,
+          latency_ms: Date.now() - attemptStartedAt,
+        });
         return { ok: true, model, output: validated.data };
       } catch (error) {
-        // 5xx transitorio (p. ej. gemini 503 "high demand"): un reintento rápido por modelo.
-        if (retries < 1 && !isRateLimitError(error) && isRetryableServerError(error)) {
+        // 5xx transitorio (p. ej. gemini 503 "high demand"): backoff 1 s / 2 s.
+        if (retries < retryDelays.length && !isRateLimitError(error) && isRetryableServerError(error)) {
+          const delay = retryDelays[retries];
           retries += 1;
-          await new Promise((resolve) => setTimeout(resolve, SERVER_ERROR_RETRY_DELAY_MS));
+          await sleep(delay);
           continue;
         }
         attempts.push({ model, ...describeAiError(error) });
@@ -268,6 +286,8 @@ export async function callGroqChain(
     models?: string[];
     apiKey?: string;
     language?: AiLanguage;
+    /** Overrides de test: esperas del backoff ante 5xx (default 1 s / 2 s). */
+    retryDelaysMs?: number[];
   } = {}
 ): Promise<AiChainResult> {
   const apiKey = init.apiKey ?? process.env.GROQ_API_KEY;
@@ -279,6 +299,7 @@ export async function callGroqChain(
   const client: GroqClientLike =
     init.client ?? (new Groq({ apiKey }) as unknown as GroqClientLike);
   const models = init.models ?? getModelsFor('groq');
+  const retryDelays = init.retryDelaysMs ?? SERVER_ERROR_RETRY_DELAYS_MS;
   const systemPrompt = buildSystemPrompt(init.language ?? 'es');
   const attempts: Array<{ model: string; status?: number; error?: string }> = [];
   let rateLimited = false;
@@ -287,8 +308,9 @@ export async function callGroqChain(
   for (const model of models) {
     let retries = 0;
     for (;;) {
+      const attemptStartedAt = Date.now();
       try {
-        const completion = await client.chat.completions.create({
+        const pending = client.chat.completions.create({
           model,
           messages: [
             { role: 'system', content: systemPrompt },
@@ -297,7 +319,19 @@ export async function callGroqChain(
           response_format: { type: 'json_object' },
           temperature: 0.2,
           max_tokens: AI_OUTPUT_MAX_TOKENS,
-        });
+        }) as Promise<GroqResponseLike> & {
+          withResponse?: () => Promise<{ data: GroqResponseLike; response: Response }>;
+        };
+        // El SDK expone `withResponse()` (headers de cuota). Los mocks de tests
+        // devuelven un objeto plano sin ese método: se usa solo si existe.
+        let completion: GroqResponseLike;
+        if (typeof pending.withResponse === 'function') {
+          const { data, response } = await pending.withResponse();
+          completion = data;
+          logRateLimitHeaders('groq', model, response);
+        } else {
+          completion = await pending;
+        }
         const content = completion.choices?.[0]?.message?.content;
         if (typeof content !== 'string' || !content) {
           attempts.push({ model, error: 'empty_content' });
@@ -309,12 +343,21 @@ export async function callGroqChain(
           break;
         }
         const usedModel = typeof completion.model === 'string' && completion.model ? completion.model : model;
+        logAiCall({
+          provider: 'groq',
+          model: usedModel,
+          ok: true,
+          input_tokens: completion.usage?.prompt_tokens ?? null,
+          output_tokens: completion.usage?.completion_tokens ?? null,
+          latency_ms: Date.now() - attemptStartedAt,
+        });
         return { ok: true, model: usedModel, output: validated.data };
       } catch (error) {
-        // 5xx transitorio: un reintento rápido por modelo antes de pasar al siguiente.
-        if (retries < 1 && !isRateLimitError(error) && isRetryableServerError(error)) {
+        // 5xx transitorio: backoff 1 s / 2 s antes de pasar al siguiente modelo.
+        if (retries < retryDelays.length && !isRateLimitError(error) && isRetryableServerError(error)) {
+          const delay = retryDelays[retries];
           retries += 1;
-          await new Promise((resolve) => setTimeout(resolve, SERVER_ERROR_RETRY_DELAY_MS));
+          await sleep(delay);
           continue;
         }
         attempts.push({ model, ...describeAiError(error) });
@@ -405,6 +448,22 @@ export async function callAiChain(
       rateLimited = true;
       retryAfterSeconds = result.retryAfterSeconds ?? retryAfterSeconds;
       markRateLimited(entry.provider, result.retryAfterSeconds);
+    }
+
+    // Fase 4: motivo del cambio de proveedor, para diagnosticar en producción
+    // por qué se abandonó el primario (sin secretos).
+    const nextEntry = chain
+      .slice(chain.indexOf(entry) + 1)
+      .find((candidate) => !isCooling(candidate.provider));
+    if (nextEntry) {
+      console.log(
+        JSON.stringify({
+          event: 'ai_provider_fallback',
+          from: entry.provider,
+          to: nextEntry.provider,
+          reason: result.rateLimited ? 'rate_limited' : 'error',
+        })
+      );
     }
   }
 

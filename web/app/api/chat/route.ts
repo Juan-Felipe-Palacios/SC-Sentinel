@@ -219,6 +219,17 @@ export async function POST(request: NextRequest) {
             exportable,
           };
 
+          // Fase 4: éxito del stream con proveedor, modelo, tokens y latencia.
+          console.log(
+            JSON.stringify({
+              event: 'chat_ok',
+              provider,
+              model,
+              tokens_used: done.tokensUsed,
+              execution_time_ms: executionTimeMs,
+            })
+          );
+
           try {
             if (!isGuest && activeConversationId) {
               await appendMessage({
