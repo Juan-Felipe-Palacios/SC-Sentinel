@@ -82,7 +82,7 @@ const steps = [
     n: "03",
     icon: "◈",
     title: "Dashboard + IA",
-    body: "La nube solo recibe esas señales agregadas; la IA analiza tendencias y sugiere acciones (máx. 1 análisis cada 5 minutos).",
+    body: "La nube solo recibe esas señales agregadas; la IA analiza tendencias y sugiere acciones (hasta 1 análisis cada 15 minutos).",
   },
 ];
 
@@ -346,7 +346,7 @@ export default function MarketingHome() {
           </h2>
           <p className="mt-4 max-w-2xl text-base leading-relaxed text-sc-text-muted">
             El motor determinista decide qué es anómalo con reglas explícitas; la IA solo recibe hechos ya
-            agregados, una vez cada 5 minutos como máximo.
+            agregados, una vez cada 15 minutos como máximo.
           </p>
           <div className="mt-10">
             <ArchitectureDiagram />

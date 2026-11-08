@@ -8,10 +8,37 @@ import { authenticateDeviceToken } from '@/lib/auth/device';
 import { checkRateLimit } from '@/lib/rate-limit/ingest';
 import { IngestEnvelopeSchema } from '@/lib/schemas/ingest';
 import { db, ingestBatches, flowWindows, hostStats, alerts, agentHealth, devices } from '@/lib/db';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, gte } from 'drizzle-orm';
+import {
+  CLOUD_HEURISTIC_RULE_ID,
+  HEURISTIC_ALERT_DEDUP_MS,
+  evaluateCloudRisk,
+  resolveHostRiskScore,
+} from '@/lib/risk/heuristic';
 
 const MAX_COMPRESSED_BYTES = 128 * 1024;   // 128 KB
 const MAX_UNCOMPRESSED_BYTES = 512 * 1024; // 512 KB
+
+/**
+ * Dedup de la alerta heurística: si el device ya tiene un cloud_heuristic en
+ * la última hora no se inserta otra (evita spamear el feed con ventanas de 30 s).
+ */
+async function hasRecentHeuristicAlert(deviceId: string): Promise<boolean> {
+  const since = new Date(Date.now() - HEURISTIC_ALERT_DEDUP_MS);
+  const rows = await db
+    .select({ id: alerts.id })
+    .from(alerts)
+    .innerJoin(flowWindows, eq(flowWindows.windowId, alerts.windowId))
+    .where(
+      and(
+        eq(flowWindows.deviceId, deviceId),
+        eq(alerts.ruleId, CLOUD_HEURISTIC_RULE_ID),
+        gte(flowWindows.startAt, since)
+      )
+    )
+    .limit(1);
+  return rows.length > 0;
+}
 
 export async function POST(request: NextRequest) {
   // 1. IP rate limit check (anti-abuse for non-authenticated callers)
@@ -198,6 +225,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ status: 'duplicate' }, { status: 200 });
       }
 
+      // Heurística de respaldo (ADR-0005): sc-detect aún no emite risk_score
+      // ni alerts; la nube evalúa las señales del payload para que la tarjeta
+      // "Riesgo del sistema" no quede en 0. El snapshot_json se guarda crudo
+      // (verdad del agente); el enriquecimiento vive en host_stats/alerts.
+      const cloudRisk = evaluateCloudRisk(envelope.snapshot);
+
       // Host Stats
       if (envelope.snapshot.top_hosts.length > 0) {
         const hostRows = envelope.snapshot.top_hosts.map((h) => ({
@@ -210,14 +243,19 @@ export async function POST(request: NextRequest) {
           bytesOut: h.bytes_out,
           packets: h.packets,
           country: h.country ?? null,
-          riskScore: h.risk_score !== undefined && h.risk_score !== null ? String(h.risk_score) : null,
+          // Score del agente si existe; si no, el de la ventana (heurística).
+          riskScore: String(resolveHostRiskScore(h.risk_score, cloudRisk.score)),
         }));
         await db.insert(hostStats).values(hostRows);
       }
 
-      // Alerts
-      if (envelope.snapshot.alerts.length > 0) {
-        const alertRows = envelope.snapshot.alerts.map((a) => ({
+      // Alerts (agente + heurística de la nube cuando el agente no emitió)
+      const alertRows = [...envelope.snapshot.alerts];
+      if (cloudRisk.alert && !(await hasRecentHeuristicAlert(envelope.device.id))) {
+        alertRows.push(cloudRisk.alert);
+      }
+      if (alertRows.length > 0) {
+        const rows = alertRows.map((a) => ({
           id: `alt_${randomUUID()}`,
           windowId: envelope.window.id,
           ruleId: a.rule_id,
@@ -226,7 +264,7 @@ export async function POST(request: NextRequest) {
           description: a.description ?? '',
           evidence: a.evidence ?? null,
         }));
-        await db.insert(alerts).values(alertRows);
+        await db.insert(alerts).values(rows);
       }
 
       // Agent Health

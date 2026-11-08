@@ -38,7 +38,7 @@ const CARDS = [
     color: "#8b5cf6",
     headline: "IA que resume tendencias, no que decide por ti",
     description:
-      "Muestra el resumen del último análisis por lotes (máximo cada 5 minutos), el modelo utilizado, el nivel de riesgo global, los hallazgos detectados y las recomendaciones sugeridas. Los hechos que ingirió la IA son expandibles. Si la IA no está disponible, el motor determinista sigue activo.",
+      "Muestra el resumen del último análisis por lotes (hasta cada 15 minutos), el modelo utilizado, el nivel de riesgo global, los hallazgos detectados y las recomendaciones sugeridas. Los hechos que ingirió la IA son expandibles. Si la IA no está disponible, el motor determinista sigue activo.",
     pills: ["Análisis por lotes", "Risk level global", "Hallazgos + recomendaciones", "Degrada elegantemente"],
   },
   {

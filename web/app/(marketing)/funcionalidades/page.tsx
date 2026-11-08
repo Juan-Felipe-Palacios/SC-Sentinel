@@ -66,9 +66,9 @@ const deepDives = [
     n: "04",
     kicker: "IA complementaria",
     title: "Enriquecimiento por lotes. Nunca el motor de decisiones.",
-    body: "La IA analiza tendencias sobre hechos ya agregados, una vez cada 5 minutos como máximo. Sugiere pasos y resume patrones; no bloquea, no decide y no ve paquetes crudos. Si el servicio no está disponible, el sistema degrada elegantemente: el motor determinista sigue activo y las alertas continúan funcionando.",
+    body: "La IA analiza tendencias sobre hechos ya agregados, una vez cada 15 minutos como máximo. Sugiere pasos y resume patrones; no bloquea, no decide y no ve paquetes crudos. Si el servicio no está disponible, el sistema degrada elegantemente: el motor determinista sigue activo y las alertas continúan funcionando.",
     bullets: [
-      "Máximo 1 análisis de IA cada 5 minutos",
+      "Hasta 1 análisis de IA cada 15 minutos",
       "Entrada: hechos agregados del motor, nunca paquetes",
       "Modo degraded: sin IA, las reglas y alertas siguen",
       "La IA enriquece; el motor determinista decide",

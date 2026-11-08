@@ -31,7 +31,7 @@ const AI_BENEFITS = [
   {
     icon: "🕐",
     title: "Cadencia controlada",
-    body: "Máximo un análisis cada 5 minutos. El sistema usa caché para evitar llamadas innecesarias y mantener el costo operativo bajo control.",
+    body: "Hasta un análisis cada 15 minutos. El sistema usa caché para evitar llamadas innecesarias y mantener el costo operativo bajo control.",
   },
 ];
 

@@ -18,7 +18,7 @@
 
 1. **Captura local** — el agente observa el tráfico en tu PC (o en tu router, vía NetFlow/IPFIX).
 2. **Agregación determinista** — ventanas de 30 segundos resumen qué hosts, puertos y países dominan el tráfico; el motor local detecta anomalías con reglas concretas.
-3. **Dashboard + IA** — la nube solo recibe esas señales agregadas; la IA analiza tendencias y sugiere acciones (máx. 1 análisis cada 5 minutos).
+3. **Dashboard + IA** — la nube solo recibe esas señales agregadas; la IA analiza tendencias y sugiere acciones (hasta 1 análisis cada 15 minutos).
 
 ## Cards de features (Home / funcionalidades)
 

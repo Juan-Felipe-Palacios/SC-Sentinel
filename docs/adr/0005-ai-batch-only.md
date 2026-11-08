@@ -3,6 +3,8 @@
 **Fecha:** 2026-11-03 · **Estado:** Aceptada · **Deriva del spec:** §11
 
 > **Nota de aclaración (2026-11-08, spec v2.2):** la cadencia operativa del cron pasó a **15 min** vía GitHub Actions (`ai-cron.yml`) con early-return cuando no hay datos nuevos; la cadena de fallback es ahora **multi-proveedor** (Gemini → OpenRouter → Groq) con cooldown 429 y backoff 1 s/2 s; la salida máxima subió a 4.000 tokens y se agregó el presupuesto diario opcional `AI_DAILY_CALL_BUDGET`. La decisión batch-only y el dedup por `facts_hash` siguen vigentes.
+>
+> **Nota de aclaración (2026-11-08):** el motor determinista local `sc-detect` está en fase de desarrollo. El backend aplica un enriquecimiento heurístico de respaldo (cloud heuristic, `web/lib/risk/heuristic.ts`) para garantizar la visibilidad operativa del dashboard: cuando el agente envía `risk_score: null` y `alerts: []`, la nube evalúa señales deterministas del payload (severidad de alertas, salud de captura, puertos de riesgo, ratio de paquetes caídos) y rellena `host_stats.risk_score` con un piso de banda baja; solo agrega una alerta `cloud_heuristic` (dedup 1 h) si la ventana llega a banda media o alta y el agente no emitió alertas propias. El valor del agente siempre tiene prioridad.
 
 ## Contexto
 
