@@ -1543,6 +1543,7 @@ dependencies = [
  "clap",
  "sc-aggregate",
  "sc-capture",
+ "sc-collector",
  "sc-config",
  "sc-core",
  "sc-geo",
@@ -1600,6 +1601,13 @@ dependencies = [
 [[package]]
 name = "sc-collector"
 version = "0.1.0"
+dependencies = [
+ "sc-capture",
+ "sc-core",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+]
 
 [[package]]
 name = "sc-config"

@@ -15,6 +15,14 @@ pub struct FlowProducer {
 }
 
 impl FlowProducer {
+    /// Envía esperando espacio (merge entre fuentes): aplica backpressure en
+    /// lugar de descartar, dejando los drops donde ya se contaban.
+    pub async fn send(&self, u: FlowUpdate) -> Result<(), mpsc::error::SendError<FlowUpdate>> {
+        self.tx.send(u).await?;
+        self.sent.fetch_add(1, Ordering::Relaxed);
+        Ok(())
+    }
+
     pub fn try_push(&self, u: FlowUpdate) -> Result<(), mpsc::error::TrySendError<FlowUpdate>> {
         match self.tx.try_send(u) {
             Ok(()) => {

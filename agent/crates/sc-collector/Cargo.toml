@@ -1,6 +1,6 @@
 [package]
 name = "sc-collector"
-description = "Agregación por ventana y estadísticas por host (M0: esqueleto sin deps)"
+description = "Colector pasivo de flujos NetFlow v5/v9 e IPFIX (M4)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,3 +8,11 @@ license-file = "../../../LICENSE"
 authors.workspace = true
 
 [dependencies]
+sc-core = { path = "../sc-core" }
+sc-capture = { path = "../sc-capture" }
+tokio = { workspace = true, features = ["net", "sync", "rt", "time"] }
+tracing = "0.1"
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "sync", "time"] }

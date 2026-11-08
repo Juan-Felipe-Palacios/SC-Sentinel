@@ -1,7 +1,9 @@
 # Configuración del agente SCNet.
-# Copiar a config.toml y pasar la ruta con `sc-agent --config <ruta>`.
+# Copiar a config.toml y pasar la ruta con `sc-sentinel-agent --config <ruta>`.
 # Los overrides de entorno pisan estos valores: SC_INGEST_URL, SC_SPOOL_PATH,
-# SC_SPOOL_MAX_BYTES, SC_LOG y SC_ANONYMIZE_HOSTS.
+# SC_SPOOL_MAX_BYTES, SC_LOG, SC_ANONYMIZE_HOSTS, SC_COLLECTOR_ENABLED y
+# SC_COLLECTOR_PORTS. Los flags de CLI (--collector/--no-collector y
+# --collector-port) tienen la última palabra.
 
 [ingest]
 url = "https://sc-sentinel.vercel.app/api/ingest"
@@ -26,3 +28,20 @@ max_age_days = 7
 
 [log]
 level = "info"                 # SC_LOG tiene prioridad
+
+[collector]
+# Colector pasivo UDP: recibe NetFlow v5/v9 e IPFIX de routers y switches y
+# los entrega al mismo aggregator que la captura local. false = solo pcap.
+enabled = true
+# 0.0.0.0 acepta exportadores de toda la red; 127.0.0.1 solo los locales.
+bind_addr = "0.0.0.0"
+# "auto" detecta la versión por datagrama; "v5", "v9" o "ipfix" la fijan.
+listeners = [
+    { port = 2055, protocol = "auto" },
+    { port = 4739, protocol = "auto" },
+    { port = 9995, protocol = "auto" },
+    { port = 9996, protocol = "auto" },
+]
+# Cache LRU de templates por socket (cada listener tiene la suya).
+template_cache_capacity = 10000
+template_cache_ttl_secs = 3600

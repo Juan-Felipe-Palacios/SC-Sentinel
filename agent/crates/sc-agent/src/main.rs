@@ -1,9 +1,15 @@
-//! sc-agent — daemon headless SCNet.
+//! sc-sentinel-agent — daemon headless SCNet.
 
 use clap::Parser;
 use sc_aggregate::{AggregatorConfig, CaptureCounters, WindowAggregator};
-use sc_capture::{list_interfaces, local_ips_for_interface, run_live, run_offline, LocalIpSet};
-use sc_config::AgentConfig;
+use sc_capture::{
+    list_interfaces, local_ips_for_interface, run_live, run_offline, CaptureChannelPair,
+    FlowProducer, LocalIpSet,
+};
+use sc_collector::{
+    Collector, CollectorConfig, CollectorHandle, CollectorMetrics, ListenerConfig, ProtocolFilter,
+};
+use sc_config::{AgentConfig, CollectorSection};
 use sc_geo::{GeoLite2Country, NoLookup};
 use sc_sync::{
     build_envelope, Applied, DeviceInfo, IngestClient, Spool, SpoolConfig, SyncDecision, Syncer,
@@ -27,7 +33,7 @@ const ENROLLMENT_RETRY: Duration = Duration::from_secs(60);
 const RETENTION_EVERY_TICKS: u64 = 60;
 
 #[derive(Parser, Debug)]
-#[command(name = "sc-agent", version, about = "SCNet agent daemon")]
+#[command(name = "sc-sentinel-agent", version, about = "SCNet agent daemon")]
 struct Args {
     /// Fuerza el modo offline (pcap de fixture en lugar de captura live).
     #[arg(long)]
@@ -51,6 +57,15 @@ struct Args {
     /// Sin default a propósito: un id inventado termina en 403 del backend.
     #[arg(long, env = "SC_SENTINEL_DEVICE_ID")]
     device_id: Option<String>,
+    /// Habilita el colector UDP aunque el config lo desactive.
+    #[arg(long, conflicts_with = "no_collector")]
+    collector: bool,
+    /// Deshabilita el colector aunque el config lo habilite.
+    #[arg(long)]
+    no_collector: bool,
+    /// Puertos UDP del colector separados por coma; elegirlos lo habilita.
+    #[arg(long = "collector-port", value_delimiter = ',', value_name = "PORT")]
+    collector_ports: Vec<u16>,
 }
 
 #[tokio::main]
@@ -71,7 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 return Ok(());
             }
             Err(error) => {
-                eprintln!("sc-agent: {error}");
+                eprintln!("sc-sentinel-agent: {error}");
                 std::process::exit(2);
             }
         }
@@ -82,20 +97,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(path) => AgentConfig::load(path),
         None => AgentConfig::from_env(),
     };
-    let config = match config {
+    let mut config = match config {
         Ok(config) => config,
         Err(error) => {
-            eprintln!("sc-agent: configuración inválida: {error}");
+            eprintln!("sc-sentinel-agent: configuración inválida: {error}");
             std::process::exit(2);
         }
     };
+
+    // Precedencia: archivo < SC_* < flags de CLI.
+    let collector_enabled = if args.no_collector {
+        Some(false)
+    } else if args.collector {
+        Some(true)
+    } else {
+        None
+    };
+    if let Err(error) = config.with_collector_cli(collector_enabled, &args.collector_ports) {
+        eprintln!("sc-sentinel-agent: configuración del colector inválida: {error}");
+        std::process::exit(2);
+    }
+
     logging::init_with_level(&config.log.level);
 
     let device_id = match args.device_id.as_deref().map(str::trim) {
         Some(id) if !id.is_empty() => id.to_string(),
         _ => {
             eprintln!(
-                "sc-agent: falta el device id. Pasá --device-id dev_<uuid> o definí SC_SENTINEL_DEVICE_ID (el id sale de la tabla devices del dashboard)."
+                "sc-sentinel-agent: falta el device id. Pasá --device-id dev_<uuid> o definí SC_SENTINEL_DEVICE_ID (el id sale de la tabla devices del dashboard)."
             );
             std::process::exit(2);
         }
@@ -124,7 +153,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             resolved.key
         }
         Err(error) => {
-            eprintln!("sc-agent: {error}");
+            eprintln!("sc-sentinel-agent: {error}");
             std::process::exit(2);
         }
     };
@@ -135,7 +164,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => match config.resolve_token() {
             Ok(token) => Some(token),
             Err(error) => {
-                eprintln!("sc-agent: {error}");
+                eprintln!("sc-sentinel-agent: {error}");
                 std::process::exit(2);
             }
         },
@@ -189,7 +218,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             None => {
                 eprintln!(
-                    "sc-agent: sin --offline/--fixture hay que indicar --interface (o correr --list-interfaces para ver las disponibles)"
+                    "sc-sentinel-agent: sin --offline/--fixture hay que indicar --interface (o correr --list-interfaces para ver las disponibles)"
                 );
                 std::process::exit(2);
             }
@@ -204,10 +233,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         parse_errors: Some(capture.parse_errors.clone()),
     };
 
+    // Merge de fuentes: captura y colector escriben al mismo canal y el
+    // aggregator sigue consumiendo un único Receiver (no se modifica).
+    let CaptureChannelPair {
+        channel: merged_channel,
+        producer: merged_producer,
+    } = CaptureChannelPair::new();
+
+    let mut collector_handle =
+        start_collector(&config.collector, merged_producer.clone(), health.clone()).await;
+
+    let mut capture_rx = capture.rx;
+    let forward_producer = merged_producer.clone();
+    let mut capture_forward = tokio::spawn(async move {
+        while let Some(update) = capture_rx.recv().await {
+            // `send` aplica backpressure: si el aggregator se atrasa, el
+            // descarte ocurre en el canal de captura, donde ya se cuenta.
+            if forward_producer.send(update).await.is_err() {
+                break;
+            }
+        }
+    });
+    // Sin este drop el canal quedaría abierto y el aggregator nunca drenaría.
+    drop(merged_producer);
+
     let aggregator = WindowAggregator::new(agg_cfg, geo.clone(), health.clone())
         .with_capture_counters(capture_counters);
     let mut aggregator_handle = tokio::spawn(async move {
-        aggregator.run(capture.rx, snap_tx).await;
+        aggregator.run(merged_channel.rx, snap_tx).await;
     });
 
     // Setup sync/spool
@@ -325,10 +378,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ = shutdown_signal() => {
             tracing::info!(event = "shutdown_signal", "señal de apagado: drenando pipeline");
         }
+        _ = &mut capture_forward => {
+            tracing::info!(
+                event = "capture_finished",
+                "captura finalizada (offline): drenando pipeline"
+            );
+        }
         _ = &mut aggregator_handle => {
             tracing::info!(event = "capture_finished", "captura finalizada: drenando pipeline");
             aggregator_done = true;
         }
+    }
+
+    // El colector mantiene abierto el canal de merge: se corta y espera a que
+    // libere sus sockets antes de drenar la ventana activa.
+    if let Some(handle) = collector_handle.take() {
+        let addrs = handle.local_addrs().to_vec();
+        handle.shutdown().await;
+        tracing::info!(
+            event = "collector_stopped",
+            listeners = ?addrs,
+            "colector UDP detenido"
+        );
     }
 
     // 1) Ventana activa: se emite cuando el aggregator cierra el canal de snapshots.
@@ -366,6 +437,84 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     Ok(())
+}
+
+/// Abre los listeners configurados y devuelve el handle para cortarlos al
+/// apagar. Un fallo de bind no es fatal: la captura local sigue funcionando y
+/// el error se publica en el health del agente.
+async fn start_collector(
+    section: &CollectorSection,
+    producer: FlowProducer,
+    health: Arc<HealthRegistry>,
+) -> Option<CollectorHandle> {
+    if !section.enabled {
+        tracing::info!(event = "collector_disabled", "colector UDP deshabilitado");
+        return None;
+    }
+
+    let listeners: Vec<ListenerConfig> = section
+        .listeners
+        .iter()
+        .map(|listener| {
+            let protocol = ProtocolFilter::parse(&listener.protocol).unwrap_or_else(|| {
+                tracing::warn!(
+                    protocol = %listener.protocol,
+                    "protocolo de colector desconocido; se usa auto"
+                );
+                ProtocolFilter::Auto
+            });
+            ListenerConfig::new(listener.port).with_protocol(protocol)
+        })
+        .collect();
+    if listeners.is_empty() {
+        tracing::warn!(
+            event = "collector_without_listeners",
+            "el colector está habilitado sin listeners; no se abre ningún socket"
+        );
+        return None;
+    }
+
+    let config = CollectorConfig {
+        bind_addr: section.bind_addr,
+        listeners,
+        template_cache_capacity: section.template_cache_capacity,
+        template_cache_ttl_secs: section.template_cache_ttl_secs,
+    };
+    tracing::info!(
+        event = "collector_starting",
+        bind_addr = %section.bind_addr,
+        listeners = ?section
+            .listeners
+            .iter()
+            .map(|listener| (listener.port, listener.protocol.as_str()))
+            .collect::<Vec<_>>(),
+        cache_capacity = section.template_cache_capacity,
+        cache_ttl_secs = section.template_cache_ttl_secs,
+        "abriendo colector UDP"
+    );
+
+    match Collector::new(config, producer, CollectorMetrics::new())
+        .start()
+        .await
+    {
+        Ok(handle) => {
+            tracing::info!(
+                event = "collector_started",
+                listeners = ?handle.local_addrs(),
+                "colector UDP activo"
+            );
+            Some(handle)
+        }
+        Err(error) => {
+            tracing::error!(
+                event = "collector_start_failed",
+                %error,
+                "no se pudo abrir el colector; el agente sigue solo con la captura pcap"
+            );
+            health.note_error(format!("collector: {error}"));
+            None
+        }
+    }
 }
 
 /// Loop de sync: envía un batch por tick y respeta el backoff del `Syncer`.
@@ -585,6 +734,9 @@ fn spawn_forced_exit_watchdog() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sc_capture::Direction;
+    use sc_core::{FlowKey, Protocol};
+    use tokio::net::UdpSocket;
 
     #[test]
     fn hostname_resuelto_cabe_en_el_contrato() {
@@ -598,5 +750,110 @@ mod tests {
         let boot_id = current_boot_id();
         assert!(!boot_id.is_empty());
         assert!(boot_id.chars().count() <= 64);
+    }
+
+    #[test]
+    fn cli_parsea_puertos_del_colector_separados_por_coma() {
+        let args = Args::try_parse_from(["sc-sentinel-agent", "--collector-port", "2055,4739"])
+            .expect("puertos válidos");
+        assert_eq!(args.collector_ports, vec![2055, 4739]);
+        assert!(!args.collector);
+        assert!(!args.no_collector);
+    }
+
+    #[test]
+    fn cli_rechaza_habilitar_y_deshabilitar_a_la_vez() {
+        let error = Args::try_parse_from(["sc-sentinel-agent", "--collector", "--no-collector"])
+            .expect_err("flags contradictorios");
+        assert_eq!(error.kind(), clap::error::ErrorKind::ArgumentConflict);
+    }
+
+    fn nf5_datagram() -> Vec<u8> {
+        let mut packet = Vec::with_capacity(72);
+        packet.extend_from_slice(&5u16.to_be_bytes());
+        packet.extend_from_slice(&1u16.to_be_bytes());
+        packet.extend_from_slice(&[0u8; 16]); // uptime, secs, nsecs, secuencia
+        packet.extend_from_slice(&[0u8; 4]); // engine + sampling
+        packet.extend_from_slice(&[192, 168, 1, 41, 8, 8, 8, 8]);
+        packet.extend_from_slice(&[0u8; 4]); // next hop
+        packet.extend_from_slice(&[0u8; 4]); // input + output
+        packet.extend_from_slice(&10u32.to_be_bytes());
+        packet.extend_from_slice(&1_500u32.to_be_bytes());
+        packet.extend_from_slice(&[0u8; 8]); // first + last
+        packet.extend_from_slice(&51_234u16.to_be_bytes());
+        packet.extend_from_slice(&443u16.to_be_bytes());
+        packet.extend_from_slice(&[0, 0x10, 6, 0]);
+        packet.extend_from_slice(&[0u8; 4]); // src_as + dst_as
+        packet.extend_from_slice(&[0u8; 4]); // masks + pad
+        packet
+    }
+
+    #[tokio::test]
+    async fn merge_de_captura_y_colector_entrega_ambos_flujos() {
+        let capture = CaptureChannelPair::new();
+        let CaptureChannelPair {
+            channel: mut merged_channel,
+            producer: merged_producer,
+        } = CaptureChannelPair::new();
+
+        // Mismo puente que usa main para volcar la captura al canal de merge.
+        let mut capture_rx = capture.channel.rx;
+        let forward_tx = merged_producer.clone();
+        let forward = tokio::spawn(async move {
+            while let Some(update) = capture_rx.recv().await {
+                if forward_tx.send(update).await.is_err() {
+                    break;
+                }
+            }
+        });
+
+        let collector_config =
+            CollectorConfig::new([0]).with_bind_addr("127.0.0.1".parse().expect("loopback"));
+        let collector = Collector::new(
+            collector_config,
+            merged_producer.clone(),
+            CollectorMetrics::new(),
+        )
+        .start()
+        .await
+        .expect("colector en loopback");
+        drop(merged_producer);
+
+        capture
+            .producer
+            .try_push(sc_capture::FlowUpdate {
+                ts: 0,
+                flow: FlowKey {
+                    src_ip: 1,
+                    dst_ip: 2,
+                    src_port: 1000,
+                    dst_port: 80,
+                    protocol: Protocol::Tcp,
+                },
+                bytes: 100,
+                packets: 1,
+                direction: Direction::Out,
+            })
+            .expect("push de captura");
+
+        let sender = UdpSocket::bind("127.0.0.1:0").await.expect("socket UDP");
+        sender
+            .send_to(&nf5_datagram(), collector.local_addrs()[0])
+            .await
+            .expect("envío de flujo UDP");
+
+        let mut ports = Vec::new();
+        for _ in 0..2 {
+            let update = tokio::time::timeout(Duration::from_secs(2), merged_channel.rx.recv())
+                .await
+                .expect("timeout esperando los dos flujos")
+                .expect("canal abierto");
+            ports.push(update.flow.dst_port);
+        }
+        ports.sort_unstable();
+        assert_eq!(ports, vec![80, 443]);
+
+        collector.shutdown().await;
+        forward.abort();
     }
 }

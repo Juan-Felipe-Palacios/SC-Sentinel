@@ -1,0 +1,30 @@
+# Configuración del agente SCNet con colector NetFlow/IPFIX habilitado.
+# Copiar a config.toml y arrancar con:
+#   sc-sentinel-agent --config config/sc-agent-collector.toml --interface "<interfaz>"
+# El token nunca se escribe acá: se resuelve de SC_INGEST_TOKEN al arrancar.
+
+[ingest]
+url = "https://sc-sentinel.vercel.app/api/ingest"
+token_env = "SC_INGEST_TOKEN"
+compression = "gzip"
+
+[spool]
+path = "./spool/sc-spool.sqlite"
+max_bytes = 524288000
+max_age_days = 7
+
+[log]
+level = "info"
+
+[collector]
+enabled = true
+# 0.0.0.0 acepta exportadores de cualquier equipo de la red; 127.0.0.1 solo locales.
+bind_addr = "0.0.0.0"
+# "auto" detecta v5/v9/IPFIX por datagrama; "v5", "v9" o "ipfix" fijan el formato.
+listeners = [
+    { port = 2055, protocol = "auto" },
+    { port = 4739, protocol = "auto" },
+]
+# Cache LRU de templates por socket (cada listener tiene la suya).
+template_cache_capacity = 10000
+template_cache_ttl_secs = 3600

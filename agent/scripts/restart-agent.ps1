@@ -7,7 +7,7 @@
   Hace el ciclo completo sin pasos manuales:
     1. Resuelve el device id (parámetro, config/.device-id o SC_SENTINEL_DEVICE_ID)
        y el token del device desde config/.device-token (nunca por línea de comandos).
-    2. Detiene cualquier sc-agent.exe compilado en este árbol (libera el .exe
+    2. Detiene cualquier sc-sentinel-agent.exe compilado en este árbol (libera el .exe
        antes de recompilar).
     3. Asegura el Npcap SDK en .tools/npcap-sdk (lo descarga si falta) y compila
        con la feature sc-capture/live.
@@ -63,7 +63,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $Root = Split-Path -Parent $PSScriptRoot
-$ExePath = Join-Path $Root 'target\release\sc-agent.exe'
+$ExePath = Join-Path $Root 'target\release\sc-sentinel-agent.exe'
 $ConfigPath = Join-Path $Root 'config\sc-agent.toml'
 $ConfigSample = Join-Path $Root 'config\sc-agent.toml.sample'
 $DeviceIdFile = Join-Path $Root 'config\.device-id'
@@ -77,7 +77,7 @@ function Write-Step([string]$Text) {
 }
 
 function Fail([string]$Text) {
-    throw "sc-agent: $Text"
+    throw "sc-sentinel-agent: $Text"
 }
 
 # --- 1. Device id ---------------------------------------------------------
@@ -126,7 +126,7 @@ Write-Host ("  token cargado ({0} caracteres, oculto)" -f $Token.Length)
 
 # --- 3. Detener instancias en ejecución -----------------------------------
 Write-Step 'Deteniendo instancias del agente'
-$running = @(Get-CimInstance Win32_Process -Filter "Name = 'sc-agent.exe'" -ErrorAction SilentlyContinue)
+$running = @(Get-CimInstance Win32_Process -Filter "Name = 'sc-sentinel-agent.exe'" -ErrorAction SilentlyContinue)
 $stopped = 0
 $blocked = @()
 foreach ($proc in $running) {
@@ -163,7 +163,7 @@ foreach ($proc in $running) {
         }
         $stopped++
     } else {
-        Write-Warning "PID $($proc.ProcessId) es sc-agent.exe desde '$path'; no lo toco (no es este árbol)."
+        Write-Warning "PID $($proc.ProcessId) es sc-sentinel-agent.exe desde '$path'; no lo toco (no es este árbol)."
     }
 }
 if ($blocked.Count -gt 0) {
@@ -241,7 +241,7 @@ foreach ($line in $listed) {
         $devices += [pscustomobject]@{ Name = $Matches[1]; Description = $desc }
     }
 }
-if ($devices.Count -eq 0) { Fail "sc-agent --list-interfaces no devolvió dispositivos Npcap:`n$($listed -join "`n")" }
+if ($devices.Count -eq 0) { Fail "sc-sentinel-agent --list-interfaces no devolvió dispositivos Npcap:`n$($listed -join "`n")" }
 
 $chosen = $null
 $chosenAdapter = $null
