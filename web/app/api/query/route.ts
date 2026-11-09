@@ -11,6 +11,7 @@ import { queryHosts } from '@/lib/query/hosts';
 import { queryAlerts } from '@/lib/query/alerts';
 import { queryHealth } from '@/lib/query/health';
 import { fetchLatestInsight } from '@/lib/ai/analyze';
+import { queryEvals } from '@/lib/query/evals';
 import { attachHostnames } from '@/lib/dns/reverse';
 
 const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
@@ -90,6 +91,9 @@ export async function GET(request: NextRequest) {
         // {} cuando todavía no hay análisis en ese idioma.
         const insight = deviceId ? await fetchLatestInsight(deviceId, lang) : null;
         return NextResponse.json(insight ?? {}, { status: 200, headers: noStoreHeaders });
+      }
+      case 'evals': {
+        return NextResponse.json(await queryEvals(range), { status: 200, headers: noStoreHeaders });
       }
     }
   } catch (error) {

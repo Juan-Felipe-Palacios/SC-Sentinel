@@ -167,3 +167,13 @@ export interface HealthMetric {
   last_error: string | null;
   recorded_at: string | null;
 }
+
+export interface EvalsResponse {
+  success_rate: number | null;
+  total: number;
+  succeeded: number;
+  latency_p50_ms: number | null;
+  latency_p95_ms: number | null;
+  daily_cost: Array<{ day: string; cost_usd: number }>;
+  by_model: Array<{ model: string; total: number; cost_usd: number; latency_p50_ms: number | null }>;
+}

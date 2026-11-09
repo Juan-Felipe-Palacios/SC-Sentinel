@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, bigint, jsonb, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, bigint, jsonb, uniqueIndex, index, integer, smallint, numeric } from 'drizzle-orm/pg-core';
 
 export const devices = pgTable('devices', {
   id: text('id').primaryKey(),
@@ -121,6 +121,11 @@ export const aiInsights = pgTable('ai_insights', {
   summary: text('summary').notNull(),
   recommendationsJson: jsonb('recommendations_json').notNull(),
   factsHash: text('facts_hash').notNull(),
+  inputTokens: integer('input_tokens'),
+  outputTokens: integer('output_tokens'),
+  costUsd: numeric('cost_usd', { precision: 12, scale: 6 }).default('0').notNull(),
+  latencyMs: integer('latency_ms'),
+  statusCode: smallint('status_code'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   deviceTimeIdx: index('ai_insights_device_time').on(table.deviceId, table.createdAt),
