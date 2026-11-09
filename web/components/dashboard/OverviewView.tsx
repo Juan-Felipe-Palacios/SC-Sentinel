@@ -27,6 +27,7 @@ import { RiskSummary } from './RiskSummary';
 import { RecentAlerts } from './RecentAlerts';
 import { SeverityChips } from './SeverityChips';
 import { useDashboardRole } from './DashboardRoleContext';
+import { ExportBar } from './ExportBar';
 
 const REFRESH_MS = 5000;
 
@@ -134,6 +135,7 @@ export function OverviewView({ range }: { range: QueryRange }) {
     <div className="space-y-5">
       {/* Estado del agente */}
       <AgentHealthCard health={health.data} />
+      <ExportBar range={range} />
 
       {/* KPIs consolidados */}
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">

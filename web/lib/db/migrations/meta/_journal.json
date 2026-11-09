@@ -57,6 +57,34 @@
       "when": 1794019616493,
       "tag": "0007_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794100000000,
+      "tag": "0008_export-logs",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794200000000,
+      "tag": "0009_ai-evals-metrics",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794300000000,
+      "tag": "0010_trust-pages",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794400000000,
+      "tag": "0011_trust-access-logs",
+      "breakpoints": true
     }
   ]
 }

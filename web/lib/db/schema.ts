@@ -125,3 +125,18 @@ export const aiInsights = pgTable('ai_insights', {
 }, (table) => ({
   deviceTimeIdx: index('ai_insights_device_time').on(table.deviceId, table.createdAt),
 }));
+
+export const exportLogs = pgTable('export_logs', {
+  id: text('id').primaryKey(),
+  role: text('role').notNull(),
+  deviceId: text('device_id'),
+  metric: text('metric').notNull(),
+  range: text('range').notNull(),
+  format: text('format').notNull(),
+  rowCount: bigint('row_count', { mode: 'number' }).default(0).notNull(),
+  bytes: bigint('bytes', { mode: 'number' }).default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  createdIdx: index('export_logs_created_idx').on(table.createdAt),
+  roleIdx: index('export_logs_role_idx').on(table.role),
+}));
