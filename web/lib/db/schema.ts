@@ -145,3 +145,27 @@ export const exportLogs = pgTable('export_logs', {
   createdIdx: index('export_logs_created_idx').on(table.createdAt),
   roleIdx: index('export_logs_role_idx').on(table.role),
 }));
+
+export const trustPages = pgTable('trust_pages', {
+  id: text('id').primaryKey(),
+  deviceId: text('device_id').notNull().references(() => devices.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull().unique(),
+  label: text('label'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  lastRotatedAt: timestamp('last_rotated_at', { withTimezone: true }),
+}, (table) => ({
+  deviceIdx: index('trust_pages_device_idx').on(table.deviceId),
+}));
+
+export const trustPageAccessLogs = pgTable('trust_page_access_logs', {
+  id: text('id').primaryKey(),
+  tokenHash: text('token_hash').notNull(),
+  ipAnon: text('ip_anon').notNull(),
+  userAgentHash: text('user_agent_hash').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tokenIdx: index('trust_access_token_idx').on(table.tokenHash),
+  createdIdx: index('trust_access_created_idx').on(table.createdAt),
+}));
