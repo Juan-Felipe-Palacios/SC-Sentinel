@@ -82,8 +82,8 @@ El tráfico de exportación viaja dentro de la red gestionada. IPFIX over DTLS/T
 ### 9. Fixtures y alcance de la primera entrega
 
 - Fase 1 entregó crate, listener, detección y parser NetFlow v5. Fase 2 agrega NetFlow v9 e IPFIX con cache de templates y fixtures sintéticos construidos en tests (IPv4, IPv6, options templates, IEs de empresa y de longitud variable).
-- Los pcaps reales de Wireshark/MikroTik (T4.3) siguen pendientes: los tests actuales validan el formato contra fixtures generados, no contra exportadores reales.
-- Configuración TOML/CLI (T3.3) e integración con `sc-agent` (T3.2) se entregaron en la fase 3; las métricas en dashboard (T4.1) se entregaron en la fase 4, el fuzz formal con proptest (T4.2) también en la fase 4, y los pcaps reales (T4.3) y los benchmarks quedan pendientes.
+- Los pcaps reales de Wireshark/MikroTik (T4.3) se entregaron como fixtures de regresión locales: capturas reales .pcapng de Nicholas Russo (7 pcaps: v5, v9, v10/IPFIX × IPv4/IPv6/MPLS), 23 payloads UDP extraídos con `scripts/extract-udp-payloads.py` que el parser procesa sin panic (13 Ok → 17 flujos; 10 mid-stream → `TemplateNotFound` controlado). Por la licencia de uso personal de la fuente, los bytes derivados no se commitean: viven en `fixtures/wireshark-extracted/` (gitignored) y se regeneran a partir del zip original; el README de `fixtures/wireshark/` documenta la procedencia y los SHA-256.
+- Configuración TOML/CLI (T3.3) e integración con `sc-agent` (T3.2) se entregaron en la fase 3; las métricas en dashboard (T4.1), el fuzz formal con proptest (T4.2) y los fixtures reales (T4.3) se entregaron en la fase 4; los benchmarks quedan pendientes.
 
 ### 10. Integración con `sc-agent` (T3.2/T3.3)
 

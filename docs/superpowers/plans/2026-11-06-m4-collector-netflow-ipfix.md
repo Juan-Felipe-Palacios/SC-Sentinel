@@ -692,7 +692,7 @@ T3.3 completada: Configuración + tests.
 Fase 4: Robustez
 T4.1 completada (2026-11-09): métricas del colector en health/dashboard (5 campos Option en AgentHealth, espejo 1s desde start_collector, migración 0012 aplicada a Neon, fila "Colector NetFlow / IPFIX" en AgentHealthCard, test integración 1000 flows).
 T4.2 completada (2026-11-09): auditoría sin unwrap/panic/expect en producción; proptest (bytes arbitrarios, versión forzada, truncamiento y mutación de paquetes válidos, 256 casos c/u) + barridos exhaustivos; **bug real encontrado y corregido** en `ipfix.rs::read_fields` (IEs de empresa superaban el mínimo `count*4` → index fuera de rango; fix con guard por iteración + test de regresión). sc-collector: 73 tests verdes.
-T4.3 parcial: fixtures sintéticos saneados en docs/testing/fixtures/ + tests de regresión (2026-11-08); fixtures reales de Wireshark pendientes.
+T4.3 completada (2026-11-09): capturas reales .pcapng de Nicholas Russo (7 pcaps v5/v9/v10 × IPv4/IPv6/MPLS) → 23 payloads UDP extraídos con el parser: sin panic, 17 flujos normalizados, 10 mid-stream con TemplateNotFound controlado. Por licencia sin redistribución, los bytes no se commitean: README de procedencia + SHA-256 en fixtures/wireshark/, tests #[ignore] locales, dir gitignored. (Las fixtures sintéticos en docs/testing/fixtures/ siguen vigentes.)
 Fase 5: Cierre
 T5.1 completada: Documentación completa (ADR-0014, runbook MikroTik, README, sample de config, topología IPFIX, docs/testing/pcap-vs-flow.md).
 T5.2 completada con evidencia sintética (2026-11-08): agente real + synthetic_exporter → hosts/ventanas en el dashboard Vercel, recuperación de templates tras reinicio. Falta la variante con exportador real (video/screenshot con router MikroTik).

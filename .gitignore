@@ -26,6 +26,11 @@ agent/spool/
 *.sqlite-shm
 *.sqlite-wal
 
+# Fixtures Wireshark derivados (T4.3): extraídos de capturas con licencia
+# de uso personal sin redistribución; se regeneran localmente
+# (ver agent/crates/sc-collector/fixtures/wireshark/README.md)
+agent/crates/sc-collector/fixtures/wireshark-extracted/
+
 # Logs & Temporary mocks
 *.log
 mock_*.js
