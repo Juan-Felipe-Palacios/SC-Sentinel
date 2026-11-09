@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, bigint, jsonb, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, bigint, jsonb, uniqueIndex, index, integer, smallint, numeric } from 'drizzle-orm/pg-core';
 
 export const devices = pgTable('devices', {
   id: text('id').primaryKey(),
@@ -73,6 +73,12 @@ export const agentHealth = pgTable('agent_health', {
   parseErrors: bigint('parse_errors', { mode: 'number' }).default(0).notNull(),
   queueDepth: bigint('queue_depth', { mode: 'number' }),
   spoolBytes: bigint('spool_bytes', { mode: 'number' }),
+  // T4.1 (M4): métricas del colector NetFlow/IPFIX; null si el colector está apagado.
+  collectorPacketsReceived: bigint('collector_packets_received', { mode: 'number' }),
+  collectorPacketsDropped: bigint('collector_packets_dropped', { mode: 'number' }),
+  collectorParseErrors: bigint('collector_parse_errors', { mode: 'number' }),
+  collectorTemplatesCached: bigint('collector_templates_cached', { mode: 'number' }),
+  collectorFlowsNormalized: bigint('collector_flows_normalized', { mode: 'number' }),
   lastError: text('last_error'),
   recordedAt: timestamp('recorded_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
@@ -121,7 +127,51 @@ export const aiInsights = pgTable('ai_insights', {
   summary: text('summary').notNull(),
   recommendationsJson: jsonb('recommendations_json').notNull(),
   factsHash: text('facts_hash').notNull(),
+  inputTokens: integer('input_tokens'),
+  outputTokens: integer('output_tokens'),
+  costUsd: numeric('cost_usd', { precision: 12, scale: 6 }).default('0').notNull(),
+  latencyMs: integer('latency_ms'),
+  statusCode: smallint('status_code'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   deviceTimeIdx: index('ai_insights_device_time').on(table.deviceId, table.createdAt),
+}));
+
+export const exportLogs = pgTable('export_logs', {
+  id: text('id').primaryKey(),
+  role: text('role').notNull(),
+  deviceId: text('device_id'),
+  metric: text('metric').notNull(),
+  range: text('range').notNull(),
+  format: text('format').notNull(),
+  rowCount: bigint('row_count', { mode: 'number' }).default(0).notNull(),
+  bytes: bigint('bytes', { mode: 'number' }).default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  createdIdx: index('export_logs_created_idx').on(table.createdAt),
+  roleIdx: index('export_logs_role_idx').on(table.role),
+}));
+
+export const trustPages = pgTable('trust_pages', {
+  id: text('id').primaryKey(),
+  deviceId: text('device_id').notNull().references(() => devices.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull().unique(),
+  label: text('label'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  lastRotatedAt: timestamp('last_rotated_at', { withTimezone: true }),
+}, (table) => ({
+  deviceIdx: index('trust_pages_device_idx').on(table.deviceId),
+}));
+
+export const trustPageAccessLogs = pgTable('trust_page_access_logs', {
+  id: text('id').primaryKey(),
+  tokenHash: text('token_hash').notNull(),
+  ipAnon: text('ip_anon').notNull(),
+  userAgentHash: text('user_agent_hash').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tokenIdx: index('trust_access_token_idx').on(table.tokenHash),
+  createdIdx: index('trust_access_created_idx').on(table.createdAt),
 }));

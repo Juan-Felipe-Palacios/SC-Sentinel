@@ -160,7 +160,7 @@ En Wireshark: filtro `udp.port == 4739` (o `2055`). Deben verse datagramas desde
 - Confirmar que aparecen los hosts y el tráfico atribuido a la interfaz monitoreada.
 - Revisar Settings → Salud del agente para confirmar que el sync y el spool siguen sanos.
 
-Las métricas internas del colector (`packets_received`, `flows_normalized`, `parse_errors`, `templates_cached`, etc.) todavía **no** se publican en health/dashboard: es T4.1. Para el acceptance se usa el log, `tcpdump`/Wireshark y la evidencia de hosts/ventanas, no un contador del dashboard.
+Las métricas internas del colector (`packets_received`, `flows_normalized`, `parse_errors`, `templates_cached`, etc.) **sí** se publican en health/dashboard desde T4.1: aparecen en la fila "Colector NetFlow / IPFIX" de Settings → Salud del agente solo cuando `collector.enabled = true` (si el colector está apagado, los campos se omiten para no parecer "colector en cero"). Para el acceptance sigue siendo útil el log, `tcpdump`/Wireshark y la evidencia de hosts/ventanas.
 
 ### 3.4 Tests locales
 
@@ -256,8 +256,8 @@ Para NetFlow v9, cambiar `export-protocol ipfix` por `export-protocol netflow-v9
 - Sin TLS/DTLS: el export viaja en claro dentro de la red gestionada (ADR-0014 §7).
 - `Direction::In` es provisional; el tráfico entrante puede atribuirse al host remoto (ADR-0014 §5).
 - La cache de templates es por listener y se pierde al reiniciar; el router debe refrescar.
-- Las métricas del colector no están en el dashboard todavía (T4.1).
-- El objetivo de 50k flows/s no está verificado; requiere benchmarks (T4.2/T5.2).
+- ~~Las métricas del colector no están en el dashboard todavía (T4.1).~~ Entregado en T4.1: fila "Colector NetFlow / IPFIX" en Settings → Salud (visibles solo con el colector habilitado).
+- El objetivo de 50k flows/s quedó **verificado y superado** (benchmark `collector_throughput`, Windows x86_64, 30 registros/datagrama, 2026-11-09): solo parser → 37,5M (v5), 6,0M (v9) y 5,5M (IPFIX) flows/s; camino completo UDP loopback → 714k (v5), 758k (v9) y 782k (IPFIX) flows/s con 0 drops. El colector no es el cuello de botella; en producción los límites los imponen el exportador y la red. El throughput E2E con router real sigue pendiente de hardware (mismo bache que el acceptance M4).
 
 ## Referencias
 

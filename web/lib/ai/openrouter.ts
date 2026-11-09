@@ -48,6 +48,8 @@ export interface AiChainResult {
   ok: boolean;
   model: string | null;
   output: AiOutput | null;
+  /** Métricas de la llamada ganadora (null si falló sin respuesta o en fallback determinista). */
+  usage: { inputTokens: number | null; outputTokens: number | null; latencyMs: number; statusCode: number } | null;
   /** true si el intento falló por 429: el proveedor debe entrar en cooldown. */
   rateLimited?: boolean;
   /** `Retry-After` reportado por el proveedor (segundos), si venía. */
@@ -133,7 +135,7 @@ export async function callOpenRouterChain(
 
   if (!apiKey) {
     console.warn(JSON.stringify({ event: 'ai_chain_failed', reason: 'missing_api_key' }));
-    return { ok: false, model: null, output: null };
+    return { ok: false, model: null, output: null, usage: null };
   }
 
   // Diagnóstico sin secretos: modelo + status HTTP / tipo de error por intento.
@@ -216,7 +218,15 @@ export async function callOpenRouterChain(
           output_tokens: payload.usage?.completion_tokens ?? null,
           latency_ms: Date.now() - attemptStartedAt,
         });
-        return { ok: true, model: usedModel, output: validated.data };
+        return {
+          ok: true, model: usedModel, output: validated.data,
+          usage: {
+            inputTokens: payload.usage?.prompt_tokens ?? null,
+            outputTokens: payload.usage?.completion_tokens ?? null,
+            latencyMs: Date.now() - attemptStartedAt,
+            statusCode: res.status,
+          },
+        };
       } catch (error) {
         // Timeout, red o body inválido: probamos el siguiente modelo (§11.3).
         attempts.push({ model, error: error instanceof Error ? error.name : 'unknown_error' });
@@ -226,5 +236,5 @@ export async function callOpenRouterChain(
   }
 
   console.warn(JSON.stringify({ event: 'ai_chain_failed', attempts }));
-  return { ok: false, model: null, output: null, rateLimited, retryAfterSeconds };
+  return { ok: false, model: null, output: null, usage: null, rateLimited, retryAfterSeconds };
 }

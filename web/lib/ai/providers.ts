@@ -205,7 +205,7 @@ export async function callGeminiChain(
   const apiKey = init.apiKey ?? geminiApiKey();
   if (!init.client && !apiKey) {
     console.warn(JSON.stringify({ event: 'ai_chain_failed', provider: 'gemini', reason: 'missing_api_key' }));
-    return { ok: false, model: null, output: null };
+    return { ok: false, model: null, output: null, usage: null };
   }
 
   const client: GeminiClientLike =
@@ -255,7 +255,15 @@ export async function callGeminiChain(
           output_tokens: response.usageMetadata?.candidatesTokenCount ?? null,
           latency_ms: Date.now() - attemptStartedAt,
         });
-        return { ok: true, model, output: validated.data };
+        return {
+          ok: true, model, output: validated.data,
+          usage: {
+            inputTokens: response.usageMetadata?.promptTokenCount ?? null,
+            outputTokens: response.usageMetadata?.candidatesTokenCount ?? null,
+            latencyMs: Date.now() - attemptStartedAt,
+            statusCode: 200,
+          },
+        };
       } catch (error) {
         // 5xx transitorio (p. ej. gemini 503 "high demand"): backoff 1 s / 2 s.
         if (retries < retryDelays.length && !isRateLimitError(error) && isRetryableServerError(error)) {
@@ -275,7 +283,7 @@ export async function callGeminiChain(
   }
 
   console.warn(JSON.stringify({ event: 'ai_chain_failed', provider: 'gemini', attempts }));
-  return { ok: false, model: null, output: null, rateLimited, retryAfterSeconds };
+  return { ok: false, model: null, output: null, usage: null, rateLimited, retryAfterSeconds };
 }
 
 /** Groq (SDK `groq-sdk`, compatible con la API de OpenAI): `response_format: json_object`. */
@@ -293,7 +301,7 @@ export async function callGroqChain(
   const apiKey = init.apiKey ?? process.env.GROQ_API_KEY;
   if (!init.client && !apiKey) {
     console.warn(JSON.stringify({ event: 'ai_chain_failed', provider: 'groq', reason: 'missing_api_key' }));
-    return { ok: false, model: null, output: null };
+    return { ok: false, model: null, output: null, usage: null };
   }
 
   const client: GroqClientLike =
@@ -351,7 +359,15 @@ export async function callGroqChain(
           output_tokens: completion.usage?.completion_tokens ?? null,
           latency_ms: Date.now() - attemptStartedAt,
         });
-        return { ok: true, model: usedModel, output: validated.data };
+        return {
+          ok: true, model: usedModel, output: validated.data,
+          usage: {
+            inputTokens: completion.usage?.prompt_tokens ?? null,
+            outputTokens: completion.usage?.completion_tokens ?? null,
+            latencyMs: Date.now() - attemptStartedAt,
+            statusCode: 200,
+          },
+        };
       } catch (error) {
         // 5xx transitorio: backoff 1 s / 2 s antes de pasar al siguiente modelo.
         if (retries < retryDelays.length && !isRateLimitError(error) && isRetryableServerError(error)) {
@@ -371,7 +387,7 @@ export async function callGroqChain(
   }
 
   console.warn(JSON.stringify({ event: 'ai_chain_failed', provider: 'groq', attempts }));
-  return { ok: false, model: null, output: null, rateLimited, retryAfterSeconds };
+  return { ok: false, model: null, output: null, usage: null, rateLimited, retryAfterSeconds };
 }
 
 /** Punto de entrada del pipeline: recorre la cadena de proveedores hasta que
@@ -477,7 +493,7 @@ export async function callAiChain(
     );
   }
 
-  return { ok: false, model: null, output: null, rateLimited, retryAfterSeconds };
+  return { ok: false, model: null, output: null, usage: null, rateLimited, retryAfterSeconds };
 }
 
 export const AI_REQUEST_TIMEOUT_MS = AI_TIMEOUT_MS;

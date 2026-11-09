@@ -2,85 +2,13 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { ShieldCheck } from 'lucide-react';
+import { DroneShow } from '@/components/marketing/DroneShow';
 import { LoginForm } from './LoginForm';
 
 export const metadata: Metadata = {
   title: 'Acceso · SC-Sentinel',
   description: 'Acceso restringido al panel de SC-Sentinel.',
 };
-
-/** Marca lineal: nodos y enlaces de captura, discreta sobre fondo oscuro. */
-function CaptureMotif() {
-  const nodes = [
-    { x: 64, y: 300, r: 4 },
-    { x: 148, y: 208, r: 5 },
-    { x: 132, y: 396, r: 3 },
-    { x: 252, y: 128, r: 4 },
-    { x: 268, y: 300, r: 6 },
-    { x: 232, y: 470, r: 3.5 },
-    { x: 380, y: 208, r: 4.5 },
-    { x: 396, y: 376, r: 3 },
-    { x: 480, y: 284, r: 5 },
-  ];
-  const links = [
-    [0, 1], [0, 2], [1, 3], [1, 4], [2, 4], [2, 5],
-    [3, 6], [4, 6], [4, 7], [4, 8], [5, 7], [6, 8], [7, 8],
-  ];
-
-  return (
-    <svg
-      viewBox="0 0 560 600"
-      role="presentation"
-      aria-hidden="true"
-      className="h-full w-full"
-    >
-      <defs>
-        <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
-        </radialGradient>
-        <linearGradient id="linkGrad" x1="0" y1="1" x2="1" y2="0">
-          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.85" />
-          <stop offset="100%" stopColor="#a78bfa" stopOpacity="0.85" />
-        </linearGradient>
-      </defs>
-
-      {/* Retícula de fondo */}
-      {Array.from({ length: 11 }, (_, i) => (
-        <line key={`v${i}`} x1={40 + i * 48} y1="24" x2={40 + i * 48} y2="576" stroke="#94a3b8" strokeOpacity="0.07" strokeWidth="1" />
-      ))}
-      {Array.from({ length: 12 }, (_, i) => (
-        <line key={`h${i}`} x1="24" y1={28 + i * 48} x2="536" y2={28 + i * 48} stroke="#94a3b8" strokeOpacity="0.07" strokeWidth="1" />
-      ))}
-
-      {/* Núcleo luminoso */}
-      <circle cx="268" cy="300" r="96" fill="url(#coreGlow)" />
-
-      {/* Enlaces */}
-      {links.map(([a, b], i) => (
-        <line
-          key={i}
-          x1={nodes[a].x}
-          y1={nodes[a].y}
-          x2={nodes[b].x}
-          y2={nodes[b].y}
-          stroke="url(#linkGrad)"
-          strokeWidth="1.1"
-          strokeOpacity="0.55"
-        />
-      ))}
-
-      {/* Nodos */}
-      {nodes.map((node, i) => (
-        <g key={i}>
-          <circle cx={node.x} cy={node.y} r={node.r + 3.5} fill="#0b1220" stroke="#38bdf8" strokeOpacity="0.35" />
-          <circle cx={node.x} cy={node.y} r={node.r} fill="#111827" stroke="#38bdf8" strokeOpacity="0.9" strokeWidth="1.2" />
-        </g>
-      ))}
-      <circle cx="268" cy="300" r="2.4" fill="#e5e7eb" />
-    </svg>
-  );
-}
 
 export default function LoginPage() {
   return (
@@ -101,9 +29,9 @@ export default function LoginPage() {
           </div>
         </header>
 
-        <div className="relative flex flex-1 items-center justify-center py-6">
-          <div className="w-full max-w-lg">
-            <CaptureMotif />
+        <div className="relative flex flex-1 items-center justify-center py-4">
+          <div className="relative h-full min-h-[240px] w-full">
+            <DroneShow />
           </div>
         </div>
 

@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
 // Panel «Salud del agente»: los seis campos que publica agent_health, siempre visibles
-// (con «—» cuando el agente no reportó el valor). El motor determinista no depende de esto.
+// (con «—» cuando el agente no reportó el valor). Si el agente reporta métricas del
+// colector NetFlow/IPFIX (T4.1) se agrega una fila adicional. El motor determinista no depende de esto.
 import { Activity, AlertTriangle } from 'lucide-react';
 import type { HealthMetric } from '@/lib/api-types';
 import { formatBytes, formatNum, timeAgo, dropRate } from '@/lib/format';
@@ -146,6 +147,42 @@ export function AgentHealthCard({ health }: { health: HealthMetric | undefined }
           hint="resiliencia"
         />
       </dl>
+
+      {/* T4.1 (M4): métricas del colector NetFlow/IPFIX; solo si el agente las reporta. */}
+      {health?.collector_packets_received != null ? (
+        <>
+          <p className="border-t border-slate-800/80 px-5 pt-3 font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">
+            Colector NetFlow / IPFIX
+          </p>
+          <dl className="grid grid-cols-2 gap-2 px-5 py-3 sm:grid-cols-3 xl:grid-cols-5">
+            <Tile
+              label="Datagramas recibidos"
+              value={formatNum(health.collector_packets_received)}
+            />
+            <Tile
+              label="Descartados"
+              value={formatNum(health.collector_packets_dropped ?? 0)}
+              tone={(health.collector_packets_dropped ?? 0) > 0 ? 'warn' : 'neutral'}
+              hint="backpressure"
+            />
+            <Tile
+              label="Errores de parseo"
+              value={formatNum(health.collector_parse_errors ?? 0)}
+              tone={(health.collector_parse_errors ?? 0) > 0 ? 'critical' : 'neutral'}
+              hint="colector"
+            />
+            <Tile
+              label="Templates en caché"
+              value={formatNum(health.collector_templates_cached ?? 0)}
+              hint="v9 / ipfix"
+            />
+            <Tile
+              label="Flujos normalizados"
+              value={formatNum(health.collector_flows_normalized ?? 0)}
+            />
+          </dl>
+        </>
+      ) : null}
 
       <p
         className={`flex items-start gap-2 border-t border-slate-800/80 px-5 py-3 font-mono text-[10px] uppercase leading-5 tracking-[0.12em] ${

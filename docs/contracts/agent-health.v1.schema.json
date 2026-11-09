@@ -28,6 +28,31 @@
     },
     "cpu_percent": { "type": "number", "minimum": 0, "maximum": 100 },
     "memory_bytes": { "type": "integer", "minimum": 0 },
+    "collector_packets_received": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Datagramas UDP recibidos por el colector NetFlow/IPFIX (T4.1); presente solo si el colector está habilitado."
+    },
+    "collector_packets_dropped": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Datagramas descartados por backpressure del canal de flujos del colector."
+    },
+    "collector_parse_errors": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Datagramas del colector que fallaron el parseo (no tumban el listener)."
+    },
+    "collector_templates_cached": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Templates NetFlow v9/IPFIX en caché (LRU, cap 10 000)."
+    },
+    "collector_flows_normalized": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Flujos normalizados a FlowUpdate por el colector."
+    },
     "last_error": {
       "type": ["string", "null"],
       "maxLength": 500,

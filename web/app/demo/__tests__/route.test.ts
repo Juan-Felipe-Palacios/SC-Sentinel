@@ -28,7 +28,7 @@ describe('GET /demo', () => {
 
   beforeEach(() => {
     previousSecret = process.env.SC_SESSION_SECRET;
-    process.env.SC_SESSION_SECRET = 'test-demo-entry-secret-32-bytes';
+    process.env.SC_SESSION_SECRET = 'test-demo-entry-secret-32-bytes-ok';
     mockedResolve.mockReset();
     mockedLimit.mockReset();
     mockedLimit.mockReturnValue({ allowed: true });

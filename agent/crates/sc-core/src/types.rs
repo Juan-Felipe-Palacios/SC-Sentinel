@@ -125,6 +125,18 @@ pub struct AgentHealth {
     pub cpu_percent: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub memory_bytes: Option<u64>,
+    // Métricas del colector NetFlow/IPFIX (T4.1): `None` (y omitidas del JSON)
+    // cuando el colector está deshabilitado o aún no reportó.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collector_packets_received: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collector_packets_dropped: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collector_parse_errors: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collector_templates_cached: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collector_flows_normalized: Option<u64>,
     pub last_error: Option<String>, // nullable en el contrato; sin datos sensibles (spec 9.3)
 }
 
@@ -194,6 +206,11 @@ mod tests {
             spool_bytes: Some(102_400),
             cpu_percent: Some(2.5),
             memory_bytes: Some(52_428_800),
+            collector_packets_received: None,
+            collector_packets_dropped: None,
+            collector_parse_errors: None,
+            collector_templates_cached: None,
+            collector_flows_normalized: None,
             last_error: None,
         }
     }

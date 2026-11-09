@@ -35,12 +35,11 @@ export async function verifyAdminAuth(request: NextRequest): Promise<AdminAuthRe
     return { authenticated: true, user: 'admin_session' };
   }
 
-  // 4. Fallback de desarrollo cuando no hay secreto configurado. Si el usuario
-  //    eligió explícitamente el modo visitante, se respeta ese rol.
-  if (
-    process.env.NODE_ENV === 'development' &&
-    !request.cookies.get(GUEST_COOKIE)?.value
-  ) {
+  // 4. Fallback local explícito: exige SC_DEV_AUTH=1 además de no estar en
+  //    producción. Si el usuario eligió el modo visitante, se respeta ese rol.
+  const devAuthAllowed =
+    process.env.NODE_ENV !== 'production' && process.env.SC_DEV_AUTH === '1';
+  if (devAuthAllowed && !request.cookies.get(GUEST_COOKIE)?.value) {
     return { authenticated: true, user: 'dev_local' };
   }
 

@@ -433,7 +433,7 @@ Unit: config con listeners múltiples.
 Unit: override de entorno.
 Unit: config inválida (puerto < 1024) → error claro.
 Fase 4: Robustez (Días 8–9)
-T4.1 — Métricas y salud ⏱️ 6h
+T4.1 — Métricas y salud ⏱️ 6h ✅ completada 2026-11-09
 Extender HealthRegistry con métricas del collector:
 collector_packets_received
 collector_packets_dropped
@@ -690,16 +690,16 @@ T3.1 completada: Normalizador + tests.
 T3.2 completada: Integración con aggregator + tests E2E.
 T3.3 completada: Configuración + tests.
 Fase 4: Robustez
-T4.1 pendiente: Métricas del colector en health/dashboard (solo logs y evidencia indirecta hoy).
-T4.2 pendiente: Fuzzing formal de parsers.
-T4.3 parcial: fixtures sintéticos saneados en docs/testing/fixtures/ + tests de regresión (2026-11-08); fixtures reales de Wireshark pendientes.
+T4.1 completada (2026-11-09): métricas del colector en health/dashboard (5 campos Option en AgentHealth, espejo 1s desde start_collector, migración 0012 aplicada a Neon, fila "Colector NetFlow / IPFIX" en AgentHealthCard, test integración 1000 flows).
+T4.2 completada (2026-11-09): auditoría sin unwrap/panic/expect en producción; proptest (bytes arbitrarios, versión forzada, truncamiento y mutación de paquetes válidos, 256 casos c/u) + barridos exhaustivos; **bug real encontrado y corregido** en `ipfix.rs::read_fields` (IEs de empresa superaban el mínimo `count*4` → index fuera de rango; fix con guard por iteración + test de regresión). sc-collector: 73 tests verdes.
+T4.3 completada (2026-11-09): capturas reales .pcapng de Nicholas Russo (7 pcaps v5/v9/v10 × IPv4/IPv6/MPLS) → 23 payloads UDP extraídos con el parser: sin panic, 17 flujos normalizados, 10 mid-stream con TemplateNotFound controlado. Por licencia sin redistribución, los bytes no se commitean: README de procedencia + SHA-256 en fixtures/wireshark/, tests #[ignore] locales, dir gitignored. (Las fixtures sintéticos en docs/testing/fixtures/ siguen vigentes.)
 Fase 5: Cierre
 T5.1 completada: Documentación completa (ADR-0014, runbook MikroTik, README, sample de config, topología IPFIX, docs/testing/pcap-vs-flow.md).
-T5.2 completada con evidencia sintética (2026-11-08): agente real + synthetic_exporter → hosts/ventanas en el dashboard Vercel, recuperación de templates tras reinicio. Falta la variante con exportador real (video/screenshot con router MikroTik).
-T5.3 pendiente: Commit de cierre de M4 (el hito no está cerrado).
+T5.2 completada con evidencia sintética (2026-11-08) + benchmarks de throughput medidos (2026-11-09: parser 5,5–37,5M flows/s, UDP 714–782k flows/s, 0 drops → objetivo 50k flujos/s superado). Falta la variante con exportador real (video/screenshot con router MikroTik).
+T5.3 completada (2026-11-09): cierre documentado (acceptance-criteria M4 actualizado). El hito M4 queda **no cerrado** por el bache explícito de hardware (MikroTik real, dedup P1, soak 24h); todo lo resoluble sin hardware está hecho y commiteado.
 Post-M4
-M4 marcado como 100% en docs/testing/acceptance-criteria.md.
-Changelog actualizado.
+M4 marcado como 100% en docs/testing/acceptance-criteria.md → **antes del 100%**: validación pendiente con hardware (router MikroTik real, dedup pcap+flow P1, soak 24h), sin el cual el hito no se cierra.
+Changelog actualizado (con el commit de cierre de T5.3).
 Demo grabada (video/screenshot del dashboard con flows reales).
 Anuncio al equipo: "M4 completo, listo para M5".
 12. Anexos

@@ -2,6 +2,20 @@
 
 Fuente: spec §14.3. Cada hito cierra cuando TODOS los checks correspondientes pasan (y el checklist del `release-checklist.md` si aplica).
 
+## SC Audit quick-wins v2 (Export + Evals + Trust Page)
+
+- [x] CSV con `=CMD('calc')` se exporta como `'=CMD('calc')` (sanitización anti-injection).
+- [x] Export con >10000 filas devuelve `413 { error: 'dataset_too_large' }`; CSV streaming en lotes de 500.
+- [x] `format=xlsx&metric=overview` abre sheets Overview/Hosts/Windows.
+- [x] `/dashboard/admin/exports` muestra uso de exportaciones (rol + device).
+- [x] Cada insight nuevo trae `input_tokens`/`output_tokens`/`latency_ms`/`status_code` (null solo en filas viejas).
+- [x] `/dashboard/evals` pinta coste diario, llamadas por modelo, p50/p95 y donut; modelos free = 0 USD.
+- [x] Coste > `AI_DAILY_COST_BUDGET_USD`: log + webhook `AI_COST_ALERT_WEBHOOK_URL`.
+- [x] Trust Page: token ausente/expirado/revocado → `404`; rotar invalida el anterior; revocar → `404`.
+- [x] Cada visita a `/p/<token>` inserta en `trust_page_access_logs` con `ip_anon = x.y.*.*`.
+- [x] Rate limit 100 accesos/hora por token; >1000 accesos/24h → log `trust_leak_suspected` + webhook `TRUST_ALERT_WEBHOOK_URL`.
+- [x] Gates: `pnpm lint/typecheck/test/build`, `cargo fmt/test/clippy`, `verify-contracts.sh` en verde (ver checkpoints 1–3).
+
 > Nota de nombres: el binario se llamó `sc-agent` hasta el 2026-11-08; desde entonces
 > el artefacto es `sc-sentinel-agent` (el crate sigue siendo `sc-agent`). Las notas
 > históricas conservan el nombre usado en su fecha.
@@ -84,13 +98,22 @@ Alcance de cierre: backend seguro, RAG agregado de 24 h, streaming SSE, persiste
 - [x] Diferencias pcap vs flow documentadas (sampling, timeouts, bytes por paquete) → `docs/testing/pcap-vs-flow.md`.
 - [x] Marca la agregación de windows de la misma calidad que en capturas.
 
-> M4 (2026-11-08, actualizado): validación sintética end-to-end completada con
+> M4 (2026-11-09, actualizado): validación sintética end-to-end completada con
 > evidencia: fixtures saneados en `docs/testing/fixtures/` (+ README y test
 > `fixtures_from_disk`, 6 tests), ejemplo `synthetic_exporter` (v5/v9/IPFIX),
 > agente real con `--collector` → `collector_started` en log, hosts/ventanas en
 > el dashboard Vercel (3 hosts TEST-NET, sumas exactas, sin duplicados), y
 > recuperación de templates tras reinicio del agente. Topología IPFIX y
-> diferencias pcap vs flow documentadas. **Siguen pendientes** (M4 NO cerrado):
+> diferencias pcap vs flow documentadas. **Fase 4 cerrada sin hardware
+> (2026-11-09):** T4.1 métricas del colector en health/dashboard (5 contadores
+> + fila en el dashboard + migración 0012); T4.2 property tests proptest
+> (bytes arbitrarios, truncamiento, mutación) + barridos exhaustivos; **el
+> fuzz encontró y arregló un panic real** en `ipfix.rs::read_fields` (IEs de
+> empresa); T4.3 fixtures reales Wireshark (7 pcaps jobaid → 23 payloads UDP:
+> 17 flujos normalizados, 10 mid-stream con `TemplateNotFound` controlado;
+> payloads gitignored por licencia sin redistribución, con extractor
+> commiteado); benchmark de throughput medido (5,5–37,5M flows/s parser,
+> 714–782k flows/s UDP, 0 drops). **Siguen pendientes** (M4 NO cerrado):
 > tráfico real de un router MikroTik/Cisco (hardware), captura desde la IP del
 > router, dedup pcap+flow en el mismo segmento LAN (P1) y soak de 24 h.
 > Procedimiento y checklist: `docs/runbooks/collector-mikrotik.md` §4.

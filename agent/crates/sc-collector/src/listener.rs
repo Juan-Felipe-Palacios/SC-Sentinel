@@ -299,6 +299,41 @@ mod tests {
         }
     }
 
+    /// T4.1 (M4): enviar 1000 flows por UDP → los contadores del colector
+    /// reflejan exactamente 1000 paquetes/flows recibidos y 0 errores.
+    #[tokio::test]
+    async fn mil_flows_incrementan_los_contadores_del_colector() {
+        let (addr, mut rx, metrics, handles) = start_collector().await;
+        let sender = UdpSocket::bind("127.0.0.1:0").await.expect("socket emisor");
+        let datagram = nf5_datagram();
+
+        for i in 0..1_000u32 {
+            sender
+                .send_to(&datagram, addr)
+                .await
+                .unwrap_or_else(|e| panic!("envío UDP #{i}: {e}"));
+            // Drena en tandas para no llenar el buffer del socket UDP.
+            if i % 50 == 49 {
+                for _ in 0..50 {
+                    tokio::time::timeout(Duration::from_secs(5), rx.recv())
+                        .await
+                        .expect("timeout esperando flujo")
+                        .expect("canal abierto");
+                }
+            }
+        }
+
+        let snapshot = metrics.snapshot();
+        assert_eq!(snapshot.packets_received, 1_000);
+        assert_eq!(snapshot.flows_normalized, 1_000);
+        assert_eq!(snapshot.parse_errors, 0);
+        assert_eq!(snapshot.packets_dropped, 0);
+
+        for handle in handles {
+            handle.abort();
+        }
+    }
+
     #[tokio::test]
     async fn un_datagrama_malformado_no_tumba_el_listener() {
         let (addr, mut rx, metrics, handles) = start_collector().await;

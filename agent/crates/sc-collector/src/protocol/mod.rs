@@ -327,6 +327,188 @@ mod tests {
         }
     }
 
+    // -----------------------------------------------------------------
+    // T4.2: property tests con proptest.
+    //
+    // La auditoría manual (2026-11-09) confirma que el indexado directo de
+    // `read_u16`/`read_u32` en producción está precedido por guardas de
+    // longitud verificadas (`HEADER_LEN`, `offset + 4 <= len`, `end > body`,
+    // cursores de template con `body.len() - cursor >= 4/6`) y que
+    // `record.rs` usa `.get()`. Estos tests lo verifican dinámicamente con
+    // entradas arbitrarias, truncadas y mutadas.
+    // -----------------------------------------------------------------
+
+    /// Paquetes válidos de los tres formatos, construidos con fixtures.
+    fn paquete_valido_variant(variant: u8) -> Vec<u8> {
+        use crate::fixtures::{
+            ipfix_data_set, ipfix_ipv4_record, ipfix_packet, ipfix_template_set, v9_data_set,
+            v9_ipv4_record, v9_packet, v9_template_set, IpfixField, Nf9Field,
+            IPFIX_FLOW_TEMPLATE_ID, V9_FLOW_TEMPLATE_ID,
+        };
+        match variant {
+            0 => {
+                crate::fixtures::nf5_packet(&[crate::fixtures::Nf5Record::default()], 1_700_000_000)
+            }
+            1 => v9_packet(
+                &[
+                    v9_template_set(&[(
+                        V9_FLOW_TEMPLATE_ID,
+                        vec![
+                            Nf9Field::new(8, 4),
+                            Nf9Field::new(12, 4),
+                            Nf9Field::new(7, 2),
+                            Nf9Field::new(11, 2),
+                            Nf9Field::new(4, 1),
+                            Nf9Field::new(1, 8),
+                            Nf9Field::new(2, 8),
+                            Nf9Field::new(22, 4),
+                        ],
+                    )]),
+                    v9_data_set(V9_FLOW_TEMPLATE_ID, &v9_ipv4_record(9_500)),
+                ],
+                1_700_000_000,
+                10_000,
+            ),
+            _ => ipfix_packet(
+                &[
+                    ipfix_template_set(&[(
+                        IPFIX_FLOW_TEMPLATE_ID,
+                        vec![
+                            IpfixField::standard(8, 4),
+                            IpfixField::standard(12, 4),
+                            IpfixField::standard(7, 2),
+                            IpfixField::standard(11, 2),
+                            IpfixField::standard(4, 1),
+                            IpfixField::standard(1, 8),
+                            IpfixField::standard(2, 8),
+                            IpfixField::standard(152, 8),
+                        ],
+                    )]),
+                    ipfix_data_set(
+                        IPFIX_FLOW_TEMPLATE_ID,
+                        &ipfix_ipv4_record(1_699_999_999_500),
+                    ),
+                ],
+                1_700_000_000,
+            ),
+        }
+    }
+
+    mod proptest_tests {
+        use super::paquete_valido_variant;
+        use super::source;
+        use crate::protocol::ProtocolSet;
+        use proptest::prelude::*;
+
+        /// (paquete válido, longitud de corte) con longitud dependiente.
+        fn truncamiento_strategy() -> impl Strategy<Value = (Vec<u8>, usize)> {
+            (0u8..=2u8).prop_flat_map(|variant| {
+                let packet = paquete_valido_variant(variant);
+                let max = packet.len();
+                (0..=max).prop_map(move |len| (packet.clone(), len))
+            })
+        }
+
+        /// (paquete válido, índice, nuevo byte) para mutación de un byte.
+        fn mutacion_strategy() -> impl Strategy<Value = (Vec<u8>, usize, u8)> {
+            (0u8..=2u8).prop_flat_map(|variant| {
+                let packet = paquete_valido_variant(variant);
+                let max = packet.len();
+                (0..max, any::<u8>())
+                    .prop_map(move |(index, new_byte)| (packet.clone(), index, new_byte))
+            })
+        }
+
+        proptest! {
+            #![proptest_config(ProptestConfig { cases: 256, .. ProptestConfig::default() })]
+
+            /// Cualquier &[u8] produce Ok o Err, nunca panic.
+            #[test]
+            fn bytes_arbitrarios_nunca_paniquean(
+                data in proptest::collection::vec(any::<u8>(), 0..=2048usize),
+            ) {
+                let mut parser = ProtocolSet::new();
+                let _ = parser.parse(source(), &data, 0);
+            }
+
+            /// Con versión forzada (incluidas las tres conocidas) nunca panic.
+            #[test]
+            fn bytes_con_version_forzada_nunca_paniquean(
+                version in (0u16..=30u16),
+                data in proptest::collection::vec(any::<u8>(), 0..=1024usize),
+            ) {
+                let mut datagram = version.to_be_bytes().to_vec();
+                datagram.extend_from_slice(&data);
+                let mut parser = ProtocolSet::new();
+                let _ = parser.parse(source(), &datagram, 0);
+            }
+
+            /// Truncar un paquete válido a cualquier longitud no paniquea y
+            /// nunca produce más flujos que el paquete completo.
+            #[test]
+            fn truncar_paquete_valido_nunca_paniquea(
+                case in truncamiento_strategy(),
+            ) {
+                let (packet, len) = case;
+                let mut baseline_parser = ProtocolSet::new();
+                let baseline = baseline_parser
+                    .parse(source(), &packet, 0)
+                    .expect("paquete válido de referencia");
+                let mut parser = ProtocolSet::new();
+                if let Ok(flows) = parser.parse(source(), &packet[..len], 0) {
+                    prop_assert!(flows.len() <= baseline.len());
+                }
+            }
+
+            /// Mutar un byte cualquiera de un paquete válido no paniquea.
+            #[test]
+            fn mutar_paquete_valido_nunca_paniquea(
+                case in mutacion_strategy(),
+            ) {
+                let (mut packet, index, new_byte) = case;
+                packet[index] = new_byte;
+                let mut parser = ProtocolSet::new();
+                let _ = parser.parse(source(), &packet, 0);
+            }
+        }
+
+        #[test]
+        fn truncamiento_exhaustivo_paquetes_validos() {
+            // Barrido determinista de TODOS los prefijos de los tres paquetes
+            // válidos: complementa al truncamiento aleatorio de proptest.
+            for variant in 0..=2u8 {
+                let packet = paquete_valido_variant(variant);
+                let mut baseline_parser = ProtocolSet::new();
+                let baseline = baseline_parser
+                    .parse(source(), &packet, 0)
+                    .expect("paquete válido de referencia");
+                for len in 0..=packet.len() {
+                    let mut parser = ProtocolSet::new();
+                    if let Ok(flows) = parser.parse(source(), &packet[..len], 0) {
+                        assert!(
+                            flows.len() <= baseline.len(),
+                            "prefijo de {len} bytes produjo más flujos que el completo"
+                        );
+                    }
+                }
+            }
+        }
+
+        #[test]
+        fn mutacion_exhaustiva_un_byte_paquetes_validos() {
+            // Cada posición con un valor rompe-cabeceras (0xFF): nunca panic.
+            for variant in 0..=2u8 {
+                let packet = paquete_valido_variant(variant);
+                for index in 0..packet.len() {
+                    let mut mutated = packet.clone();
+                    mutated[index] = 0xFF;
+                    let mut parser = ProtocolSet::new();
+                    let _ = parser.parse(source(), &mutated, 0);
+                }
+            }
+        }
+    }
+
     #[test]
     fn display_de_protocolos() {
         assert_eq!(ProtocolKind::NetFlowV5.to_string(), "NetFlow v5");

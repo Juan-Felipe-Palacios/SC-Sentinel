@@ -11,7 +11,9 @@ import { queryHosts } from '@/lib/query/hosts';
 import { queryAlerts } from '@/lib/query/alerts';
 import { queryHealth } from '@/lib/query/health';
 import { fetchLatestInsight } from '@/lib/ai/analyze';
+import { queryEvals } from '@/lib/query/evals';
 import { attachHostnames } from '@/lib/dns/reverse';
+import { logServerError } from '@/lib/logging/error';
 
 const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
 
@@ -91,9 +93,19 @@ export async function GET(request: NextRequest) {
         const insight = deviceId ? await fetchLatestInsight(deviceId, lang) : null;
         return NextResponse.json(insight ?? {}, { status: 200, headers: noStoreHeaders });
       }
+      case 'evals': {
+        // Coste y modelos globales: información operativa solo para admin.
+        if (auth.role !== 'admin') {
+          return NextResponse.json(
+            { error: 'forbidden', message: 'Solo administración.' },
+            { status: 403, headers: noStoreHeaders }
+          );
+        }
+        return NextResponse.json(await queryEvals(range), { status: 200, headers: noStoreHeaders });
+      }
     }
   } catch (error) {
-    console.error('Error in /api/query:', error);
+    logServerError('query_failed', error);
     return NextResponse.json({ error: 'internal_error' }, { status: 500, headers: noStoreHeaders });
   }
 }

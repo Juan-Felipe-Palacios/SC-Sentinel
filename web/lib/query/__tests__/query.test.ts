@@ -282,6 +282,11 @@ describe('queryHealth', () => {
           parse_errors: '2',
           queue_depth: '5',
           spool_bytes: '4096',
+          collector_packets_received: '1000',
+          collector_packets_dropped: '1',
+          collector_parse_errors: '3',
+          collector_templates_cached: '4',
+          collector_flows_normalized: '996',
           last_error: 'af_packet timeout',
           recorded_at: '2026-11-04T11:59:00.000Z',
         },
@@ -297,6 +302,11 @@ describe('queryHealth', () => {
       parse_errors: 2,
       queue_depth: 5,
       spool_bytes: 4096,
+      collector_packets_received: 1000,
+      collector_packets_dropped: 1,
+      collector_parse_errors: 3,
+      collector_templates_cached: 4,
+      collector_flows_normalized: 996,
       last_error: 'af_packet timeout',
       recorded_at: '2026-11-04T11:59:00.000Z',
     });
@@ -313,6 +323,11 @@ describe('queryHealth', () => {
       parse_errors: 0,
       queue_depth: null,
       spool_bytes: null,
+      collector_packets_received: null,
+      collector_packets_dropped: null,
+      collector_parse_errors: null,
+      collector_templates_cached: null,
+      collector_flows_normalized: null,
       last_error: null,
       recorded_at: null,
     });
@@ -338,6 +353,7 @@ describe('GET /api/query', () => {
 
   it('returns 400 for an invalid metric in development', async () => {
     vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('SC_DEV_AUTH', '1');
     const request = new NextRequest('http://localhost/api/query?metric=unknown');
     const response = await GET(request);
     expect(response.status).toBe(400);
@@ -347,6 +363,7 @@ describe('GET /api/query', () => {
 
   it('returns 400 when metric is missing in development', async () => {
     vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('SC_DEV_AUTH', '1');
     const request = new NextRequest('http://localhost/api/query?range=1h');
     const response = await GET(request);
     expect(response.status).toBe(400);

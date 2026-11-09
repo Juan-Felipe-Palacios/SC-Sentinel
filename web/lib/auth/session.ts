@@ -12,14 +12,16 @@ export const SESSION_REMEMBER_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 días
 export const SESSION_ISSUER = 'sc-sentinel';
 
 export function getSessionSecret(): Uint8Array {
-  const configured = process.env.SC_SESSION_SECRET ?? process.env.ADMIN_SECRET;
-  if (configured && configured.length >= 16) {
+  const configured = process.env.SC_SESSION_SECRET?.trim();
+  if (configured && configured.length >= 32) {
     return new TextEncoder().encode(configured);
   }
-  if (process.env.NODE_ENV === 'development') {
+  if (process.env.NODE_ENV === 'development' && !configured) {
     return new TextEncoder().encode('sc-dev-only-session-secret');
   }
-  throw new Error('SC_SESSION_SECRET (o ADMIN_SECRET, mínimo 16 caracteres) es obligatorio fuera de development');
+  throw new Error(
+    'SC_SESSION_SECRET (mínimo 32 caracteres) es obligatorio fuera de development; no reutilizar ADMIN_SECRET'
+  );
 }
 
 export function getSessionTtlSeconds(rememberMe: boolean): number {

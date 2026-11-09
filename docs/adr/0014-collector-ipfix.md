@@ -73,15 +73,17 @@ El tráfico de exportación viaja dentro de la red gestionada. IPFIX over DTLS/T
 ### 8. Robustez y observabilidad
 
 - Cualquier datagrama produce `Ok(Vec<FlowUpdate>)` o `ParseError`; jamás un panic. Los tests incluyen 10 000 datagramas pseudoaleatorios con versión forzada.
+- Fuzz formal (T4.2, entregado 2026-11-09): property tests con proptest (bytes arbitrarios, versión forzada, truncamiento y mutación de paquetes válidos) más barridos exhaustivos de prefijos y de mutación un-byte. **El fuzz encontró un panic real** en `ipfix.rs::read_fields`: el mínimo `count * 4` no cubriva los IEs de empresa (8 bytes con PEN) y el cursor indexaba fuera del cuerpo. Corregido con validación por iteración (`cursor + 4 > body.len()` → `Truncated`) y test de regresión `ies_de_empresa_que_exceden_el_cuerpo_son_truncated`.
+- Auditoría de panics sin `unwrap`/`panic!`/`expect` en producción (solo bajo `#[cfg(test)]`); el indexado de `read_u16`/`read_u32` está precedido por guardas de longitud verificadas (`HEADER_LEN`, `offset + 4 <= len`, `end > body`, cursores de template) y `record.rs` usa `.get()`.
 - Un error de parseo incrementa `parse_errors` y se registra a `debug` (no a `warn`) para que un exportador defectuoso no inunde los logs; un error de socket se registra a `warn` y el bucle continúa con una pausa corta.
 - Métricas expuestas en `CollectorMetrics`: `packets_received`, `bytes_received`, `packets_dropped` (backpressure), `parse_errors`, `socket_errors`, `flows_normalized`, `templates_cached`.
-- La exposición en `HealthRegistry`, `/api/query?metric=health` y dashboard es T4.1 (fase 4); este ADR no la declara hecha.
+- La exposición en `HealthRegistry`, `/api/query?metric=health` y dashboard está entregada en T4.1 (fase 4): 5 campos `Option<u64>` (`collector_packets_received`, `collector_packets_dropped`, `collector_parse_errors`, `collector_templates_cached`, `collector_flows_normalized`) publicados solo cuando el colector está habilitado; el espejo se actualiza cada 1 s desde `start_collector`.
 
 ### 9. Fixtures y alcance de la primera entrega
 
 - Fase 1 entregó crate, listener, detección y parser NetFlow v5. Fase 2 agrega NetFlow v9 e IPFIX con cache de templates y fixtures sintéticos construidos en tests (IPv4, IPv6, options templates, IEs de empresa y de longitud variable).
-- Los pcaps reales de Wireshark/MikroTik (T4.3) siguen pendientes: los tests actuales validan el formato contra fixtures generados, no contra exportadores reales.
-- Configuración TOML/CLI (T3.3) e integración con `sc-agent` (T3.2) se entregaron en la fase 3; las métricas en dashboard (T4.1), el fuzz formal y los benchmarks quedan pendientes.
+- Los pcaps reales de Wireshark/MikroTik (T4.3) se entregaron como fixtures de regresión locales: capturas reales .pcapng de Nicholas Russo (7 pcaps: v5, v9, v10/IPFIX × IPv4/IPv6/MPLS), 23 payloads UDP extraídos con `scripts/extract-udp-payloads.py` que el parser procesa sin panic (13 Ok → 17 flujos; 10 mid-stream → `TemplateNotFound` controlado). Por la licencia de uso personal de la fuente, los bytes derivados no se commitean: viven en `fixtures/wireshark-extracted/` (gitignored) y se regeneran a partir del zip original; el README de `fixtures/wireshark/` documenta la procedencia y los SHA-256.
+- Configuración TOML/CLI (T3.3) e integración con `sc-agent` (T3.2) se entregaron en la fase 3; las métricas en dashboard (T4.1), el fuzz formal con proptest (T4.2) y los fixtures reales (T4.3) se entregaron en la fase 4. Los benchmarks de throughput se midieron en el cierre (bench `collector_throughput`, 2026-11-09): parser solo 5,5–37,5M flows/s; camino UDP completo 714–782k flows/s con 0 drops (Windows x86_64). El objetivo de 50k flows/s queda superado en ambos modos.
 
 ### 10. Integración con `sc-agent` (T3.2/T3.3)
 

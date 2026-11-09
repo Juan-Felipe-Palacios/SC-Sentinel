@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authorize } from '@/lib/auth/resolve';
 import { deleteDevice } from '@/lib/query/devices';
+import { logServerError } from '@/lib/logging/error';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,7 +34,7 @@ export async function DELETE(
       { status: 200, headers: noStoreHeaders }
     );
   } catch (error) {
-    console.error('DELETE /api/devices/[id]:', error);
+    logServerError('device_delete_failed', error);
     return NextResponse.json({ error: 'internal_error' }, { status: 500, headers: noStoreHeaders });
   }
 }

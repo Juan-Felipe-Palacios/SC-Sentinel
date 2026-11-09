@@ -7,6 +7,8 @@ import { sql } from 'drizzle-orm';
 import { defaultQueryDb, isoOrNull, queryRows, type QueryDb } from '@/lib/query/db-rows';
 import { factsHash } from './hash';
 import { callAiChain } from './providers';
+import { estimateCostUsd, parsePricing } from './metrics';
+import { maybeAlertCost } from './cost-alert';
 import type { AiFacts } from './facts';
 import type { AiLanguage } from './openrouter';
 
@@ -278,6 +280,12 @@ export async function runAnalysisPipeline(
   const model = chain.ok && chain.model ? chain.model : 'deterministic-fallback';
   const status: AnalysisStatus = chain.ok ? 'ok' : 'degraded';
 
+  const inputTokens = chain.usage?.inputTokens ?? null;
+  const outputTokens = chain.usage?.outputTokens ?? null;
+  const latencyMs = chain.usage?.latencyMs ?? null;
+  const statusCode = chain.usage?.statusCode ?? null;
+  const costUsd = estimateCostUsd(model, inputTokens, outputTokens, parsePricing());
+
   const id = `ins_${randomUUID()}`;
   const recommendationsJson = {
     findings: output.findings,
@@ -287,7 +295,7 @@ export async function runAnalysisPipeline(
   await database.execute(
     sql`INSERT INTO ai_insights
           (id, device_id, period_start, period_end, model, status, language, risk_level, summary,
-           recommendations_json, facts_hash)
+           recommendations_json, facts_hash, input_tokens, output_tokens, cost_usd, latency_ms, status_code)
         VALUES (
           ${id},
           ${deviceId},
@@ -299,9 +307,28 @@ export async function runAnalysisPipeline(
           ${output.risk_level},
           ${output.summary},
           ${JSON.stringify(recommendationsJson)}::jsonb,
-          ${hash}
+          ${hash},
+          ${inputTokens},
+          ${outputTokens},
+          ${costUsd.toFixed(6)},
+          ${latencyMs},
+          ${statusCode}
         )`
   );
+
+  // Alerta best-effort si el coste acumulado de hoy supera el presupuesto.
+  try {
+    const todayStart = `${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`;
+    const costRows = await queryRows<{ total: string }>(
+      database,
+      sql`SELECT COALESCE(SUM(cost_usd), 0)::numeric AS total
+          FROM ai_insights
+          WHERE created_at >= ${todayStart}::timestamptz`
+    );
+    await maybeAlertCost(Number(costRows[0]?.total ?? 0));
+  } catch {
+    // best-effort: nunca rompe el pipeline
+  }
 
   const inserted = await findRecentInsight(hash, deviceId, database);
   // Si por alguna razón el INSERT no se puede leer (p. ej. reloj/futuro), construimos el record completo.

@@ -33,10 +33,16 @@ Rutas principales:
 | Ruta | Descripción |
 |---|---|
 | `/` | Landing pública |
+| `/funcionalidades`, `/security`, `/contacto` | Páginas públicas de producto |
+| `/legal/privacy`, `/legal/terms`, `/legal/third-party-notices` | Legales públicos (drafts en `docs/legal/`) |
 | `/demo` | Entra a la demo pública de solo lectura (sin credenciales) |
-| `/login` | Acceso de administración |
+| `/login` | Acceso de administración (panel de marca con show de drones) |
+| `/p/[token]` | Trust Page pública por token (404 si expiró o fue revocado) |
 | `/dashboard/overview` | Panel principal |
+| `/dashboard/evals` | Observabilidad de AI Evals (coste, latencia, tasa de éxito) |
 | `/dashboard/settings` | Configuración, solo administración |
+| `/dashboard/admin/exports` | Auditoría de exports, solo administración |
+| `/dashboard/admin/trust-access` | Accesos a Trust Pages, solo administración |
 
 `/dashboard` sin sesión redirige automáticamente a `/demo`. La demo crea una cookie httpOnly `sc_guest` de 1 hora y muestra datos agregados del device configurado. Las acciones de escritura, la configuración y los tokens quedan bloqueados.
 
@@ -109,9 +115,13 @@ lib/
 - `POST /api/auth/guest-login` — sesión de demo
 - `POST /api/ai/analyze` — análisis por lotes (solo admin)
 - `GET/POST /api/ai/cron` — job de análisis periódico (cron)
+- `GET /api/chat/history` — historial del chat
 - `GET /api/devices` — listado de devices (solo admin)
 - `POST /api/devices/enroll` — alta de device (solo admin)
 - `DELETE /api/devices/[id]` — baja de device (solo admin)
+- `GET /api/export` y `GET /api/export/stats` — export CSV/XLSX con auditoría (solo admin)
+- `POST /api/trust` y `GET /api/trust/access` — rotación/revocación de Trust Pages y su log de accesos
+- `POST /api/cron/cleanup` — retención programada de datos
 
 Los contratos están en `../docs/contracts/` y los tests de contrato corren con `pnpm test`.
 

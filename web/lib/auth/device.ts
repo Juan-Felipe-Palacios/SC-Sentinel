@@ -2,6 +2,7 @@
 
 import { db, devices } from '@/lib/db';
 import { eq } from 'drizzle-orm';
+import { logServerError } from '@/lib/logging/error';
 import { hashToken } from './token';
 
 export { hashToken };
@@ -69,7 +70,7 @@ export async function authenticateDeviceToken(authHeader: string | null): Promis
         deviceStatus: device.status,
       };
     } catch (err) {
-      console.error('Database error during device auth:', err);
+      logServerError('device_auth_db_failed', err);
       // If DB error occurs, propagate failure
       return {
         valid: false,
@@ -79,8 +80,12 @@ export async function authenticateDeviceToken(authHeader: string | null): Promis
     }
   }
 
-  // Development fallback when DATABASE_URL is not yet configured
-  if (process.env.NODE_ENV === 'development' || process.env.SC_INGEST_DEV_TOKEN) {
+  // Development fallback when DATABASE_URL is not yet configured. Fuera de
+  // producción exige el token explícito o SC_DEV_AUTH=1.
+  const devAuthEnabled =
+    process.env.NODE_ENV !== 'production' &&
+    Boolean(process.env.SC_INGEST_DEV_TOKEN || process.env.SC_DEV_AUTH === '1');
+  if (devAuthEnabled) {
     const devToken = process.env.SC_INGEST_DEV_TOKEN || 'sc-sentinel-dev-token';
     if (token === devToken) {
       return {

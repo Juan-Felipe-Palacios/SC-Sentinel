@@ -2,10 +2,11 @@
 // Normative ingest endpoint: docs/contracts/ingest-api.v1.md + ADR-0008 + ADR-0009 + ADR-0011
 
 import { NextRequest, NextResponse } from 'next/server';
-import { gunzipSync } from 'zlib';
 import { createHash, randomUUID } from 'crypto';
 import { authenticateDeviceToken } from '@/lib/auth/device';
 import { checkRateLimit } from '@/lib/rate-limit/ingest';
+import { readIngestBody } from '@/lib/ingest/read-body';
+import { logServerError } from '@/lib/logging/error';
 import { IngestEnvelopeSchema } from '@/lib/schemas/ingest';
 import { db, ingestBatches, flowWindows, hostStats, alerts, agentHealth, devices } from '@/lib/db';
 import { eq, and, gte } from 'drizzle-orm';
@@ -15,9 +16,6 @@ import {
   evaluateCloudRisk,
   resolveHostRiskScore,
 } from '@/lib/risk/heuristic';
-
-const MAX_COMPRESSED_BYTES = 128 * 1024;   // 128 KB
-const MAX_UNCOMPRESSED_BYTES = 512 * 1024; // 512 KB
 
 /**
  * Dedup de la alerta heurística: si el device ya tiene un cloud_heuristic en
@@ -78,50 +76,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 4. Read raw request payload
-  let rawBody: Buffer;
-  try {
-    const arrayBuffer = await request.arrayBuffer();
-    rawBody = Buffer.from(arrayBuffer);
-  } catch {
+  // 4. Read, decompress and size-gate the payload before parsing it.
+  const parsedBody = await readIngestBody(request);
+  if (!parsedBody.ok) {
     return NextResponse.json(
-      { error: 'bad_request', message: 'Failed to read request body' },
-      { status: 400 }
+      { error: parsedBody.error, message: parsedBody.message },
+      { status: parsedBody.status }
     );
   }
-
-  const contentEncoding = (request.headers.get('content-encoding') || '').toLowerCase().trim();
-
-  // Size gate for compressed stream
-  if (contentEncoding === 'gzip') {
-    if (rawBody.length > MAX_COMPRESSED_BYTES) {
-      return NextResponse.json(
-        { error: 'payload_too_large', message: 'Compressed payload exceeds 128 KB limit' },
-        { status: 413 }
-      );
-    }
-    try {
-      rawBody = gunzipSync(rawBody);
-    } catch {
-      return NextResponse.json(
-        { error: 'bad_request', message: 'Failed to decompress gzip body' },
-        { status: 400 }
-      );
-    }
-  } else if (contentEncoding === 'zstd') {
-    return NextResponse.json(
-      { error: 'unsupported_media_type', message: 'zstd compression is not enabled in this route' },
-      { status: 415 }
-    );
-  }
-
-  // Size gate for uncompressed payload
-  if (rawBody.length > MAX_UNCOMPRESSED_BYTES) {
-    return NextResponse.json(
-      { error: 'payload_too_large', message: 'Uncompressed payload exceeds 512 KB limit' },
-      { status: 413 }
-    );
-  }
+  const rawBody = parsedBody.body;
 
   // 5. Parse JSON
   let json: unknown;
@@ -278,6 +241,11 @@ export async function POST(request: NextRequest) {
         parseErrors: h.parse_errors,
         queueDepth: h.queue_depth ?? null,
         spoolBytes: h.spool_bytes ?? null,
+        collectorPacketsReceived: h.collector_packets_received ?? null,
+        collectorPacketsDropped: h.collector_packets_dropped ?? null,
+        collectorParseErrors: h.collector_parse_errors ?? null,
+        collectorTemplatesCached: h.collector_templates_cached ?? null,
+        collectorFlowsNormalized: h.collector_flows_normalized ?? null,
         lastError: h.last_error ?? null,
       });
 
@@ -291,7 +259,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({ status: 'processed' }, { status: 200 });
     } catch (err) {
-      console.error('Ingest database insertion error:', err);
+      logServerError('ingest_db_failed', err);
       return NextResponse.json(
         { error: 'server_error', message: 'Failed to persist ingest batch' },
         { status: 500 }

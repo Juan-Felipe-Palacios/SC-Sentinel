@@ -41,6 +41,16 @@ interface IssuedToken {
   token: string;
 }
 
+interface TrustPageItem {
+  id: string;
+  device_id: string;
+  label: string | null;
+  created_at: string | null;
+  revoked_at: string | null;
+  expires_at: string | null;
+  last_rotated_at: string | null;
+}
+
 export function SettingsView() {
   const { data, error, isLoading, mutate } = useSWR<DevicesResponse>('/api/devices', fetcher, {
     refreshInterval: REFRESH_MS,
@@ -53,6 +63,15 @@ export function SettingsView() {
   const [copied, setCopied] = useState(false);
 
   const devices: Device[] = data?.devices ?? [];
+
+  // Trust Pages (admin): crear / rotar / revocar
+  const { data: trustData, mutate: mutateTrust } = useSWR<{ pages: TrustPageItem[] }>('/api/trust', fetcher, {
+    refreshInterval: REFRESH_MS,
+  });
+  const [trustDeviceId, setTrustDeviceId] = useState('');
+  const [trustLabel, setTrustLabel] = useState('');
+  const [trustToken, setTrustToken] = useState<string | null>(null);
+  const pages: TrustPageItem[] = trustData?.pages ?? [];
 
   async function handleEnroll(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -126,6 +145,72 @@ export function SettingsView() {
       setCopied(true);
     } catch {
       setCopied(false);
+    }
+  }
+
+  async function handleCreateTrust(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy('trust-create');
+    setActionError(null);
+    try {
+      const res = await fetch('/api/trust', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_id: trustDeviceId, label: trustLabel.trim() || undefined }),
+      });
+      if (!res.ok) {
+        setActionError(`No se pudo crear la Trust Page (${res.status}).`);
+        return;
+      }
+      const payload = (await res.json()) as { token: string };
+      setTrustToken(payload.token);
+      setTrustDeviceId('');
+      setTrustLabel('');
+      await mutateTrust();
+    } catch {
+      setActionError('Error de conexión al crear la Trust Page.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleRotateTrust(id: string) {
+    if (busy) return;
+    setBusy(`trust-rotate:${id}`);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/trust/${encodeURIComponent(id)}/rotate`, { method: 'POST' });
+      if (!res.ok) {
+        setActionError(`No se pudo rotar la Trust Page (${res.status}).`);
+        return;
+      }
+      const payload = (await res.json()) as { token: string };
+      setTrustToken(payload.token);
+      await mutateTrust();
+    } catch {
+      setActionError('Error de conexión al rotar la Trust Page.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleRevokeTrust(id: string) {
+    if (busy) return;
+    if (!window.confirm('¿Revocar esta Trust Page? La URL pública dejará de funcionar.')) return;
+    setBusy(`trust-revoke:${id}`);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/trust?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (!res.ok) {
+        setActionError(`No se pudo revocar la Trust Page (${res.status}).`);
+        return;
+      }
+      await mutateTrust();
+    } catch {
+      setActionError('Error de conexión al revocar la Trust Page.');
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -282,6 +367,103 @@ export function SettingsView() {
                       <Trash2 className="size-3.5" aria-hidden="true" />
                     )}
                     Eliminar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      <section aria-label="Trust Pages" className="rounded-xl border-slate-800/80 bg-slate-900/60">
+        <header className="border-b border-slate-800/80 px-5 py-4">
+          <h2 className="font-mono text-[10px] uppercase tracking-[0.24em] text-slate-400">
+            Trust Pages públicas
+          </h2>
+          <p className="mt-1.5 text-xs leading-5 text-slate-400">
+            URLs de solo lectura para clientes. El token solo se muestra una vez (crear/rotar).
+            Rotar invalida el token anterior de inmediato; revocar lo deshabilita (404).
+          </p>
+        </header>
+
+        <form onSubmit={handleCreateTrust} className="flex flex-wrap items-end gap-3 px-5 py-4">
+          <label className="flex min-w-56 flex-1 flex-col gap-1.5">
+            <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-slate-400">Device</span>
+            <select
+              value={trustDeviceId}
+              onChange={(event) => setTrustDeviceId(event.target.value)}
+              required
+              className="rounded-xl border-slate-800/80 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50"
+            >
+              <option value="">Seleccionar…</option>
+              {devices.map((d) => (
+                <option key={d.id} value={d.id}>{d.name ?? d.id}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-40 flex-1 flex-col gap-1.5">
+            <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-slate-400">Etiqueta (opcional)</span>
+            <input
+              type="text"
+              value={trustLabel}
+              onChange={(event) => setTrustLabel(event.target.value)}
+              maxLength={120}
+              placeholder="Cliente XYZ"
+              className="rounded-xl border-slate-800/80 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={busy !== null || !trustDeviceId}
+            className="inline-flex items-center gap-2 rounded-lg border border-sky-400/40 bg-sky-400/10 px-4 py-2 font-display text-sm font-semibold text-sky-400 transition-colors hover:bg-sky-400/20 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50"
+          >
+            <Plus className="size-4" aria-hidden="true" />
+            Crear Trust Page
+          </button>
+        </form>
+
+        {trustToken ? (
+          <div className="mx-5 mb-5 rounded-lg border border-amber-400/40 bg-amber-400/10 p-3">
+            <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-amber-400">Nuevo token · visible solo ahora</p>
+            <code className="mt-2 block overflow-x-auto rounded bg-slate-950/60 px-2 py-1.5 font-mono text-[11px] text-slate-100">
+              /p/{trustToken}
+            </code>
+            <p className="mt-2 text-[11px] leading-5 text-slate-400">Copialo ahora: no podrás volver a verlo.</p>
+          </div>
+        ) : null}
+
+        <div className="px-5 py-4">
+          {pages.length === 0 ? (
+            <p className="text-xs leading-5 text-slate-400">Todavía no hay Trust Pages.</p>
+          ) : (
+            <ul className="divide-y divide-slate-800/60 rounded-xl border-slate-800/80">
+              {pages.map((page) => (
+                <li key={page.id} className="flex flex-wrap items-center gap-3 px-3 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-100">{page.label ?? 'Sin etiqueta'}</p>
+                    <p className="truncate font-mono text-[10px] uppercase tracking-[0.14em] text-slate-400/70">{page.device_id}</p>
+                    <p className="mt-1 text-[11px] leading-5 text-slate-400">
+                      {page.revoked_at ? `Revocada ${timeAgo(page.revoked_at)}` : page.expires_at ? `Expira ${timeAgo(page.expires_at)}` : 'Activa'}
+                      {page.last_rotated_at ? ` · rotada ${timeAgo(page.last_rotated_at)}` : ''}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleRotateTrust(page.id)}
+                    disabled={busy !== null || page.revoked_at !== null}
+                    className="inline-flex items-center gap-2 rounded-lg border border-sky-400/40 px-3 py-1.5 font-display text-xs font-semibold text-sky-400 transition-colors hover:bg-sky-400/10 disabled:opacity-50"
+                  >
+                    <RefreshCw className="size-3.5" aria-hidden="true" />
+                    Rotar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleRevokeTrust(page.id)}
+                    disabled={busy !== null || page.revoked_at !== null}
+                    className="inline-flex items-center gap-2 rounded-lg border border-orange-400/30 px-3 py-1.5 font-display text-xs font-semibold text-orange-400 transition-colors hover:bg-orange-400/10 disabled:opacity-50"
+                  >
+                    <Trash2 className="size-3.5" aria-hidden="true" />
+                    Revocar
                   </button>
                 </li>
               ))}

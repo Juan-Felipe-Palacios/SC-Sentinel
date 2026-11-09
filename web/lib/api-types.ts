@@ -164,6 +164,21 @@ export interface HealthMetric {
   parse_errors: number;
   queue_depth: number | null;
   spool_bytes: number | null;
+  collector_packets_received: number | null;
+  collector_packets_dropped: number | null;
+  collector_parse_errors: number | null;
+  collector_templates_cached: number | null;
+  collector_flows_normalized: number | null;
   last_error: string | null;
   recorded_at: string | null;
+}
+
+export interface EvalsResponse {
+  success_rate: number | null;
+  total: number;
+  succeeded: number;
+  latency_p50_ms: number | null;
+  latency_p95_ms: number | null;
+  daily_cost: Array<{ day: string; cost_usd: number }>;
+  by_model: Array<{ model: string; total: number; cost_usd: number; latency_p50_ms: number | null }>;
 }
