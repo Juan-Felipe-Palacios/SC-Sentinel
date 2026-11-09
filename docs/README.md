@@ -54,6 +54,6 @@ Módulos que sostienen estas rutas: `web/lib/export`, `web/lib/ai/metrics.ts` y 
 | ux/ | ✅ 6 (tokens de marca: valores definidos en la extracción M3) | M3, M3.5 |
 | legal/ | ✅ 5 (2 drafts pendientes de revisión legal antes de M3) | M3 |
 | release/ | ✅ 4 | M2–M5 |
-| security/ | ✅ auditoría 2026-11-09 (7 altos, 8 medios, 5 bajos; correcciones pendientes) | transversal |
+| security/ | ✅ auditoría 2026-11-09 (altos H1–H7 y M1/M2/M5/M8 corregidos; M3/M4/M6/M7/M9 y L1–L5 pendientes) | transversal |
 
 **Última revisión del índice:** 2026-11-09 — consolidación con el árbol real (rutas, conteos y fuente de verdad corregida).

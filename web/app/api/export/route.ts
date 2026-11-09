@@ -13,6 +13,7 @@ import { escapeCsvCell, overviewToCsv } from '@/lib/export/csv';
 import { csvStreamFromRows } from '@/lib/export/stream';
 import { buildXlsxBufferMulti, rowsFromAlerts, rowsFromHosts, rowsFromOverview, rowsFromWindows } from '@/lib/export/xlsx';
 import { logExport } from '@/lib/export/log';
+import { logServerError } from '@/lib/logging/error';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -133,7 +134,7 @@ export async function GET(request: NextRequest) {
         { status: 413, headers: noStoreHeaders }
       );
     }
-    console.error('Error in /api/export:', error);
+    logServerError('export_failed', error);
     return NextResponse.json({ error: 'internal_error' }, { status: 500, headers: noStoreHeaders });
   }
 }

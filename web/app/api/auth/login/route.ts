@@ -7,6 +7,7 @@ import { GUEST_COOKIE, guestCookieOptions } from '@/lib/auth/guest';
 import { safeEqual } from '@/lib/auth/secrets';
 import { clientIp } from '@/lib/auth/resolve';
 import { checkRateLimit } from '@/lib/rate-limit/ingest';
+import { logServerError } from '@/lib/logging/error';
 
 const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
 
@@ -59,10 +60,10 @@ export async function POST(request: NextRequest) {
   const { password, rememberMe: rememberMeInput } = parsed.data;
   const rememberMe = rememberMeInput !== undefined ? rememberMeInput : false;
 
-  // Sin ADMIN_SECRET solo se admite en desarrollo local (acepta cualquier password no vacío)
-  const accepted = adminSecret
-    ? safeEqual(password, adminSecret)
-    : process.env.NODE_ENV === 'development';
+  // Sin ADMIN_SECRET solo se admite con SC_DEV_AUTH=1 fuera de producción.
+  const devAuthEnabled =
+    process.env.NODE_ENV !== 'production' && process.env.SC_DEV_AUTH === '1';
+  const accepted = adminSecret ? safeEqual(password, adminSecret) : devAuthEnabled;
 
   if (!accepted) {
     await new Promise((resolve) => setTimeout(resolve, FAILED_ATTEMPT_DELAY_MS));
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
     response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(rememberMe));
     return response;
   } catch (error) {
-    console.error('POST /api/auth/login: no se pudo firmar la sesión', error);
+    logServerError('login_session_failed', error);
     return NextResponse.json({ error: 'server_misconfigured' }, { status: 500, headers: noStoreHeaders });
   }
 }

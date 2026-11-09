@@ -353,6 +353,7 @@ describe('GET /api/query', () => {
 
   it('returns 400 for an invalid metric in development', async () => {
     vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('SC_DEV_AUTH', '1');
     const request = new NextRequest('http://localhost/api/query?metric=unknown');
     const response = await GET(request);
     expect(response.status).toBe(400);
@@ -362,6 +363,7 @@ describe('GET /api/query', () => {
 
   it('returns 400 when metric is missing in development', async () => {
     vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('SC_DEV_AUTH', '1');
     const request = new NextRequest('http://localhost/api/query?range=1h');
     const response = await GET(request);
     expect(response.status).toBe(400);

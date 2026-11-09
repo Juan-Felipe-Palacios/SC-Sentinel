@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { authorize } from '@/lib/auth/resolve';
 import { enrollDevice } from '@/lib/query/devices';
+import { logServerError } from '@/lib/logging/error';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
       { status: 201, headers: noStoreHeaders }
     );
   } catch (error) {
-    console.error('POST /api/devices/enroll:', error);
+    logServerError('device_enroll_failed', error);
     return NextResponse.json({ error: 'internal_error' }, { status: 500, headers: noStoreHeaders });
   }
 }

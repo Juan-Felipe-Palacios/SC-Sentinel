@@ -317,11 +317,12 @@ impl AgentConfig {
                 expected: "URL http(s) del endpoint de ingest",
             });
         }
-        if !(self.ingest.url.starts_with("http://") || self.ingest.url.starts_with("https://")) {
+        let url = self.ingest.url.trim();
+        if !(url.starts_with("https://") || is_loopback_http(url)) {
             return Err(ConfigError::Invalid {
                 field: "ingest.url",
                 value: self.ingest.url.clone(),
-                expected: "URL que empiece con http:// o https://",
+                expected: "URL https:// (http:// solo para loopback en desarrollo)",
             });
         }
         if self.ingest.token_env.trim().is_empty() {
@@ -516,6 +517,26 @@ impl AgentConfig {
     }
 }
 
+/// `http://` solo se acepta cuando el host es loopback real (`localhost`,
+/// `127.0.0.0/8` o `::1`); el Bearer nunca debe viajar en claro fuera de la máquina.
+fn is_loopback_http(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("http://") else {
+        return false;
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let host = if let Some(bracketed) = authority.strip_prefix('[') {
+        bracketed.split(']').next().unwrap_or("")
+    } else {
+        authority.split(':').next().unwrap_or("")
+    };
+    if host.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+    host.parse::<IpAddr>()
+        .map(|address| address.is_loopback())
+        .unwrap_or(false)
+}
+
 fn parse_bool(field: &'static str, raw: &str) -> Result<bool, ConfigError> {
     match raw.trim().to_ascii_lowercase().as_str() {
         "1" | "true" | "yes" | "on" => Ok(true),
@@ -651,6 +672,47 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn rechaza_http_fuera_de_loopback() {
+        for url in ["http://sc-sentinel.example.com/api/ingest", "http://10.0.0.5/api/ingest"] {
+            let raw = format!("[ingest]\nurl = \"{url}\"\n");
+            let error = AgentConfig::parse(&raw).expect_err("HTTP público inválido");
+            assert!(matches!(
+                error,
+                ConfigError::Invalid {
+                    field: "ingest.url",
+                    ..
+                }
+            ));
+        }
+    }
+
+    #[test]
+    fn rechaza_host_que_solo_parece_loopback() {
+        let error = AgentConfig::parse("[ingest]\nurl = \"http://127.evil.example/api/ingest\"\n")
+            .expect_err("host no loopback");
+        assert!(matches!(
+            error,
+            ConfigError::Invalid {
+                field: "ingest.url",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn acepta_http_loopback_para_desarrollo() {
+        for url in [
+            "http://localhost:8080/api/ingest",
+            "http://127.0.0.1:9999/api/ingest",
+            "http://[::1]:8080/api/ingest",
+        ] {
+            let raw = format!("[ingest]\nurl = \"{url}\"\n");
+            let config = AgentConfig::parse(&raw).expect("loopback permitido");
+            assert_eq!(config.ingest.url, url);
+        }
     }
 
     #[test]

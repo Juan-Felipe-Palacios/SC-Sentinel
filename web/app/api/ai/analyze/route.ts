@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authorize } from '@/lib/auth/resolve';
 import { resolveDeviceId } from '@/lib/query/device';
 import { parseAiLanguage, runAiPipeline } from '@/lib/ai';
+import { logServerError } from '@/lib/logging/error';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,9 +34,7 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    console.error(
-      JSON.stringify({ event: 'ai_analyze_failed', error: String(error) })
-    );
+    logServerError('ai_analyze_failed', error);
     return NextResponse.json({ error: 'internal_error' }, { status: 500 });
   }
 }

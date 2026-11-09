@@ -6,6 +6,7 @@ import { createHash, randomUUID } from 'crypto';
 import { authenticateDeviceToken } from '@/lib/auth/device';
 import { checkRateLimit } from '@/lib/rate-limit/ingest';
 import { readIngestBody } from '@/lib/ingest/read-body';
+import { logServerError } from '@/lib/logging/error';
 import { IngestEnvelopeSchema } from '@/lib/schemas/ingest';
 import { db, ingestBatches, flowWindows, hostStats, alerts, agentHealth, devices } from '@/lib/db';
 import { eq, and, gte } from 'drizzle-orm';
@@ -258,7 +259,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({ status: 'processed' }, { status: 200 });
     } catch (err) {
-      console.error('Ingest database insertion error:', err);
+      logServerError('ingest_db_failed', err);
       return NextResponse.json(
         { error: 'server_error', message: 'Failed to persist ingest batch' },
         { status: 500 }

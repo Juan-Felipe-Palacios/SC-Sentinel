@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { authorize } from '@/lib/auth/resolve';
 import { createTrustPage, listTrustPages, revokeTrustPage } from '@/lib/trust/queries';
+import { logServerError } from '@/lib/logging/error';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     const created = await createTrustPage(parsed.data.device_id, parsed.data.label, expiresAt);
     return NextResponse.json({ id: created.id, token: created.token, url: `/p/${created.token}` }, { headers: noStoreHeaders });
   } catch (error) {
-    console.error('Error creating trust page:', error);
+    logServerError('trust_page_create_failed', error);
     return NextResponse.json({ error: 'internal_error' }, { status: 500, headers: noStoreHeaders });
   }
 }

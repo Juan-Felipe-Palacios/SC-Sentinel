@@ -17,15 +17,25 @@ function loginRequest(password: string, ip = '198.51.100.20'): NextRequest {
 
 describe('POST /api/auth/login', () => {
   let previousAdminSecret: string | undefined;
+  let previousSessionSecret: string | undefined;
+  let previousDevAuth: string | undefined;
 
   beforeEach(() => {
     previousAdminSecret = process.env.ADMIN_SECRET;
+    previousSessionSecret = process.env.SC_SESSION_SECRET;
+    previousDevAuth = process.env.SC_DEV_AUTH;
     delete process.env.ADMIN_SECRET;
+    delete process.env.SC_DEV_AUTH;
   });
 
   afterEach(() => {
-    if (previousAdminSecret === undefined) delete process.env.ADMIN_SECRET;
-    else process.env.ADMIN_SECRET = previousAdminSecret;
+    const restore = (key: string, value: string | undefined) => {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    };
+    restore('ADMIN_SECRET', previousAdminSecret);
+    restore('SC_SESSION_SECRET', previousSessionSecret);
+    restore('SC_DEV_AUTH', previousDevAuth);
   });
 
   it('bloquea con 429 el sexto intento fallido desde la misma IP', async () => {
@@ -44,8 +54,19 @@ describe('POST /api/auth/login', () => {
 
   it('permite iniciar sesión con la contraseña correcta', async () => {
     process.env.ADMIN_SECRET = 'test-admin-password-123456';
+    process.env.SC_SESSION_SECRET = 'test-login-session-secret-32-bytes';
 
     const response = await POST(loginRequest('test-admin-password-123456', '198.51.100.22'));
+
+    expect(response.status).toBe(200);
+    expect(response.cookies.get('sc_session')?.httpOnly).toBe(true);
+  });
+
+  it('sin ADMIN_SECRET acepta con SC_DEV_AUTH=1 fuera de producción', async () => {
+    process.env.SC_DEV_AUTH = '1';
+    process.env.SC_SESSION_SECRET = 'test-login-session-secret-32-bytes';
+
+    const response = await POST(loginRequest('cualquier-password', '198.51.100.23'));
 
     expect(response.status).toBe(200);
     expect(response.cookies.get('sc_session')?.httpOnly).toBe(true);

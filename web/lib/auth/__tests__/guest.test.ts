@@ -8,7 +8,7 @@ import {
 } from '@/lib/auth/guest';
 import { createSessionToken, verifySessionToken } from '@/lib/auth/session';
 
-const TEST_SECRET = 'test-guest-secret-with-32-bytes';
+const TEST_SECRET = 'test-guest-secret-with-32-bytes-ok';
 
 describe('lib/auth/guest', () => {
   let previousSecret: string | undefined;
