@@ -7,6 +7,11 @@ import type { HealthMetric } from '@/lib/api-types';
 import { formatBytes, formatNum, timeAgo, dropRate } from '@/lib/format';
 
 type CaptureStatus = 'ok' | 'degraded' | 'error' | 'unknown';
+// El agente puede reportar `ok` y después callarse: sin señal fresca no hay captura en línea.
+type DisplayStatus = CaptureStatus | 'stale';
+
+/** El agente agrega ventanas cada 30 s; 5 minutos sin reporte ya es señal perdida. */
+const STALE_AFTER_MS = 5 * 60 * 1000;
 
 function captureStatusOf(raw: string | null | undefined): CaptureStatus {
   switch ((raw ?? '').toLowerCase()) {
@@ -17,7 +22,14 @@ function captureStatusOf(raw: string | null | undefined): CaptureStatus {
   }
 }
 
-const STATUS_CONFIG: Record<CaptureStatus, { label: string; dot: string; text: string; ring: string }> = {
+function isStale(recordedAt: string | null | undefined, now: number = Date.now()): boolean {
+  if (!recordedAt) return false;
+  const at = new Date(recordedAt).getTime();
+  if (!Number.isFinite(at)) return false;
+  return now - at > STALE_AFTER_MS;
+}
+
+const STATUS_CONFIG: Record<DisplayStatus, { label: string; dot: string; text: string; ring: string }> = {
   ok: {
     label: 'Captura en línea',
     dot: 'bg-emerald-400',
@@ -41,6 +53,12 @@ const STATUS_CONFIG: Record<CaptureStatus, { label: string; dot: string; text: s
     dot: 'bg-slate-500',
     text: 'text-slate-400',
     ring: 'border-slate-800/60 bg-slate-800/40',
+  },
+  stale: {
+    label: 'Sin señal reciente',
+    dot: 'bg-amber-400',
+    text: 'text-amber-400',
+    ring: 'border-amber-400/30 bg-amber-400/5',
   },
 };
 
@@ -84,7 +102,9 @@ function Tile({
 }
 
 export function AgentHealthCard({ health }: { health: HealthMetric | undefined }) {
-  const status = captureStatusOf(health?.capture_status);
+  const reported = captureStatusOf(health?.capture_status);
+  const stale = isStale(health?.recorded_at);
+  const status: DisplayStatus = stale ? 'stale' : reported;
   const config = STATUS_CONFIG[status];
   const drops = health?.packets_dropped ?? 0;
   const seen = health?.packets_seen ?? 0;
@@ -113,6 +133,8 @@ export function AgentHealthCard({ health }: { health: HealthMetric | undefined }
             <p className={`mt-1 font-display text-base font-bold ${config.text}`}>{config.label}</p>
             <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400">
               Última señal · {timeAgo(health?.recorded_at)}
+              {/* El último estado reportado se conserva: dice qué pasó antes de callarse. */}
+              {stale && reported !== 'unknown' ? ` · reportó ${reported}` : ''}
             </p>
           </div>
         </div>

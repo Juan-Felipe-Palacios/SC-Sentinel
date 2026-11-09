@@ -70,8 +70,12 @@ export function Topbar() {
           MOTOR LOCAL ONLINE
         </span>
 
-        {/* Rango global */}
-        <nav aria-label="Rango de tiempo" className="hidden items-center rounded-xl border border-slate-800 bg-slate-900/70 p-1 sm:flex">
+        {/* Rango global: visible en todos los anchos y con scroll propio para que
+            nunca quede fuera de alcance (sin selector, el panel se clavaba en 1h). */}
+        <nav
+          aria-label="Rango de tiempo"
+          className="flex max-w-[46vw] shrink-0 items-center gap-0.5 overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/70 p-1 sm:max-w-none sm:gap-0 sm:p-1"
+        >
           {RANGE_OPTIONS.map((option) => {
             const active = option === currentRange;
             return (
