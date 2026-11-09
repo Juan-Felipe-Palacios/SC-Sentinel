@@ -691,7 +691,7 @@ T3.2 completada: Integración con aggregator + tests E2E.
 T3.3 completada: Configuración + tests.
 Fase 4: Robustez
 T4.1 completada (2026-11-09): métricas del colector en health/dashboard (5 campos Option en AgentHealth, espejo 1s desde start_collector, migración 0012 aplicada a Neon, fila "Colector NetFlow / IPFIX" en AgentHealthCard, test integración 1000 flows).
-T4.2 pendiente: Fuzzing formal de parsers.
+T4.2 completada (2026-11-09): auditoría sin unwrap/panic/expect en producción; proptest (bytes arbitrarios, versión forzada, truncamiento y mutación de paquetes válidos, 256 casos c/u) + barridos exhaustivos; **bug real encontrado y corregido** en `ipfix.rs::read_fields` (IEs de empresa superaban el mínimo `count*4` → index fuera de rango; fix con guard por iteración + test de regresión). sc-collector: 73 tests verdes.
 T4.3 parcial: fixtures sintéticos saneados en docs/testing/fixtures/ + tests de regresión (2026-11-08); fixtures reales de Wireshark pendientes.
 Fase 5: Cierre
 T5.1 completada: Documentación completa (ADR-0014, runbook MikroTik, README, sample de config, topología IPFIX, docs/testing/pcap-vs-flow.md).

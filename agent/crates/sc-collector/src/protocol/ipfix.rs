@@ -239,6 +239,15 @@ fn read_fields(
     let mut fields = Vec::with_capacity(count);
     let mut cursor = start;
     for _ in 0..count {
+        // T4.2: los IEs de empresa ocupan 8 bytes (incluye PEN), así que el
+        // mínimo de 4 bytes/IE no garantiza que quepa el siguiente IE.
+        // Validar en cada iteración evita indexar fuera del cuerpo.
+        if cursor.saturating_add(4) > body.len() {
+            return Err(ParseError::Truncated {
+                expected: cursor.saturating_add(4),
+                len: body.len(),
+            });
+        }
         let raw_id = read_u16(body, cursor);
         let length = read_u16(body, cursor + 2);
         cursor += 4;
@@ -544,5 +553,25 @@ mod tests {
             .expect("IPFIX por ProtocolSet");
         assert_eq!(flows.len(), 1);
         assert_eq!(set.cached_templates(), 1);
+    }
+
+    /// T4.2: regresión del panic encontrado por proptest en `read_fields`.
+    /// El mínimo de `count * 4` no cubre los IEs de empresa (8 bytes con PEN):
+    /// activar el bit en todos los campos sobrepasaba el cuerpo y el parser
+    /// indexaba fuera del buffer. Debe ser `Truncated`, nunca panic.
+    #[test]
+    fn ies_de_empresa_que_exceden_el_cuerpo_son_truncated() {
+        let mut packet = ipfix_packet(&[template_set()], 1_700_000_000);
+        // Activa el bit de empresa en cada IE del template (8 campos x 4 B a
+        // partir de header(16) + set(4) + template_id(2) + field_count(2)).
+        let campo_start = 16 + 4 + 4;
+        for index in 0..8 {
+            packet[campo_start + index * 4] |= 0x80;
+        }
+        let mut parser = IpfixParser::new();
+        assert!(matches!(
+            parser.try_parse(source(), &packet, 0),
+            Err(ParseError::Truncated { .. })
+        ));
     }
 }
