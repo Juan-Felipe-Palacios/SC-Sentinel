@@ -89,6 +89,13 @@ body {
   animation: sc-drone-caption 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Dashboard — partículas del velocímetro radial */
+@media (prefers-reduced-motion: reduce) {
+  .sc-gauge-particles {
+    display: none;
+  }
+}
+
 /* Glassmorphism cybernético y glow dinámico */
 .sc-glass-panel {
   background: rgba(14, 22, 46, 0.72);

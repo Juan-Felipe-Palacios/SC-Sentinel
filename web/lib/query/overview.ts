@@ -179,7 +179,8 @@ function emptyOverview(range: QueryRange, now: Date = new Date()): OverviewResul
 /**
  * Totales single-device v1 derivados de host_stats (top hosts observados).
  * El agente no emite contadores globales de ventana; no hay migración de schema en esta tarea.
- * `top_ports` y `top_countries` se agregan desde el `snapshot_json` de cada ventana.
+ * `top_ports` se agrega desde el `snapshot_json` de cada ventana; `top_countries`
+ * sale de `host_stats` (el snapshot histórico no siempre trae la clave).
  */
 export async function queryOverview(
   range: QueryRange = '1h',
@@ -260,17 +261,22 @@ export async function queryOverview(
           ORDER BY SUM(hs.bytes_in + hs.bytes_out) DESC
           LIMIT ${TOP_HOSTS_LIMIT}`
     ),
+    // Se agrega desde host_stats (misma fuente que el top de hosts) y no desde
+    // snapshot_json->'top_countries': el agente puede omitir esa clave y el panel
+    // de geografía quedaba vacío aunque los hosts sí tuvieran país.
     queryRows<TopCountryRow>(
       database,
-      sql`SELECT elem->>'country' AS country,
-                 COALESCE(SUM((elem->>'bytes')::bigint), 0)::bigint AS bytes_total,
-                 COALESCE(SUM((elem->>'hosts')::bigint), 0)::bigint AS hosts_count
-          FROM flow_windows fw
-          CROSS JOIN jsonb_array_elements(COALESCE(fw.snapshot_json->'top_countries', '[]'::jsonb)) AS elem
+      sql`SELECT hs.country AS country,
+                 COALESCE(SUM(hs.bytes_in + hs.bytes_out), 0)::bigint AS bytes_total,
+                 COUNT(DISTINCT hs.host_key)::bigint AS hosts_count
+          FROM host_stats hs
+          INNER JOIN flow_windows fw ON fw.window_id = hs.window_id
           WHERE fw.device_id = ${deviceId}
             AND fw.start_at >= ${startIso}::timestamptz
             AND fw.start_at < ${endIso}::timestamptz
-          GROUP BY elem->>'country'
+            AND hs.country IS NOT NULL
+            AND hs.country <> 'LAN'
+          GROUP BY hs.country
           ORDER BY bytes_total DESC
           LIMIT ${TOP_COUNTRIES_LIMIT}`
     ),

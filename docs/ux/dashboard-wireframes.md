@@ -20,13 +20,13 @@ Fuente: spec §18.2. Grupo `(dashboard)` protegido por middleware + cookie admin
 
 | Zona | Contenido |
 |---|---|
-| Estado del agente | online / offline / degraded (badge grande) + métricas de captura (drops, cola, spool) |
+| Estado del agente | online / offline / degraded (badge grande) + los seis campos de `agent_health`: paquetes capturados, descartados, tasa de descarte, errores de parseo, cola y spool, más último error |
 | Último snapshot | timestamp del último accepted + latencia de sync |
 | KPIs consolidados | bytes totales (con reparto in/out), paquetes totales, alertas con desglose por severidad, hosts únicos + países observados |
-| Traffic chart | líneas bytes in/out (Recharts), rango temporal global |
+| Traffic chart | selector de seis vistas sobre los mismos datos, rango temporal global: línea bytes in/out (default), stream graph apilado, Sankey host → dirección → país, mapa geoespacial con arcos, radar de puertos y protocolos, velocímetro radial de throughput |
 | Top 10 hosts | hostname (DNS inverso) > IP > `host_key`; país, paquetes, bytes y banda de riesgo (alto ≥0.7 / medio ≥0.4 / bajo) |
 | Puertos y protocolos | top 10 puertos por bytes con servicio conocido, protocolo, conexiones + distribución TCP/UDP/otros |
-| Tráfico por país | top 5 países por bytes (`top_countries` del snapshot) con hosts y % del total |
+| Tráfico por país | top 5 países por bytes con hosts y % del total; la API agrega desde `host_stats` (el `snapshot_json` no siempre trae `top_countries`) |
 | Riesgo del sistema | nivel global (alto/medio/bajo), score promedio, hosts por banda; sin tendencia hasta tener comparación de períodos |
 | Alertas recientes | últimas 5 con severity chip |
 | Estado de IA | ok / degraded + fecha del último insight |

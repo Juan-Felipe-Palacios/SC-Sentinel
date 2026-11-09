@@ -10,7 +10,6 @@ import {
   Server,
   RefreshCw,
   TriangleAlert,
-  Activity,
 } from 'lucide-react';
 import type { QueryRange } from '@/lib/schemas/query';
 import type { AlertsResponse, HealthMetric, OverviewResponse } from '@/lib/api-types';
@@ -19,7 +18,7 @@ import { formatBytes, formatNum } from '@/lib/format';
 import { AgentHealthCard } from './AgentHealthCard';
 import { AiInsightCard } from './AiInsightCard';
 import { StatCard } from './StatCard';
-import { TrafficChart } from './TrafficChart';
+import { TrafficPanel } from './TrafficPanel';
 import { TopHostsTable } from './TopHostsTable';
 import { TopPortsTable } from './TopPortsTable';
 import { GeoDistribution } from './GeoDistribution';
@@ -30,15 +29,6 @@ import { useDashboardRole } from './DashboardRoleContext';
 import { ExportBar } from './ExportBar';
 
 const REFRESH_MS = 5000;
-
-function LegendDot({ className, label }: { className: string; label: string }) {
-  return (
-    <span className={`flex items-center gap-1.5 font-mono text-xs ${className === 'bg-sky-400' ? 'text-sky-400' : 'text-purple-400'}`}>
-      <span className={`size-2 rounded-full ${className}`} aria-hidden="true" />
-      {label}
-    </span>
-  );
-}
 
 function SkeletonBlock({ className }: { className: string }) {
   return <div aria-hidden="true" className={`animate-pulse rounded-xl border border-slate-800 bg-slate-900/60 ${className}`} />;
@@ -174,34 +164,15 @@ export function OverviewView({ range }: { range: QueryRange }) {
       {/* Análisis IA (lote, refresh 30 s — D8) */}
       <AiInsightCard />
 
-      {/* Dinámica de tráfico temporal (como DashboardPreview) */}
-      <section aria-label="Tráfico agregado" className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-        <header className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Activity className="h-4 w-4 text-sky-400" aria-hidden="true" />
-            <h2 className="font-display text-sm font-semibold text-slate-200">
-              Dinámica de Tráfico Temporal (Bytes In vs Bytes Out)
-            </h2>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="hidden items-center gap-4 sm:flex">
-              <LegendDot className="bg-sky-400" label="Bytes In" />
-              <LegendDot className="bg-purple-400" label="Bytes Out" />
-            </div>
-            <p className="hidden font-mono text-[10px] text-slate-500 lg:block">{periodLabel}</p>
-            <span className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 font-mono text-[11px] text-emerald-400">
-              <span className="relative flex size-2">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" aria-hidden="true" />
-                <span className="relative inline-flex size-2 rounded-full bg-emerald-400" aria-hidden="true" />
-              </span>
-              En vivo · 5s
-            </span>
-          </div>
-        </header>
-        <div>
-          <TrafficChart series={series} />
-        </div>
-      </section>
+      {/* Dinámica de tráfico multiformato */}
+      <TrafficPanel
+        series={series}
+        hosts={topHosts}
+        ports={topPorts}
+        protocols={protocols}
+        countries={topCountries}
+        periodLabel={periodLabel}
+      />
 
       {/* Destinos y puertos */}
       <div className="grid gap-4 lg:grid-cols-5">
