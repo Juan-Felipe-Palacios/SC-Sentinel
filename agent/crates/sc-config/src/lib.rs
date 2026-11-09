@@ -676,7 +676,10 @@ mod tests {
 
     #[test]
     fn rechaza_http_fuera_de_loopback() {
-        for url in ["http://sc-sentinel.example.com/api/ingest", "http://10.0.0.5/api/ingest"] {
+        for url in [
+            "http://sc-sentinel.example.com/api/ingest",
+            "http://10.0.0.5/api/ingest",
+        ] {
             let raw = format!("[ingest]\nurl = \"{url}\"\n");
             let error = AgentConfig::parse(&raw).expect_err("HTTP público inválido");
             assert!(matches!(
