@@ -257,7 +257,7 @@ Para NetFlow v9, cambiar `export-protocol ipfix` por `export-protocol netflow-v9
 - `Direction::In` es provisional; el tráfico entrante puede atribuirse al host remoto (ADR-0014 §5).
 - La cache de templates es por listener y se pierde al reiniciar; el router debe refrescar.
 - ~~Las métricas del colector no están en el dashboard todavía (T4.1).~~ Entregado en T4.1: fila "Colector NetFlow / IPFIX" en Settings → Salud (visibles solo con el colector habilitado).
-- El objetivo de 50k flows/s no está verificado; requiere benchmarks (T4.2/T5.2).
+- El objetivo de 50k flows/s quedó **verificado y superado** (benchmark `collector_throughput`, Windows x86_64, 30 registros/datagrama, 2026-11-09): solo parser → 37,5M (v5), 6,0M (v9) y 5,5M (IPFIX) flows/s; camino completo UDP loopback → 714k (v5), 758k (v9) y 782k (IPFIX) flows/s con 0 drops. El colector no es el cuello de botella; en producción los límites los imponen el exportador y la red. El throughput E2E con router real sigue pendiente de hardware (mismo bache que el acceptance M4).
 
 ## Referencias
 
