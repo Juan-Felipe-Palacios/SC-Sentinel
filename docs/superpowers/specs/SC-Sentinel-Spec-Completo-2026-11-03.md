@@ -146,10 +146,12 @@ D:\ProyectosWeb\SC-Sentinel\
 │
 └── docs/
     ├── README.md
-    ├── specs/
-    │   ├── SC-Sentinel-Spec-Completo-2026-11-03.md   (este archivo — fuente de verdad)
-    │   └── archive/2026-11-02-sc-sentinel-design.md  (v1.0 — superseded)
-    ├── adr/            # 0001..0012 (lista en §3)
+    ├── superpowers/
+    │   ├── specs/
+    │   │   ├── SC-Sentinel-Spec-Completo-2026-11-03.md   (este archivo — fuente de verdad)
+    │   │   └── 2026-11-02-sc-sentinel-design.md  (v1.0 — superseded)
+    │   └── plans/            # planes de ejecución por hito (M0–M4, Ruta B)
+    ├── adr/            # 0001..0014 (lista en §3)
     ├── contracts/
     │   ├── ingest-api.v1.md
     │   ├── window-snapshot.v1.schema.json
@@ -1332,7 +1334,7 @@ Neon Postgres · Vercel · Google Gemini · OpenRouter · Groq · MaxMind GeoIP 
 - Dependencias actualizadas: Tailwind v4 CSS-first (sin `tailwind.config.js`), Recharts versión estable actual, `dtolnay/rust-toolchain` (reemplaza actions-rs deprecated), `pnpm/action-setup@v4`.
 - CAD/`.dxf` movido a post-M5 / documentación de campo (fuera de este spec).
 - Dominio oficial registrado: `sc-sentinel.vercel.app` (ADR-0012).
-- v1.0 marcado superseded en `docs/specs/archive/`.
+- v1.0 marcado superseded en `docs/superpowers/specs/2026-11-02-sc-sentinel-design.md`.
 
 **v2.0 (2026-11-03):**
 

@@ -1,7 +1,7 @@
 # M3 — Landing pública + IA asistente (design + implementación)
 
 **Fecha:** 2026-11-05 · **Estado:** plan aprobado por el usuario (luz verde) · **Doc fuente:** este archivo manda sobre cualquier borrador interno
-**Spec:** `docs/superpowers/specs/SC-Sentinel-Spec-Completo-2026-11-03.md` (v2.1; nota: algunas notas internas apuntan a `docs/specs/…` — ruta incorrecta, usar siempre la indicada aquí)
+**Spec:** `docs/superpowers/specs/SC-Sentinel-Spec-Completo-2026-11-03.md` (v2.2)
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Convención:** los `.mmd` son fuentes mermaid (render en GitHub/markdown nativo y https://mermaid.live). Los `.drawio` editables en https://app.diagrams.net (draw.io / VS Code extension). Los `.svg/.pdf` de `exports/` se generan de los anteriores al momento de necesitarlos (no se guardan binarios en git).
 
-Fuente de verdad del contenido: `docs/specs/SC-Sentinel-Spec-Completo-2026-11-03.md`.
+Fuente de verdad del contenido: `docs/superpowers/specs/SC-Sentinel-Spec-Completo-2026-11-03.md`.
 
 ## mermaid/
 
