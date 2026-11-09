@@ -9,6 +9,7 @@ import { hashTrustToken } from '@/lib/trust/token';
 import { checkTrustRateLimit } from '@/lib/trust/rate-limit';
 import { logTrustAccess } from '@/lib/trust/access-log';
 import { maybeAlertLeak } from '@/lib/trust/leak-alert';
+import { redactTrustAlert, redactTrustHost, redactTrustInsight } from '@/lib/trust/redact';
 import { queryOverview } from '@/lib/query/overview';
 import { queryHosts } from '@/lib/query/hosts';
 import { queryAlerts } from '@/lib/query/alerts';
@@ -56,9 +57,9 @@ export default async function TrustPage({ params }: PageProps) {
   return (
     <TrustView
       totals={overview.totals}
-      hosts={hostsResult.hosts.slice(0, 10)}
-      alerts={alertsResult.alerts.slice(0, 10)}
-      insight={insight}
+      hosts={hostsResult.hosts.slice(0, 10).map(redactTrustHost)}
+      alerts={alertsResult.alerts.slice(0, 10).map(redactTrustAlert)}
+      insight={redactTrustInsight(insight)}
     />
   );
 }

@@ -82,6 +82,22 @@ describe('POST /api/auth/guest-login', () => {
     expect(mockedGetDevice).toHaveBeenCalledWith('dev_demo');
   });
 
+  it('en producción sin allowlist no adivina un device', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    delete process.env.SC_GUEST_DEVICE_ID;
+    delete process.env.DEFAULT_DEVICE_ID;
+    mockedListDevices.mockResolvedValue([device]);
+
+    try {
+      const response = await POST(guestRequest({}, '203.0.113.18'));
+
+      expect(response.status).toBe(404);
+      expect(mockedListDevices).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('responde 404 si no hay ningún device para la demo', async () => {
     delete process.env.SC_GUEST_DEVICE_ID;
     mockedListDevices.mockResolvedValue([]);

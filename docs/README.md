@@ -18,6 +18,7 @@
 | `ux/` | 6: landing-sitemap, dashboard-wireframes, design-tokens, copywriting, login-drone-show y prototipo M3.5 (HTML) | spec §18 |
 | `legal/` | THIRD_PARTY_NOTICES, maxmind-notice, npcap-notice, privacidad (draft), términos (draft) | licencias §3 del spec |
 | `release/` | versioning, changelog, signing, deployment | spec §15, §20 |
+| `security/` | Auditorías de seguridad: hallazgos priorizados, parches y plan de ejecución | — |
 | `ai-evals-metrics.md` | Definición de métricas de AI Evals (coste, latencia, tasa de éxito) | Ruta B v2 |
 
 ## Rutas de la aplicación
@@ -53,5 +54,6 @@ Módulos que sostienen estas rutas: `web/lib/export`, `web/lib/ai/metrics.ts` y 
 | ux/ | ✅ 6 (tokens de marca: valores definidos en la extracción M3) | M3, M3.5 |
 | legal/ | ✅ 5 (2 drafts pendientes de revisión legal antes de M3) | M3 |
 | release/ | ✅ 4 | M2–M5 |
+| security/ | ✅ auditoría 2026-11-09 (7 altos, 8 medios, 5 bajos; correcciones pendientes) | transversal |
 
 **Última revisión del índice:** 2026-11-09 — consolidación con el árbol real (rutas, conteos y fuente de verdad corregida).

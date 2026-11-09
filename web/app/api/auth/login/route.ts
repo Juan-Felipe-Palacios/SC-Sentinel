@@ -5,8 +5,16 @@ import { z } from 'zod';
 import { SESSION_COOKIE, createSessionToken, sessionCookieOptions } from '@/lib/auth/session';
 import { GUEST_COOKIE, guestCookieOptions } from '@/lib/auth/guest';
 import { safeEqual } from '@/lib/auth/secrets';
+import { clientIp } from '@/lib/auth/resolve';
+import { checkRateLimit } from '@/lib/rate-limit/ingest';
 
 const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
+
+// 5 intentos por minuto y por IP; el burst inicial es 5.
+const LOGIN_RATE_PER_MINUTE = 5;
+const LOGIN_BURST = 5;
+// Iguala el tiempo de respuesta entre "sin secreto configurado" y "contraseña mala".
+const FAILED_ATTEMPT_DELAY_MS = 250;
 
 const LoginSchema = z.object({
   password: z.string().min(1).max(256),
@@ -14,6 +22,24 @@ const LoginSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  const limit = checkRateLimit(
+    `auth:login:${clientIp(request)}`,
+    LOGIN_RATE_PER_MINUTE,
+    LOGIN_BURST
+  );
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: 'rate_limited' },
+      {
+        status: 429,
+        headers: {
+          ...noStoreHeaders,
+          'Retry-After': String(limit.retryAfterSeconds ?? 60),
+        },
+      }
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -39,6 +65,7 @@ export async function POST(request: NextRequest) {
     : process.env.NODE_ENV === 'development';
 
   if (!accepted) {
+    await new Promise((resolve) => setTimeout(resolve, FAILED_ATTEMPT_DELAY_MS));
     return NextResponse.json({ error: 'invalid_credentials' }, { status: 401, headers: noStoreHeaders });
   }
 

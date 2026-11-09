@@ -2,7 +2,8 @@
 // Resolución del device de la demo pública. Node runtime (consulta la base).
 //
 // Orden: SC_GUEST_DEVICE_ID (allowlist explícita) → DEFAULT_DEVICE_ID →
-// primer device no revocado. Sin configuración, la demo funciona igual.
+// primer device no revocado. En producción sin allowlist la demo falla
+// cerrada para no exponer un device real.
 
 import { getDeviceById, listDevices } from '@/lib/query/devices';
 
@@ -20,6 +21,10 @@ export async function resolveGuestDevice(
   let candidate = configured || process.env.DEFAULT_DEVICE_ID?.trim() || null;
 
   if (!candidate) {
+    if (process.env.NODE_ENV === 'production') {
+      // Sin allowlist explícita no se adivina un device: podría ser de un cliente.
+      return { deviceId: null, error: 'not_found' };
+    }
     const devices = await listDevices();
     candidate =
       devices.find((device) => device.status === 'active')?.id ??
