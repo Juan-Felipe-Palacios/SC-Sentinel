@@ -493,7 +493,10 @@ async fn start_collector(
         "abriendo colector UDP"
     );
 
-    match Collector::new(config, producer, CollectorMetrics::new())
+    // T4.1: se conserva una copia del Arc para espejar las métricas del
+    // colector hacia HealthRegistry (el handle no las expone).
+    let metrics = CollectorMetrics::new();
+    match Collector::new(config, producer, metrics.clone())
         .start()
         .await
     {
@@ -503,6 +506,23 @@ async fn start_collector(
                 listeners = ?handle.local_addrs(),
                 "colector UDP activo"
             );
+            // Espejo 1 s: mismo patrón que spool_bytes. publica collector_* en
+            // cada snapshot de health (T4.1).
+            let mirror_health = health.clone();
+            tokio::spawn(async move {
+                let mut ticker = tokio::time::interval(Duration::from_secs(1));
+                loop {
+                    ticker.tick().await;
+                    let snap = metrics.snapshot();
+                    mirror_health.set_collector_stats(
+                        snap.packets_received,
+                        snap.packets_dropped,
+                        snap.parse_errors,
+                        snap.templates_cached,
+                        snap.flows_normalized,
+                    );
+                }
+            });
             Some(handle)
         }
         Err(error) => {

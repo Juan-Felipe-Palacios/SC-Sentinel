@@ -73,6 +73,12 @@ export const agentHealth = pgTable('agent_health', {
   parseErrors: bigint('parse_errors', { mode: 'number' }).default(0).notNull(),
   queueDepth: bigint('queue_depth', { mode: 'number' }),
   spoolBytes: bigint('spool_bytes', { mode: 'number' }),
+  // T4.1 (M4): métricas del colector NetFlow/IPFIX; null si el colector está apagado.
+  collectorPacketsReceived: bigint('collector_packets_received', { mode: 'number' }),
+  collectorPacketsDropped: bigint('collector_packets_dropped', { mode: 'number' }),
+  collectorParseErrors: bigint('collector_parse_errors', { mode: 'number' }),
+  collectorTemplatesCached: bigint('collector_templates_cached', { mode: 'number' }),
+  collectorFlowsNormalized: bigint('collector_flows_normalized', { mode: 'number' }),
   lastError: text('last_error'),
   recordedAt: timestamp('recorded_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({

@@ -278,6 +278,11 @@ export async function POST(request: NextRequest) {
         parseErrors: h.parse_errors,
         queueDepth: h.queue_depth ?? null,
         spoolBytes: h.spool_bytes ?? null,
+        collectorPacketsReceived: h.collector_packets_received ?? null,
+        collectorPacketsDropped: h.collector_packets_dropped ?? null,
+        collectorParseErrors: h.collector_parse_errors ?? null,
+        collectorTemplatesCached: h.collector_templates_cached ?? null,
+        collectorFlowsNormalized: h.collector_flows_normalized ?? null,
         lastError: h.last_error ?? null,
       });
 

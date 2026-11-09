@@ -164,6 +164,11 @@ export interface HealthMetric {
   parse_errors: number;
   queue_depth: number | null;
   spool_bytes: number | null;
+  collector_packets_received: number | null;
+  collector_packets_dropped: number | null;
+  collector_parse_errors: number | null;
+  collector_templates_cached: number | null;
+  collector_flows_normalized: number | null;
   last_error: string | null;
   recorded_at: string | null;
 }

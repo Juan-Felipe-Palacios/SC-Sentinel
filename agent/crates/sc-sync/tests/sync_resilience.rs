@@ -53,6 +53,11 @@ fn sample_envelope() -> IngestEnvelope {
             spool_bytes: None,
             cpu_percent: None,
             memory_bytes: None,
+            collector_packets_received: None,
+            collector_packets_dropped: None,
+            collector_parse_errors: None,
+            collector_templates_cached: None,
+            collector_flows_normalized: None,
             last_error: None,
         },
     };

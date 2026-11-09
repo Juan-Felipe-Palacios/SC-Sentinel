@@ -433,7 +433,7 @@ Unit: config con listeners múltiples.
 Unit: override de entorno.
 Unit: config inválida (puerto < 1024) → error claro.
 Fase 4: Robustez (Días 8–9)
-T4.1 — Métricas y salud ⏱️ 6h
+T4.1 — Métricas y salud ⏱️ 6h ✅ completada 2026-11-09
 Extender HealthRegistry con métricas del collector:
 collector_packets_received
 collector_packets_dropped
@@ -690,7 +690,7 @@ T3.1 completada: Normalizador + tests.
 T3.2 completada: Integración con aggregator + tests E2E.
 T3.3 completada: Configuración + tests.
 Fase 4: Robustez
-T4.1 pendiente: Métricas del colector en health/dashboard (solo logs y evidencia indirecta hoy).
+T4.1 completada (2026-11-09): métricas del colector en health/dashboard (5 campos Option en AgentHealth, espejo 1s desde start_collector, migración 0012 aplicada a Neon, fila "Colector NetFlow / IPFIX" en AgentHealthCard, test integración 1000 flows).
 T4.2 pendiente: Fuzzing formal de parsers.
 T4.3 parcial: fixtures sintéticos saneados en docs/testing/fixtures/ + tests de regresión (2026-11-08); fixtures reales de Wireshark pendientes.
 Fase 5: Cierre

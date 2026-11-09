@@ -57,6 +57,12 @@ export const AgentHealthSchema = z.object({
   spool_bytes: z.number().int().min(0).max(524288000).optional(),
   cpu_percent: z.number().min(0).max(100).optional(),
   memory_bytes: CounterSchema.optional(),
+  // Métricas del colector NetFlow/IPFIX (T4.1): solo presentes si el colector está activo.
+  collector_packets_received: CounterSchema.optional(),
+  collector_packets_dropped: CounterSchema.optional(),
+  collector_parse_errors: CounterSchema.optional(),
+  collector_templates_cached: CounterSchema.optional(),
+  collector_flows_normalized: CounterSchema.optional(),
   last_error: z.string().max(500).nullable().optional(),
 });
 
