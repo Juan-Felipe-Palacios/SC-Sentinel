@@ -9,6 +9,9 @@ import { resolveDeviceId } from '@/lib/query/device';
 import { queryOverview } from '@/lib/query/overview';
 import { queryHosts } from '@/lib/query/hosts';
 import { queryAlerts } from '@/lib/query/alerts';
+import { queryHostDetail } from '@/lib/query/host-detail';
+import { queryPortHeatmap } from '@/lib/query/heatmap';
+import { resolveQueryBounds } from '@/lib/query/range';
 import { queryHealth } from '@/lib/query/health';
 import { fetchLatestInsight } from '@/lib/ai/analyze';
 import { queryEvals } from '@/lib/query/evals';
@@ -30,6 +33,9 @@ export async function GET(request: NextRequest) {
     range: searchParams.get('range') ?? undefined,
     device_id: searchParams.get('device_id') ?? undefined,
     lang: searchParams.get('lang') ?? undefined,
+    start: searchParams.get('start') ?? undefined,
+    end: searchParams.get('end') ?? undefined,
+    host_key: searchParams.get('host_key') ?? undefined,
   });
 
   if (!parsed.success) {
@@ -39,7 +45,17 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const { metric, range, device_id, lang } = parsed.data;
+  const { metric, range, device_id, lang, host_key } = parsed.data;
+
+  // 2b. Drill-down: ventana exacta elegida con el zoom (opcional, acota el período).
+  const window = resolveQueryBounds(range, parsed.data.start, parsed.data.end);
+  if (!window.ok) {
+    return NextResponse.json(
+      { error: 'bad_request', message: window.message },
+      { status: 400, headers: noStoreHeaders }
+    );
+  }
+  const bounds = parsed.data.start && parsed.data.end ? window.bounds : undefined;
 
   // 3. Guest: device fijo del token; nunca el query param. Admin: single-device v1.
   let guestDeviceId: string | null = null;
@@ -66,22 +82,38 @@ export async function GET(request: NextRequest) {
       case 'overview':
         // Los hosts muestran nombre (DNS inverso) + IP; si la resolución falla queda la IP.
         {
-          const overview = await queryOverview(range, deviceId);
+          const overview = await queryOverview(range, deviceId, undefined, undefined, bounds);
           return NextResponse.json(
             { ...overview, top_hosts: await attachHostnames(overview.top_hosts) },
             { status: 200, headers: noStoreHeaders }
           );
         }
       case 'hosts':
-        return NextResponse.json(await queryHosts(range, deviceId), {
+        return NextResponse.json(await queryHosts(range, deviceId, undefined, undefined, bounds), {
           status: 200,
           headers: noStoreHeaders,
         });
       case 'alerts':
-        return NextResponse.json(await queryAlerts(range, deviceId), {
+        return NextResponse.json(await queryAlerts(range, deviceId, undefined, undefined, undefined, bounds), {
           status: 200,
           headers: noStoreHeaders,
         });
+      case 'host': {
+        // Drill-down por host: la unidad es la ventana agregada, no la conexión.
+        if (!host_key) {
+          return NextResponse.json(
+            { error: 'bad_request', message: 'host_key es obligatorio para metric=host' },
+            { status: 400, headers: noStoreHeaders }
+          );
+        }
+        const detail = await queryHostDetail(host_key, range, deviceId, undefined, undefined, bounds);
+        return NextResponse.json(detail, { status: 200, headers: noStoreHeaders });
+      }
+      case 'heatmap':
+        return NextResponse.json(
+          await queryPortHeatmap(range, deviceId, undefined, undefined, bounds),
+          { status: 200, headers: noStoreHeaders }
+        );
       case 'health':
         return NextResponse.json(await queryHealth(deviceId), {
           status: 200,

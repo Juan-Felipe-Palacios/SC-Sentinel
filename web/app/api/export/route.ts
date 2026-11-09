@@ -8,6 +8,7 @@ import { authorize, clientIp } from '@/lib/auth/resolve';
 import { checkGuestRequestLimit, guestRateLimitResponse } from '@/lib/rate-limit/guest';
 import { resolveDeviceId } from '@/lib/query/device';
 import { queryOverview } from '@/lib/query/overview';
+import { resolveQueryBounds } from '@/lib/query/range';
 import { queryAlertsExport, queryHostsExport, queryWindowsExport, ExportTooLargeError } from '@/lib/query/export';
 import { escapeCsvCell, overviewToCsv } from '@/lib/export/csv';
 import { csvStreamFromRows } from '@/lib/export/stream';
@@ -31,6 +32,8 @@ export async function GET(request: NextRequest) {
     range: searchParams.get('range') ?? undefined,
     format: searchParams.get('format') ?? undefined,
     device_id: searchParams.get('device_id') ?? undefined,
+    start: searchParams.get('start') ?? undefined,
+    end: searchParams.get('end') ?? undefined,
   });
   if (!parsed.success) {
     return NextResponse.json(
@@ -39,6 +42,15 @@ export async function GET(request: NextRequest) {
     );
   }
   const { metric, range, format, device_id } = parsed.data;
+
+  const window = resolveQueryBounds(range, parsed.data.start, parsed.data.end);
+  if (!window.ok) {
+    return NextResponse.json(
+      { error: 'bad_request', message: window.message },
+      { status: 400, headers: noStoreHeaders }
+    );
+  }
+  const bounds = parsed.data.start && parsed.data.end ? window.bounds : undefined;
 
   let guestDeviceId: string | null = null;
   if (auth.role === 'guest') {
@@ -57,20 +69,20 @@ export async function GET(request: NextRequest) {
     const deviceId = auth.role === 'guest' ? guestDeviceId : await resolveDeviceId(device_id);
 
     if (format === 'xlsx') {
-      const windows = (await queryWindowsExport(range, deviceId)).windows;
+      const windows = (await queryWindowsExport(range, deviceId, undefined, undefined, bounds)).windows;
       let buffer: Buffer;
       let rowCount = windows.length;
       if (metric === 'hosts') {
-        const hosts = (await queryHostsExport(range, deviceId)).hosts;
+        const hosts = (await queryHostsExport(range, deviceId, undefined, undefined, bounds)).hosts;
         rowCount += hosts.length;
         buffer = buildXlsxBufferMulti({ Hosts: rowsFromHosts(hosts), Windows: rowsFromWindows(windows) });
       } else if (metric === 'alerts') {
-        const alerts = (await queryAlertsExport(range, deviceId)).alerts;
+        const alerts = (await queryAlertsExport(range, deviceId, undefined, undefined, bounds)).alerts;
         rowCount += alerts.length;
         buffer = buildXlsxBufferMulti({ Alerts: rowsFromAlerts(alerts), Windows: rowsFromWindows(windows) });
       } else {
-        const overview = await queryOverview(range, deviceId);
-        const hosts = (await queryHostsExport(range, deviceId)).hosts;
+        const overview = await queryOverview(range, deviceId, undefined, undefined, bounds);
+        const hosts = (await queryHostsExport(range, deviceId, undefined, undefined, bounds)).hosts;
         rowCount += hosts.length;
         buffer = buildXlsxBufferMulti({
           Overview: rowsFromOverview(overview),
@@ -91,7 +103,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (metric === 'overview') {
-      const csv = overviewToCsv(await queryOverview(range, deviceId));
+      const csv = overviewToCsv(await queryOverview(range, deviceId, undefined, undefined, bounds));
       void logExport({ role: auth.role, deviceId, metric, range, format, rowCount: 0, bytes: 0 });
       return new NextResponse(csv, {
         status: 200,
@@ -107,12 +119,12 @@ export async function GET(request: NextRequest) {
     let rows: string[];
     let rowCount = 0;
     if (metric === 'hosts') {
-      const result = await queryHostsExport(range, deviceId);
+      const result = await queryHostsExport(range, deviceId, undefined, undefined, bounds);
       rowCount = result.rows;
       header = 'host_key,ip,country,bytes_in,bytes_out,packets,risk_score,first_seen,last_seen';
       rows = result.hosts.map((h) => [h.host_key, h.ip, h.country, h.bytes_in, h.bytes_out, h.packets, h.risk_score, h.first_seen, h.last_seen].map(escapeCsvCell).join(','));
     } else {
-      const result = await queryAlertsExport(range, deviceId);
+      const result = await queryAlertsExport(range, deviceId, undefined, undefined, bounds);
       rowCount = result.rows;
       header = 'id,window_id,rule_id,severity,title,created_at';
       rows = result.alerts.map((a) => [a.id, a.window_id, a.rule_id, a.severity, a.title, a.created_at].map(escapeCsvCell).join(','));

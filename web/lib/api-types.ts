@@ -109,6 +109,72 @@ export interface AlertsResponse {
   total: number;
 }
 
+/** metric=hosts — lista de hosts del período (drill-down nivel 2). */
+export interface HostMetricItem {
+  host_key: string;
+  ip: string | null;
+  country: string | null;
+  bytes_in: number;
+  bytes_out: number;
+  packets: number;
+  risk_score: number | null;
+  first_seen: string | null;
+  last_seen: string | null;
+}
+
+export interface HostsResponse {
+  range: QueryRange;
+  hosts: HostMetricItem[];
+  total: number;
+}
+
+/** metric=host — drill-down de un host ventana por ventana. */
+export interface HostDetailPoint {
+  /** Inicio de la ventana agregada (30 s). */
+  timestamp: string;
+  bytes_in: number;
+  bytes_out: number;
+  packets: number;
+  /** Alertas de esa ventana (de cualquier host): correlación temporal. */
+  alert_count: number;
+}
+
+export interface HostDetailResponse {
+  range: QueryRange;
+  host_key: string;
+  ip: string | null;
+  country: string | null;
+  risk_score: number | null;
+  period: Period;
+  totals: {
+    bytes_in: number;
+    bytes_out: number;
+    packets: number;
+    windows_count: number;
+    alerts_count: number;
+  };
+  series: HostDetailPoint[];
+}
+
+/** metric=heatmap — matriz hora UTC × puerto del período. */
+export interface HeatmapPort {
+  port: number;
+  protocol: string;
+  bytes: number;
+}
+
+export interface HeatmapResponse {
+  range: QueryRange;
+  period: Period;
+  /** Filas: hora UTC del día (0–23). */
+  hours: number[];
+  ports: HeatmapPort[];
+  /** `cells[hora][puerto]` en bytes; mismo orden que `ports`. */
+  cells: number[][];
+  max: number;
+  total_bytes: number;
+}
+
 export interface AiFinding {
   type: string;
   description: string;

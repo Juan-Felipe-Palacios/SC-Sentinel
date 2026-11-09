@@ -23,7 +23,9 @@ Fuente: spec §18.2. Grupo `(dashboard)` protegido por middleware + cookie admin
 | Estado del agente | online / offline / degraded (badge grande) + los seis campos de `agent_health`: paquetes capturados, descartados, tasa de descarte, errores de parseo, cola y spool, más último error |
 | Último snapshot | timestamp del último accepted + latencia de sync |
 | KPIs consolidados | bytes totales (con reparto in/out), paquetes totales, alertas con desglose por severidad, hosts únicos + países observados |
-| Traffic chart | selector de seis vistas sobre los mismos datos, rango temporal global: línea bytes in/out (default), stream graph apilado, Sankey host → dirección → país, mapa geoespacial con arcos, radar de puertos y protocolos, velocímetro radial de throughput |
+| Traffic chart | selector de siete vistas sobre los mismos datos, rango temporal global: línea bytes in/out (default, con zoom por brush), stream graph apilado, Sankey host → dirección → país, mapa geoespacial con arcos, radar de puertos y protocolos, velocímetro radial de throughput y mapa de calor hora UTC × puerto |
+| Zoom temporal | el brush de la línea define una ventana exacta (`start`/`end`) que se aplica a todo el panel: KPIs, gráficos, tablas y exportación. Cambiar el rango global descarta la ventana recortada |
+| Drill-down por host | lista de hosts del período (filtro por IP o `host_key`); al elegir uno se muestra su actividad ventana por ventana con las alertas correlacionadas por `window_id`. No hay conexiones individuales en el esquema: la unidad es la ventana de 30 s y la alerta se atribuye a la ventana, no al host |
 | Top 10 hosts | hostname (DNS inverso) > IP > `host_key`; país, paquetes, bytes y banda de riesgo (alto ≥0.7 / medio ≥0.4 / bajo) |
 | Puertos y protocolos | top 10 puertos por bytes con servicio conocido, protocolo, conexiones + distribución TCP/UDP/otros |
 | Tráfico por país | top 5 países por bytes con hosts y % del total; la API agrega desde `host_stats` (el `snapshot_json` no siempre trae `top_countries`) |

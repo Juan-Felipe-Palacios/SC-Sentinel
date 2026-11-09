@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
 
 import { sql } from 'drizzle-orm';
-import { getRangeBounds } from './range';
+import { getRangeBounds, type RangeBounds } from './range';
 import { bigintToNumber, defaultQueryDb, isoOrNull, queryRows, type QueryDb } from './db-rows';
 import type { QueryRange } from '@/lib/schemas/query';
 
@@ -56,11 +56,12 @@ export async function queryHosts(
   range: QueryRange = '1h',
   deviceId?: string | null,
   database: QueryDb = defaultQueryDb,
-  now: Date = new Date()
+  now: Date = new Date(),
+  bounds?: RangeBounds
 ): Promise<HostsResult> {
   if (!deviceId) return emptyHosts(range);
 
-  const { start, end } = getRangeBounds(range, now);
+  const { start, end } = bounds ?? getRangeBounds(range, now);
   const startIso = start.toISOString();
   const endIso = end.toISOString();
 
