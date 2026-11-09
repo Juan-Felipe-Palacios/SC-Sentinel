@@ -11,12 +11,15 @@
 | `adr/` | 14 decisiones de arquitectura (0001–0014) | espec §3 |
 | `contracts/` | contratos `/api/ingest` v1 y `/api/chat` v1 + 3 schemas JSON + 4 ejemplos | spec §5, §6 |
 | `diagrams/` | 7 mermaid `.mmd` + 4 drawio + reglas de exports (`README.md` propio) | spec §17 |
-| `runbooks/` | 9: local-dev, inst. Windows/Linux, troubleshoot pcap/sync, colector MikroTik/Cisco, rotación token, cleanup DB, incident-response | spec §8, §9, §12, §13 |
+| `runbooks/` | 11: local-dev, inst. Windows/Linux, troubleshoot pcap/sync, colector MikroTik/Cisco, rotación token, cleanup DB, incident-response, rotación Trust Pages, export datasets grandes | spec §8, §9, §12, §13 |
 | `testing/` | test-plan, acceptance-criteria por hito, fixtures, release-checklist, throughput-benchmark, pcap-vs-flow | spec §14, §15 |
 | `ux/` | landing-sitemap, dashboard-wireframes, design-tokens, copywriting | spec §18 |
 | `legal/` | THIRD_PARTY_NOTICES, maxmind-notice, npcap-notice, privacidad (draft), términos (draft) | licencias §3 del spec |
 | `release/` | versioning, changelog, signing, deployment | spec §15, §20 |
 | `specs/` | Spec-Completo v2.2 (actual) + archive de v1.0 (superseded) | — |
+| `ai-evals-metrics.md` | Definición de métricas de AI Evals (coste, latencia, tasa de éxito) | Ruta B v2 |
+
+Rutas nuevas: `lib/export`, `lib/ai/metrics`, `lib/trust`; `/api/export`, `/api/export/stats`, `/api/query?metric=evals`, `/api/trust`, `/api/trust/access`, `/p/[token]`, `/dashboard/evals`, `/dashboard/admin/exports`, `/dashboard/admin/trust-access`.
 
 ## Reglas de mantenimiento
 

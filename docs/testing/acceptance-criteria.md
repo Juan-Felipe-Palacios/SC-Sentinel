@@ -2,6 +2,20 @@
 
 Fuente: spec §14.3. Cada hito cierra cuando TODOS los checks correspondientes pasan (y el checklist del `release-checklist.md` si aplica).
 
+## SC Audit quick-wins v2 (Export + Evals + Trust Page)
+
+- [x] CSV con `=CMD('calc')` se exporta como `'=CMD('calc')` (sanitización anti-injection).
+- [x] Export con >10000 filas devuelve `413 { error: 'dataset_too_large' }`; CSV streaming en lotes de 500.
+- [x] `format=xlsx&metric=overview` abre sheets Overview/Hosts/Windows.
+- [x] `/dashboard/admin/exports` muestra uso de exportaciones (rol + device).
+- [x] Cada insight nuevo trae `input_tokens`/`output_tokens`/`latency_ms`/`status_code` (null solo en filas viejas).
+- [x] `/dashboard/evals` pinta coste diario, llamadas por modelo, p50/p95 y donut; modelos free = 0 USD.
+- [x] Coste > `AI_DAILY_COST_BUDGET_USD`: log + webhook `AI_COST_ALERT_WEBHOOK_URL`.
+- [x] Trust Page: token ausente/expirado/revocado → `404`; rotar invalida el anterior; revocar → `404`.
+- [x] Cada visita a `/p/<token>` inserta en `trust_page_access_logs` con `ip_anon = x.y.*.*`.
+- [x] Rate limit 100 accesos/hora por token; >1000 accesos/24h → log `trust_leak_suspected` + webhook `TRUST_ALERT_WEBHOOK_URL`.
+- [x] Gates: `pnpm lint/typecheck/test/build`, `cargo fmt/test/clippy`, `verify-contracts.sh` en verde (ver checkpoints 1–3).
+
 > Nota de nombres: el binario se llamó `sc-agent` hasta el 2026-11-08; desde entonces
 > el artefacto es `sc-sentinel-agent` (el crate sigue siendo `sc-agent`). Las notas
 > históricas conservan el nombre usado en su fecha.
