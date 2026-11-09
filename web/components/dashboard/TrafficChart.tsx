@@ -5,6 +5,7 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  Brush,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -12,9 +13,17 @@ import {
 } from 'recharts';
 import type { OverviewSeriesPoint } from '@/lib/api-types';
 import { formatBytes } from '@/lib/format';
+import { VIZ } from '@/lib/viz';
 
 interface TrafficChartProps {
   series: OverviewSeriesPoint[];
+  /** Selección del brush; `null` cuando vuelve al período completo. */
+  onSelectRange?: (range: { start: string; end: string } | null) => void;
+}
+
+interface BrushState {
+  startIndex?: number;
+  endIndex?: number;
 }
 
 interface TooltipEntry {
@@ -52,7 +61,7 @@ function ChartTooltip({ active, payload, label }: {
   );
 }
 
-export function TrafficChart({ series }: TrafficChartProps) {
+export function TrafficChart({ series, onSelectRange }: TrafficChartProps) {
   if (series.length === 0) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-2 text-center">
@@ -115,6 +124,26 @@ export function TrafficChart({ series }: TrafficChartProps) {
             fill="url(#purple-400-fill)"
             isAnimationActive={false}
           />
+          {onSelectRange ? (
+            <Brush
+              dataKey="timestamp"
+              height={22}
+              travellerWidth={6}
+              stroke={VIZ.in}
+              fill="#0b1220"
+              tickFormatter={() => ''}
+              onChange={(state: BrushState) => {
+                const { startIndex, endIndex } = state;
+                if (startIndex == null || endIndex == null || endIndex <= startIndex) {
+                  onSelectRange(null);
+                  return;
+                }
+                const start = series[startIndex]?.timestamp;
+                const end = series[endIndex]?.timestamp;
+                onSelectRange(start && end ? { start, end } : null);
+              }}
+            />
+          ) : null}
         </AreaChart>
       </ResponsiveContainer>
     </div>

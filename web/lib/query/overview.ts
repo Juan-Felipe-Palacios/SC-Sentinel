@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
 
 import { sql } from 'drizzle-orm';
-import { getRangeBounds, seriesBucketSeconds } from './range';
+import { customBucketSeconds, getRangeBounds, seriesBucketSeconds, type RangeBounds } from './range';
 import {
   bigintToNumber,
   defaultQueryDb,
@@ -151,8 +151,12 @@ function toSeverityCounts(rows: AlertSeverityRow[]): AlertSeverityCounts {
   return counts;
 }
 
-function emptyOverview(range: QueryRange, now: Date = new Date()): OverviewResult {
-  const { start, end } = getRangeBounds(range, now);
+function emptyOverview(
+  range: QueryRange,
+  now: Date = new Date(),
+  bounds?: RangeBounds
+): OverviewResult {
+  const { start, end } = bounds ?? getRangeBounds(range, now);
   return {
     range,
     period: { start: start.toISOString(), end: end.toISOString() },
@@ -186,15 +190,16 @@ export async function queryOverview(
   range: QueryRange = '1h',
   deviceId?: string | null,
   database: QueryDb = defaultQueryDb,
-  now: Date = new Date()
+  now: Date = new Date(),
+  bounds?: RangeBounds
 ): Promise<OverviewResult> {
-  const { start, end } = getRangeBounds(range, now);
-  const empty = emptyOverview(range, now);
+  const { start, end } = bounds ?? getRangeBounds(range, now);
+  const empty = emptyOverview(range, now, bounds);
   if (!deviceId) return empty;
 
   const startIso = start.toISOString();
   const endIso = end.toISOString();
-  const bucketSeconds = seriesBucketSeconds(range);
+  const bucketSeconds = bounds ? customBucketSeconds(bounds) : seriesBucketSeconds(range);
 
   const [
     windowCountRows,

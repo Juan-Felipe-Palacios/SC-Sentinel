@@ -8,6 +8,9 @@ export const ExportParamsSchema = z.object({
   range: queryRangeSchema,
   format: z.enum(['csv', 'xlsx']).default('csv'),
   device_id: z.string().min(1).optional(),
+  // Drill-down: exportar solo la ventana elegida con el zoom.
+  start: z.iso.datetime({ offset: true }).optional(),
+  end: z.iso.datetime({ offset: true }).optional(),
 });
 
 export type ExportParams = z.infer<typeof ExportParamsSchema>;

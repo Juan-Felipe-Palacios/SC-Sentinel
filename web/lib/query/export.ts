@@ -5,7 +5,7 @@
 // El dashboard sigue usando HOSTS_LIMIT=50 / ALERTS_LIMIT=100.
 
 import { sql } from 'drizzle-orm';
-import { getRangeBounds } from './range';
+import { getRangeBounds, type RangeBounds } from './range';
 import { bigintToNumber, defaultQueryDb, isoOrNull, queryRows, type QueryDb } from './db-rows';
 import type { QueryRange } from '@/lib/schemas/query';
 import type { HostMetricItem } from './hosts';
@@ -40,9 +40,9 @@ function parseRiskScore(value: string | null): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-export async function queryHostsExport(range: QueryRange = '1h', deviceId?: string | null, database: QueryDb = defaultQueryDb, now: Date = new Date()): Promise<ExportHostsResult> {
+export async function queryHostsExport(range: QueryRange = '1h', deviceId?: string | null, database: QueryDb = defaultQueryDb, now: Date = new Date(), bounds?: RangeBounds): Promise<ExportHostsResult> {
   if (!deviceId) return { rows: 0, hosts: [] };
-  const { start, end } = getRangeBounds(range, now);
+  const { start, end } = bounds ?? getRangeBounds(range, now);
   const rows = await queryRows<HostRow>(
     database,
     sql`SELECT hs.host_key,
@@ -78,9 +78,9 @@ export async function queryHostsExport(range: QueryRange = '1h', deviceId?: stri
   return { rows: hosts.length, hosts };
 }
 
-export async function queryAlertsExport(range: QueryRange = '1h', deviceId?: string | null, database: QueryDb = defaultQueryDb, now: Date = new Date()): Promise<ExportAlertsResult> {
+export async function queryAlertsExport(range: QueryRange = '1h', deviceId?: string | null, database: QueryDb = defaultQueryDb, now: Date = new Date(), bounds?: RangeBounds): Promise<ExportAlertsResult> {
   if (!deviceId) return { rows: 0, alerts: [] };
-  const { start, end } = getRangeBounds(range, now);
+  const { start, end } = bounds ?? getRangeBounds(range, now);
   const rows = await queryRows<{ id: string; window_id: string; rule_id: string; severity: string; title: string; description: string | null; evidence: unknown; created_at: Date | string | null }>(
     database,
     sql`SELECT a.id, a.window_id, a.rule_id, a.severity, a.title, a.description, a.evidence, fw.start_at AS created_at
@@ -100,9 +100,9 @@ export async function queryAlertsExport(range: QueryRange = '1h', deviceId?: str
   return { rows: alerts.length, alerts };
 }
 
-export async function queryWindowsExport(range: QueryRange = '1h', deviceId?: string | null, database: QueryDb = defaultQueryDb, now: Date = new Date()): Promise<ExportWindowsResult> {
+export async function queryWindowsExport(range: QueryRange = '1h', deviceId?: string | null, database: QueryDb = defaultQueryDb, now: Date = new Date(), bounds?: RangeBounds): Promise<ExportWindowsResult> {
   if (!deviceId) return { rows: 0, windows: [] };
-  const { start, end } = getRangeBounds(range, now);
+  const { start, end } = bounds ?? getRangeBounds(range, now);
   const rows = await queryRows<{ window_id: string; start_at: Date | string | null; end_at: Date | string | null; sequence: number | string | null }>(
     database,
     sql`SELECT window_id, start_at, end_at, sequence

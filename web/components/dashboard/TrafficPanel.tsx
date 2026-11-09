@@ -5,7 +5,7 @@
 // protocolos y países. El mapa se carga aparte porque arrastra la geometría.
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Activity, Gauge, GitBranch, Globe2, Radar, Waves } from 'lucide-react';
+import { Activity, Gauge, GitBranch, Globe2, Grid3x3, Radar, Waves } from 'lucide-react';
 import type {
   OverviewProtocolShare,
   OverviewSeriesPoint,
@@ -13,11 +13,14 @@ import type {
   OverviewTopHost,
   OverviewTopPort,
 } from '@/lib/api-types';
+import type { QueryRange } from '@/lib/schemas/query';
+import { formatZoomLabel, formatZoomSpan, type ZoomRange } from '@/lib/zoom';
 import { TrafficChart } from './TrafficChart';
 import { TrafficStream } from './traffic/TrafficStream';
 import { TrafficSankey } from './traffic/TrafficSankey';
 import { PortsRadar } from './traffic/PortsRadar';
 import { ThroughputGauge } from './traffic/ThroughputGauge';
+import { TrafficHeatmap } from './traffic/TrafficHeatmap';
 
 const GeoArcs = dynamic(() => import('./traffic/GeoArcs').then((module) => module.GeoArcs), {
   ssr: false,
@@ -35,17 +38,22 @@ const MODES = [
   { id: 'geo', label: 'Mapa', hint: 'Mapa geoespacial con arcos neón', icon: Globe2 },
   { id: 'radar', label: 'Radar', hint: 'Radar de puertos y protocolos', icon: Radar },
   { id: 'gauge', label: 'Velocidad', hint: 'Velocímetro radial de throughput', icon: Gauge },
+  { id: 'heatmap', label: 'Calor', hint: 'Mapa de calor hora × puerto', icon: Grid3x3 },
 ] as const;
 
 type ModeId = (typeof MODES)[number]['id'];
 
 interface TrafficPanelProps {
+  range: QueryRange;
   series: OverviewSeriesPoint[];
   hosts: OverviewTopHost[];
   ports: OverviewTopPort[];
   protocols: OverviewProtocolShare[];
   countries: OverviewTopCountry[];
   periodLabel: string;
+  /** Ventana aplicada al dashboard (drill-down); null = período nominal. */
+  zoom: ZoomRange | null;
+  onApplyZoom: (zoom: ZoomRange) => void;
 }
 
 function LiveBadge() {
@@ -60,8 +68,19 @@ function LiveBadge() {
   );
 }
 
-export function TrafficPanel({ series, hosts, ports, protocols, countries, periodLabel }: TrafficPanelProps) {
+export function TrafficPanel({
+  range,
+  series,
+  hosts,
+  ports,
+  protocols,
+  countries,
+  periodLabel,
+  zoom,
+  onApplyZoom,
+}: TrafficPanelProps) {
   const [mode, setMode] = useState<ModeId>('line');
+  const [draft, setDraft] = useState<ZoomRange | null>(null);
   const active = MODES.find((item) => item.id === mode) ?? MODES[0];
   const showsDirection = mode === 'line' || mode === 'stream';
 
@@ -123,13 +142,42 @@ export function TrafficPanel({ series, hosts, ports, protocols, countries, perio
         })}
       </div>
 
+      {draft ? (
+        <div className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-sc-viz-in/30 bg-sc-viz-in/5 px-3 py-2">
+          <p className="font-mono text-[11px] text-sc-text">
+            Selección: <span className="text-sc-viz-in">{formatZoomLabel(draft)}</span>{' '}
+            <span className="text-sc-text-muted">({formatZoomSpan(draft)})</span>
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onApplyZoom(draft);
+                setDraft(null);
+              }}
+              className="rounded-md border border-sc-viz-in/40 bg-sc-viz-in/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-sc-viz-in transition-colors hover:bg-sc-viz-in/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sc-viz-in/50"
+            >
+              Aplicar filtro
+            </button>
+            <button
+              type="button"
+              onClick={() => setDraft(null)}
+              className="rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-sc-text-muted transition-colors hover:text-sc-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sc-viz-in/50"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="px-4 pb-4 pt-3">
-        {mode === 'line' ? <TrafficChart series={series} /> : null}
+        {mode === 'line' ? <TrafficChart series={series} onSelectRange={setDraft} /> : null}
         {mode === 'stream' ? <TrafficStream series={series} /> : null}
         {mode === 'sankey' ? <TrafficSankey hosts={hosts} /> : null}
         {mode === 'geo' ? <GeoArcs countries={countries} /> : null}
         {mode === 'radar' ? <PortsRadar ports={ports} protocols={protocols} /> : null}
         {mode === 'gauge' ? <ThroughputGauge series={series} /> : null}
+        {mode === 'heatmap' ? <TrafficHeatmap range={range} zoom={zoom} /> : null}
       </div>
     </section>
   );

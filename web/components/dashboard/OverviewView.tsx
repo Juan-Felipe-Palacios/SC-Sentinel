@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
 import {
@@ -10,6 +11,7 @@ import {
   Server,
   RefreshCw,
   TriangleAlert,
+  X,
 } from 'lucide-react';
 import type { QueryRange } from '@/lib/schemas/query';
 import type { AlertsResponse, HealthMetric, OverviewResponse } from '@/lib/api-types';
@@ -19,6 +21,8 @@ import { AgentHealthCard } from './AgentHealthCard';
 import { AiInsightCard } from './AiInsightCard';
 import { StatCard } from './StatCard';
 import { TrafficPanel } from './TrafficPanel';
+import { HostDrillDown } from './HostDrillDown';
+import { formatZoomLabel, formatZoomSpan, zoomParams, type ZoomRange } from '@/lib/zoom';
 import { TopHostsTable } from './TopHostsTable';
 import { TopPortsTable } from './TopPortsTable';
 import { GeoDistribution } from './GeoDistribution';
@@ -36,8 +40,17 @@ function SkeletonBlock({ className }: { className: string }) {
 
 export function OverviewView({ range }: { range: QueryRange }) {
   const { role } = useDashboardRole();
-  const overviewKey = `/api/query?metric=overview&range=${range}`;
-  const alertsKey = `/api/query?metric=alerts&range=${range}`;
+  // Drill-down: período exacto elegido con el zoom; acota todas las consultas.
+  const [zoom, setZoom] = useState<ZoomRange | null>(null);
+
+  // Cambiar el rango global invalida la ventana recortada (puede quedar afuera).
+  useEffect(() => {
+    setZoom(null);
+  }, [range]);
+
+  const zoomSuffix = zoomParams(zoom);
+  const overviewKey = `/api/query?metric=overview&range=${range}${zoomSuffix}`;
+  const alertsKey = `/api/query?metric=alerts&range=${range}${zoomSuffix}`;
   const healthKey = '/api/query?metric=health';
 
   const overview = useSWR<OverviewResponse>(overviewKey, fetcher, { refreshInterval: REFRESH_MS });
@@ -125,7 +138,25 @@ export function OverviewView({ range }: { range: QueryRange }) {
     <div className="space-y-5">
       {/* Estado del agente */}
       <AgentHealthCard health={health.data} />
-      <ExportBar range={range} />
+      <ExportBar range={range} zoom={zoom} />
+
+      {zoom ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sc-viz-in/30 bg-sc-viz-in/5 px-4 py-2.5">
+          <p className="font-mono text-[11px] text-sc-text">
+            <span className="text-sc-viz-in">Vista filtrada</span> · {formatZoomLabel(zoom)}{' '}
+            <span className="text-sc-text-muted">({formatZoomSpan(zoom)})</span>{' '}
+            <span className="text-sc-text-muted">— KPIs, gráficos y tablas usan este período</span>
+          </p>
+          <button
+            type="button"
+            onClick={() => setZoom(null)}
+            className="inline-flex items-center gap-1 rounded-md border sc-hairline px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-sc-text-muted transition-colors hover:text-sc-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sc-viz-in/50"
+          >
+            <X className="size-3" strokeWidth={2} aria-hidden="true" />
+            Quitar filtro
+          </button>
+        </div>
+      ) : null}
 
       {/* KPIs consolidados */}
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
@@ -166,13 +197,19 @@ export function OverviewView({ range }: { range: QueryRange }) {
 
       {/* Dinámica de tráfico multiformato */}
       <TrafficPanel
+        range={range}
         series={series}
         hosts={topHosts}
         ports={topPorts}
         protocols={protocols}
         countries={topCountries}
         periodLabel={periodLabel}
+        zoom={zoom}
+        onApplyZoom={setZoom}
       />
+
+      {/* Drill-down nivel 2/3: hosts del período y actividad ventana por ventana */}
+      <HostDrillDown range={range} zoom={zoom} />
 
       {/* Destinos y puertos */}
       <div className="grid gap-4 lg:grid-cols-5">
