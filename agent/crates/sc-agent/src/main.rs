@@ -243,6 +243,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut collector_handle =
         start_collector(&config.collector, merged_producer.clone(), health.clone()).await;
 
+    // Dedup pcap+flow (pcap-vs-flow §7): la decisión de diseño es "fuente
+    // exclusiva por segmento" — si la captura live y el colector atienden el
+    // mismo segmento, el mismo tráfico entra dos veces al aggregator. El agente
+    // no puede saber si hay solape real, así que advierte una sola vez al
+    // arranque para que el operador revise la topología.
+    if source_overlap(!use_offline, config.collector.enabled) {
+        tracing::warn!(
+            event = "source_overlap",
+            "captura live y colector activos a la vez: si ambos ven el mismo segmento, el tráfico se contaría doble; usar una sola fuente por segmento (docs/testing/pcap-vs-flow.md §7)"
+        );
+    }
+
     let mut capture_rx = capture.rx;
     let forward_producer = merged_producer.clone();
     let mut capture_forward = tokio::spawn(async move {
@@ -437,6 +449,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     Ok(())
+}
+
+/// ¿Hay solape potencial de fuentes? Captura pcap live y colector activos a la
+/// vez (docs/testing/pcap-vs-flow.md §7: fuente exclusiva por segmento).
+fn source_overlap(live_capture: bool, collector_enabled: bool) -> bool {
+    live_capture && collector_enabled
 }
 
 /// Abre los listeners configurados y devuelve el handle para cortarlos al
@@ -786,6 +804,17 @@ mod tests {
         let error = Args::try_parse_from(["sc-sentinel-agent", "--collector", "--no-collector"])
             .expect_err("flags contradictorios");
         assert_eq!(error.kind(), clap::error::ErrorKind::ArgumentConflict);
+    }
+
+    #[test]
+    fn solape_de_fuentes_solo_con_captura_live_y_colector() {
+        assert!(source_overlap(true, true));
+        assert!(
+            !source_overlap(false, true),
+            "offline/fixture no captura la red"
+        );
+        assert!(!source_overlap(true, false));
+        assert!(!source_overlap(false, false));
     }
 
     fn nf5_datagram() -> Vec<u8> {

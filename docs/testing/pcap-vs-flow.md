@@ -91,17 +91,27 @@ soak de 24 h: el agente debe apagarse limpio para no perder la última ventana.
 
 ## 7. Dedup cuando pcap y flow ven el mismo segmento
 
-**No existe hoy.** Si el agente corre con `--live` (pcap) y `--collector`
-(flow) sobre el mismo tráfico, los mismos octetos pueden entrar dos veces por
-canales distintos al aggregator y sumarse dos veces en la ventana. En la
-validación sintética no hubo duplicación de hosts TEST-NET porque la captura
-loopback solo ve tráfico local (127.0.0.1) que no genera hosts de red, pero
-eso no cubre un segmento real.
+**Decisión de diseño (2026-11-09): fuente exclusiva por segmento.** Si el
+agente corre con captura live (pcap) y `--collector` (flow) sobre el mismo
+tráfico, los mismos octetos entran dos veces por canales distintos al
+aggregator y se suman dos veces en la ventana.
 
-- Estado: **P1** (definir dedup: por 5-tuple + ventana, o fuente exclusiva
-  pcap vs flow por red).
-- Mientras tanto: en producción, elegir una sola fuente por segmento (pcap
-  para LAN local, flow para tráfico del router) o aceptar la sobreestimación.
+Por qué no dedup por 5-tuple + ventana: los flujos del router llegan cuando
+el exportador los cierra (`active-flow-timeout`, default 30 m en RouterOS) y
+cada registro cubre un intervalo que puede cruzar ventanas de 30 s ya
+cerradas y sincronizadas. Un dedup retroactivo exigiría reabrir ventanas
+persistidas o reescribir métricas ya reportadas; se descarta por complejidad
+y por los muestreos/solapes de bytes que implica.
+
+Lo que se aplica:
+
+- En producción, **una sola fuente por segmento**: flow para el tráfico del
+  router, pcap solo para el segmento local que el router no reporta.
+- El agente advierte al arranque (`event = "source_overlap"`) cuando captura
+  live y colector están activos a la vez, para que el operador revise la
+  topología antes de aceptar la sobreestimación.
+- La validación con router (MikroTik CHR, ver runbook §4) corrió con una
+  sola fuente activa (colector) y no registró hosts duplicados.
 
 ## 8. Resumen rápido
 
@@ -113,5 +123,5 @@ eso no cubre un segmento real.
 | Capa 2 (MAC)       | sí                              | no                                           |
 | Dirección host     | por contexto de captura         | `Direction::In` → `src_ip` (provisional)     |
 | Timestamp          | captura                         | first_switched / IE absolutos / export time  |
-| Duplicado          | un paquete, un evento           | sin dedup con pcap (P1)                      |
+| Duplicado          | un paquete, un evento           | fuente exclusiva por segmento + warning `source_overlap` |
 | Requiere           | interfaz + Npcap/libpcap        | router exportando + puertos abiertos         |

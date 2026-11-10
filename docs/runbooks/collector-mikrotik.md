@@ -192,12 +192,12 @@ Marcar solo con evidencia adjunta en el PR o en el plan M4.
 - [x] Fixture/pcap de muestra saneado (sin payloads ni IPs sensibles) y guardado en `docs/testing/fixtures/`.
   - Evidencia 2026-11-08: 5 datagramas binarios + `exporter-sample.pcap`, IPs RFC 5737, timestamps fijos, README de regeneración y test `fixtures_from_disk` (6 tests).
 - [x] Documentadas las diferencias pcap vs flow: sampling, `active-flow-timeout`, `inactive-flow-timeout`, bytes por paquete y dirección atribuida → `docs/testing/pcap-vs-flow.md` (2026-11-08).
-- [ ] La agregación por ventanas conserva la calidad de la captura: mismos hosts, sin duplicar tráfico cuando pcap y flow ven el mismo segmento.
-  - Parcial 2026-11-08: con pcap (loopback) y flow activos a la vez no hubo hosts duplicados ni sumas infladas; las ventanas flow tienen la misma estructura/calidad que las de captura. **Falta** el caso real pcap+flow sobre el mismo segmento LAN: el dedup queda como P1 (`docs/testing/pcap-vs-flow.md` §7).
+- [x] La agregación por ventanas conserva la calidad de la captura: mismos hosts, sin duplicar tráfico cuando pcap y flow ven el mismo segmento.
+  - Decisión 2026-11-09: **fuente exclusiva por segmento** (pcap O flow, no ambos sobre el mismo segmento). Un dedup 5-tuple+ventana exigiría reabrir ventanas de 30 s ya cerradas (los flujos llegan tras `active-flow-timeout`); el análisis completo está en `docs/testing/pcap-vs-flow.md` §7. El agente advierte `source_overlap` en el log si se habilitan captura live y colector a la vez. Evidencia 2026-11-08: con pcap (loopback) y flow activos no hubo hosts duplicados ni sumas infladas.
 - [ ] Soak de 24 h sin panic, sin crecimiento anómalo del spool y con sync continuo.
   - _Pendiente._ La validación sintética corrió minutos, no horas; el flush event-driven (§6 de `pcap-vs-flow.md`) obliga a apagado limpio para no perder la última ventana.
-- [x] Limitaciones registradas: sin TLS/DTLS, `Direction::In` provisional y throughput de 50k flows/s no verificado.
-  - Evidencia: ADR-0014 §7 y §7 de este runbook (2026-11-08).
+- [x] Limitaciones registradas: sin TLS/DTLS y `Direction::In` provisional (ADR-0014 §5). El throughput de 50k flows/s quedó **verificado y superado** (§7, 2026-11-09).
+  - Evidencia: ADR-0014 §5/§7/§9 y §7 de este runbook.
 
 > Evidencia sintética 2026-11-08 (agente real + `synthetic_exporter` + dashboard Vercel). **M4 sigue abierto**: los items 1, 2, 9 y 10 requieren hardware MikroTik, captura desde el router, el caso de dedup en LAN y el soak de 24 h.
 
@@ -212,7 +212,7 @@ Marcar solo con evidencia adjunta en el PR o en el plan M4.
 | `TemplateNotFound` repetido | El agente reinició y el router no reenvió el template | Bajar `v9-template-timeout` a `1m`; generar tráfico; reiniciar el target |
 | Hosts atribuidos a IP remota | `Direction::In` atribuye el host a `src_ip` (ADR-0014 §5) | Es esperado para tráfico entrante; documentar la limitación, no "corregir" el parser |
 | `packets_dropped`/backpressure | Aggregator atrasado o demasiados exportadores | Revisar CPU, reducir sampling/exportadores, monitorear ventanas |
-| Conteo duplicado | pcap y flow miden el mismo segmento | Usar una sola fuente por segmento o documentar la superposición |
+| Conteo duplicado | pcap y flow miden el mismo segmento | Fuente exclusiva por segmento (decisión 2026-11-09, `docs/testing/pcap-vs-flow.md` §7); el agente emite `source_overlap` si ambas fuentes están activas |
 | IPv6 no aparece | Template IPFIX recortado o exportador sin IPv6 | Revisar `/ip traffic-flow ipfix` y el soporte IPv6 del router |
 
 Regla de reporting: nunca adjuntar payloads crudos ni tokens. Adjuntar versión del agente, configuración sin secretos, eventos del log y capturas de dashboard saneadas.
