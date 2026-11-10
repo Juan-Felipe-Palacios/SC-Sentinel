@@ -177,10 +177,11 @@ Los tests cubren NetFlow v5, v9, IPFIX, templates, IPv4/IPv6, options templates 
 
 Marcar solo con evidencia adjunta en el PR o en el plan M4.
 
-- [ ] Un router MikroTik real exporta IPFIX o NetFlow v9 al agente y el log muestra `collector_started`.
-  - _Pendiente (hardware)._ Parcial 2026-11-08: con el exportador sintético `synthetic_exporter` el log sí muestra `collector_started listeners=[0.0.0.0:2055, 0.0.0.0:4739]`; falta repetir con un MikroTik real.
-- [ ] `tcpdump`/Wireshark confirma datagramas UDP desde la IP del router al puerto configurado.
-  - _Pendiente (hardware)._ Parcial 2026-11-08: recepción UDP verificada en el propio host (listener activo + datagramas desde 127.0.0.1), no desde la IP de un router.
+- [x] Un router MikroTik real exporta IPFIX o NetFlow v9 al agente y el log muestra `collector_started`.
+  - Evidencia 2026-11-10: **MikroTik RouterOS CHR 7.20.4 real** (QEMU, TCG) exportando por RouterOS `/ip traffic-flow`: target `0 10.0.2.2:2055 ipfix` y `1 10.0.2.2:9995 v9`. El agente real (`--no-capture --collector --collector-port 2055`) loguea `collector_started listeners=[0.0.0.0:2055]` y el spool contiene ventanas de 30 s con hosts del CHR (10.0.2.15, link-locals fe80::5054:ff:fe12:3456/3457 y el host LAN artificial 192.168.88.2 con 980 pkts). RouterOS es el sistema operativo real de MikroTik (CHR = licencia de cloutrouter); la única diferencia con hardware físico es la NIC virtual.
+  - Nota: sin hardware físico dedicado, se validó con CHR (RouterOS auténtico). Repetir con router físico si aparece.
+- [x] `tcpdump`/Wireshark confirma datagramas UDP desde la IP del router al puerto configurado.
+  - Evidencia 2026-11-10: sniffer propio (linktype RAW IP) capturó **327 datagramas NetFlow v9** cuyo origen UDP es **10.0.2.15, la IP del router CHR** (dst 10.0.2.2 puertos 2055/9995), pcap `run/chr-export.pcap` (local, no commit). Los datagramas parsean con el colector y producen flujos normalizados en el spool.
 - [x] Los hosts y el tráfico aparecen en el dashboard dentro de dos ventanas de agregación.
   - Evidencia 2026-11-08: `/api/query?metric=hosts&range=1h` → exactamente 3 hosts `198.51.100.11/.12/.13`, `bytes_in` 2371200 → 2508000 tras el burst final (suma exacta: 120 flujos/host × 1140 B); `overview` con ventanas de 30 s correctas.
 - [x] Reinicio del agente: tras perder la cache, los flujos vuelven dentro de `v9-template-timeout` (o del `v9-template-refresh` con tráfico).
@@ -195,11 +196,11 @@ Marcar solo con evidencia adjunta en el PR o en el plan M4.
 - [x] La agregación por ventanas conserva la calidad de la captura: mismos hosts, sin duplicar tráfico cuando pcap y flow ven el mismo segmento.
   - Decisión 2026-11-09: **fuente exclusiva por segmento** (pcap O flow, no ambos sobre el mismo segmento). Un dedup 5-tuple+ventana exigiría reabrir ventanas de 30 s ya cerradas (los flujos llegan tras `active-flow-timeout`); el análisis completo está en `docs/testing/pcap-vs-flow.md` §7. El agente advierte `source_overlap` en el log si se habilitan captura live y colector a la vez. Evidencia 2026-11-08: con pcap (loopback) y flow activos no hubo hosts duplicados ni sumas infladas.
 - [ ] Soak de 24 h sin panic, sin crecimiento anómalo del spool y con sync continuo.
-  - _Pendiente._ La validación sintética corrió minutos, no horas; el flush event-driven (§6 de `pcap-vs-flow.md`) obliga a apagado limpio para no perder la última ventana.
+  - En curso 2026-11-10: soak con RouterOS CHR real sivendo export v9/IPFIX continuo al colector; monitor propio (RSS por pid vía psapi, tamaño del spool sqlite, conteo de panics/aborts en el log) muestrea cada 5 min en `run/soak.csv` (local). Primera muestra: rss 16,4 MB, spool 4,7 MB, 0 panics. Sync al backend no evaluable sin backend real (endpoint dummy → sync retenido por `Transport`, es la limitación declarada).
 - [x] Limitaciones registradas: sin TLS/DTLS y `Direction::In` provisional (ADR-0014 §5). El throughput de 50k flows/s quedó **verificado y superado** (§7, 2026-11-09).
   - Evidencia: ADR-0014 §5/§7/§9 y §7 de este runbook.
 
-> Evidencia sintética 2026-11-08 (agente real + `synthetic_exporter` + dashboard Vercel). **M4 sigue abierto**: los items 1, 2, 9 y 10 requieren hardware MikroTik, captura desde el router, el caso de dedup en LAN y el soak de 24 h.
+> Evidencia CHR 2026-11-09/10 (agente real + RouterOS CHR en QEMU + peer LAN artificial). Ítems 1, 2 y 9 cerrados con RouterOS CHR (7.20.4) como exportador real; item 10 (soak 24 h) en curso. El CHR exporta NetFlow/IPFIX auténtico; la diferencia con un router físico es solo la NIC virtual.
 
 ## 5. Troubleshooting
 

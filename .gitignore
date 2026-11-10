@@ -22,6 +22,9 @@ Cargo.lock.bak
 
 # Runtime del agente (spool activo y WAL/SHM); nunca versionar
 agent/spool/
+
+# Host-key efímera generada por el agente al arrancar en el cwd del repo
+config/.host-key
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal

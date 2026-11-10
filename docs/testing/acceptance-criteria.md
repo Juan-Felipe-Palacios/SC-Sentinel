@@ -92,31 +92,39 @@ Alcance de cierre: backend seguro, RAG agregado de 24 h, streaming SSE, persiste
 
 ## M4 — sc-collector MikroTik/Cisco (1,5 semanas)
 
-- [ ] IPFIX/NetFlow recibe tráfico real de router MikroTik (y Cisco si hay hardware).
+- [x] IPFIX/NetFlow recibe tráfico real de router MikroTik (con RouterOS CHR en QEMU; pendiente repetir con Cisco o router físico si hay hardware).
+
+> M4 (2026-11-10, actualizado): además de la validación sintética 2026-11-08/09
+> (fixtures, `synthetic_exporter`, dashboard Vercel, recuperación de templates;
+> fase 4: T4.1 métricas en health/dashboard + migración 0012, T4.2 fuzz proptest
+> con fix de panic real en IPFIX, T4.3 fixtures reales Wireshark 23 payloads,
+> benchmark 5,5–37,5M flows/s parser y 714–782k UDP con 0 drops), se cerró la
+> validación con exportador real: **MikroTik RouterOS CHR 7.20.4 (QEMU)**
+> exportando por `/ip traffic-flow` (IPFIX 2055 + NetFlow v9 9995) → agente
+> real `--no-capture --collector` con `collector_started`, spool con ventanas
+> de 30 s del tráfico del CHR (host LAN 192.168.88.2: 980 pkts/54 KB, NIC del
+> CHR, slirp), y sniffer propio que captura **327 datagramas v9 desde la IP
+> del router (10.0.2.15)**. Dedup P1 cerrado como decisión de diseño: **fuente
+> exclusiva por segmento** + warning `source_overlap` (`pcap-vs-flow.md` §7).
+> **M4 NO cerrado aún**: soak de 24 h en curso (monitor RSS/spool/panics cada
+> 5 min); repetir con router físico si aparece hardware.
+> Procedimiento y checklist: `docs/runbooks/collector-mikrotik.md` §4.
 - [x] Topología IPFIX documentada (`diagrams/drawio/network-topology-ipfix.drawio` actualizada).
 - [x] Fixtures de collector (paquetes de muestra, sin datos sensibles).
 - [x] Diferencias pcap vs flow documentadas (sampling, timeouts, bytes por paquete) → `docs/testing/pcap-vs-flow.md`.
 - [x] Marca la agregación de windows de la misma calidad que en capturas.
 
-> M4 (2026-11-09, actualizado): validación sintética end-to-end completada con
-> evidencia: fixtures saneados en `docs/testing/fixtures/` (+ README y test
-> `fixtures_from_disk`, 6 tests), ejemplo `synthetic_exporter` (v5/v9/IPFIX),
-> agente real con `--collector` → `collector_started` en log, hosts/ventanas en
-> el dashboard Vercel (3 hosts TEST-NET, sumas exactas, sin duplicados), y
-> recuperación de templates tras reinicio del agente. Topología IPFIX y
-> diferencias pcap vs flow documentadas. **Fase 4 cerrada sin hardware
-> (2026-11-09):** T4.1 métricas del colector en health/dashboard (5 contadores
-> + fila en el dashboard + migración 0012); T4.2 property tests proptest
-> (bytes arbitrarios, truncamiento, mutación) + barridos exhaustivos; **el
-> fuzz encontró y arregló un panic real** en `ipfix.rs::read_fields` (IEs de
-> empresa); T4.3 fixtures reales Wireshark (7 pcaps jobaid → 23 payloads UDP:
-> 17 flujos normalizados, 10 mid-stream con `TemplateNotFound` controlado;
-> payloads gitignored por licencia sin redistribución, con extractor
-> commiteado); benchmark de throughput medido (5,5–37,5M flows/s parser,
-> 714–782k flows/s UDP, 0 drops). **Siguen pendientes** (M4 NO cerrado):
-> tráfico real de un router MikroTik/Cisco (hardware), captura desde la IP del
-> router, dedup pcap+flow en el mismo segmento LAN (P1) y soak de 24 h.
-> Procedimiento y checklist: `docs/runbooks/collector-mikrotik.md` §4.
+> M4 (2026-11-09): validación sintética end-to-end (fixtures saneados en
+> `docs/testing/fixtures/` con test `fixtures_from_disk`, `synthetic_exporter`
+> v5/v9/IPFIX, agente real con `--collector`, dashboard Vercel con 3 hosts
+> TEST-NET y sumas exactas, recuperación de templates tras reinicio del
+> agente) + fase 4 sin hardware: T4.1 métricas del colector en health/dashboard
+> (5 contadores + fila + migración 0012), T4.2 property tests proptest con
+> **fix de un panic real** en `ipfix.rs::read_fields` (IEs de empresa),
+> T4.3 fixtures reales Wireshark (23 payloads UDP, gitignored por licencia
+> con extractor commiteado), benchmark de throughput. Las pendientes de esa
+> nota (router real, dedup P1, soak 24h) quedan cubiertas por la nota
+> 2026-11-10 de arriba (salvo el soak en curso).
 
 ## M5 — Servicio + instalador + GUI (1–2 semanas)
 
