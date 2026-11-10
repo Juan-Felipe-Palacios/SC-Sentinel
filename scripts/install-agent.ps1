@@ -1,129 +1,247 @@
-# Installador del agente SCNet como servicio de Windows (M5).
-#
-# Requiere permisos de administrador. Detalles y troubleshooting:
-# docs/runbooks/install-agent-windows.md
-#
-# Sintaxis:
-#   .\scripts\install-agent.ps1 -IngestToken <token> [-Endpoint <url>] [-DeviceId <id>]
-#
-# Qué hace:
-#   1. Copia el binario a C:\Program Files\SC-Sentinel (desde target\release o
-#      -BinaryPath para una ruta ya compilada/descargada).
-#   2. Crea C:\ProgramData\SC-Sentinel (config, spool, logs) y un config.toml
-#      con las claves reales de sc-config (ingest/privacy/spool/log/collector).
-#   3. Restringe permisos (icacls): solo SYSTEM y Administradores.
-#   4. Guarda el token como entorno del SERVICIO (HKLM\...\Environment), nunca
-#      en disco plano.
-#   5. sc.exe create con quoting correcto del binPath + start=auto + recovery
-#      (failure actions restart 5/10/30 s, reset 86400).
+﻿#Requires -RunAsAdministrator
+<#
+.SYNOPSIS
+ Instalador del agente SC-Sentinel como servicio Windows nativo.
+.DESCRIPTION
+ Instala sc-agent.exe como servicio de Windows con:
+ - Binario en C:\Program Files\SC-Sentinel\
+ - Configuración en C:\ProgramData\SC-Sentinel\config.toml
+ - Token seguro en Registry (Environment del servicio)
+ - Permisos restrictivos (SYSTEM + Administradores, sin herencia)
+ - Recovery automático (5s/10s/30s, reset diario)
+ - Log en C:\ProgramData\SC-Sentinel\logs\agent.log
+.PARAMETER DeviceId
+ Identificador único del dispositivo (ej: dev_abc123)
+.PARAMETER IngestToken
+ Token de ingestión del dispositivo
+.PARAMETER ConfigPath
+ Ruta al archivo config.toml de origen (opcional, usa defaults si no se especifica)
+.PARAMETER PurgeData
+ Si se especifica, elimina datos existentes antes de instalar
+.EXAMPLE
+ .\install-agent.ps1 -DeviceId "dev_abc123" -IngestToken "sc_dev_xyz789"
+#>
 
+[CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
-    [string]$IngestToken,
+ [Parameter(Mandatory=$true, HelpMessage="Device ID del agente")]
+ [string]$DeviceId,
+ 
+ [Parameter(Mandatory=$true, HelpMessage="Token de ingestión")]
+ [string]$IngestToken,
+ 
+ [Parameter(Mandatory=$false, HelpMessage="Ruta al config.toml de origen")]
+ [string]$ConfigPath,
+ 
+ [Parameter(Mandatory=$false, HelpMessage="Ruta al binario de origen (sc-sentinel-agent.exe)")]
+ [string]$BinaryPath,
 
-    [string]$Endpoint = "https://sc-sentinel.vercel.app/api/ingest",
+ [Parameter(Mandatory=$false, HelpMessage="Puertos UDP del colector (default 2055,4739)")]
+ [int[]]$CollectorPorts = @(2055, 4739),
 
-    # Identificador del device en el dashboard (default: hostname).
-    [string]$DeviceId = "",
-
-    # Binario a instalar; por defecto el release del repo.
-    [string]$BinaryPath = "",
-
-    [string]$InstallDir = "C:\Program Files\SC-Sentinel",
-    [string]$DataDir = "C:\ProgramData\SC-Sentinel",
-    [string]$ServiceName = "SC-Sentinel-Agent"
+ [Parameter(Mandatory=$false, HelpMessage="Eliminar datos existentes")]
+ [switch]$PurgeData
 )
 
-#Requires -RunAsAdministrator
-$ErrorActionPreference = "Stop"
+# Configuración
+$ServiceName = "SC-Sentinel-Agent"
+$DisplayName = "SC Sentinel Network Agent"
+$Description = "Agente de monitoreo de red SC-Sentinel - Captura y envía flujos de red al servidor central"
+$InstallDir = "C:\Program Files\SC-Sentinel"
+$DataDir = "C:\ProgramData\SC-Sentinel"
+$ConfigDir = "$DataDir\config"
+$LogDir = "$DataDir\logs"
+$SpoolDir = "$DataDir\spool"
 
-if ($BinaryPath -eq "") {
-    $repoRoot = Split-Path -Parent $PSScriptRoot
-    $BinaryPath = Join-Path $repoRoot "agent\target\release\sc-sentinel-agent.exe"
-}
-if (-not (Test-Path $BinaryPath)) {
-    throw "Binario no encontrado: $BinaryPath (compila con cargo build --release -p sc-agent)"
-}
-if ($DeviceId -eq "") {
-    $DeviceId = "dev_$([System.Net.Dns]::GetHostName().ToLower())"
+# SIDs universales (independientes del idioma de Windows)
+$SystemSid = "S-1-5-18"
+$AdminsSid = "S-1-5-32-544"
+
+function Write-Step {
+ param([string]$Message, [string]$Status = "✓")
+ Write-Host "$Status $Message" -ForegroundColor $(if ($Status -eq "✗") { "Red" } else { "Green" })
 }
 
-# --- 1-2. Directorios y binario ---
-New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-foreach ($sub in @("config", "spool", "logs")) {
-    New-Item -ItemType Directory -Force -Path (Join-Path $DataDir $sub) | Out-Null
+function Write-Error-Exit {
+ param([string]$Message)
+ Write-Host "✗ $Message" -ForegroundColor Red
+ exit 1
 }
-Copy-Item $BinaryPath (Join-Path $InstallDir "sc-sentinel-agent.exe") -Force
 
-# --- 3. Config (claves reales de sc-config; token NUNCA en el archivo) ---
-$configPath = Join-Path $DataDir "config.toml"
-@"
+# Verificar que se ejecuta como administrador
+$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+ [Security.Principal.WindowsBuiltInRole]::Administrator
+)
+if (-not $isAdmin) {
+ Write-Error-Exit "Este script debe ejecutarse como Administrador. Clic derecho → Ejecutar como administrador."
+}
+
+Write-Host "`n=== Instalador de SC-Sentinel Agent ===" -ForegroundColor Cyan
+Write-Host "Servicio: $ServiceName" -ForegroundColor Gray
+Write-Host "Device ID: $DeviceId" -ForegroundColor Gray
+Write-Host ""
+
+# Paso 1: Verificar servicio previo y binario
+if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
+ Write-Step "Servicio previo detectado: eliminándolo para reinstalar limpio..."
+ Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+ sc.exe delete $ServiceName | Out-Null
+ Start-Sleep -Seconds 2
+}
+Write-Step "Verificando binario..."
+$BinSource = if ($BinaryPath) { $BinaryPath } else { Join-Path $PSScriptRoot "..\agent\target\release\sc-sentinel-agent.exe" }
+if (-not (Test-Path $BinSource)) {
+ Write-Error-Exit "Binario no encontrado: $BinSource`nEjecuta: cargo build --release -p sc-agent"
+}
+
+# Paso 2: Purge si se solicita
+if ($PurgeData -and (Test-Path $DataDir)) {
+ Write-Step "Eliminando datos existentes..."
+ Remove-Item -Recurse -Force $DataDir -ErrorAction Stop
+}
+
+# Paso 3: Crear directorios
+Write-Step "Creando directorios..."
+foreach ($dir in @($InstallDir, $ConfigDir, $LogDir, $SpoolDir)) {
+ if (-not (Test-Path $dir)) {
+ New-Item -ItemType Directory -Path $dir -Force | Out-Null
+ }
+}
+
+# Paso 4: Copiar binario
+Write-Step "Copiando binario a $InstallDir..."
+Copy-Item $BinSource "$InstallDir\sc-sentinel-agent.exe" -Force
+$BinPath = "$InstallDir\sc-sentinel-agent.exe"
+# Residuo de instalaciones antiguas que usaban otro nombre de binario
+Remove-Item "$InstallDir\sc-agent.exe" -Force -ErrorAction SilentlyContinue
+
+# Paso 5: Generar config.toml
+Write-Step "Generando configuración..."
+$ConfigFile = "$ConfigDir\config.toml"
+# Solo claves que sc-config acepta (deny_unknown_fields); el device_id NO va
+# en el archivo: se pasa por SC_SENTINEL_DEVICE_ID en el Environment.
+$listenerLines = ($CollectorPorts | ForEach-Object { "    { port = $_, protocol = ""auto"" }" }) -join ",`n"
+$configContent = @"
+# SC-Sentinel Agent Configuration
+# Generado automáticamente por install-agent.ps1
+# Claves válidas para sc-config (deny_unknown_fields); el device_id se inyecta
+# vía la variable de entorno SC_SENTINEL_DEVICE_ID en el Environment del servicio.
+
 [ingest]
-url = "$Endpoint"
+url = "https://sc-sentinel.vercel.app/api/ingest"
 token_env = "SC_INGEST_TOKEN"
 compression = "gzip"
 
 [privacy]
 anonymize_hosts = false
 hmac_key_env = "SC_HMAC_KEY"
-hmac_key_file = "C:/ProgramData/SC-Sentinel/config/.host-key"
+hmac_key_file = "$($ConfigDir.Replace('\', '/'))/.host-key"
 
 [spool]
-path = "C:/ProgramData/SC-Sentinel/spool/sc-spool.sqlite"
+path = "$($SpoolDir.Replace('\', '/'))/sc-spool.sqlite"
 max_bytes = 524288000
 max_age_days = 7
 
 [log]
 level = "info"
-file = "C:/ProgramData/SC-Sentinel/logs/agent.log"
+file = "$($LogDir.Replace('\', '/'))/agent.log"
 
 [collector]
 enabled = true
 bind_addr = "0.0.0.0"
 listeners = [
-    { port = 2055, protocol = "auto" },
-    { port = 4739, protocol = "auto" },
+$listenerLines,
 ]
 template_cache_capacity = 10000
 template_cache_ttl_secs = 3600
-"@ | Set-Content -Path $configPath -Encoding UTF8
+"@
 
-# ACL restrictiva: sin herencia, solo SYSTEM y Administradores.
-$extent = icacls $configPath /inheritance:r /grant "SYSTEM:F" /grant "Administrators:F" 2>&1
-if ($LASTEXITCODE -ne 0) { throw "icacls config.toml falló: $extent" }
-foreach ($dir in @($DataDir, (Join-Path $DataDir "config"), (Join-Path $DataDir "spool"), (Join-Path $DataDir "logs"))) {
-    icacls $dir /grant "SYSTEM:(OI)(CI)F" /grant "Administrators:(OI)(CI)F" | Out-Null
+Set-Content -Path $ConfigFile -Value $configContent -Encoding UTF8
+
+# Paso 6: Aplicar permisos restrictivos usando SIDs con prefijo *
+Write-Step "Aplicando permisos de seguridad..."
+
+# Config.toml: solo SYSTEM y Administradores pueden leer/escribir
+icacls $ConfigFile /inheritance:r /grant "*${SystemSid}:(R)" /grant "*${AdminsSid}:(R,W)" | Out-Null
+if ($LASTEXITCODE -ne 0) {
+ Write-Error-Exit "icacls config.toml falló"
 }
 
-# --- 4. Token/DeviceId como entorno del SERVICIO (no plano en disco) ---
-$envKey = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName\Environment"
-if (-not (Test-Path $envKey)) { New-Item -Path $envKey -Force | Out-Null }
-New-ItemProperty -Path $envKey -Name "SC_INGEST_TOKEN" -Value $IngestToken -PropertyType String -Force | Out-Null
-New-ItemProperty -Path $envKey -Name "SC_SENTINEL_DEVICE_ID" -Value $DeviceId -PropertyType String -Force | Out-Null
+# Directorio de logs: SYSTEM puede escribir, Administradores pueden leer
+icacls $LogDir /inheritance:r /grant "*${SystemSid}:(OI)(CI)(F)" /grant "*${AdminsSid}:(OI)(CI)(R)" | Out-Null
+if ($LASTEXITCODE -ne 0) {
+ Write-Error-Exit "icacls logs falló"
+}
 
-# --- 5. Servicio (el binario ya implementa el ctrl del SCM) ---
-# binPath= con espacio tras '=' (requisito de sc.exe) y comillas por cada ruta con espacios.
-$binPathValue = "`"$InstallDir\sc-sentinel-agent.exe`" --config `"$configPath`""
-sc.exe create $ServiceName binPath= $binPathValue start= auto DisplayName= "SC Sentinel Agent"
-if ($LASTEXITCODE -ne 0) { throw "sc.exe create falló ($LASTEXITCODE)" }
+# Directorio de spool: solo SYSTEM
+icacls $SpoolDir /inheritance:r /grant "*${SystemSid}:(OI)(CI)(F)" | Out-Null
+if ($LASTEXITCODE -ne 0) {
+ Write-Error-Exit "icacls spool falló"
+}
 
-# Recovery: restart 5 s, 10 s, 30 s; contador a cero cada 24 h (reboot del server).
-sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/10000/restart/30000
-if ($LASTEXITCODE -ne 0) { throw "sc.exe failure falló ($LASTEXITCODE)" }
+# Binario: Administradores pueden ejecutar, SYSTEM tiene control total
+icacls $BinPath /inheritance:r /grant "*${SystemSid}:(F)" /grant "*${AdminsSid}:(RX)" | Out-Null
+if ($LASTEXITCODE -ne 0) {
+ Write-Error-Exit "icacls binario falló"
+}
+# Paso 7: Guardar token y device_id en Registry (nunca en config.toml)
+Write-Step "Registrando variables de entorno en Registry..."
+$ServiceRegPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName"
 
-# El binario corre 2 procesos de publicación concurrentes: exige un solo daemon.
-sc.exe failureflag $ServiceName 0 | Out-Null
+# Environment del servicio (REG_MULTI_SZ): token + device id, fuera del archivo de config
+$envValue = @("SC_INGEST_TOKEN=$IngestToken", "SC_SENTINEL_DEVICE_ID=$DeviceId")
 
-sc.exe start $ServiceName
-if ($LASTEXITCODE -ne 0) { throw "sc.exe start falló ($LASTEXITCODE)" }
+# Paso 8: Crear servicio
+Write-Step "Creando servicio Windows..."
+$binPathQuoted = "`"$BinPath`" --config `"$ConfigFile`""
+
+sc.exe create $ServiceName binPath= $binPathQuoted start= auto DisplayName= "$DisplayName" | Out-Null
+if ($LASTEXITCODE -ne 0) {
+ Write-Error-Exit "sc create falló. ¿El servicio ya existe? Usa uninstall primero."
+}
+
+sc.exe description $ServiceName "$Description" | Out-Null
+
+# Paso 9: Configurar token en Environment del servicio
+Write-Step "Configurando variables de entorno del servicio..."
+sc.exe config $ServiceName type= own start= auto error= normal binPath= $binPathQuoted obj= "LocalSystem" | Out-Null
+
+# Agregar Environment al Registry manualmente (sc config no soporta Environment directamente)
+New-ItemProperty -Path $ServiceRegPath -Name "Environment" -Value $envValue -PropertyType MultiString -Force | Out-Null
+
+# Paso 10: Configurar recovery (failure actions)
+Write-Step "Configurando recovery automático..."
+# restart after 5s, 10s, 30s; reset counter after 86400s (1 day)
+sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
+if ($LASTEXITCODE -ne 0) {
+ Write-Host " ⚠ Advertencia: no se pudieron configurar failure actions" -ForegroundColor Yellow
+}
+
+# Paso 11: Iniciar servicio
+Write-Step "Iniciando servicio..."
+Start-Service -Name $ServiceName -ErrorAction Stop
+
+# Verificar que está corriendo
 Start-Sleep -Seconds 2
-sc.exe query $ServiceName
+$service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if ($service -and $service.Status -eq 'Running') {
+ Write-Step "Servicio iniciado correctamente"
+} else {
+ Write-Host " ⚠ Servicio creado pero no pudo iniciarse. Revisa el log:" -ForegroundColor Yellow
+ Write-Host " $LogDir\agent.log" -ForegroundColor Gray
+}
 
+# Resumen final
+Write-Host "`n=== Instalación completada ===" -ForegroundColor Green
+Write-Host "Servicio: $ServiceName" -ForegroundColor Gray
+Write-Host "Binario: $BinPath" -ForegroundColor Gray
+Write-Host "Config: $ConfigFile" -ForegroundColor Gray
+Write-Host "Log: $LogDir\agent.log" -ForegroundColor Gray
+Write-Host "Spool: $SpoolDir" -ForegroundColor Gray
 Write-Host ""
-Write-Host "Instalado y arrancado:"
-Write-Host "  Binario : $InstallDir\sc-sentinel-agent.exe"
-Write-Host "  Config  : $configPath"
-Write-Host "  Spool   : $DataDir\spool\sc-spool.sqlite"
-Write-Host "  Log     : $DataDir\logs\agent.log"
-Write-Host "  Device  : $DeviceId"
-Write-Host "Runbook   : docs/runbooks/install-agent-windows.md"
+Write-Host "Comandos útiles:" -ForegroundColor Cyan
+Write-Host " sc query $ServiceName # Ver estado" -ForegroundColor Gray
+Write-Host " sc qfailure $ServiceName # Ver recovery" -ForegroundColor Gray
+Write-Host " sc stop $ServiceName # Detener (drain ≤30s)" -ForegroundColor Gray
+Write-Host " Get-Content $LogDir\agent.log -Tail 20 # Ver log" -ForegroundColor Gray
+Write-Host ""
