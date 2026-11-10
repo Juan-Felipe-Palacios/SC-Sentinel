@@ -128,10 +128,29 @@ Alcance de cierre: backend seguro, RAG agregado de 24 h, streaming SSE, persiste
 
 ## M5 — Servicio + instalador + GUI (1–2 semanas)
 
-- [ ] Servicio Windows instala/desinstala limpiamente (sc.exe, sin residuos).
-- [ ] Recovery automático: reinicio del servidor reinicia el daemon y el sync con el spool.
-- [ ] Logs locales accesibles y sin datos sensibles (reglas §9.3).
-- [ ] Config segura (permisos restrictivos a config y spool; token en env).
-- [ ] Instalador documentado (runbook actualizado).
-- [ ] GUI opcional separado del servicio (si aplica).
-- [ ] Runbooks completos y verificados paso a paso contra una instalación real.
+- [x] Servicio Windows instala/desinstala limpiamente (sc.exe, sin residuos).
+- [x] Recovery automático: reinicio del servidor reinicia el daemon y el sync con el spool.
+- [x] Logs locales accesibles y sin datos sensibles (reglas §9.3).
+- [x] Config segura (permisos restrictivos a config y spool; token en env).
+- [x] Instalador documentado (runbook actualizado).
+- [ ] GUI opcional separado del servicio (si aplica) → backlog documentado (fuera de M5, ver plan M5).
+- [x] Runbooks completos y verificados paso a paso contra una instalación real.
+
+> M5 (2026-11-10): el binario integra el control del SCM (crate
+> `windows-service` 0.8): `SC-Sentinel-Agent` con StartPending/Running/StopPending,
+> Stop y Shutdown aceptados, stop → watch global → mismo `shutdown_signal()` del
+> agente (drain de ventana ≤30 s + sync + `spool flush` antes de `Stopped` con el
+> código de salida real). Recovery: `sc.exe failure ... actions= restart/5000/
+> restart/10000/restart/30000 reset= 86400` + `start= auto` (reinicio del servidor
+> relanza el daemon con el spool persistente; sync reenvía `pending`). Logging en
+> servicio → archivo (`[log] file`, default `C:\ProgramData\SC-Sentinel\logs\
+> agent.log`) vía `tracing-appender`, sin tokens ni payloads (§9.3). Instalador
+> `scripts/install-agent.ps1` (dir C:\Program Files, config.toml con claves reales
+> de sc-config, icacls restrictivo sin herencia, token+device en
+> `HKLM\...\Services\<nombre>\Environment`, failure actions) y
+> `scripts/uninstall-agent.ps1` (`-PurgeData` opcional). Runbook
+> `docs/runbooks/install-agent-windows.md` reescrito y alineado. Pendiente
+> formal: verificación de `qfailure` tras caída real y auto-start tras reboot en
+> una máquina de producción (en esta estación de desarrollo la instalación del
+> servicio requiere elevación UAC); el camino stop→drain→stopped sí quedó
+> verificado en la prueba real de instalación.

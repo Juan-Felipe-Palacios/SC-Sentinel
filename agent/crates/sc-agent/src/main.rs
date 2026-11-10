@@ -22,6 +22,9 @@ use std::time::Duration;
 use tokio::signal;
 use tokio::sync::{mpsc, watch, Mutex};
 
+#[cfg(windows)]
+mod service;
+
 /// Tope para drenar ventana activa, cola de sync y spool antes de salir.
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 /// Vueltas máximas del drenaje final de sync (un batch de 10 por vuelta).
@@ -71,14 +74,35 @@ struct Args {
     collector_ports: Vec<u16>,
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = Args::parse();
-
-    if std::env::args().any(|a| a == "--version") {
-        println!("sc-sentinel-agent {}", env!("CARGO_PKG_VERSION"));
-        return Ok(());
+/// Punto de entrada sync: en Windows decide primero si lo lanzó el SCM
+/// (run as service) o si es una corrida CLI interactiva. Sin `#[tokio::main]`
+/// porque `service_main` necesita un runtime construido ad-hoc por hilo.
+fn main() {
+    #[cfg(windows)]
+    if service::enter() == service::RunMode::Service {
+        return;
     }
+
+    let runtime = match tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            eprintln!("sc-sentinel-agent: runtime de tokio: {error}");
+            std::process::exit(1);
+        }
+    };
+    let code = runtime.block_on(run_cli());
+    if code != 0 {
+        std::process::exit(code);
+    }
+}
+
+/// Camino CLI interactivo (clap sale solo con `--version` y ante errores de
+/// parseo; `run_agent` devuelve el código de salida real del daemon).
+async fn run_cli() -> i32 {
+    let args = Args::parse();
 
     if args.list_interfaces {
         match list_interfaces() {
@@ -86,15 +110,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 for iface in interfaces {
                     println!("{iface}");
                 }
-                return Ok(());
+                return 0;
             }
             Err(error) => {
                 eprintln!("sc-sentinel-agent: {error}");
-                std::process::exit(2);
+                return 2;
             }
         }
     }
 
+    run_agent(args).await
+}
+
+/// Ciclo completo del agente con los datos ya parseados. Devuelve el código
+/// de salida: 0 = apagado limpio (también el Stop del SCM), 2 = error de
+/// configuración/argumentos, 1 = fallo de ejecución.
+pub(crate) async fn run_agent(args: Args) -> i32 {
     // Config: archivo explícito (--config) o defaults del agente + overrides SC_*.
     let config = match &args.config {
         Some(path) => AgentConfig::load(path),
@@ -104,7 +135,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(config) => config,
         Err(error) => {
             eprintln!("sc-sentinel-agent: configuración inválida: {error}");
-            std::process::exit(2);
+            return 2;
         }
     };
 
@@ -118,10 +149,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     if let Err(error) = config.with_collector_cli(collector_enabled, &args.collector_ports) {
         eprintln!("sc-sentinel-agent: configuración del colector inválida: {error}");
-        std::process::exit(2);
+        return 2;
     }
 
-    logging::init_with_level(&config.log.level);
+    // M5: en modo servicio todo el log va a archivo (no hay stdout visible).
+    // La config puede elegir `log.file`; si no, default de ProgramData.
+    #[cfg(windows)]
+    let log_file = config
+        .log
+        .file
+        .clone()
+        .or_else(|| service::is_service().then(service::default_log_file));
+    #[cfg(not(windows))]
+    let log_file = config.log.file.clone();
+
+    // El guard del writer no bloqueante DEBE sobrevivir hasta el final: si se
+    // dropeara aquí, los últimos logs se perderían durante el drenaje.
+    let _log_guard = match &log_file {
+        Some(file) => match logging::init_file_level(&config.log.level, file) {
+            Ok(guard) => Some(guard),
+            Err(error) => {
+                eprintln!(
+                    "sc-sentinel-agent: no se pudo abrir el log {} : {error}",
+                    file.display()
+                );
+                return 2;
+            }
+        },
+        None => {
+            logging::init_with_level(&config.log.level);
+            None
+        }
+    };
 
     let device_id = match args.device_id.as_deref().map(str::trim) {
         Some(id) if !id.is_empty() => id.to_string(),
@@ -129,7 +188,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!(
                 "sc-sentinel-agent: falta el device id. Pasá --device-id dev_<uuid> o definí SC_SENTINEL_DEVICE_ID (el id sale de la tabla devices del dashboard)."
             );
-            std::process::exit(2);
+            return 2;
         }
     };
     if !device_id.starts_with("dev_") {
@@ -157,7 +216,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(error) => {
             eprintln!("sc-sentinel-agent: {error}");
-            std::process::exit(2);
+            return 2;
         }
     };
 
@@ -168,7 +227,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(token) => Some(token),
             Err(error) => {
                 eprintln!("sc-sentinel-agent: {error}");
-                std::process::exit(2);
+                return 2;
             }
         },
     };
@@ -221,20 +280,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // instante y el reenvío termina (el brazo del select queda desactivado).
         CaptureChannel::new()
     } else if use_offline {
-        run_offline(&fixture_path, LocalIpSet::default())?
+        match run_offline(&fixture_path, LocalIpSet::default()) {
+            Ok(capture) => capture,
+            Err(error) => {
+                tracing::error!(event = "offline_load_failed", %error, "no se pudo abrir el fixture pcap");
+                return 1;
+            }
+        }
     } else {
         match args.interface.as_deref() {
             Some(iface) => {
                 tracing::info!(interface = iface, "captura live");
                 // §5: sin las IPs locales el parser descarta todo el tráfico (IPs no locales).
-                let local = local_ips_for_interface(iface)?;
-                run_live(iface, local)?
+                let local = match local_ips_for_interface(iface) {
+                    Ok(local) => local,
+                    Err(error) => {
+                        tracing::error!(event = "interface_lookup_failed", %error, interface = iface, "no se pudo resolver la interfaz");
+                        return 1;
+                    }
+                };
+                match run_live(iface, local) {
+                    Ok(capture) => capture,
+                    Err(error) => {
+                        tracing::error!(event = "capture_start_failed", %error, interface = iface, "no se pudo abrir la captura");
+                        return 1;
+                    }
+                }
             }
             None => {
                 eprintln!(
                     "sc-sentinel-agent: sin --offline/--fixture hay que indicar --interface (o correr --list-interfaces para ver las disponibles)"
                 );
-                std::process::exit(2);
+                return 2;
             }
         }
     };
@@ -313,7 +390,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         compression = %config.ingest.compression,
         "config cargada"
     );
-    let spool = Arc::new(Mutex::new(Spool::open(spool_config)?));
+    let spool = match Spool::open(spool_config) {
+        Ok(spool) => Arc::new(Mutex::new(spool)),
+        Err(error) => {
+            tracing::error!(event = "spool_open_failed", %error, "no se pudo abrir el spool local");
+            return 1;
+        }
+    };
 
     // §9: publica el tamaño real del spool (0 = vacío) en cada snapshot de health.
     let spool_health = health.clone();
@@ -347,10 +430,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         hostname: local_hostname(),
         boot_id: current_boot_id(),
     };
-    let client = IngestClient::new(
-        args.endpoint.unwrap_or_else(|| config.ingest.url.clone()),
-        api_key,
-    )?;
+    let client = match IngestClient::new(endpoint, api_key) {
+        Ok(client) => client,
+        Err(error) => {
+            tracing::error!(event = "ingest_client_failed", %error, "no se pudo crear el cliente de ingest");
+            return 1;
+        }
+    };
 
     // Process snapshots
     let spool_clone = spool.clone();
@@ -427,6 +513,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    #[cfg(windows)]
+    {
+        // SCM Stop: informa StopPending antes del drenaje (puede tardar hasta
+        // DRAIN_TIMEOUT + sync) para que el SCM no declare timeout.
+        crate::service::report_stop_pending();
+    }
+
     // El colector mantiene abierto el canal de merge: se corta y espera a que
     // libere sus sockets antes de drenar la ventana activa.
     if let Some(handle) = collector_handle.take() {
@@ -466,14 +559,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // 3) Flush: consolida el WAL y deja el spool listo para el próximo arranque.
-    let pending = { spool.lock().await.flush()? };
+    let pending = match spool.lock().await.flush() {
+        Ok(pending) => pending,
+        Err(error) => {
+            tracing::error!(event = "spool_flush_failed", %error, "no se pudo persistir el spool");
+            return 1;
+        }
+    };
     tracing::info!(
         event = "spool_flushed",
         pending,
         "spool persistido: salida limpia"
     );
 
-    Ok(())
+    0
 }
 
 /// ¿Hay solape potencial de fuentes? Captura pcap live y colector activos a la
@@ -702,8 +801,23 @@ async fn drain_spool(spool: &Arc<Mutex<Spool>>, client: &IngestClient, syncer: &
     }
 }
 
-/// Primera señal de apagado: SIGINT (Ctrl+C) o SIGTERM en Unix.
+/// Primera señal de apagado: SIGINT (Ctrl+C) o SIGTERM en Unix. En Windows
+/// también acepta la orden.Stop del SCM cuando el agente corre como servicio.
 async fn shutdown_signal() {
+    #[cfg(windows)]
+    if let Some(mut stop) = crate::service::stop_receiver() {
+        // El Stop pudo llegar antes de que este select corriera el branch: si
+        // ya está señalizado, no hay nada que esperar.
+        if *stop.borrow_and_update() {
+            return;
+        }
+        tokio::select! {
+            _ = signal::ctrl_c() => {}
+            _ = stop.changed() => {}
+        }
+        return;
+    }
+
     #[cfg(unix)]
     {
         let mut terminate = match signal::unix::signal(signal::unix::SignalKind::terminate()) {

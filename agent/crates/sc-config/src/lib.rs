@@ -129,6 +129,10 @@ pub struct SpoolSection {
 #[serde(deny_unknown_fields, default)]
 pub struct LogSection {
     pub level: String,
+    /// Archivo de log cuando el agente corre como servicio Windows (sin
+    /// consola). `None` = stdout (modo CLI); en modo servicio sin valor en el
+    /// config el agente usa el default de ProgramData (ver service.rs).
+    pub file: Option<PathBuf>,
 }
 
 impl Default for IngestConfig {
@@ -155,6 +159,7 @@ impl Default for LogSection {
     fn default() -> Self {
         Self {
             level: DEFAULT_LOG_LEVEL.to_string(),
+            file: None,
         }
     }
 }
@@ -609,6 +614,23 @@ mod tests {
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../config/sc-agent.toml.sample");
         std::fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("no se pudo leer {}: {error}", path.display()))
+    }
+
+    #[test]
+    fn log_file_es_optativo_y_se_lee_cuando_se_define() {
+        let toml =
+            "[log]\nlevel = \"debug\"\nfile = \"C:/ProgramData/SC-Sentinel/logs/agent.log\"\n";
+        let config = AgentConfig::parse(toml).expect("config con log.file válido");
+        assert_eq!(config.log.level, "debug");
+        assert_eq!(
+            config.log.file.as_deref(),
+            Some(Path::new("C:/ProgramData/SC-Sentinel/logs/agent.log"))
+        );
+
+        // Sin `file` (el sample y el default): log a stdout (modo CLI).
+        let default = LogSection::default();
+        assert_eq!(default.level, "info");
+        assert!(default.file.is_none());
     }
 
     #[test]

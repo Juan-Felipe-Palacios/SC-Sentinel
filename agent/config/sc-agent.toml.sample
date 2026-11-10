@@ -28,6 +28,10 @@ max_age_days = 7
 
 [log]
 level = "info"                 # SC_LOG tiene prioridad
+# Archivo de log del servicio (tracing-appender never-rotate). Sin `file` el
+# agente loguea a stdout (modo CLI interactivo); como servicio sin esta key se
+# usa C:\ProgramData\SC-Sentinel\logs\agent.log.
+# file = "C:/ProgramData/SC-Sentinel/logs/agent.log"
 
 [collector]
 # Colector pasivo UDP: recibe NetFlow v5/v9 e IPFIX de routers y switches y

@@ -18,6 +18,42 @@ pub fn init_with_level(default_level: &str) {
         .init();
 }
 
+/// Igual que [`init_with_level`], pero escribe TODO el log a un archivo
+/// (sin consola y sin ANSI) para el daemon corriendo como servicio Windows,
+/// donde no hay stdout visible.
+///
+/// El manijero de escritura (`WorkerGuard`) DEBE conservarse durante toda la
+/// vida del proceso: al droparse se descargan los buffers pendientes.
+pub fn init_file_level(
+    default_level: &str,
+    file: &std::path::Path,
+) -> std::io::Result<tracing_appender::non_blocking::WorkerGuard> {
+    let dir = file
+        .parent()
+        .ok_or_else(|| std::io::Error::other("ruta de log sin directorio"))?
+        .to_path_buf();
+    let name = file
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| std::io::Error::other("ruta de log sin nombre"))?
+        .to_string();
+    std::fs::create_dir_all(&dir)?;
+    let writer = tracing_appender::rolling::never(dir, name);
+    let (non_blocking, guard) = tracing_appender::non_blocking(writer);
+    let filter = EnvFilter::try_from_env("SC_LOG")
+        .or_else(|_| EnvFilter::try_new(default_level))
+        .unwrap_or_else(|_| EnvFilter::new("info"));
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_ansi(false)
+                .with_writer(non_blocking),
+        )
+        .init();
+    Ok(guard)
+}
+
 pub fn redact_token(s: &str) -> String {
     if s.len() <= 8 {
         "***".to_string()
