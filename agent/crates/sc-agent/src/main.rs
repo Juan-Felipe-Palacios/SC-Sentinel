@@ -3,8 +3,8 @@
 use clap::Parser;
 use sc_aggregate::{AggregatorConfig, CaptureCounters, WindowAggregator};
 use sc_capture::{
-    list_interfaces, local_ips_for_interface, run_live, run_offline, CaptureChannelPair,
-    FlowProducer, LocalIpSet,
+    list_interfaces, local_ips_for_interface, run_live, run_offline, CaptureChannel,
+    CaptureChannelPair, FlowProducer, LocalIpSet,
 };
 use sc_collector::{
     Collector, CollectorConfig, CollectorHandle, CollectorMetrics, ListenerConfig, ProtocolFilter,
@@ -60,6 +60,9 @@ struct Args {
     /// Habilita el colector UDP aunque el config lo desactive.
     #[arg(long, conflicts_with = "no_collector")]
     collector: bool,
+    /// Sin captura: solo colector UDP (fuente exclusiva, pcap-vs-flow §7).
+    #[arg(long, conflicts_with_all = ["offline", "fixture", "interface"])]
+    no_capture: bool,
     /// Deshabilita el colector aunque el config lo habilite.
     #[arg(long)]
     no_collector: bool,
@@ -206,7 +209,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/loopback-trace.pcap")
     });
 
-    let capture = if use_offline {
+    let capture = if args.no_capture {
+        // Solo colector (M4): sin captura live ni offline; el pipeline sigue
+        // idéntico pero el canal de captura no recibe nada. Así el colector
+        // UDP es la única fuente (política de fuente exclusiva).
+        tracing::info!(
+            event = "no_capture",
+            "collector-only: captura deshabilitada"
+        );
+        // Canal de captura vacío: su Tx se descarta, así que el rx cierra al
+        // instante y el reenvío termina (el brazo del select queda desactivado).
+        CaptureChannel::new()
+    } else if use_offline {
         run_offline(&fixture_path, LocalIpSet::default())?
     } else {
         match args.interface.as_deref() {
@@ -227,10 +241,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // §9: el aggregator publica los contadores crudos de captura en cada snapshot
     // (sin esperar un tick periódico, que dejaba el primer health en 0).
-    let capture_counters = CaptureCounters {
-        packets_seen: Some(capture.packets_seen.clone()),
-        packets_dropped: Some(capture.drops.clone()),
-        parse_errors: Some(capture.parse_errors.clone()),
+    let capture_counters = if args.no_capture {
+        CaptureCounters {
+            packets_seen: None,
+            packets_dropped: None,
+            parse_errors: None,
+        }
+    } else {
+        CaptureCounters {
+            packets_seen: Some(capture.packets_seen.clone()),
+            packets_dropped: Some(capture.drops.clone()),
+            parse_errors: Some(capture.parse_errors.clone()),
+        }
     };
 
     // Merge de fuentes: captura y colector escriben al mismo canal y el
@@ -248,7 +270,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // mismo segmento, el mismo tráfico entra dos veces al aggregator. El agente
     // no puede saber si hay solape real, así que advierte una sola vez al
     // arranque para que el operador revise la topología.
-    if source_overlap(!use_offline, config.collector.enabled) {
+    if source_overlap(!use_offline && !args.no_capture, config.collector.enabled) {
         tracing::warn!(
             event = "source_overlap",
             "captura live y colector activos a la vez: si ambos ven el mismo segmento, el tráfico se contaría doble; usar una sola fuente por segmento (docs/testing/pcap-vs-flow.md §7)"
@@ -390,7 +412,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ = shutdown_signal() => {
             tracing::info!(event = "shutdown_signal", "señal de apagado: drenando pipeline");
         }
-        _ = &mut capture_forward => {
+        // En modo solo colector la tarea de reenvío termina al instante (el
+        // canal de captura está vacío): con `if` desactivo ese brazo para que
+        // no apague el agente (la vida útil la dan colector + sync).
+        _ = &mut capture_forward, if !args.no_capture => {
             tracing::info!(
                 event = "capture_finished",
                 "captura finalizada (offline): drenando pipeline"
