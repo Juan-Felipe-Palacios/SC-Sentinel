@@ -1029,21 +1029,25 @@ mod tests {
         );
     }
 
-    /// Una ruta absoluta del config no se toca.
+    /// Una ruta absoluta del config no se toca. La ruta se toma del tempdir
+    /// para que sea absoluta tanto en Windows como en Linux (un path con
+    /// `C:/...` es relativo en Unix y este test debe correr en ambos CI).
     #[test]
     fn las_rutas_absolutas_no_se_modifican() {
         let dir = tempfile::tempdir().expect("tempdir");
         let config_path = dir.path().join("config.toml");
+        let absolute = dir.path().join("credentials").join(".host-key");
+        let absolute_toml = absolute.to_string_lossy().replace('\\', "/");
         std::fs::write(
             &config_path,
-            b"[privacy]\nhmac_key_file = \"C:/ProgramData/SC-Sentinel/config/.host-key\"\n",
+            format!("[privacy]\nhmac_key_file = \"{absolute_toml}\"\n"),
         )
         .expect("escribe config");
 
         let config = AgentConfig::load(&config_path).expect("config válido");
         assert_eq!(
             config.privacy.hmac_key_file,
-            std::path::PathBuf::from("C:/ProgramData/SC-Sentinel/config/.host-key")
+            std::path::PathBuf::from(absolute_toml)
         );
     }
 
