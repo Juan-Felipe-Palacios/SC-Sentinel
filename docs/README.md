@@ -9,7 +9,7 @@
 | Directorio | Contenido | Autoridad |
 |---|---|---|
 | `superpowers/specs/` | Spec completo v2.2 (fuente de verdad) + diseño de producto previo (superseded, histórico) | — |
-| `superpowers/plans/` | 7 planes de ejecución: M0, M1, M2, M3, M4 y Ruta B v1/v2 | spec §13 |
+| `superpowers/plans/` | 8 planes de ejecución: M0, M1, M2, M3, M4, M5 y Ruta B v1/v2 | spec §13 |
 | `adr/` | 14 decisiones de arquitectura (0001–0014) | spec §3 |
 | `contracts/` | contratos `/api/ingest` v1 y `/api/chat` v1 + 3 schemas JSON + 4 ejemplos en `examples/` | spec §5, §6 |
 | `diagrams/` | 7 mermaid en `mermaid/` + 4 drawio en `drawio/` + reglas de exports (`README.md` propio) | spec §17 |
@@ -25,7 +25,7 @@
 
 Verificado contra `web/app/` (páginas y handlers reales):
 
-- **Páginas:** `/`, `/funcionalidades`, `/security`, `/contacto`, `/legal/privacy`, `/legal/terms`, `/legal/third-party-notices`, `/login`, `/p/[token]`, `/dashboard/overview`, `/dashboard/evals`, `/dashboard/settings`, `/dashboard/admin/exports`, `/dashboard/admin/trust-access`.
+- **Páginas:** `/`, `/funcionalidades`, `/security`, `/contacto`, `/legal/privacy`, `/legal/terms`, `/legal/third-party-notices`, `/login`, `/p/[token]`, `/dashboard/overview`, `/dashboard/hosts`, `/dashboard/connections`, `/dashboard/alerts`, `/dashboard/evals`, `/dashboard/settings`, `/dashboard/admin/exports`, `/dashboard/admin/trust-access`.
 - **Entradas especiales:** `/demo` (handler que crea la sesión de visitante y redirige al dashboard), `/dashboard` (redirige a `/demo` sin sesión).
 - **APIs:** `/api/ingest`, `/api/query`, `/api/chat` y `/api/chat/history`, `/api/auth/{login,logout,guest-login}`, `/api/devices` y `/api/devices/{enroll,[id]}`, `/api/ai/{analyze,cron}`, `/api/cron/cleanup`, `/api/export` y `/api/export/stats`, `/api/trust` y `/api/trust/access`.
 
@@ -45,7 +45,7 @@ Módulos que sostienen estas rutas: `web/lib/export`, `web/lib/ai/metrics.ts` y 
 | Grupo | Estado | Alineado con hito |
 |---|---|---|
 | superpowers/specs/ | ✅ v2.2 (consolidación IA free-tier 2026-11-08) | base |
-| superpowers/plans/ | ✅ 7 planes (M0–M4, Ruta B v1/v2) | M0–M5 |
+| superpowers/plans/ | ✅ 8 planes (M0–M5, Ruta B v1/v2) | M0–M5 |
 | adr/ | ✅ 14 ADRs (0001–0014) | M0, M3.5, M4 |
 | contracts/ | ✅ v1 congelados (3 schemas + 4 ejemplos) | M0 |
 | diagrams/ | ✅ 11 fuentes creadas | M0–M5 |
@@ -54,6 +54,6 @@ Módulos que sostienen estas rutas: `web/lib/export`, `web/lib/ai/metrics.ts` y 
 | ux/ | ✅ 6 (tokens de marca: valores definidos en la extracción M3) | M3, M3.5 |
 | legal/ | ✅ 5 (2 drafts pendientes de revisión legal antes de M3) | M3 |
 | release/ | ✅ 4 | M2–M5 |
-| security/ | ✅ auditoría 2026-11-09 (altos H1–H7 y M1/M2/M5/M8 corregidos; M3/M4/M6/M7/M9 y L1–L5 pendientes) | transversal |
+| security/ | ✅ auditoría 2026-11-09 (altos H1–H7 y M1/M2/M5/M8 + M3/M6/M7 corregidos; M4 y L1–L5 pendientes) | transversal |
 
 **Última revisión del índice:** 2026-11-09 — consolidación con el árbol real (rutas, conteos y fuente de verdad corregida).

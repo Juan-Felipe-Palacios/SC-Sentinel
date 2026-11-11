@@ -114,6 +114,25 @@ export async function enrollDevice(
 }
 
 /**
+ * Rota el token del device: el hash anterior deja de resolver de inmediato.
+ * Devuelve el token en claro una única vez (nunca se persiste).
+ */
+export async function rotateDeviceToken(
+  deviceId: string,
+  database: QueryDb = defaultQueryDb
+): Promise<{ token: string } | null> {
+  const token = newToken();
+  const rows = await queryRows<{ id: string }>(
+    database,
+    sql`UPDATE devices
+        SET token_hash = ${hashToken(token)}
+        WHERE id = ${deviceId} AND status <> 'revoked'
+        RETURNING id`
+  );
+  return rows[0] ? { token } : null;
+}
+
+/**
  * Elimina el device y todos sus datos asociados de forma permanente.
  *
  * Las FK obligan a borrar hijos antes que el padre, pero un solo statement

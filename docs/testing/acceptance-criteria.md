@@ -54,13 +54,15 @@ Fuente: spec §14.3. Cada hito cierra cuando TODOS los checks correspondientes p
 
 ## M2 — API + Neon + dashboard v0 (1,5 semanas)
 
-- [ ] `/api/ingest` valida con zod; errores 400 con JSON de problema.
-- [ ] Token auth: Bearer + hash SHA-256; 401/403 según estado del device.
-- [ ] Insert idempotente en Neon (duplicado → 200 duplicate; sin doble métrica).
-- [ ] Rate limit activo (60/min burst 30 por device; 20/min por IP sin token).
-- [ ] `/api/query` + dashboard overview con datos reales (SWR 5 s).
-- [ ] Health del agente visible; alertas operativas automáticas.
-- [ ] Cron de cleanup corre automáticamente (log de espacio liberado).
+- [x] `/api/ingest` valida con zod; errores 400 con JSON de problema.
+- [x] Token auth: Bearer + hash SHA-256; 401/403 según estado del device.
+- [x] Insert idempotente en Neon (duplicado → 200 duplicate; sin doble métrica).
+- [x] Rate limit activo (60/min burst 30 por device; 20/min por IP sin token).
+- [x] `/api/query` + dashboard overview con datos reales (SWR 5 s).
+- [x] Health del agente visible; alertas operativas automáticas.
+- [x] Cron de cleanup corre automáticamente (log de espacio liberado).
+
+> M2 verificado 2026-11-11: gates web (`lint`, `typecheck`, `test`, `build`) verdes; los endpoints y el dashboard operan con datos reales del agente (smoke M1/M2 y despliegue Vercel documentado en el plan M2). La verificación visual con sesión admin queda cubierta por el smoke de release.
 
 ## M3 — Landing + tokens + IA (1,5 semanas)
 

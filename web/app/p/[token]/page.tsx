@@ -35,16 +35,17 @@ export default async function TrustPage({ params }: PageProps) {
   if (!resolved) notFound();
 
   const tokenHash = hashTrustToken(token);
+  // El límite se evalúa antes de registrar el acceso: un token filtrado no
+  // debe amplificar escrituras en trust_page_access_logs ni devolver un 500
+  // que confirme su existencia.
   const rate = checkTrustRateLimit(tokenHash);
+  if (!rate.allowed) notFound();
+
   const headersList = await headers();
   const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim() || headersList.get('x-real-ip') || 'unknown';
   const userAgent = headersList.get('user-agent') || '';
   void logTrustAccess(tokenHash, ip, userAgent);
   void maybeAlertLeak(tokenHash);
-
-  if (!rate.allowed) {
-    throw new Error('rate_limited');
-  }
 
   const deviceId = resolved.device_id;
   const [overview, hostsResult, alertsResult, insight] = await Promise.all([

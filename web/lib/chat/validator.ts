@@ -1,10 +1,14 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
-// Validación básica de grounding (Paso 3 del MVP): toda IPv4 citada por el
-// modelo debe existir en el contexto RAG recuperado para el device autorizado.
+// Validación de grounding del chatbot: toda IP citada por el modelo debe
+// existir en el contexto RAG recuperado para el device autorizado.
 
+import { isIP } from 'node:net';
 import type { ChatContext } from './types';
 
-const IPV4_CANDIDATE = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
+const IPV4_CANDIDATE = /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/g;
+// Candidato deliberadamente laxo: se valida con `isIP` para descartar horas,
+// versiones y otros textos con dos puntos.
+const IPV6_CANDIDATE = /(?:[0-9a-f]{0,4}:){2,}[0-9a-f]{0,4}/gi;
 
 function isIpv4(value: string): boolean {
   const parts = value.split('.');
@@ -22,9 +26,16 @@ export function extractIpv4(text: string): string[] {
   return [...new Set(matches.filter(isIpv4))];
 }
 
+/** IPv6 válidas, únicas y en orden de aparición. */
+export function extractIpv6(text: string): string[] {
+  const matches = text.match(IPV6_CANDIDATE) ?? [];
+  const valid = matches.map((match) => match.trim()).filter((match) => isIP(match) === 6);
+  return [...new Set(valid)];
+}
+
 function collectContextIps(context: ChatContext): Set<string> {
   const serialized = JSON.stringify(context);
-  return new Set(extractIpv4(serialized));
+  return new Set([...extractIpv4(serialized), ...extractIpv6(serialized)]);
 }
 
 export interface ChatValidationResult {
@@ -39,7 +50,7 @@ export interface ChatValidationResult {
  */
 export function validateChatAnswer(answer: string, context: ChatContext): ChatValidationResult {
   const allowed = collectContextIps(context);
-  const unknownIps = extractIpv4(answer).filter((ip) => !allowed.has(ip));
+  const unknownIps = [...extractIpv4(answer), ...extractIpv6(answer)].filter((ip) => !allowed.has(ip));
 
   return {
     ok: unknownIps.length === 0,

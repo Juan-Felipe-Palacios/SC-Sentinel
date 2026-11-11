@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { deleteDevice, enrollDevice, listDevices } from '@/lib/query/devices';
+import { deleteDevice, enrollDevice, listDevices, rotateDeviceToken } from '@/lib/query/devices';
 import { hashToken } from '@/lib/auth/token';
 
 const deviceRow = {
@@ -48,6 +48,18 @@ describe('devices', () => {
     expect(enrollment.device.name).toBeNull();
     expect(enrollment.device.status).toBe('enrolled_pending');
     expect(enrollment).not.toHaveProperty('expires_at');
+  });
+
+  it('rotateDeviceToken emite un token nuevo cuando el device existe', async () => {
+    const db = fakeDb([[{ id: 'dev_1' }]]);
+    const rotated = await rotateDeviceToken('dev_1', db);
+
+    expect(rotated?.token).toMatch(/^sc_dev_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+
+  it('rotateDeviceToken devuelve null si el device no existe o está revocado', async () => {
+    const db = fakeDb([[]]);
+    await expect(rotateDeviceToken('dev_missing', db)).resolves.toBeNull();
   });
 
   it('deleteDevice devuelve true cuando elimina el device', async () => {

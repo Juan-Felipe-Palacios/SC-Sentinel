@@ -2,7 +2,9 @@
 
 Formato: Keep a Changelog 1.1 (semantic entries) publicado también en cada GitHub Release.
 
-## [No lanzado]
+## [0.1.0] — 2026-11-11
+
+Primer release funcional: agente con captura y colector NetFlow/IPFIX, dashboard completo, IA, exports, Trust Pages y servicio Windows.
 
 ### Added
 - (Fase 0–4 IA) Cadena multi-proveedor Gemini → OpenRouter → Groq con `AI_PROVIDER` como primario y respaldos que entran solo con su key; cooldown por 429 que respeta `Retry-After`; backoff exponencial 1 s / 2 s ante 5xx/503; logging estructurado sin secretos (`ai_call`, `ai_provider_fallback`, `ai_ratelimit`, `ai_rate_limited`, `chat_ok`, `chat_fallback`) y monitoreo de headers `x-ratelimit-*` para anticipar cuotas agotadas.
@@ -16,6 +18,12 @@ Formato: Keep a Changelog 1.1 (semantic entries) publicado también en cada GitH
 - (M3.5) Migración `0007_chat.sql`: tablas `chat_conversations` y `chat_messages` con FK cascade e índices; endpoints `GET /api/chat/history` y `DELETE /api/chat/history/[id]`.
 - (M1) Health del agente con `hostname` y `boot_id` reales (antes `localhost`/`boot-001` fijos).
 - (M1) Log de descartes por backpressure (`capture_drops`) y del fallback de GeoIP (`NoLookup`).
+- (M4) Colector pasivo NetFlow v5/v9 + IPFIX integrado en el agente: listeners UDP configurables, cache de templates, normalización al pipeline, métricas en `agent_health` y migración `0012`.
+- (M4) Validación con MikroTik RouterOS CHR 7.20.4, fixtures reales de Wireshark, property tests y benchmark de throughput.
+- (M5) Servicio Windows `SC-Sentinel-Agent` con control SCM, stop con drenaje, recovery automático, logging a archivo e instalador/desinstalador PowerShell idempotentes.
+- (M5) Runbook de instalación Windows verificado con elevación real, incluido recovery tras `taskkill` y desinstalación sin residuos.
+- (Dashboard) Vistas dedicadas de Hosts, Conexiones y Alertas, con drill-down, mapa de calor, filtros por severidad y exportación.
+- (Dashboard) Rotación de token de device desde Settings (`POST /api/devices/:id/rotate`), con invalidación inmediata del token anterior.
 
 ### Changed
 - (Fase 3 IA) Cron de IA de 5 min → **15 min** vía GitHub Actions (`.github/workflows/ai-cron.yml`); `/api/ai/analyze` sigue con gate de 5 min por `facts_hash`.
@@ -38,6 +46,9 @@ Formato: Keep a Changelog 1.1 (semantic entries) publicado también en cada GitH
 - (M3.5) RAG de alertas: el filtro de 24 h usa `flow_windows.start_at` y `alerts.window_id`; antes comparaba `alerts.id` con una fecha y devolvía vacío.
 
 ### Security
+- (M7) Rotación de tokens de device desde el dashboard; el token anterior deja de autenticar al instante y el nuevo se muestra una sola vez.
+- (M6) El contexto RAG del chatbot se sanea (caracteres de control, espacios y longitud) y se declara como datos no confiables; el grounding ahora valida IPv4 e IPv6.
+- (M3) Trust Pages evalúa el rate limit antes de registrar el acceso y responde 404 sin escribir en `trust_page_access_logs`.
 - (M1) Se elimina la clave HMAC hardcodeada `sc-sentinel-dev-key` compartida por todos los dispositivos; la clave generada se persiste con modo 0600 en Unix. Migración: fijar `SC_HMAC_KEY=sc-sentinel-dev-key` para conservar los `host_key` históricos hasta rotar.
 - (M3.5) Aislamiento por device en RAG, historial y borrado; una conversación de otro device devuelve 404.
 - (M3.5) SSE con tope de 2000 tokens, timeout de 30 s, fallback de modelo y logs sin prompts ni claves.

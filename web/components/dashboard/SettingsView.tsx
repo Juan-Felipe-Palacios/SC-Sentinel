@@ -138,6 +138,40 @@ export function SettingsView() {
     }
   }
 
+  async function handleRotateDevice(device: Device) {
+    if (busy) return;
+    const label = device.name ?? device.id;
+    const confirmed = window.confirm(
+      `¿Rotar el token de «${label}»? El token actual dejará de autenticar de inmediato y el agente deberá actualizarse.`
+    );
+    if (!confirmed) return;
+
+    setBusy(`rotate:${device.id}`);
+    setActionError(null);
+    setCopied(false);
+
+    try {
+      const response = await fetch(`/api/devices/${encodeURIComponent(device.id)}/rotate`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        setActionError(
+          response.status === 401
+            ? 'Sesión expirada: volvé a entrar para rotar el token.'
+            : `No se pudo rotar el token (${response.status}).`
+        );
+        return;
+      }
+      const payload = (await response.json()) as { token: string };
+      setIssued({ device_id: device.id, token: payload.token });
+      await mutate();
+    } catch {
+      setActionError('Error de conexión al rotar el token.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function copyToken() {
     if (!issued) return;
     try {
@@ -242,7 +276,7 @@ export function SettingsView() {
             Enrolar dispositivo
           </h2>
           <p className="mt-1.5 text-xs leading-5 text-slate-400">
-            Genera un token permanente. Se muestra una sola vez: copialo como
+            Genera un token rotable. Se muestra una sola vez: copialo como
             <code className="mx-1 rounded bg-slate-800 px-1 py-0.5 font-mono text-[10px]">SC_INGEST_TOKEN</code>
             en la máquina del agente, con el id del device en
             <code className="mx-1 rounded bg-slate-800 px-1 py-0.5 font-mono text-[10px]">SC_SENTINEL_DEVICE_ID</code>
@@ -296,8 +330,8 @@ export function SettingsView() {
               </button>
             </div>
             <p className="mt-2 text-[11px] leading-5 text-slate-400">
-              El token no expira. No se puede volver a consultar: guardalo en un lugar seguro. Si lo
-              perdés, vas a tener que eliminar el dispositivo y enrolarlo de nuevo.
+              El token no se puede volver a consultar: guardalo en un lugar seguro. Si lo perdés o
+              se filtró, rotalo desde la lista de dispositivos; el anterior deja de funcionar al instante.
             </p>
           </div>
         ) : null}
@@ -355,6 +389,19 @@ export function SettingsView() {
                     </p>
                   </div>
                   <StatusChip status={device.status} />
+                  <button
+                    type="button"
+                    onClick={() => void handleRotateDevice(device)}
+                    disabled={busy !== null || device.status === 'revoked'}
+                    className="inline-flex items-center gap-2 rounded-lg border border-sky-400/40 px-3 py-1.5 font-display text-xs font-semibold text-sky-400 transition-colors hover:bg-sky-400/10 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50"
+                  >
+                    {busy === `rotate:${device.id}` ? (
+                      <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <RefreshCw className="size-3.5" aria-hidden="true" />
+                    )}
+                    Rotar token
+                  </button>
                   <button
                     type="button"
                     onClick={() => void handleDelete(device)}
