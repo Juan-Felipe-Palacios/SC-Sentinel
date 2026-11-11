@@ -184,3 +184,19 @@ Alcance de cierre: backend seguro, RAG agregado de 24 h, streaming SSE, persiste
 >
 > Script de la prueba: `C:\Users\Juan\AppData\Local\Temp\m4-chr\run\m5-verify.ps1`
 > (transcript a `run\m5-verify.log`).
+>
+> **Verificación final con la build definitiva (2026-11-11, 10:18–10:22 UTC):**
+> repetida con elevación real y sin concurrencia de instancias, sobre el binario
+> **idéntico bit a bit** al release del repo (`sha256
+> 0868812ADC9266FAF1BD36B614D5D470FE57EE33777FF43ABAE24E89B33C891F`, 8.445.952 B,
+> 11/11 02:10). Transcript en `run\final-check.log`:
+> - servicio `RUNNING`, `AUTO_START`, LocalSystem, exit code 0, colector UDP en
+>   2056 y 4739, `agent.log`, `.host-key` y spool presentes;
+> - **stop → `Stopped` con exit code 0** (drenaje correcto:
+>   `shutdown_signal` → `collector_stopped` → `sync_final_drain` →
+>   `spool_pending` → `spool_flushed`; el `401/403` es el esperado con el token
+>   de evaluación `local-eval-token` y el batch queda retenido en el spool);
+> - **start → `RUNNING` con PID nuevo** (21028 → 17816).
+> - Nota operativa: las corridas elevadas solapadas se pisan entre sí (una
+>   instancia desinstala mientras otra consulta); el bucle de reintentos no debe
+>   dejarse en paralelo con la ejecución de la prueba.
