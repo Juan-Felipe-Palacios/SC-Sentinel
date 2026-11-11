@@ -153,12 +153,34 @@ Alcance de cierre: backend seguro, RAG agregado de 24 h, streaming SSE, persiste
 > `-CollectorPorts` parametrizables, reinstalación idempotente), icacls restrictivo
 > sin herencia, token+device en `HKLM\...\Services\<nombre>\Environment`, failure
 > actions) y `scripts/uninstall-agent.ps1` (`-PurgeData` opcional). Runbook
-> `docs/runbooks/install-agent-windows.md` reescrito y alineado. **Pendiente
-> formal (bache 1): la prueba física completa del servicio** — instalación real
-> → stop (drain→Stopped con código) → start → caída con `taskkill` y recovery vía
-> failure actions → desinstalación sin residuos. El ciclo manual está ejecutado
-> en `C:\Users\Juan\AppData\Local\Temp\m4-chr\run\m5-verify.ps1` (transcript a
-> `run\m5-verify.log`) y solo requiere elevación: tres intentos de
-> `Start-Process -Verb RunAs` fueron cancelados en el prompt UAC de esta
-> estación. La prueba smoke CLI del release (arranque con config real, file
-> logging, drenaje y salida limpia) sí quedó verificada sin elevar.
+> `docs/runbooks/install-agent-windows.md` reescrito y alineado.
+>
+> **Bache 1 — prueba física del servicio (2026-11-11):** ejecutada con
+> elevación real (UAC) sobre esta estación. Ciclo completo verificado:
+> instalación → RUNNING (AUTO_START, log por archivo, `.host-key`, spool
+> SQLite y colector UDP escuchando en 2056/4739) → **stop con drenaje y
+> `Stopped`** → start → caída por `taskkill` con recovery de las failure
+> actions (REINICIAR 5/10/30 s, reset 86400) → desinstalación **sin
+> residuos** (`1060`, sin `C:\Program Files\SC-Sentinel` ni
+> `C:\ProgramData\SC-Sentinel`) → reinstalación final RUNNING.
+>
+> Defectos reales encontrados y corregidos en esa prueba:
+> 1. el SCM no entrega los tokens del `binPath` en `ServiceMain` (solo el
+>    nombre del servicio): el agente arrancaba con la config por defecto
+>    (`hmac_key_file` relativo al CWD) y moría con exit 2. Ahora se usa la
+>    línea de órdenes real del proceso y, en modo servicio, el config
+>    instalado y el modo collector-only son los defaults;
+> 2. el servicio quedaba `RUNNING` con exit 0 aunque el agente ya había
+>    muerto (el `bridge.join()` no terminaba nunca): ahora el servicio
+>    reporta `Stopped` con el código real;
+> 3. `rolling::never()` hace *panic* si no puede abrir el log (ACL): se usa
+>    el `Builder`, que devuelve `Result`, y el error se propaga;
+> 4. el watchdog de "segunda señal" y el drenaje escuchaban el mismo evento,
+>    así que un solo Stop del SCM abortaba el drenaje (exit 130 → el SCM
+>    reportaba 1067): ahora hay un contador de señales (la primera drena,
+>    la segunda fuerza la salida);
+> 5. `config.toml` con BOM (inocuo para `toml` pero normalizado) y rutas
+>    relativas resueltas contra el directorio del config.
+>
+> Script de la prueba: `C:\Users\Juan\AppData\Local\Temp\m4-chr\run\m5-verify.ps1`
+> (transcript a `run\m5-verify.log`).
