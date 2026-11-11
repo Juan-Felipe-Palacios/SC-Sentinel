@@ -38,6 +38,26 @@ if (-not $isAdmin) {
 Write-Host "`n=== Desinstalador de SC-Sentinel Agent ===" -ForegroundColor Cyan
 Write-Host ""
 
+# Elimina un directorio aunque su ACL sea hostil: las instalaciones previas del
+# agente dejan ACLs sin herencia (binario RX, logs R para Administradores) que
+# deniegan el borrado incluso a un admin elevado. takeown + grant F lo habilitan.
+function Remove-ProtectedDir {
+ param([string]$Path)
+ if (-not (Test-Path $Path)) { return $true }
+ takeown /F $Path /R /D Y 2>&1 | Out-Null
+ icacls $Path /grant "*S-1-5-32-544:(OI)(CI)F" /T /C 2>&1 | Out-Null
+ for ($i = 1; $i -le 3; $i++) {
+  try {
+   Remove-Item -Recurse -Force $Path -ErrorAction Stop
+   if (-not (Test-Path $Path)) { return $true }
+  } catch {
+   Write-Host " ⚠ Intento $i de borrado de $Path falló: $($_.Exception.Message)" -ForegroundColor Yellow
+   Start-Sleep -Seconds 2
+  }
+ }
+ return (-not (Test-Path $Path))
+}
+
 # Paso 1: Detener servicio
 Write-Step "Deteniendo servicio..."
 $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
@@ -61,12 +81,30 @@ if ($LASTEXITCODE -ne 0) {
  Write-Step "Servicio eliminado del SCM"
 }
 
-# Paso 3: Eliminar binario y directorio de instalación
+# sc delete es asincrono: esperar a que el SCM cierre su handle (si no, el
+# servicio queda en "marked for deletion" y bloquea reinstalaciones y el
+# borrado del binario en uso). sc query = 1060 significa que ya no existe.
+$waited = 0
+while ($true) {
+ sc.exe query $ServiceName *> $null
+ if ($LASTEXITCODE -eq 1060) { break }
+ if ($waited -ge 30) { break }
+ Start-Sleep -Seconds 1
+ $waited += 1
+}
+if ($waited -gt 0) {
+ Write-Step "Handle del SCM liberado tras ${waited}s"
+}
+
+# Paso 3: Eliminar binario y directorio de instalación (con verificación)
 Write-Step "Eliminando binario..."
 $InstallDir = "C:\Program Files\SC-Sentinel"
 if (Test-Path $InstallDir) {
- Remove-Item -Recurse -Force $InstallDir -ErrorAction SilentlyContinue
- Write-Step "Directorio de instalación eliminado"
+ if (Remove-ProtectedDir $InstallDir) {
+  Write-Step "Directorio de instalación eliminado"
+ } else {
+  Write-Host " ✗ No se pudo eliminar $InstallDir" -ForegroundColor Red
+ }
 } else {
  Write-Step "Directorio de instalación no encontrado" -Status "ℹ"
 }
@@ -74,11 +112,10 @@ if (Test-Path $InstallDir) {
 # Paso 4: Eliminar datos (opcional)
 if ($PurgeData) {
  Write-Step "Eliminando datos (config, logs, spool)..."
- if (Test-Path $DataDir) {
- Remove-Item -Recurse -Force $DataDir -ErrorAction SilentlyContinue
- Write-Step "Datos eliminados: $DataDir"
+ if (Remove-ProtectedDir $DataDir) {
+  Write-Step "Datos eliminados: $DataDir"
  } else {
- Write-Step "Directorio de datos no encontrado" -Status "ℹ"
+  Write-Host " ✗ No se pudo eliminar $DataDir" -ForegroundColor Red
  }
 } else {
  Write-Step "Datos conservados en $DataDir (usa -PurgeData para eliminar)" -Status "ℹ"

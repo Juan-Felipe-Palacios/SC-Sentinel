@@ -53,6 +53,15 @@ $ConfigDir = "$DataDir\config"
 $LogDir = "$DataDir\logs"
 $SpoolDir = "$DataDir\spool"
 
+# Otorga permisos de escritura total a Administradores en un directorio
+# preexistente. Las instalaciones previas dejan ACLs sin herencia (binario RX,
+# logs R) que deniegan hasta un Copy-Item/Remove-Item a un admin elevado.
+function Grant-DirWrite {
+ param([string]$Path)
+ if (-not (Test-Path $Path)) { return }
+ icacls $Path /grant "*S-1-5-32-544:(OI)(CI)F" /T /C 2>&1 | Out-Null
+}
+
 # SIDs universales (independientes del idioma de Windows)
 $SystemSid = "S-1-5-18"
 $AdminsSid = "S-1-5-32-544"
@@ -88,6 +97,9 @@ if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
  sc.exe delete $ServiceName | Out-Null
  Start-Sleep -Seconds 2
 }
+# Restos de instalaciones previas con ACLs hostiles (RX/R sin herencia):
+# otorgar escritura antes de tocar cualquier archivo.
+foreach ($d in @($InstallDir, $DataDir)) { Grant-DirWrite $d }
 Write-Step "Verificando binario..."
 $BinSource = if ($BinaryPath) { $BinaryPath } else { Join-Path $PSScriptRoot "..\agent\target\release\sc-sentinel-agent.exe" }
 if (-not (Test-Path $BinSource)) {
@@ -97,7 +109,11 @@ if (-not (Test-Path $BinSource)) {
 # Paso 2: Purge si se solicita
 if ($PurgeData -and (Test-Path $DataDir)) {
  Write-Step "Eliminando datos existentes..."
- Remove-Item -Recurse -Force $DataDir -ErrorAction Stop
+ try {
+  Remove-Item -Recurse -Force $DataDir -ErrorAction Stop
+ } catch {
+  Write-Host " ⚠ No se pudieron purgar los datos previos: $($_.Exception.Message)" -ForegroundColor Yellow
+ }
 }
 
 # Paso 3: Crear directorios
@@ -195,16 +211,53 @@ $envValue = @("SC_INGEST_TOKEN=$IngestToken", "SC_SENTINEL_DEVICE_ID=$DeviceId")
 Write-Step "Creando servicio Windows..."
 $binPathQuoted = "`"$BinPath`" --config `"$ConfigFile`""
 
-sc.exe create $ServiceName binPath= $binPathQuoted start= auto DisplayName= "$DisplayName" | Out-Null
-if ($LASTEXITCODE -ne 0) {
- Write-Error-Exit "sc create falló. ¿El servicio ya existe? Usa uninstall primero."
+# Esperar a que un servicio previo (incluido "marked for delete") desaparezca
+# por completo del SCM; si no, la creacion falla con ERROR_SERVICE_MARKED_FOR_DELETE 1072.
+# sc query es el indicador fiable: 1060 = ya no existe.
+$waited = 0
+while ($true) {
+ sc.exe query $ServiceName *> $null
+ if ($LASTEXITCODE -eq 1060) { break }
+ if ($waited -ge 30) { break }
+ Start-Sleep -Seconds 2
+ $waited += 2
+}
+if ($waited -gt 0) {
+ Write-Step "Servicio previo liberado del SCM tras ${waited}s"
 }
 
-sc.exe description $ServiceName "$Description" | Out-Null
+# New-Service escribe el binPath via API de servicio; Windows PowerShell 5.1
+# arruina las comillas internas del binPath al pasarselas a un exe nativo
+# (sc.exe create), lo que aborta la creacion con ERROR_INVALID_PARAMETER.
+$created = $false
+$lastErr = ""
+for ($attempt = 1; $attempt -le 3 -and -not $created; $attempt++) {
+ try {
+  New-Service -Name $ServiceName -BinaryPathName $binPathQuoted -DisplayName $DisplayName `
+   -Description $Description -StartupType Automatic | Out-Null
+  $created = $true
+ } catch {
+  $lastErr = $_.Exception.Message
+  Write-Host " Intento $attempt - New-Service fallo: $lastErr" -ForegroundColor Yellow
+  if ($attempt -lt 3) { Start-Sleep -Seconds 5 }
+ }
+}
+if (-not $created) {
+ # Ultimo recurso: sc create con la salida visible (no silenciada)
+ Write-Host " Reintentando con sc create..." -ForegroundColor Yellow
+ $scOut = sc.exe create $ServiceName binPath= $binPathQuoted start= auto DisplayName= "$DisplayName" 2>&1
+ if ($LASTEXITCODE -eq 0) {
+  $created = $true
+ } else {
+  Write-Host ($scOut -join [Environment]::NewLine) -ForegroundColor Red
+ }
+}
+if (-not $created) {
+ Write-Error-Exit "No se pudo crear el servicio '$ServiceName' (ultimo error: $lastErr). Usa uninstall primero si persiste."
+}
 
 # Paso 9: Configurar token en Environment del servicio
 Write-Step "Configurando variables de entorno del servicio..."
-sc.exe config $ServiceName type= own start= auto error= normal binPath= $binPathQuoted obj= "LocalSystem" | Out-Null
 
 # Agregar Environment al Registry manualmente (sc config no soporta Environment directamente)
 New-ItemProperty -Path $ServiceRegPath -Name "Environment" -Value $envValue -PropertyType MultiString -Force | Out-Null
