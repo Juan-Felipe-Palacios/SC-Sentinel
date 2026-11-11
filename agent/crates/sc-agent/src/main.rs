@@ -17,7 +17,7 @@ use sc_sync::{
 use sc_telemetry::{logging, HealthRegistry};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use tokio::signal;
 use tokio::sync::{mpsc, watch, Mutex};
@@ -103,6 +103,10 @@ fn main() {
 /// parseo; `run_agent` devuelve el código de salida real del daemon).
 async fn run_cli() -> i32 {
     let args = Args::parse();
+
+    // En modo CLI las señales vienen de la consola (Ctrl+C / SIGTERM). Como
+    // servicio las aporta el SCM, que llama a `notify_shutdown_signal`.
+    spawn_console_shutdown_listener();
 
     if args.list_interfaces {
         match list_interfaces() {
@@ -495,7 +499,7 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
     spawn_forced_exit_watchdog();
     let mut aggregator_done = false;
     tokio::select! {
-        _ = shutdown_signal() => {
+        _ = wait_shutdown_signal(1) => {
             tracing::info!(event = "shutdown_signal", "señal de apagado: drenando pipeline");
         }
         // En modo solo colector la tarea de reenvío termina al instante (el
@@ -801,43 +805,81 @@ async fn drain_spool(spool: &Arc<Mutex<Spool>>, client: &IngestClient, syncer: &
     }
 }
 
-/// Primera señal de apagado: SIGINT (Ctrl+C) o SIGTERM en Unix. En Windows
-/// también acepta la orden.Stop del SCM cuando el agente corre como servicio.
-async fn shutdown_signal() {
-    #[cfg(windows)]
-    if let Some(mut stop) = crate::service::stop_receiver() {
-        // El Stop pudo llegar antes de que este select corriera el branch: si
-        // ya está señalizado, no hay nada que esperar.
-        if *stop.borrow_and_update() {
+/// Emisor de las señales de apagado.
+///
+/// Cada señal (Ctrl+C, SIGTERM o el Stop del SCM) incrementa el contador. La
+/// primera ordena el drenaje del pipeline; la segunda fuerza la salida
+/// inmediata con código != 0 (plan M1 §6).
+///
+/// El CONTEO es lo que hace posible distinguir "primera" de "segunda": el
+/// watchdog y el drenaje esperan a la misma fuente, así que con un simple
+/// booleano una sola señal del SCM despertaba a los dos y el watchdog
+/// abortaba el drenaje (el servicio moría con 130 y el SCM reportaba 1067
+/// en lugar del código de salida real).
+static SHUTDOWN: OnceLock<watch::Sender<u32>> = OnceLock::new();
+
+/// Canal de señales de apagado (el emisor vive en un static).
+fn shutdown_sender() -> &'static watch::Sender<u32> {
+    SHUTDOWN.get_or_init(|| watch::channel(0).0)
+}
+
+/// Registra una señal de apagado.
+pub(crate) fn notify_shutdown_signal() {
+    shutdown_sender().send_modify(|count| *count += 1);
+}
+
+/// Espera a que se acumulen `objetivo` señales de apagado.
+async fn wait_shutdown_signal(objetivo: u32) {
+    let mut senales = shutdown_sender().subscribe();
+    loop {
+        if *senales.borrow_and_update() >= objetivo {
             return;
         }
-        tokio::select! {
-            _ = signal::ctrl_c() => {}
-            _ = stop.changed() => {}
+        if senales.changed().await.is_err() {
+            return;
         }
-        return;
     }
+}
 
-    #[cfg(unix)]
-    {
-        let mut terminate = match signal::unix::signal(signal::unix::SignalKind::terminate()) {
-            Ok(handler) => handler,
-            Err(error) => {
-                tracing::error!(%error, "no se pudo registrar SIGTERM; solo Ctrl+C");
-                let _ = signal::ctrl_c().await;
-                return;
+/// Escucha las señales de la consola (Ctrl+C y SIGTERM) y las cuenta.
+///
+/// Se registra UNA sola vez y se cuenta cada pulsación: si el drenaje y el
+/// watchdog tuvieran cada uno su propio listener, una sola señal los
+/// despertaría a los dos y el watchdog abortaría el drenaje.
+fn spawn_console_shutdown_listener() {
+    tokio::spawn(async {
+        #[cfg(unix)]
+        {
+            let mut terminate = match signal::unix::signal(signal::unix::SignalKind::terminate()) {
+                Ok(handler) => handler,
+                Err(error) => {
+                    tracing::error!(%error, "no se pudo registrar SIGTERM; solo Ctrl+C");
+                    loop {
+                        if signal::ctrl_c().await.is_err() {
+                            return;
+                        }
+                        notify_shutdown_signal();
+                    }
+                }
+            };
+            loop {
+                tokio::select! {
+                    _ = signal::ctrl_c() => {}
+                    _ = terminate.recv() => {}
+                }
+                notify_shutdown_signal();
             }
-        };
-        tokio::select! {
-            _ = signal::ctrl_c() => {}
-            _ = terminate.recv() => {}
         }
-    }
-
-    #[cfg(not(unix))]
-    {
-        let _ = signal::ctrl_c().await;
-    }
+        #[cfg(not(unix))]
+        {
+            loop {
+                if signal::ctrl_c().await.is_err() {
+                    return;
+                }
+                notify_shutdown_signal();
+            }
+        }
+    });
 }
 
 /// Segunda señal: salida inmediata con código != 0, nunca silenciosa.
@@ -899,7 +941,9 @@ fn sequence_base() -> u64 {
 
 fn spawn_forced_exit_watchdog() {
     tokio::spawn(async {
-        shutdown_signal().await;
+        // Segunda señal: en modo servicio el SCM solo envía una, así que el
+        // watchdog espera a la segunda para forzar la salida sin drenar.
+        wait_shutdown_signal(2).await;
         tracing::error!(
             event = "shutdown_forced",
             "segunda señal: salida inmediata sin drenar"
@@ -920,6 +964,52 @@ mod tests {
         let hostname = local_hostname();
         assert!(!hostname.is_empty());
         assert!(hostname.chars().count() <= 255);
+    }
+
+    /// La 1ª señal de apagado ordena el drenaje; la 2ª fuerza la salida.
+    ///
+    /// El SCM solo envía UN Stop: con un contador el watchdog espera a la
+    /// segunda señal y el drainage puede completarse (antes el watchdog
+    /// abortaba el drenaje y el servicio moría con exit 130 → 1067).
+    #[tokio::test]
+    async fn la_primera_senal_drena_y_la_segunda_forza_la_salida() {
+        let mut senales = shutdown_sender().subscribe();
+        let base = *senales.borrow_and_update();
+
+        // Nadie ha señalado todavía: el watchdog sigue esperando.
+        let antes = tokio::time::timeout(
+            std::time::Duration::from_millis(50),
+            wait_shutdown_signal(base + 2),
+        )
+        .await;
+        assert!(antes.is_err(), "no debe resolverse sin señales");
+
+        // Primera señal: suficiente para drenar, insuficiente para forzar.
+        notify_shutdown_signal();
+        tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            wait_shutdown_signal(base + 1),
+        )
+        .await
+        .expect("la primera señal debe habilitar el drenaje");
+        assert!(
+            tokio::time::timeout(
+                std::time::Duration::from_millis(50),
+                wait_shutdown_signal(base + 2),
+            )
+            .await
+            .is_err(),
+            "la primera señal no debe forzar la salida"
+        );
+
+        // Segunda señal: ahora sí, salida forzada.
+        notify_shutdown_signal();
+        tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            wait_shutdown_signal(base + 2),
+        )
+        .await
+        .expect("la segunda señal debe forzar la salida");
     }
 
     #[test]

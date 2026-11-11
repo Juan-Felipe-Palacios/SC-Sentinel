@@ -14,9 +14,9 @@
 
 use clap::Parser as _;
 use std::ffi::OsString;
-use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
-use tokio::sync::watch;
 use windows_service::service::{
     ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus, ServiceType,
 };
@@ -29,26 +29,35 @@ pub const SERVICE_NAME: &str = "SC-Sentinel-Agent";
 /// Log por defecto del servicio cuando la config no define `log.file`
 /// (el runbook usa `C:\ProgramData\SC-Sentinel\logs\agent.log`).
 pub fn default_log_file() -> std::path::PathBuf {
-    let base = std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".to_string());
-    std::path::PathBuf::from(base)
+    std::path::PathBuf::from(program_data_dir())
         .join("SC-Sentinel")
         .join("logs")
         .join("agent.log")
 }
 
+/// Config por defecto del servicio: la que instala `install-agent.ps1`.
+/// El SCM no entrega los argumentos del `binPath` en `ServiceMain`, así que
+/// el servicio debe saber dónde está su config aunque nadie le pase
+/// `--config`.
+pub fn default_config_file() -> std::path::PathBuf {
+    std::path::PathBuf::from(program_data_dir())
+        .join("SC-Sentinel")
+        .join("config")
+        .join("config.toml")
+}
+
+/// `%ProgramData%` con fallback para instalaciones fuera de Windows.
+fn program_data_dir() -> String {
+    std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".to_string())
+}
+
 static IS_SERVICE: OnceLock<bool> = OnceLock::new();
-static STOP_RX: OnceLock<watch::Receiver<bool>> = OnceLock::new();
 static STATUS_HANDLE: OnceLock<windows_service::service_control_handler::ServiceStatusHandle> =
     OnceLock::new();
 
 /// ¿El proceso fue lanzado por el SCM? (adentro de `service_main` es cierto).
 pub fn is_service() -> bool {
     IS_SERVICE.get().copied().unwrap_or(false)
-}
-
-/// Receptor del stop del servicio (`true` = SCM pidió Stop/Shutdown).
-pub fn stop_receiver() -> Option<watch::Receiver<bool>> {
-    STOP_RX.get().cloned()
 }
 
 /// Modo de arranque tras intentar conectar con el SCM.
@@ -121,10 +130,9 @@ async fn run_service(arguments: Vec<OsString>) -> Result<(), ServiceError> {
         Duration::from_secs(60),
     )?;
 
-    // Canal estático de stop para el apagado del agente.
-    let (stop_flag, stop_flag_rx) = watch::channel(false);
-    let _ = STOP_RX.set(stop_flag_rx);
-
+    // El puente entre el SCM y el agente se hace con el canal de señales de
+    // apagado del propio agente (`crate::notify_shutdown_signal`), que
+    // distingue la 1ª señal (drenar) de la 2ª (salida forzada).
     set_status(
         ServiceState::Running,
         ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
@@ -132,22 +140,43 @@ async fn run_service(arguments: Vec<OsString>) -> Result<(), ServiceError> {
         Duration::default(),
     )?;
 
-    // Puente SCM → watch: thread propio para no bloquear el runtime del agente.
-    // Solo convierte el primer aviso del SCM en `stop = true`.
-    let bridge = std::thread::spawn(move || {
-        if stop_rx.recv() == Ok(()) {
-            stop_flag.send_replace(true);
+    // Puente SCM → agente: thread propio para no bloquear el runtime del agente.
+    //
+    // Cada aviso del SCM cuenta una señal de apagado. El primero dispara el
+    // drenaje; un segundo (si el SCM insiste) fuerza la salida.
+    //
+    // `agent_finished` permite que el puente termine aunque el SCM nunca envíe
+    // un Stop (por ejemplo, si el agente muere por un error de arranque): de
+    // lo contrario `bridge.join()` colgaría para siempre y el servicio
+    // seguiría reportando Running con un exit code 0 engañoso.
+    let agent_finished = Arc::new(AtomicBool::new(false));
+    let bridge_finished = Arc::clone(&agent_finished);
+    let bridge = std::thread::spawn(move || loop {
+        match stop_rx.recv_timeout(Duration::from_millis(200)) {
+            Ok(()) => {
+                crate::notify_shutdown_signal();
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                if bridge_finished.load(Ordering::Relaxed) {
+                    break;
+                }
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
         }
     });
 
-    // `service_main` recibe los argumentos SIN el nombre del exe; clap espera
-    // un argv completo (los services se configuran con "--config <ruta>" en
-    // el binPath, ver runbook install-agent-windows.md).
-    let argv = std::iter::once(OsString::from(SERVICE_NAME)).chain(arguments);
+    // El SCM NO entrega en `ServiceMain` los tokens del `binPath`: solo pasa
+    // el nombre del servicio. La fuente fiable es la línea de órdenes real
+    // del proceso, que el SCM construyó a partir del `binPath`. Los
+    // argumentos del SCM quedan como respaldo.
+    let argv = normalize_argv(service_command_line(arguments));
     let args = match crate::Args::try_parse_from(argv) {
         Ok(args) => args,
         Err(error) => {
-            eprintln!("sc-sentinel-agent: argumentos del servicio: {error}");
+            let mensaje = format!("sc-sentinel-agent: argumentos del servicio: {error}");
+            eprintln!("{mensaje}");
+            append_service_log(&mensaje);
+            agent_finished.store(true, Ordering::Relaxed);
             let _ = bridge.join();
             set_status(
                 ServiceState::Stopped,
@@ -158,8 +187,10 @@ async fn run_service(arguments: Vec<OsString>) -> Result<(), ServiceError> {
             return Ok(());
         }
     };
+    let args = with_service_defaults(args);
 
     let code = crate::run_agent(args).await;
+    agent_finished.store(true, Ordering::Relaxed);
     let _ = bridge.join();
     set_status(
         ServiceState::Stopped,
@@ -168,6 +199,88 @@ async fn run_service(arguments: Vec<OsString>) -> Result<(), ServiceError> {
         Duration::default(),
     )?;
     Ok(())
+}
+
+/// Línea de órdenes del servicio con las opciones (sin el ejecutable).
+///
+/// El SCM lanza el proceso con la línea del `binPath`, así que
+/// `std::env::args_os()` es la fuente fiable de las opciones reales (por
+/// ejemplo `--config` y `--no-capture`). Los argumentos que entrega el SCM
+/// en `ServiceMain` solo se usan si la línea real viniera vacía.
+fn service_command_line(scm_arguments: Vec<OsString>) -> Vec<OsString> {
+    let process: Vec<OsString> = std::env::args_os().collect();
+    if process.len() > 1 {
+        // Se descarta argv[0] (la ruta del ejecutable).
+        return process.into_iter().skip(1).collect();
+    }
+    scm_arguments
+}
+
+/// Aplica los valores por defecto del modo servicio.
+///
+/// - Sin `--config` se usa el config que instala `install-agent.ps1`.
+///
+/// - Sin fuente de captura (`--interface`, `--offline`, `--fixture`) el
+///   servicio arranca en modo collector-only: el daemon se alimenta del
+///   colector UDP (fuente exclusiva, ver `docs/testing/pcap-vs-flow.md`).
+///   Sin esto el agente exigiría una interfaz de captura y abortaría con
+///   código 2.
+fn with_service_defaults(mut args: crate::Args) -> crate::Args {
+    if args.config.is_none() {
+        args.config = Some(default_config_file());
+    }
+    let sin_fuente_captura =
+        args.interface.is_none() && !args.offline && args.fixture.is_none() && !args.no_capture;
+    if sin_fuente_captura {
+        args.no_capture = true;
+    }
+    args
+}
+
+/// Normaliza los tokens de la línea de órdenes del servicio al argv que clap
+/// espera.
+///
+/// El SCM entrega el argv tal cual lo parseó de la línea de órdenes: argv[0] es
+/// la ruta del ejecutable (o el nombre del servicio, según la versión de
+/// Windows) y el resto son las opciones de `binPath`. Clap rechaza cualquier
+/// posicional, así que se descarta el primer token que no sea una opción y se
+/// antepone el nombre del servicio como argv[0].
+fn normalize_argv(tokens: Vec<OsString>) -> Vec<OsString> {
+    let mut argv = Vec::with_capacity(tokens.len() + 1);
+    argv.push(OsString::from(SERVICE_NAME));
+    let mut descarto_programa = true;
+    for token in tokens {
+        if descarto_programa && !token.to_string_lossy().starts_with('-') {
+            // Token inicial sin opción: la ruta del ejecutable o el nombre
+            // del servicio. Clap no admite posicionales.
+            continue;
+        }
+        descarto_programa = false;
+        argv.push(token);
+    }
+    argv
+}
+
+/// Escribe una línea de diagnóstico en el log del servicio.
+///
+/// Un servicio de Windows no tiene consola: `eprintln!` se pierde. Este
+/// helper deja las falhas tempranas (por ejemplo, argumentos inválidos) en el
+/// archivo de log para que se puedan diagnosticar después.
+pub fn append_service_log(message: &str) {
+    let file = default_log_file();
+    if let Some(dir) = file.parent() {
+        if std::fs::create_dir_all(dir).is_err() {
+            return;
+        }
+    }
+    use std::io::Write as _;
+    if let Ok(mut handle) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&file)
+    {
+        let _ = writeln!(handle, "{message}");
+    }
 }
 
 /// Reporta StopPending: el drenaje está acotado (≈15 s) y el SCM fuerza el
@@ -233,5 +346,121 @@ mod tests {
             OsString::from("--bandera-inexistente"),
         ];
         assert!(crate::Args::try_parse_from(argv).is_err());
+    }
+
+    /// El SCM entrega el argv completo de la línea de órdenes: argv[0] es la
+    /// ruta del ejecutable. Clap rechaza los posicionales, así que el
+    /// servicio debe descartarlo y arrancar igual que en modo CLI.
+    #[test]
+    fn normaliza_argv_con_ruta_de_ejecutable() {
+        let argv = normalize_argv(vec![
+            OsString::from(r"C:\Program Files\SC-Sentinel\sc-sentinel-agent.exe"),
+            OsString::from("--config"),
+            OsString::from(r"C:\ProgramData\SC-Sentinel\config\config.toml"),
+            OsString::from("--no-capture"),
+        ]);
+        assert_eq!(argv[0], OsString::from(SERVICE_NAME));
+        let args = crate::Args::try_parse_from(argv).expect("argv del SCM parsea");
+        assert!(args.no_capture);
+        assert_eq!(
+            args.config,
+            Some(std::path::PathBuf::from(
+                r"C:\ProgramData\SC-Sentinel\config\config.toml"
+            ))
+        );
+    }
+
+    /// Si el SCM entrega solo el nombre del servicio (sin ruta), la
+    /// normalización no debe perder ninguna opción.
+    #[test]
+    fn normaliza_argv_sin_ruta_de_ejecutable() {
+        let argv = normalize_argv(vec![
+            OsString::from(SERVICE_NAME),
+            OsString::from("--no-capture"),
+            OsString::from("--collector"),
+            OsString::from("--collector-port"),
+            OsString::from("4739"),
+        ]);
+        assert_eq!(argv[0], OsString::from(SERVICE_NAME));
+        // SERVICE_NAME + 4 opciones: el nombre original se descarta.
+        assert_eq!(argv.len(), 5);
+        let args = crate::Args::try_parse_from(argv).expect("argv del SCM parsea");
+        assert!(args.no_capture);
+        assert_eq!(args.collector_ports, vec![4739]);
+    }
+
+    /// La ruta del ejecutable puede venir con comillas (binPath del SCM las
+    /// conserva): el token sigue siendo un posicional y debe descartarse.
+    #[test]
+    fn normaliza_argv_con_ruta_entrecomillada() {
+        let argv = normalize_argv(vec![
+            OsString::from(r#""C:\Program Files\SC-Sentinel\sc-sentinel-agent.exe""#),
+            OsString::from("--no-capture"),
+        ]);
+        assert_eq!(argv.len(), 2);
+        assert!(crate::Args::try_parse_from(argv).is_ok());
+    }
+
+    /// Sin `--config` el servicio usa el config que instala el script.
+    #[test]
+    fn el_servicio_usa_el_config_instalado_por_defecto() {
+        let args = crate::Args::try_parse_from([OsString::from(SERVICE_NAME)])
+            .expect("argv mínimo parsea");
+        let args = with_service_defaults(args);
+        assert_eq!(args.config, Some(default_config_file()));
+    }
+
+    /// Un `--config` explícito manda sobre el default del servicio.
+    #[test]
+    fn el_servicio_respeta_el_config_explicito() {
+        let args = crate::Args::try_parse_from([
+            OsString::from(SERVICE_NAME),
+            OsString::from("--config"),
+            OsString::from(r"C:\otro\config.toml"),
+        ])
+        .expect("argv parsea");
+        let args = with_service_defaults(args);
+        assert_eq!(
+            args.config,
+            Some(std::path::PathBuf::from(r"C:\otro\config.toml"))
+        );
+    }
+
+    /// Sin fuente de captura el servicio arranca en modo collector-only: el
+    /// daemon se alimenta del colector UDP (fuente exclusiva).
+    #[test]
+    fn el_servicio_arranca_en_modo_colector() {
+        let args = crate::Args::try_parse_from([OsString::from(SERVICE_NAME)])
+            .expect("argv mínimo parsea");
+        assert!(!args.no_capture);
+        let args = with_service_defaults(args);
+        assert!(args.no_capture);
+    }
+
+    /// Con `--interface` explícita se conserva la captura en vivo.
+    #[test]
+    fn el_servicio_respeta_la_interfaz_explicita() {
+        let args = crate::Args::try_parse_from([
+            OsString::from(SERVICE_NAME),
+            OsString::from("--interface"),
+            OsString::from("Ethernet"),
+        ])
+        .expect("argv parsea");
+        let args = with_service_defaults(args);
+        assert!(!args.no_capture);
+        assert_eq!(args.interface.as_deref(), Some("Ethernet"));
+    }
+
+    /// Con `--offline` se conserva el modo fixture.
+    #[test]
+    fn el_servicio_respeta_el_modo_offline() {
+        let args = crate::Args::try_parse_from([
+            OsString::from(SERVICE_NAME),
+            OsString::from("--offline"),
+        ])
+        .expect("argv parsea");
+        let args = with_service_defaults(args);
+        assert!(!args.no_capture);
+        assert!(args.offline);
     }
 }

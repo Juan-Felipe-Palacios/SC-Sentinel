@@ -40,12 +40,21 @@ Write-Host ""
 
 # Elimina un directorio aunque su ACL sea hostil: las instalaciones previas del
 # agente dejan ACLs sin herencia (binario RX, logs R para Administradores) que
-# deniegan el borrado incluso a un admin elevado. takeown + grant F lo habilitan.
+# deniegan el borrado incluso a un admin elevado. takeown + grant F lo habilitan
+# (en Windows en español /D Y es inválido; /D S es el respaldo).
 function Remove-ProtectedDir {
  param([string]$Path)
  if (-not (Test-Path $Path)) { return $true }
  takeown /F $Path /R /D Y 2>&1 | Out-Null
+ if ($LASTEXITCODE -ne 0) {
+  takeown /F $Path /R /D S 2>&1 | Out-Null
+ }
  icacls $Path /grant "*S-1-5-32-544:(OI)(CI)F" /T /C 2>&1 | Out-Null
+ # Archivos con ACL hostil propia: /T no siempre los alcanza; F explícito por
+ # archivo (sin flags de herencia, que solo aplican a directorios).
+ Get-ChildItem $Path -Recurse -Force -File -ErrorAction SilentlyContinue | ForEach-Object {
+  icacls $_.FullName /grant "*S-1-5-32-544:F" 2>&1 | Out-Null
+ }
  for ($i = 1; $i -le 3; $i++) {
   try {
    Remove-Item -Recurse -Force $Path -ErrorAction Stop

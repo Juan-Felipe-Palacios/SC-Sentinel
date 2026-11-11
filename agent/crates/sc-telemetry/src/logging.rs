@@ -38,7 +38,14 @@ pub fn init_file_level(
         .ok_or_else(|| std::io::Error::other("ruta de log sin nombre"))?
         .to_string();
     std::fs::create_dir_all(&dir)?;
-    let writer = tracing_appender::rolling::never(dir, name);
+    // Se usa el `Builder` en vez de `rolling::never` porque `never` hace
+    // `expect` y PANICA si no puede abrir el archivo (por ejemplo, por ACL).
+    // El builder devuelve `Result` con el mismo archivo y sin rotation.
+    let writer = tracing_appender::rolling::RollingFileAppender::builder()
+        .rotation(tracing_appender::rolling::Rotation::NEVER)
+        .filename_prefix(name)
+        .build(&dir)
+        .map_err(std::io::Error::other)?;
     let (non_blocking, guard) = tracing_appender::non_blocking(writer);
     let filter = EnvFilter::try_from_env("SC_LOG")
         .or_else(|_| EnvFilter::try_new(default_level))

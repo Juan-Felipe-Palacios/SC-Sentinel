@@ -227,8 +227,24 @@ impl AgentConfig {
             },
             other => other,
         })?;
+        // Las rutas relativas del config se resuelven contra el directorio del
+        // propio archivo: como servicio el CWD es `C:\Windows\System32` y una
+        // ruta relativa apuntaría a un lugar inesperado (o a nowhere).
+        config.resolve_paths_relative_to(path.parent().unwrap_or(Path::new(".")));
         config.with_env()?;
         Ok(config)
+    }
+
+    /// Convierte a absolutas las rutas relativas del config (`spool.path` y
+    /// `privacy.hmac_key_file`) tomándolas como base el directorio indicado.
+    pub fn resolve_paths_relative_to(&mut self, base: &Path) {
+        fn absolutize(path: &mut PathBuf, base: &Path) {
+            if path.is_relative() {
+                *path = base.join(&*path);
+            }
+        }
+        absolutize(&mut self.spool.path, base);
+        absolutize(&mut self.privacy.hmac_key_file, base);
     }
 
     /// Parsea TOML sin tocar el filesystem (tests y defaults).
@@ -988,6 +1004,47 @@ mod tests {
         let second = config.resolve_hmac_key_from(|_| None).expect("relee clave");
         assert!(!second.generated);
         assert_eq!(first.key, second.key, "la clave debe ser estable");
+    }
+
+    /// Las rutas relativas del config se resuelven contra el directorio del
+    /// propio archivo: como servicio el CWD es `C:\Windows\System32`.
+    #[test]
+    fn las_rutas_relativas_se_resuelven_contra_el_directorio_del_config() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let config_path = dir.path().join("config.toml");
+        std::fs::write(
+            &config_path,
+            b"[privacy]\nhmac_key_file = \"config/.host-key\"\n\n[spool]\npath = \"data/spool.sqlite\"\n",
+        )
+        .expect("escribe config");
+
+        let config = AgentConfig::load(&config_path).expect("config válido");
+        assert_eq!(
+            config.privacy.hmac_key_file,
+            dir.path().join("config").join(".host-key")
+        );
+        assert_eq!(
+            config.spool.path,
+            dir.path().join("data").join("spool.sqlite")
+        );
+    }
+
+    /// Una ruta absoluta del config no se toca.
+    #[test]
+    fn las_rutas_absolutas_no_se_modifican() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let config_path = dir.path().join("config.toml");
+        std::fs::write(
+            &config_path,
+            b"[privacy]\nhmac_key_file = \"C:/ProgramData/SC-Sentinel/config/.host-key\"\n",
+        )
+        .expect("escribe config");
+
+        let config = AgentConfig::load(&config_path).expect("config válido");
+        assert_eq!(
+            config.privacy.hmac_key_file,
+            std::path::PathBuf::from("C:/ProgramData/SC-Sentinel/config/.host-key")
+        );
     }
 
     #[test]

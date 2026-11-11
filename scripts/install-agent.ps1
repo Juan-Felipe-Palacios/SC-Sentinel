@@ -172,7 +172,9 @@ template_cache_capacity = 10000
 template_cache_ttl_secs = 3600
 "@
 
-Set-Content -Path $ConfigFile -Value $configContent -Encoding UTF8
+# Sin BOM: el crate `toml` lo tolera, pero un config sin BOM es lo portable
+# (PS 5.1 escribe UTF-8 con BOM en -Encoding UTF8).
+[System.IO.File]::WriteAllText($ConfigFile, "$configContent`r`n", [System.Text.UTF8Encoding]::new($false))
 
 # Paso 6: Aplicar permisos restrictivos usando SIDs con prefijo *
 Write-Step "Aplicando permisos de seguridad..."
@@ -183,14 +185,16 @@ if ($LASTEXITCODE -ne 0) {
  Write-Error-Exit "icacls config.toml falló"
 }
 
-# Directorio de logs: SYSTEM puede escribir, Administradores pueden leer
-icacls $LogDir /inheritance:r /grant "*${SystemSid}:(OI)(CI)(F)" /grant "*${AdminsSid}:(OI)(CI)(R)" | Out-Null
+# Directorio de logs: SYSTEM escribe, Administradores también (F) para poder
+# diagnosticar y rotar el agent.log (con solo lectura, abrirlo en modo
+# escritura para diagnóstico falla con "Acceso denegado").
+icacls $LogDir /inheritance:r /grant "*${SystemSid}:(OI)(CI)(F)" /grant "*${AdminsSid}:(OI)(CI)(F)" | Out-Null
 if ($LASTEXITCODE -ne 0) {
  Write-Error-Exit "icacls logs falló"
 }
 
-# Directorio de spool: solo SYSTEM
-icacls $SpoolDir /inheritance:r /grant "*${SystemSid}:(OI)(CI)(F)" | Out-Null
+# Directorio de spool: SYSTEM escribe; Administradores leen (diagnóstico)
+icacls $SpoolDir /inheritance:r /grant "*${SystemSid}:(OI)(CI)(F)" /grant "*${AdminsSid}:(OI)(CI)(RX)" | Out-Null
 if ($LASTEXITCODE -ne 0) {
  Write-Error-Exit "icacls spool falló"
 }
@@ -209,7 +213,11 @@ $envValue = @("SC_INGEST_TOKEN=$IngestToken", "SC_SENTINEL_DEVICE_ID=$DeviceId")
 
 # Paso 8: Crear servicio
 Write-Step "Creando servicio Windows..."
-$binPathQuoted = "`"$BinPath`" --config `"$ConfigFile`""
+# El servicio arranca en modo collector-only (`--no-capture`): la fuente
+# de datos del daemon es el colector UDP (fuente exclusiva, ver
+# docs/testing/pcap-vs-flow.md). Sin este flag el agente exigiría una
+# interfaz de captura y abortaría con código 2.
+$binPathQuoted = "`"$BinPath`" --config `"$ConfigFile`" --no-capture"
 
 # Esperar a que un servicio previo (incluido "marked for delete") desaparezca
 # por completo del SCM; si no, la creacion falla con ERROR_SERVICE_MARKED_FOR_DELETE 1072.
