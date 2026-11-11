@@ -11,6 +11,10 @@ const RANGE_OPTIONS = ['15m', '1h', '6h', '24h', '7d', '30d'] as const;
 
 const SECTION_TITLES: Array<{ prefix: string; eyebrow: string; title: string }> = [
   { prefix: '/dashboard/overview', eyebrow: 'Módulo en ejecución', title: 'Resumen de tráfico' },
+  { prefix: '/dashboard/hosts', eyebrow: 'Inventario de endpoints', title: 'Hosts monitoreados' },
+  { prefix: '/dashboard/connections', eyebrow: 'Matriz de conexiones', title: 'Conexiones y geografía' },
+  { prefix: '/dashboard/alerts', eyebrow: 'Motor de alertas', title: 'Alertas y anomalías' },
+  { prefix: '/dashboard/evals', eyebrow: 'Observabilidad IA', title: 'Evals de IA' },
   { prefix: '/dashboard/settings', eyebrow: 'Gobernanza de secretos', title: 'Dispositivos y tokens' },
 ];
 

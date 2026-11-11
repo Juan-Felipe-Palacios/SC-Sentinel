@@ -27,9 +27,9 @@ interface NavEntry {
 
 const NAV_ITEMS: NavEntry[] = [
   { label: 'Overview', href: '/dashboard/overview', icon: LayoutDashboard },
-  { label: 'Hosts', href: null, icon: Server, badge: 'pronto' },
-  { label: 'Conexiones', href: null, icon: Network, badge: 'pronto' },
-  { label: 'Alertas', href: null, icon: ShieldAlert, badge: 'pronto' },
+  { label: 'Hosts', href: '/dashboard/hosts', icon: Server },
+  { label: 'Conexiones', href: '/dashboard/connections', icon: Network },
+  { label: 'Alertas', href: '/dashboard/alerts', icon: ShieldAlert },
   { label: 'Evals de IA', href: '/dashboard/evals', icon: BarChart3 },
   { label: 'Exports', href: '/dashboard/admin/exports', icon: BarChart3 },
   { label: 'Trust Access', href: '/dashboard/admin/trust-access', icon: ShieldCheck },

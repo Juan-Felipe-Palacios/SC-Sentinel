@@ -74,6 +74,54 @@ const deepDives = [
       "La IA enriquece; el motor determinista decide",
     ],
   },
+  {
+    n: "05",
+    kicker: "Colector pasivo NetFlow / IPFIX",
+    title: "También observa lo que no pasa por tu PC.",
+    body: "El agente incluye un colector pasivo para NetFlow v5/v9 e IPFIX: recibe flujos exportados por routers y switches, los normaliza y los agrega en las mismas ventanas deterministas. Las métricas del colector quedan visibles en el dashboard para vigilar pérdida y plantillas.",
+    bullets: [
+      "NetFlow v5, v9 e IPFIX soportados",
+      "Normalización a las mismas ventanas de 30 s",
+      "Métricas de paquetes recibidos, descartados y parse errors",
+      "Plantillas cacheadas y flujos normalizados visibles en agent_health",
+    ],
+  },
+  {
+    n: "06",
+    kicker: "Chatbot con RAG",
+    title: "Consultá el estado de tu red en lenguaje natural.",
+    body: "Un asistente con RAG responde sobre tus datos agregados con streaming SSE e historial. Solo accede a señales agregadas y hashes anonimizados; nunca a paquetes crudos. Funciona para administradores y visitantes de la demo en modo solo lectura.",
+    bullets: [
+      "Streaming SSE con respuestas progresivas",
+      "Historial de conversación persistido",
+      "Contexto solo sobre señales agregadas",
+      "Degradación elegante si el servicio no está disponible",
+    ],
+  },
+  {
+    n: "07",
+    kicker: "Exports y Trust Pages",
+    title: "Datos auditables y compartibles con control.",
+    body: "Exportá datasets en CSV o XLSX con streaming y auditoría de quién descargó qué. Las Trust Pages permiten compartir resúmenes públicos por token, con rotación, revocación y registro de accesos.",
+    bullets: [
+      "Export CSV/XLSX con streaming para datasets grandes",
+      "Auditoría de descargas por usuario y período",
+      "Trust Pages por token con expiración",
+      "Rotación, revocación y log de accesos",
+    ],
+  },
+  {
+    n: "08",
+    kicker: "Evals y salud del agente",
+    title: "Observabilidad del sistema que te protege.",
+    body: "El dashboard incluye métricas de AI Evals (coste, latencia y tasa de éxito por modelo) y la salud del agente local (captura, spool, cola y métricas del colector). Así podés verificar que el motor y la IA funcionan como esperás.",
+    bullets: [
+      "Coste, latencia p50/p95 y tasa de éxito por modelo",
+      "Estado de captura, spool y cola del agente",
+      "Métricas del colector NetFlow/IPFIX",
+      "Limpieza programada de datos por retención",
+    ],
+  },
 ];
 
 const cards = [

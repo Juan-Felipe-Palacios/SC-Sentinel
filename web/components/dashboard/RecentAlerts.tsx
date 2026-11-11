@@ -32,9 +32,7 @@ export function RecentAlerts({ alerts }: { alerts: AlertItem[] }) {
         </div>
         <Link
           href="/dashboard/alerts"
-          aria-disabled="true"
-          title="Disponible próximamente"
-          className="pointer-events-none font-mono text-[9px] uppercase tracking-[0.2em] text-slate-400/50"
+          className="font-mono text-[9px] uppercase tracking-[0.2em] text-sky-400 transition-colors hover:text-sky-300"
         >
           Ver todas →
         </Link>
