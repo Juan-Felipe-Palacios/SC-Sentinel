@@ -1,0 +1,37 @@
+flowchart TB
+    Admin[Administrador]
+    Guest["Visitante (demo)"]
+    Analyst[SOC Analyst]
+    Router[Router / Switch<br/>sFlow · IPFIX · NetFlow]
+
+    subgraph Local["Nodo local (PC del cliente)"]
+        Agent["sc-agent (Rust)<br/>captura + sc-detect + sc-aggregate"]
+        Spool[(SQLite Spool)]
+        Agent --> Spool
+    end
+
+    Router -->|UDP sFlow / IPFIX / NetFlow| Agent
+    Agent -->|HTTPS POST WindowSnapshot<br/>gzip / zstd| Ingest
+
+    subgraph Vercel["Vercel — Next.js 15"]
+        Landing["Landing pública (SSG)"]
+        Dashboard[Dashboard privado<br/>SSE + SWR]
+        Ingest[/api/ingest/]
+        Query[/api/query/]
+        Chat[/api/chat/]
+        AICron[/api/ai/cron/]
+    end
+
+    Analyst --> Dashboard
+    Admin --> Dashboard
+    Guest --> Dashboard
+    Dashboard --> Query
+    Query --> Neon
+    Ingest --> Neon
+    AICron --> Neon
+    AICron --> Providers[IA: Gemini → OpenRouter → Groq]
+
+    Neon[(Neon Postgres)]
+
+    Browser[Navegador] --> Landing
+    Browser --> Dashboard

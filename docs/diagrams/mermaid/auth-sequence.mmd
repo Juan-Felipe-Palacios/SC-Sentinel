@@ -1,0 +1,46 @@
+sequenceDiagram
+    autonumber
+    participant U as Usuario (navegador)
+    participant L as /api/auth/login
+    participant G as /api/auth/guest-login
+    participant S as Sesión (cookie HS256)
+    participant D as /api/devices/:id/rotate
+    participant I as /api/ingest
+    participant DB as Neon Postgres
+
+    rect rgb(240,248,255)
+    Note over U,S: Flujo admin
+    U->>L: POST { password: ADMIN_SECRET }
+    L->>L: rate limit por IP (5/min) + safeEqual (const-time)
+    alt credenciales válidas
+        L->>S: firma sc_session (HS256, SC_SESSION_SECRET ≥32)
+        S-->>U: Set-Cookie sc_session (httpOnly, Secure, SameSite=Lax)
+    else inválidas
+        L-->>U: 401 invalid_credentials (delay 250 ms)
+    end
+    end
+
+    rect rgb(245,255,245)
+    Note over U,S: Flujo guest (demo)
+    U->>G: POST /api/auth/guest-login
+    G->>G: resuelve device (SC_GUEST_DEVICE_ID obligatorio en prod)
+    alt device resuelto
+        G->>S: firma sc_guest (1 h, solo lectura)
+        S-->>U: Set-Cookie sc_guest
+    else sin allowlist en prod
+        G-->>U: 404
+    end
+    end
+
+    rect rgb(255,245,240)
+    Note over U,I: Rotación de token de device (M7)
+    U->>D: POST /api/devices/:id/rotate (cookie admin)
+    D->>DB: UPDATE devices SET token_hash = SHA-256(nuevo)
+    DB-->>D: ok
+    D-->>U: { device_id, token } (una sola vez, no-store)
+    Note over I: token anterior deja de autenticar al instante
+    U->>I: POST + Bearer token (nuevo)
+    I->>DB: SHA-256(token) vs devices.token_hash
+    DB-->>I: válido
+    I-->>U: 200 processed
+    end

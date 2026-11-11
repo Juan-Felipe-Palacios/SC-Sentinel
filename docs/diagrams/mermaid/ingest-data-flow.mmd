@@ -1,0 +1,46 @@
+graph LR
+    subgraph Entrada[Entrada]
+        R[Router / Switch<br/>sFlow · IPFIX · NetFlow]
+    end
+
+    subgraph Colector[Colector]
+        C[sc-collector<br/>parse UDP · templates IPFIX]
+        N[normalizer<br/>FlowUpdate]
+    end
+
+    subgraph Agregacion[Agregación y detección]
+        A[sc-aggregate<br/>ventana 30–60 s]
+        D["⚠️ sc-detect<br/>reglas (parcial/stub en v1)"]
+        S[sc-sync<br/>spool SQLite]
+    end
+
+    subgraph Nube["Nube (Vercel + Neon)"]
+        I[/api/ingest/]
+        V[validación zod + descompresión]
+        DB[(Neon Postgres<br/>flow_windows · alerts · agent_health)]
+        H[⚠️ heurística cloud<br/>si risk_score es null]
+    end
+
+    subgraph Salida[Salida]
+        Q[/api/query/]
+        Dash[Dashboard<br/>overview · hosts · alerts]
+    end
+
+    R -->|UDP| C
+    C --> N
+    N -->|FlowUpdate| A
+    A -->|WindowSnapshot| D
+    D -->|alerts + risk_scores| A
+    A -->|WindowSnapshot| S
+    S -->|HTTPS POST<br/>&lt;100 ms ingest| I
+    I --> V
+    V --> DB
+    V --> H
+    H --> DB
+    DB --> Q
+    Q --> Dash
+
+    note1[Latencias: ingest &lt; 100 ms · snapshot cada 60 s · spool drena ~60 req/min]
+    note2["⚠️ BRECHA: sc-detect aún no emite risk_score/alerts reales<br/>heurística cloud cubre el hueco (ADR-0005)"]
+    note1 -.-> S
+    note2 -.-> D

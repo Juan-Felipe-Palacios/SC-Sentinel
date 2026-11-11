@@ -5,7 +5,8 @@ Objetivo: mantener la DB Neon free dentro de 0,5 GB (sizing proyectado ~250 MB, 
 ## Automático (por diseño)
 
 - `/api/cron/cleanup` corre **diario 03:00 UTC** vía Vercel Cron (o cron externo con `x-cron-secret`, spec §5.4).
-- Retención aplicada (§12.1): `flow_windows` 7 d · `host_stats` (derivada) 7 d · `alerts` 30 d · `ai_insights` 15 d · `agent_health` 7 d · `ingest_batches` 2 d · rollups diarios 90 d (si existen).
+- Retención aplicada (§12.1): `flow_windows` 7 d · `host_stats` (derivada) 7 d · `alerts` 30 d · `alert_audit_log` 90 d · `ai_insights` 15 d · `agent_health` 7 d · `ingest_batches` 2 d · rollups diarios 90 d (si existen).
+- `alert_notes` se borra en cascada con su alerta; `alert_audit_log` no tiene FK y se conserva 90 d para que la traza sobreviva a la retención de la alerta.
 - Log de espacio liberado por tabla en cada ejecución: cuánto borró y de qué tabla.
 
 ## Monitoreo manual (checklist semanal)

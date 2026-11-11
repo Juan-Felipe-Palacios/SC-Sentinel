@@ -1,0 +1,27 @@
+flowchart LR
+    Dev[Desarrollador] -->|push / PR| GH[GitHub Actions]
+
+    subgraph CI["CI (GitHub Actions)"]
+        Rust[cargo test + clippy + audit]
+        Web[pnpm typecheck + lint + test + build]
+        Contracts["contracts.yml (zod↔serde)"]
+        Sign["Firma de artefactos (release)"]
+    end
+
+    GH --> Rust
+    GH --> Web
+    GH --> Contracts
+    GH --> Sign
+
+    Rust --> Art[Artefactos firmados]
+    Web --> Art
+    Sign --> Art
+
+    Art -->|deploy web|    Vercel["Vercel<br/>Next.js 15 (Edge/Node)"]
+    Art -->|migraciones| Neon[(Neon Postgres)]
+    Art -->|binarios firmados| Release[GitHub Releases<br/>sc-agent Windows/Linux]
+
+    Release -->|instalador| Agent[sc-agent en nodo del cliente]
+    Agent -->|HTTPS POST| Vercel
+
+    Vercel --> Neon

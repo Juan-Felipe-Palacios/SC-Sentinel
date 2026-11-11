@@ -7,6 +7,8 @@ Monitor de red con motor determinista local + dashboard en la nube. El agente ca
 - `agent/` — workspace Rust (agente local: captura, agregación, sincronización). Ver `agent/README.md`.
 - `web/` — Next.js 15 (dashboard + landing). Ver `web/README.md`.
 - `docs/` — spec (fuente de verdad), ADRs, contratos, runbooks, testing. Empezar por `docs/README.md`.
+- `docs/atlas.pdf` — atlas de documentación completo en A4 vectorial (283 páginas: 91 docs + 12 diagramas SVG embebidos). Generado con Chrome headless print-to-pdf.
+- `docs/diagrams/exports/` — 12 diagramas en formato vectorial: `.svg` (fuente), `.dxf` (CAD, uno por diagrama) y `.png` (3 diagramas clave). Conversión SVG→DXF vía `scripts/svg2dxf.py` (ezdxf).
 
 ## Desarrollo local (requerido: Rust stable, Node 20, pnpm 9)
 

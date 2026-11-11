@@ -15,6 +15,11 @@ Fuente de verdad del contenido: `docs/superpowers/specs/SC-Sentinel-Spec-Complet
 | `database-erd.mmd` | Alta — antes de M1 | ERD de las 7 tablas (§6) |
 | `ai-cron-sequence.mmd` | Media — antes de M3 | Gate 15 min + datos nuevos, dedup facts_hash, cadena multi-proveedor, backoff 5xx, degraded |
 | `alert-lifecycle.mmd` | Media — antes de M3 | Estados de alerta: open → acknowledged → resolved + retención 30 d |
+| `c4-containers.mmd` | Alta — visual docs | C4 Level 2: contenedores (sc-agent, Vercel, Neon, IA) |
+| `ingest-data-flow.mmd` | Alta — visual docs | DFD nivel 1 del pipeline de ingest con latencias y ⚠️ heurística cloud |
+| `auth-sequence.mmd` | Alta — visual docs | Secuencia admin/guest + rotación de token de device (M7) |
+| `risk-score-calculation.mmd` | Media — visual docs | Cómo se calcula risk_score (determinista + heurística cloud) |
+| `deployment.mmd` | Media — visual docs | Despliegue GitHub Actions → Vercel + Neon + agente |
 
 ## drawio/
 
@@ -28,3 +33,30 @@ Fuente de verdad del contenido: `docs/superpowers/specs/SC-Sentinel-Spec-Complet
 ## exports/
 
 Generar bajo demanda desde los fuentes (`.mmd` vía mermaid-cli `mmdc`; `.drawio` vía export de la app). **Regla:** si un export entra en un documento publicado en producción, re-generarlo del fuente congelado — no editar el export a mano.
+
+**Atlas vectorial (A4):** `docs/atlas.pdf` (documentación completa + diagramas SVG embebidos, 283 páginas) y `docs/diagrams/exports/*.dxf` (un DXF por diagrama, geometría vectorial CAD). Conversión SVG→DXF: `scripts/svg2dxf.py` (svgpathtools + ezdxf).
+
+## Checklist de calidad visual (cada diagrama)
+
+- Self-contained: se entiende sin leer el texto.
+- Versionable: está en código (Mermaid/D2), no PNG.
+- Actualizable: si cambio el código, ¿puedo actualizar el diagrama en 5 min?
+- Nivel correcto: no mezcla detalles de implementación con arquitectura.
+- Fecha y autor: quién lo hizo, cuándo, para qué versión (en el PR).
+- Leyenda: símbolos explicados.
+- Accesible: descripción textual alternativa (el `.md` que lo acompaña).
+
+## Automatización (docs que no mueren)
+
+```bash
+# Grafo de dependencias Rust
+cd agent && cargo tree --format "{p}" | dot -Tsvg > ../docs/diagrams/exports/deps.svg
+
+# ERD desde el schema SQL (Neon)
+pg_dump --schema-only "$DATABASE_URL" | npx pg-erd > docs/diagrams/exports/schema.mmd
+
+# Diagramas Mermaid a SVG/PNG
+npx -y @mermaid-js/mermaid-cli -i docs/diagrams/mermaid/system-context.mmd -o docs/diagrams/exports/system-context.svg
+```
+
+Los exports generados no se versionan (`.gitignore`); se regeneran del fuente al publicar.

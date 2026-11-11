@@ -1,0 +1,30 @@
+flowchart TD
+    W[WindowSnapshot agregado] --> D[sc-detect evalúa el host]
+
+    D --> R1{¿blacklist_hit?}
+    R1 -- sí --> S1[bump_score 0.98 · Critical]
+    R1 -- no --> R2{¿port_scan?}
+    R2 -- sí --> S2[bump_score 0.65–0.9 · Medium/High/Critical]
+    R2 -- no --> R3{¿inbound_port_scan?}
+    R3 -- sí --> S3[bump_score 0.7–0.9]
+    R3 -- no --> R4{¿dns_tunneling?}
+    R4 -- sí --> S4[bump_score 0.8 · High]
+    R4 -- no --> R5{¿volume_anomaly?}
+    R5 -- sí --> S5[bump_score 0.45–0.6 · Medium/High]
+    R5 -- no -->    None["risk_score = null<br/>(sin regla disparada)"]
+
+    S1 -->    Max["bump_score = max(score actual, nuevo)<br/>por host_key"]
+    S2 --> Max
+    S3 --> Max
+    S4 --> Max
+    S5 --> Max
+    Max -->    Apply["detect_and_apply<br/>top_hosts[].risk_score = Some(score)"]
+
+    None --> Ingest[POST /api/ingest]
+    Apply --> Ingest
+    Ingest --> Cloud{¿risk_score null<br/>y alerts vacías?}
+    Cloud -- sí -->    Heur["⚠️ heurística cloud (ADR-0005)<br/>señales del payload → piso banda baja<br/>+ alerta cloud_heuristic si banda media/alta"]
+    Cloud -- no -->    Persist["persiste risk_score del agente<br/>(prioridad siempre)"]
+    Heur --> Persist
+    Persist --> Bandas[Bandas: &lt;0.4 bajo · 0.4–0.7 medio · ≥0.7 alto]
+    Bandas --> Dash[Dashboard: RiskBadge · RiskSummary · heatmap]

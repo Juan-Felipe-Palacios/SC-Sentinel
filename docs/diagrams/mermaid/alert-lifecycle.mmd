@@ -1,13 +1,17 @@
 stateDiagram-v2
     [*] --> Open : rule strike en sc-detect<br/>(alerts INSERT + alert_id en snapshot)
 
-    Open --> Acknowledged : click "ack" desde /dashboard/alerts<br/>(cookie admin)
-    Acknowledged --> Resolved : confirmado por dueno
+    Open --> Acknowledged : click "ack" desde /dashboard/alerts<br/>(cookie admin + evento de auditoria)
+    Acknowledged --> Resolved : confirmado por dueno<br/>(evento de auditoria)
     Open --> Resolved : auto-resolucion regla (si aplica)
     Open --> Acknowledged : nada en auto (siempre manual el ack)
+
+    note right of Open : Asignacion textual, notas y auditoria<br/>en cada estado; las notas se borran con la alerta.<br/>alert_audit_log se conserva 90 dias.
 
     Open --> Open : no se recoge en ventanas nuevas<br/>(snapshot SOLO lleva alerts nuevas de su ventana)
     Resolved --> Open : si la regla vuelve a disparar<br/>(alerta NUEVA con nuevo alert_id)
 
     Resolved --> [*] : retencion 30 dias (cron cleanup)
     Acknowledged --> [*] : retencion 30 dias (cron cleanup)
+
+    note left of Open : P0 pendiente - implementar API ack y resolve mas auditoria

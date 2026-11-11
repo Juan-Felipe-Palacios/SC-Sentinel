@@ -12,7 +12,15 @@
 | `superpowers/plans/` | 8 planes de ejecución: M0, M1, M2, M3, M4, M5 y Ruta B v1/v2 | spec §13 |
 | `adr/` | 14 decisiones de arquitectura (0001–0014) | spec §3 |
 | `contracts/` | contratos `/api/ingest` v1 y `/api/chat` v1 + 3 schemas JSON + 4 ejemplos en `examples/` | spec §5, §6 |
-| `diagrams/` | 7 mermaid en `mermaid/` + 4 drawio en `drawio/` + reglas de exports (`README.md` propio) | spec §17 |
+| `diagrams/` | 12 mermaid en `mermaid/` + 4 drawio en `drawio/` + reglas de exports (`README.md` propio) | spec §17 |
+| `architecture/` | C4 overview (L1–L3), data-flow (DFD), decisiones (atajo a `adr/`) | spec §3, §17 |
+| `operations/` | deployment, alert-lifecycle, slo, observability (complementan `runbooks/`) | spec §8, §9, §12 |
+| `tutorials/` | quickstart del agente y del dashboard | onboarding |
+| `how-to/` | rotación de secretos, debug de ingest, backup/restore, reglas, upgrade | operación |
+| `explanation/` | threat-model, privacidad/retención, IA determinista, caching | spec §3 |
+| `governance/` | contribución, versionado | proceso |
+| `reference/` | api-contracts, data-model (ERD), detection-rules | spec §5, §6 |
+| `visuals/` | risk-score-calculation, multi-tenant-future | spec §17 |
 | `runbooks/` | 11: local-dev, inst. Windows/Linux, troubleshoot pcap/sync, colector MikroTik/Cisco, rotación token, cleanup DB, incident-response, rotación Trust Pages, export datasets grandes | spec §8, §9, §12, §13 |
 | `testing/` | 6 docs (test-plan, acceptance-criteria por hito, fixtures, release-checklist, throughput-benchmark, pcap-vs-flow) + `fixtures/` con capturas pcap/NetFlow/IPFIX | spec §14, §15 |
 | `ux/` | 6: landing-sitemap, dashboard-wireframes, design-tokens, copywriting, login-drone-show y prototipo M3.5 (HTML) | spec §18 |
@@ -20,6 +28,8 @@
 | `release/` | versioning, changelog, signing, deployment | spec §15, §20 |
 | `security/` | Auditorías de seguridad: hallazgos priorizados, parches y plan de ejecución | — |
 | `ai-evals-metrics.md` | Definición de métricas de AI Evals (coste, latencia, tasa de éxito) | Ruta B v2 |
+| `atlas.pdf` | Atlas de documentación completo en A4 vectorial (91 docs + 12 diagramas SVG) | visual docs |
+| `diagrams/exports/*.dxf` | 12 diagramas en formato CAD (DXF) vectorial | visual docs |
 
 ## Rutas de la aplicación
 
@@ -48,7 +58,15 @@ Módulos que sostienen estas rutas: `web/lib/export`, `web/lib/ai/metrics.ts` y 
 | superpowers/plans/ | ✅ 8 planes (M0–M5, Ruta B v1/v2) | M0–M5 |
 | adr/ | ✅ 14 ADRs (0001–0014) | M0, M3.5, M4 |
 | contracts/ | ✅ v1 congelados (3 schemas + 4 ejemplos) | M0 |
-| diagrams/ | ✅ 11 fuentes creadas | M0–M5 |
+| diagrams/ | ✅ 17 fuentes (12 mermaid + 4 drawio + exports) | M0–M5 + visual docs |
+| architecture/ | ✅ C4 + DFD + atajo ADRs | visual docs |
+| operations/ | ✅ deployment + alert-lifecycle | visual docs |
+| reference/ | ✅ api-contracts + data-model + detection-rules | visual docs |
+| visuals/ | ✅ risk-score + multi-tenant-future | visual docs |
+| tutorials/ | ✅ 2 quickstarts | onboarding |
+| how-to/ | ✅ 5 guías | operación |
+| explanation/ | ✅ 4 explicaciones | spec §3 |
+| governance/ | ✅ contribución + versionado | proceso |
 | runbooks/ | ✅ 11 escritos (a verificar contra instalación real en M5) | M1–M5 |
 | testing/ | ✅ 6 docs + fixtures binarios | M0–M5 |
 | ux/ | ✅ 6 (tokens de marca: valores definidos en la extracción M3) | M3, M3.5 |
