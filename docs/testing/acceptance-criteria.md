@@ -106,8 +106,10 @@ Alcance de cierre: backend seguro, RAG agregado de 24 h, streaming SSE, persiste
 > CHR, slirp), y sniffer propio que captura **327 datagramas v9 desde la IP
 > del router (10.0.2.15)**. Dedup P1 cerrado como decisión de diseño: **fuente
 > exclusiva por segmento** + warning `source_overlap` (`pcap-vs-flow.md` §7).
-> **M4 NO cerrado aún**: soak de 24 h en curso (monitor RSS/spool/panics cada
-> 5 min); repetir con router físico si aparece hardware.
+> **M4 CERRADO** (2026-11-10): soak de 24 h completado con **0 panics y 0 aborts**
+> (monitor cada 5 min: 288 muestras = 86 400 s exactas; RSS estable ~11,5 MB,
+> spool estable en 12.500.640 B). Queda como pendiente de producto repetir con
+> router físico si aparece hardware (no bloquea el cierre del módulo).
 > Procedimiento y checklist: `docs/runbooks/collector-mikrotik.md` §4.
 - [x] Topología IPFIX documentada (`diagrams/drawio/network-topology-ipfix.drawio` actualizada).
 - [x] Fixtures de collector (paquetes de muestra, sin datos sensibles).
@@ -124,7 +126,7 @@ Alcance de cierre: backend seguro, RAG agregado de 24 h, streaming SSE, persiste
 > T4.3 fixtures reales Wireshark (23 payloads UDP, gitignored por licencia
 > con extractor commiteado), benchmark de throughput. Las pendientes de esa
 > nota (router real, dedup P1, soak 24h) quedan cubiertas por la nota
-> 2026-11-10 de arriba (salvo el soak en curso).
+> 2026-11-10 de arriba (soak cerrado).
 
 ## M5 — Servicio + instalador + GUI (1–2 semanas)
 

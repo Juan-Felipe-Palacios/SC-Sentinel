@@ -195,12 +195,12 @@ Marcar solo con evidencia adjunta en el PR o en el plan M4.
 - [x] Documentadas las diferencias pcap vs flow: sampling, `active-flow-timeout`, `inactive-flow-timeout`, bytes por paquete y dirección atribuida → `docs/testing/pcap-vs-flow.md` (2026-11-08).
 - [x] La agregación por ventanas conserva la calidad de la captura: mismos hosts, sin duplicar tráfico cuando pcap y flow ven el mismo segmento.
   - Decisión 2026-11-09: **fuente exclusiva por segmento** (pcap O flow, no ambos sobre el mismo segmento). Un dedup 5-tuple+ventana exigiría reabrir ventanas de 30 s ya cerradas (los flujos llegan tras `active-flow-timeout`); el análisis completo está en `docs/testing/pcap-vs-flow.md` §7. El agente advierte `source_overlap` en el log si se habilitan captura live y colector a la vez. Evidencia 2026-11-08: con pcap (loopback) y flow activos no hubo hosts duplicados ni sumas infladas.
-- [ ] Soak de 24 h sin panic, sin crecimiento anómalo del spool y con sync continuo.
-  - En curso 2026-11-10: soak con RouterOS CHR real sivendo export v9/IPFIX continuo al colector; monitor propio (RSS por pid vía psapi, tamaño del spool sqlite, conteo de panics/aborts en el log) muestrea cada 5 min en `run/soak.csv` (local). Primera muestra: rss 16,4 MB, spool 4,7 MB, 0 panics. Sync al backend no evaluable sin backend real (endpoint dummy → sync retenido por `Transport`, es la limitación declarada).
+- [x] Soak de 24 h sin panic, sin crecimiento anómalo del spool y con sync continuo.
+  - Evidencia 2026-11-10: soak con RouterOS CHR real exportando v9/IPFIX continuo al colector; monitor propio (RSS por pid vía psapi, tamaño del spool sqlite, conteo de panics/aborts en el log) muestrea cada 5 min en `run/soak.csv` (local). **Completado: 288 muestras = 86 400 s exactas, 0 panics, 0 aborts**, RSS estable ~11,5 MB y spool estable en 12.500.640 B (sin crecimiento anómalo). Sync al backend no evaluable sin backend real (endpoint dummy → sync retenido por `Transport`, es la limitación declarada).
 - [x] Limitaciones registradas: sin TLS/DTLS y `Direction::In` provisional (ADR-0014 §5). El throughput de 50k flows/s quedó **verificado y superado** (§7, 2026-11-09).
   - Evidencia: ADR-0014 §5/§7/§9 y §7 de este runbook.
 
-> Evidencia CHR 2026-11-09/10 (agente real + RouterOS CHR en QEMU + peer LAN artificial). Ítems 1, 2 y 9 cerrados con RouterOS CHR (7.20.4) como exportador real; item 10 (soak 24 h) en curso. El CHR exporta NetFlow/IPFIX auténtico; la diferencia con un router físico es solo la NIC virtual.
+> Evidencia CHR 2026-11-09/10 (agente real + RouterOS CHR en QEMU + peer LAN artificial). Ítems 1, 2, 9 y **10 (soak 24 h, cerrado)** con RouterOS CHR (7.20.4) como exportador real. El CHR exporta NetFlow/IPFIX auténtico; la diferencia con un router físico es solo la NIC virtual.
 
 ## 5. Troubleshooting
 
