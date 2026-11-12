@@ -109,7 +109,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.meta.outputs.tag }}
         run: |
-          $files = Get-ChildItem dist -File | ForEach-Object { $_.FullName }
+          # Solo se publican los artefactos y el manifiesto de sumas: los
+          # sidecar SHA256SUMS-<target>.txt son intermedios de la fusion.
+          $files = Get-ChildItem dist -File |
+            Where-Object { $_.Name -notlike 'SHA256SUMS-*.txt' } |
+            ForEach-Object { $_.FullName }
+          if (-not $files) { throw "No hay artefactos que publicar" }
           gh release view $env:TAG *> $null
           if ($LASTEXITCODE -eq 0) {
             Write-Host "La release $env:TAG ya existe: se suben los artefactos."
