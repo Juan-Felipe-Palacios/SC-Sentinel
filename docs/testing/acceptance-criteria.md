@@ -272,6 +272,24 @@ Hecha sobre el **ZIP descargado de la release v0.1.3**, no sobre el binario loca
       `D:\ProyectosWeb`, sin `CARGO_MANIFEST_DIR`, sin `crates\sc-geo`, sin
       `.cargo\registry`.
 
+### Release v0.1.4 (artefactos republicados y verificados)
+
+- [x] **Guardia de coherencia de versiones**: `scripts/check-doc-versions.ps1`
+      falla si un runbook o script de entrega cita una versión distinta de la
+      del paquete; el empaquetador reescribe `VER=` en la guía de Linux.
+      *Origen del defecto:* la guía de Linux empaquetada en v0.1.3 apuntaba a
+      `v0.1.1`, cuya release estaba rota.
+- [x] **ZIP de Windows v0.1.4**: 8 ficheros (`geolite2/GeoLite2-Country.mmdb`
+      incluido), `SHA256SUMS.txt` interno **7/7 OK**, `--version` → `0.1.4`,
+      `--list-interfaces` → **10 dispositivos Npcap**, los 5 patrones prohibidos
+      ausentes del binario.
+- [x] **Suma publicada del ZIP**: `518603266f28739265dae727577da4c86ac60107c54176cae84cdb38b411f62e`
+      (coincide con el `SHA256SUMS.txt` de la release).
+- [x] **tar.gz de Linux v0.1.4**: `INSTALACION-LINUX.md` con `VER=0.1.4`,
+      sumas internas **3/3 OK**, y el ELF **no enlaza `libpcap`**
+      (`NEEDED = libgcc_s.so.1, libm.so.6, libc.so.6, ld-linux-x86-64.so.2`)
+      → arranca en equipos sin Npcap.
+
 ### Lección operativa (documentada)
 
 - [x] **La trampa del `mtime`**: Cargo decide recompilar por fecha de
@@ -289,3 +307,15 @@ Hecha sobre el **ZIP descargado de la release v0.1.3**, no sobre el binario loca
 > reinstalación) sobre el binario de la release. Todo lo que **no** requiere
 > elevación ya está verificado arriba; lo que queda es el ciclo del SCM
 > (instalar/desinstalar/recovery), que necesita un token de administrador.
+>
+> El script está escrito y listo (`%TEMP%\m4-chr\run\m5-verify2.ps1`, 10 etapas
+> P0..P9, todo con los `.bat` de un clic del ZIP publicado). Se auto-eleva, así
+> que basta con lanzarlo y **aceptar el aviso de UAC**:
+>
+> ```powershell
+> powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\m4-chr\run\m5-verify2.ps1"
+> ```
+>
+> Transcript: `%TEMP%\m4-chr\run\m5-verify2.log`. Hasta la fecha el aviso de
+> UAC se ha cancelado en los intentos automáticos (siete), por lo que el ciclo
+> queda a un solo clic de administrador.
