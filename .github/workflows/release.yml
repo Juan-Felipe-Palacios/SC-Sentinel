@@ -53,13 +53,105 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      # Higiene del artefacto: rustc incrusta en el binario la ruta de los
+      # fuentes de cada dependencia (`file!()`), que en Windows es la carpeta
+      # del usuario de la maquina de build. Se remapea para que el .exe
+      # publicado no dependa de donde se compilo. Sin comillas: cargo no las
+      # quita y rustc receberia un prefijo con caracteres literales.
+      - name: Remapear rutas de compilacion (higiene del binario)
+        shell: pwsh
+        run: |
+          $cargoHome = $env:CARGO_HOME
+          if (-not $cargoHome) {
+            if ($env:USERPROFILE) { $cargoHome = Join-Path $env:USERPROFILE '.cargo' }
+            else { $cargoHome = Join-Path $env:HOME '.cargo' }
+          }
+          $cargoHome = $cargoHome -replace '\\', '/'
+          if ($cargoHome -match '\s') {
+            Write-Host "CARGO_HOME contiene espacios: se omite el remapeo ($cargoHome)"
+            exit 0
+          }
+          $flags = "--remap-path-prefix=$cargoHome=/cargo"
+          if ($env:RUSTFLAGS) { $flags = "$env:RUSTFLAGS $flags" }
+          "RUSTFLAGS=$flags" >> $env:GITHUB_ENV
+          Write-Host "RUSTFLAGS=$flags"
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: agent -> target
 
-      - name: Compilar agente
+      # El crate `pcap` enlaza contra la biblioteca de import de Npcap
+      # (`wpcap.lib`). Sin el SDK la feature `live` no compila en Windows y el
+      # agente publicado no puede capturar.
+      - name: Instalar Npcap SDK (Windows, feature live)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $sdk = Join-Path $env:RUNNER_TEMP 'npcap-sdk'
+          New-Item -ItemType Directory -Force -Path $sdk | Out-Null
+          $zip = Join-Path $env:RUNNER_TEMP 'npcap-sdk.zip'
+          Invoke-WebRequest -Uri 'https://npcap.com/dist/npcap-sdk-1.13.zip' -OutFile $zip -UseBasicParsing
+          Expand-Archive -Force -Path $zip -DestinationPath $sdk
+          $lib = Join-Path $sdk 'Lib\x64'
+          if (-not (Test-Path (Join-Path $lib 'wpcap.lib'))) {
+            throw "el SDK de Npcap descargado no contiene Lib\x64\wpcap.lib"
+          }
+          # LIBPCAP_VER evita que el build script intente deducir la version
+          # cargando wpcap.dll (el runtime de Npcap no esta en el runner).
+          "LIBPCAP_VER=1.0.0" >> $env:GITHUB_ENV
+          "LIBPCAP_LIBDIR=$lib" >> $env:GITHUB_ENV
+
+      # En Windows la captura live es obligatoria: el agente publicado tiene que
+      # poder capturar sin recompilar.
+      - name: Compilar agente (Windows, con captura live)
+        if: matrix.target == 'windows-x64'
+        working-directory: agent
+        run: cargo build --release -p sc-agent --features sc-capture/live
+
+      # En Linux el agente se despliega en modo colector (`--no-capture`), tal
+      # y como documenta docs/runbooks/install-agent-linux.md: "no hace falta
+      # libpcap". Con la feature `live` el binario enlaza dinamicamente con
+      # libpcap.so y dejaria de arrancar en los equipos que no lo tengan
+      # instalado, asi que el artefacto de Linux se publica sin ella.
+      - name: Compilar agente (Linux, modo colector)
+        if: matrix.target == 'linux-x64'
         working-directory: agent
         run: cargo build --release -p sc-agent
+
+      # Gate: el texto "captura live no compilada" solo existe en el binario
+      # cuando la feature `live` esta apagada.
+      - name: Verificar que el binario de Windows incluye la captura live
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        run: |
+          $exe = 'agent/target/release/sc-sentinel-agent.exe'
+          $text = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($exe))
+          if ($text.Contains('captura live no compilada')) {
+            throw "el binario $exe se compilo sin la feature live"
+          }
+          Write-Host "OK: $exe incluye la captura live"
+
+      # Gate: el binario no debe filtrar la ruta de la maquina de build.
+      - name: Verificar que el binario no filtra rutas de compilacion
+        shell: pwsh
+        run: |
+          $exe = if ('${{ matrix.target }}' -eq 'windows-x64') {
+            'agent/target/release/sc-sentinel-agent.exe'
+          } else {
+            'agent/target/release/sc-sentinel-agent'
+          }
+          $text = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($exe))
+          $leaks = @()
+          if ($text.Contains('.cargo\registry') -or $text.Contains('.cargo/registry')) {
+            $leaks += 'ruta del registro de cargo'
+          }
+          if ($text.Contains('CARGO_MANIFEST_DIR')) {
+            $leaks += 'CARGO_MANIFEST_DIR'
+          }
+          if ($leaks.Count -gt 0) {
+            throw "el binario $exe filtra: $($leaks -join ', ')"
+          }
+          Write-Host "OK: $exe no filtra rutas de compilacion"
 
       - name: Empaquetar
         shell: pwsh

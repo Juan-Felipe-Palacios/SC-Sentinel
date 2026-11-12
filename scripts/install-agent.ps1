@@ -6,6 +6,7 @@
  Instala sc-agent.exe como servicio de Windows con:
  - Binario en C:\Program Files\SC-Sentinel\
  - Configuración en C:\ProgramData\SC-Sentinel\config.toml
+ - Base GeoLite2 en C:\Program Files\SC-Sentinel\geolite2\ (geolocalización)
  - Token seguro en Registry (Environment del servicio)
  - Permisos restrictivos (SYSTEM + Administradores, sin herencia)
  - Recovery automático (5s/10s/30s, reset diario)
@@ -36,6 +37,9 @@ param(
  [Parameter(Mandatory=$false, HelpMessage="Ruta al binario de origen (sc-sentinel-agent.exe)")]
  [string]$BinaryPath,
 
+ [Parameter(Mandatory=$false, HelpMessage="Ruta a la base GeoLite2-Country.mmdb (opcional, se autodetecta)")]
+ [string]$GeoIpDbPath,
+
  [Parameter(Mandatory=$false, HelpMessage="Puertos UDP del colector (default 2055,4739)")]
  [int[]]$CollectorPorts = @(2055, 4739),
 
@@ -52,6 +56,7 @@ $DataDir = "C:\ProgramData\SC-Sentinel"
 $ConfigDir = "$DataDir\config"
 $LogDir = "$DataDir\logs"
 $SpoolDir = "$DataDir\spool"
+$GeoIpDir = "$InstallDir\geolite2"
 
 # Otorga permisos de escritura total a Administradores en un directorio
 # preexistente. Las instalaciones previas dejan ACLs sin herencia (binario RX,
@@ -146,7 +151,7 @@ if ($PurgeData -and (Test-Path $DataDir)) {
 
 # Paso 3: Crear directorios
 Write-Step "Creando directorios..."
-foreach ($dir in @($InstallDir, $ConfigDir, $LogDir, $SpoolDir)) {
+foreach ($dir in @($InstallDir, $ConfigDir, $LogDir, $SpoolDir, $GeoIpDir)) {
  if (-not (Test-Path $dir)) {
  New-Item -ItemType Directory -Path $dir -Force | Out-Null
  }
@@ -178,6 +183,31 @@ if ($srcHash -ne $dstHash) {
 Write-Step "Binario verificado (SHA256 $srcHash)"
 # Residuo de instalaciones antiguas que usaban otro nombre de binario
 Remove-Item "$InstallDir\sc-agent.exe" -Force -ErrorAction SilentlyContinue
+
+# Paso 4b: Copiar la base GeoLite2 (geolocalizacion de los hosts).
+# El agente la resuelve en runtime: SC_GEOIP_DB o <dir del binario>/geolite2/.
+# Sin base el agente arranca igual, pero los paises de los snapshots salen vacios.
+$GeoIpDbName = "GeoLite2-Country.mmdb"
+$geoCandidates = @(
+ $GeoIpDbPath,
+ (Join-Path $PSScriptRoot "geolite2\$GeoIpDbName"),
+ (Join-Path $PSScriptRoot "..\agent\resources\geolite2\$GeoIpDbName"),
+ (Join-Path $PSScriptRoot "..\..\agent\resources\geolite2\$GeoIpDbName")
+) | Where-Object { $_ -and (Test-Path $_) }
+$GeoIpDbInstalled = "$GeoIpDir\$GeoIpDbName"
+if ($geoCandidates.Count -gt 0) {
+ $geoSource = @($geoCandidates)[0]
+ Copy-Item $geoSource $GeoIpDbInstalled -Force
+ $geoSrcHash = (Get-FileHash $geoSource -Algorithm SHA256).Hash
+ $geoDstHash = (Get-FileHash $GeoIpDbInstalled -Algorithm SHA256).Hash
+ if ($geoSrcHash -ne $geoDstHash) {
+  Write-Error-Exit "La base GeoLite2 copiada no coincide con la de origen`n  origen: $geoSrcHash`n  copiado: $geoDstHash"
+ }
+ Write-Step "Base GeoLite2 instalada (SHA256 $geoSrcHash)"
+} else {
+ Write-Host " ⚠ No se encontró ${GeoIpDbName}: el agente funcionará sin geolocalización (países vacíos)." -ForegroundColor Yellow
+ Write-Host "   Descárgala de https://dev.maxmind.com/geoip/geolite2-free-geolocation-data" -ForegroundColor Yellow
+}
 
 # Paso 5: Generar config.toml
 Write-Step "Generando configuración..."
@@ -253,12 +283,27 @@ icacls $BinPath /inheritance:r /grant "*${SystemSid}:(F)" /grant "*${AdminsSid}:
 if ($LASTEXITCODE -ne 0) {
  Write-Error-Exit "icacls binario falló"
 }
+
+# Base GeoLite2: lectura para SYSTEM y Administradores (no se modifica).
+if (Test-Path $GeoIpDbInstalled) {
+ icacls $GeoIpDir /inheritance:r /grant "*${SystemSid}:(OI)(CI)(RX)" /grant "*${AdminsSid}:(OI)(CI)(RX)" | Out-Null
+ if ($LASTEXITCODE -ne 0) {
+  Write-Error-Exit "icacls base GeoLite2 falló"
+ }
+}
 # Paso 7: Guardar token y device_id en Registry (nunca en config.toml)
 Write-Step "Registrando variables de entorno en Registry..."
 $ServiceRegPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName"
 
-# Environment del servicio (REG_MULTI_SZ): token + device id, fuera del archivo de config
-$envValue = @("SC_INGEST_TOKEN=$IngestToken", "SC_SENTINEL_DEVICE_ID=$DeviceId")
+# Environment del servicio (REG_MULTI_SZ): token + device id + base GeoLite2,
+# fuera del archivo de config.
+$envValue = @(
+ "SC_INGEST_TOKEN=$IngestToken",
+ "SC_SENTINEL_DEVICE_ID=$DeviceId"
+)
+if (Test-Path $GeoIpDbInstalled) {
+ $envValue += "SC_GEOIP_DB=$GeoIpDbInstalled"
+}
 
 # Paso 8: Crear servicio
 Write-Step "Creando servicio Windows..."
@@ -348,6 +393,9 @@ Write-Host "Binario: $BinPath" -ForegroundColor Gray
 Write-Host "Config: $ConfigFile" -ForegroundColor Gray
 Write-Host "Log: $LogDir\agent.log" -ForegroundColor Gray
 Write-Host "Spool: $SpoolDir" -ForegroundColor Gray
+if (Test-Path $GeoIpDbInstalled) {
+ Write-Host "GeoLite2: $GeoIpDbInstalled" -ForegroundColor Gray
+}
 Write-Host ""
 Write-Host "Comandos útiles:" -ForegroundColor Cyan
 Write-Host " sc query $ServiceName # Ver estado" -ForegroundColor Gray

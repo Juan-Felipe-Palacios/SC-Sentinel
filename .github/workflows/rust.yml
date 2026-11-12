@@ -17,6 +17,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      # Higiene del binario: rustc incrusta la ruta de los fuentes de cada
+      # dependencia (`file!()`). Sin comillas: cargo no las quita y rustc
+      # recibiria un prefijo con caracteres literales.
+      - name: Remapear rutas de compilacion (higiene del binario)
+        shell: pwsh
+        run: |
+          $cargoHome = $env:CARGO_HOME
+          if (-not $cargoHome) {
+            if ($env:USERPROFILE) { $cargoHome = Join-Path $env:USERPROFILE '.cargo' }
+            else { $cargoHome = Join-Path $env:HOME '.cargo' }
+          }
+          $cargoHome = $cargoHome -replace '\\', '/'
+          if ($cargoHome -match '\s') {
+            Write-Host "CARGO_HOME contiene espacios: se omite el remapeo ($cargoHome)"
+            exit 0
+          }
+          $flags = "--remap-path-prefix=$cargoHome=/cargo"
+          if ($env:RUSTFLAGS) { $flags = "$env:RUSTFLAGS $flags" }
+          "RUSTFLAGS=$flags" >> $env:GITHUB_ENV
+          Write-Host "RUSTFLAGS=$flags"
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: agent -> target
@@ -27,13 +47,47 @@ jobs:
       - name: Instalar libpcap (Linux, feature live)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+      # En Windows el crate `pcap` enlaza contra la biblioteca de import de
+      # Npcap: hace falta el SDK para que la feature `live` compile.
+      - name: Instalar Npcap SDK (Windows, feature live)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $sdk = Join-Path $env:RUNNER_TEMP 'npcap-sdk'
+          New-Item -ItemType Directory -Force -Path $sdk | Out-Null
+          $zip = Join-Path $env:RUNNER_TEMP 'npcap-sdk.zip'
+          Invoke-WebRequest -Uri 'https://npcap.com/dist/npcap-sdk-1.13.zip' -OutFile $zip -UseBasicParsing
+          Expand-Archive -Force -Path $zip -DestinationPath $sdk
+          $lib = Join-Path $sdk 'Lib\x64'
+          if (-not (Test-Path (Join-Path $lib 'wpcap.lib'))) {
+            throw "el SDK de Npcap descargado no contiene Lib\x64\wpcap.lib"
+          }
+          # LIBPCAP_VER evita que el build script intente deducir la version
+          # cargando wpcap.dll (el runtime de Npcap no esta en el runner).
+          "LIBPCAP_VER=1.0.0" >> $env:GITHUB_ENV
+          "LIBPCAP_LIBDIR=$lib" >> $env:GITHUB_ENV
       - run: cargo fmt --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       # Evita bit-rot de la captura real: sin esto, `live` solo se compila a mano.
       - name: Check feature live
-        if: runner.os == 'Linux'
         run: cargo check -p sc-capture --features live
       - run: cargo audit
       - run: cargo deny check licenses
       - run: cargo build --release
+      # El binario de Windows debe poder capturar: el texto "captura live no
+      # compilada" solo existe cuando la feature `live` esta apagada.
+      - name: Compilar y verificar el agente con captura live (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cargo build --release -p sc-agent --features sc-capture/live
+          $exe = 'target/release/sc-sentinel-agent.exe'
+          $text = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($exe))
+          if ($text.Contains('captura live no compilada')) {
+            throw "el binario $exe se compilo sin la feature live"
+          }
+          if ($text.Contains('.cargo\registry') -or $text.Contains('.cargo/registry')) {
+            throw "el binario $exe filtra la ruta del registro de cargo"
+          }
+          Write-Host "OK: $exe incluye la captura live y no filtra rutas de compilacion"

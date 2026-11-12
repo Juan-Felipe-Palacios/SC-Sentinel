@@ -57,6 +57,18 @@ Write-Host "==> Preparando paquete $Target (v$Version)"
 
 Copy-Item $binaryPath (Join-Path $stage $binaryName) -Force
 
+# Base GeoLite2 de países: el agente la resuelve en runtime (SC_GEOIP_DB o
+# <dir del binario>/geolite2/). Sin ella el agente arranca igual, pero los
+# países de los snapshots salen vacíos.
+$geoDbSource = Join-Path $repo 'agent/resources/geolite2/GeoLite2-Country.mmdb'
+if (Test-Path $geoDbSource) {
+  $geoStage = Join-Path $stage 'geolite2'
+  if (-not (Test-Path $geoStage)) { New-Item -ItemType Directory -Path $geoStage -Force | Out-Null }
+  Copy-Item $geoDbSource (Join-Path $geoStage 'GeoLite2-Country.mmdb') -Force
+} else {
+  Write-Warning "No se encontró ${geoDbSource}: el paquete saldrá sin base GeoLite2 (países vacíos)."
+}
+
 if ($esWindows) {
   foreach ($f in @('install-agent.ps1', 'uninstall-agent.ps1', 'instalar-sc-sentinel.bat', 'desinstalar-sc-sentinel.bat', 'LEEME-INSTALACION.txt')) {
     Copy-Item (Join-Path $repo "scripts/$f") (Join-Path $stage $f) -Force
@@ -66,11 +78,24 @@ if ($esWindows) {
   Copy-Item (Join-Path $repo 'docs/runbooks/install-agent-linux.md') (Join-Path $stage 'INSTALACION-LINUX.md') -Force
 }
 
-# SHA256 del binario contenido en el paquete (verificacion tras descomprimir).
+# SHA256 de todos los ficheros del paquete (verificacion tras descomprimir).
+# Se recorre en profundidad: la base GeoLite2 vive en el subdirectorio
+# `geolite2/`.
 # Se escribe sin BOM: `sha256sum -c` en Linux rechaza un fichero con BOM.
-$binHash = (Get-FileHash (Join-Path $stage $binaryName) -Algorithm SHA256).Hash.ToLowerInvariant()
 $sumsInner = Join-Path $stage 'SHA256SUMS.txt'
-Write-TextNoBom $sumsInner "$binHash  $binaryName`n"
+$stageFull = (Resolve-Path $stage).Path
+$innerLines = Get-ChildItem $stage -File -Recurse |
+  Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
+  Sort-Object FullName |
+  ForEach-Object {
+    $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    # `sha256sum` usa separadores de dos espacios; las rutas van con `/` y
+    # son relativas a la raíz del paquete.
+    $relative = $_.FullName.Substring($stageFull.Length).TrimStart('\', '/').Replace('\', '/')
+    "$hash  $relative"
+  }
+if (-not $innerLines) { throw 'El paquete ha quedado vacío' }
+Write-TextNoBom $sumsInner (($innerLines -join "`n") + "`n")
 
 $base = "sc-sentinel-agent-v$Version-$Target"
 $artifactPath = Join-Path $out $base

@@ -76,7 +76,12 @@ ARCHIVOS DE ESTE PAQUETE
   sc-sentinel-agent.exe         El agente en si.
   install-agent.ps1             Logica de instalacion (la usa el instalador).
   uninstall-agent.ps1           Logica de desinstalacion.
+  geolite2\                     Base de geolocalizacion (GeoLite2-Country.mmdb).
   LEEME-INSTALACION.txt         Esta guia.
-  SHA256SUMS.txt                Huellas de verificacion de los binarios.
+  SHA256SUMS.txt                Huellas de verificacion de los archivos.
+
+  La carpeta geolite2\ se copia a "C:\Program Files\SC-Sentinel\geolite2\" y
+  sirve para saber de que pais es cada host. Si se borra, el agente sigue
+  funcionando, pero los paises de los snapshots salen vacios.
 
 ===============================================================================

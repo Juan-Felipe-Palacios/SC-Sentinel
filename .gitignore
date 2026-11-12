@@ -39,6 +39,10 @@ agent/crates/sc-collector/fixtures/wireshark-extracted/
 mock_*.js
 mock_*.py
 
+# Python bytecode cache (scripts auxiliares)
+__pycache__/
+*.py[cod]
+
 
 # Artefactos locales de trabajo
 .serena/
