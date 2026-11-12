@@ -45,31 +45,38 @@ Contenido del ZIP:
 | Fichero | Para qué sirve |
 |---|---|
 | `sc-sentinel-agent.exe` | El agente. |
+| `geolite2/GeoLite2-Country.mmdb` | Base de geolocalización de países (MaxMind GeoLite2). Sin ella el agente arranca igual, pero los países de los snapshots salen vacíos. |
 | `instalar-sc-sentinel.bat` | Instalador de un clic (pide el token y device id, se auto-eleva). |
 | `desinstalar-sc-sentinel.bat` | Desinstalador de un clic (pregunta si se borran los datos). |
 | `install-agent.ps1` / `uninstall-agent.ps1` | Los instaladores en PowerShell que usa el `.bat`. |
 | `LEEME-INSTALACION.txt` | Guía en lenguaje llano para usuarios sin conocimientos de informática. |
-| `SHA256SUMS.txt` | Hash del binario para verificar la integridad. |
+| `SHA256SUMS.txt` | Hash de todos los ficheros del paquete para verificar la integridad. |
 
 ### 1.2 Instalador en PowerShell (desde el repo)
 
 Desde un PowerShell **como administrador**, en la raíz del repo:
 
 ```powershell
-cargo build --release -p sc-agent            # → agent\target\release\sc-sentinel-agent.exe
+# El agente publicado se compila con la captura live: sin esto el binario no
+# puede capturar (ver docs/runbooks/npcap-install.md para el SDK de Npcap).
+$env:LIBPCAP_VER = "1.0.0"
+$env:LIBPCAP_LIBDIR = "C:\npcap-sdk-1.13\Lib\x64"
+cargo build --release -p sc-agent --features sc-capture/live   # → agent\target\release\sc-sentinel-agent.exe
+
 .\scripts\install-agent.ps1 -DeviceId "dev_2f1c…" -IngestToken "sc_dev_9a04…"
 ```
 
-Parámetros: `-DeviceId` y `-IngestToken` (obligatorios), `-ConfigPath`, `-BinaryPath`, `-CollectorPorts` (por defecto `2055, 4739`), `-PurgeData`.
+Parámetros: `-DeviceId` y `-IngestToken` (obligatorios), `-ConfigPath`, `-BinaryPath`, `-CollectorPorts` (por defecto `2055, 4739`), `-GeoIpDbPath` (base GeoLite2; si se omite se autodetecta en el paquete o en `agent/resources/geolite2/`), `-PurgeData`.
 
 El instalador (`scripts/install-agent.ps1`):
 
 1. Detiene y borra el servicio previo si existe, y espera a que el SCM libere el nombre.
 2. Copia el binario a `C:\Program Files\SC-Sentinel\` **verificando el hash SHA256** (si el destino existe, fija antes los permisos: un binario instalado con ACL sin herencia bloqueaba la copia en silencio).
-3. Crea `C:\ProgramData\SC-Sentinel\{config,spool,logs}` y escribe `config.toml` con las claves reales de `sc-config` (`[ingest] url/token_env/compression`, `[privacy] hmac_key_file`, `[spool] path/max_bytes/max_age_days`, `[log] level/file`, `[collector] enabled/bind_addr/listeners`).
-4. Restringe permisos: `icacls` sin herencia, solo SYSTEM + Administradores en config/spool/logs.
-5. Guarda `SC_INGEST_TOKEN` y `SC_SENTINEL_DEVICE_ID` en `HKLM\SYSTEM\CurrentControlSet\Services\SC-Sentinel-Agent\Environment` (entorno del servicio, no un archivo plano).
-6. `sc.exe create ... binPath= "\"C:\...\sc-sentinel-agent.exe\" --config \"C:\...\config.toml\" --no-capture" start= auto` + **failure actions** `restart 5 s / 10 s / 30 s` con `reset= 86400` (recovery ante caída y ante reboot/reinicio del servidor).
+3. Copia la base GeoLite2 a `C:\Program Files\SC-Sentinel\geolite2\GeoLite2-Country.mmdb` **verificando el hash SHA256**; si no la encuentra, avisa y el agente sigue funcionando sin geolocalización.
+4. Crea `C:\ProgramData\SC-Sentinel\{config,spool,logs}` y escribe `config.toml` con las claves reales de `sc-config` (`[ingest] url/token_env/compression`, `[privacy] hmac_key_file`, `[spool] path/max_bytes/max_age_days`, `[log] level/file`, `[collector] enabled/bind_addr/listeners`).
+5. Restringe permisos: `icacls` sin herencia, solo SYSTEM + Administradores en config/spool/logs, y solo lectura (SYSTEM + Administradores) sobre la base GeoLite2.
+6. Guarda `SC_INGEST_TOKEN`, `SC_SENTINEL_DEVICE_ID` y `SC_GEOIP_DB` en `HKLM\SYSTEM\CurrentControlSet\Services\SC-Sentinel-Agent\Environment` (entorno del servicio, no un archivo plano).
+7. `sc.exe create ... binPath= "\"C:\...\sc-sentinel-agent.exe\" --config \"C:\...\config.toml\" --no-capture" start= auto` + **failure actions** `restart 5 s / 10 s / 30 s` con `reset= 86400` (recovery ante caída y ante reboot/reinicio del servidor).
 
 > **Por qué `--no-capture`:** el servicio arranca en modo **collector-only**. La fuente de datos del daemon es el colector UDP (fuente exclusiva por segmento, ver `docs/testing/pcap-vs-flow.md` §7). Sin ese flag el agente exigiría una interfaz de captura y abortaría con código 2.
 
@@ -84,8 +91,17 @@ Expand-Archive agent.zip -DestinationPath ".\sc-sentinel" -Force
 New-Item -ItemType Directory -Path "C:\ProgramData\SC-Sentinel\{config,spool,logs}" -Force
 # El config.toml lo genera install-agent.ps1 (incluido en el ZIP). Si se copia a mano,
 # el esquema real esta en docs/runbooks/install-agent-linux.md (seccion "Configuracion").
-# Rutas absolutas en config.toml (spool/log/hmac_key_file) y ACLs:
+# El sample usa rutas RELATIVAS que se resuelven contra el directorio del
+# propio config.toml: "./.host-key" -> C:\ProgramData\SC-Sentinel\config\.host-key
+# y "../spool/sc-spool.sqlite" -> C:\ProgramData\SC-Sentinel\spool\sc-spool.sqlite.
+# No hay que editar rutas a mano.
+Copy-Item ".\agent\config\sc-agent.toml.sample" "C:\ProgramData\SC-Sentinel\config\config.toml"
 icacls "C:\ProgramData\SC-Sentinel\config\config.toml" /inheritance:r /grant "SYSTEM:F" /grant "Administrators:F"
+
+# Binario y base GeoLite2 (opcional: sin ella los países salen vacíos).
+Copy-Item ".\sc-sentinel\sc-sentinel-agent.exe" "C:\Program Files\SC-Sentinel\" -Force
+New-Item -ItemType Directory -Path "C:\Program Files\SC-Sentinel\geolite2" -Force
+Copy-Item ".\sc-sentinel\geolite2\GeoLite2-Country.mmdb" "C:\Program Files\SC-Sentinel\geolite2\" -Force
 
 sc.exe create "SC-Sentinel-Agent" binPath= "\"C:\Program Files\SC-Sentinel\sc-sentinel-agent.exe\" --config \"C:\ProgramData\SC-Sentinel\config\config.toml\" --no-capture" start= auto
 sc.exe failure "SC-Sentinel-Agent" reset= 86400 actions= restart/5000/restart/10000/restart/30000
@@ -97,6 +113,9 @@ Y el token (PowerShell como admin):
 ```powershell
 New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\SC-Sentinel-Agent\Environment" -Name "SC_INGEST_TOKEN" -Value "sc_dev_…" -PropertyType String -Force
 New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\SC-Sentinel-Agent\Environment" -Name "SC_SENTINEL_DEVICE_ID" -Value "dev_…" -PropertyType String -Force
+# Ruta absoluta de la base GeoLite2 (opcional: el agente tambien la busca en
+# <dir del binario>\geolite2\ y en <dir del binario>\resources\geolite2\).
+New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\SC-Sentinel-Agent\Environment" -Name "SC_GEOIP_DB" -Value "C:\Program Files\SC-Sentinel\geolite2\GeoLite2-Country.mmdb" -PropertyType String -Force
 ```
 
 ## 3. Verificación post-instalación
@@ -111,6 +130,7 @@ Checklist:
 - [ ] `sc.exe query` RUNNING y `sc.exe qfailure` muestra las 3 acciones de recovery.
 - [ ] Log por archivo activo: la config del servicio no define stdout; las líneas aparecen en `agent.log` con `collector_started` o captura activa (sin datos sensibles: el log lleva evento/claves contractuales, no tokens ni payloads; §9.3).
 - [ ] `C:\ProgramData\SC-Sentinel\config\.host-key` existe (clave HMAC persistida del host) y el spool `spool\sc-spool.sqlite` está inicializado.
+- [ ] El log muestra `GeoIP: base GeoLite2 cargada path=…` (si no aparece, la geolocalización de países está vacía: ver §7).
 - [ ] Dashboard → Settings muestra el device con "último sync exitoso" reciente.
 - [ ] Dashboard → Overview tiene datos de ventanas.
 - [ ] `sc.exe failure` tras un `/ping` de red caída: el SCM reinicia el daemon (se ve en el log un arranque nuevo con el mismo spool).
@@ -165,5 +185,8 @@ El manual equivale a: `sc.exe stop` + `sc.exe delete` + borrar key `HKLM\...\Ser
 | El colector no recibe exportadores | firewall UDP 2055/4739 | regla inbound + revisar `[collector] enabled = true` en config |
 | En log: `source_overlap` | captura pcap vivo + colector a la vez en el mismo segmento | cf. docs/testing/pcap-vs-flow.md §7: elegir UNA fuente por segmento (`--no-capture` o `--no-collector`) |
 | El instalador dice «no se encuentra `sc-sentinel-agent.exe`» | se descomprimió solo una parte del ZIP | descomprimir el ZIP completo en una carpeta y volver a ejecutar |
+| Los países de los snapshots salen vacíos | falta la base GeoLite2 | copiar `geolite2\GeoLite2-Country.mmdb` a `C:\Program Files\SC-Sentinel\geolite2\` o fijar `SC_GEOIP_DB`; el log debe mostrar `GeoIP: base GeoLite2 cargada path=…` |
+| `sc-sentinel-agent --list-interfaces` responde «captura live no compilada» | binario compilado sin `--features sc-capture/live` | recompilar con la feature (§1.2) y con el SDK de Npcap (`docs/runbooks/npcap-install.md`) |
+| `sc-sentinel-agent --list-interfaces` no lista dispositivos | falta el runtime de Npcap | instalarlo desde https://npcap.com/#download (§Requisitos y `docs/runbooks/npcap-install.md`) |
 | El instalador se queda colgado esperando teclado | se lanzó sin datos y el prompt `set /p` espera una pegada | usar el modo desatendido: `instalar-sc-sentinel.bat <device_id> <token>` |
 | Log del instalador | traza sin secretos | `%TEMP%\sc-sentinel-instalador.log` (instalación) y `%TEMP%\sc-sentinel-instalador-ps.log` (salida de `install-agent.ps1`) |

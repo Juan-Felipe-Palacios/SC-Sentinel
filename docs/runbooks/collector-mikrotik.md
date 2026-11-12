@@ -14,7 +14,7 @@ No cubre sFlow, IPFIX sobre DTLS/TLS ni exportación desde switches que no hable
 
 ## Prerrequisitos
 
-- Agente compilado con captura live (Windows: Npcap + SDK; Linux: `libpcap` y `CAP_NET_RAW`). El colector no reemplaza la captura pcap: el agente sigue midiendo la interfaz local.
+- El colector **no necesita captura pcap**: el servicio Windows arranca en modo collector-only (`--no-capture`) y solo escucha UDP. Npcap hace falta únicamente si además se quiere medir la interfaz local del agente, y entonces hay que instalarlo a mano (el ZIP de la release **no** lo incluye por licencia): ver `docs/runbooks/npcap-install.md`. En Linux, `libpcap` y `CAP_NET_RAW` solo para ese caso.
 - `SC_INGEST_TOKEN` definido en el entorno y un `device_id` (`dev_<uuid>`) ya inscrito en el tenant.
 - IP del agente alcanzable desde el router por UDP.
 - Relojes sincronizados (NTP) en router y agente. Los timestamps de los flujos se usan para la ventana.
