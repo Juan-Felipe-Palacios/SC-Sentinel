@@ -3,7 +3,7 @@
 //! GUI de administración del agente SC-Sentinel (M5 §19).
 //!
 //! Corre como usuario normal: lee el estado por el endpoint loopback del
-//! agente y consulta el SCM. Nada de esto requiere elevación; solo el
+//! agente (F3) y consulta el SCM. Nada de esto requiere elevación; solo el
 //! enrolamiento (F4) pide UAC puntual.
 
 // En release no se abre consola detrás de la ventana.
@@ -11,6 +11,8 @@
 
 mod actions;
 mod app;
+mod scm;
+mod status_client;
 mod theme;
 mod tray;
 

@@ -85,18 +85,9 @@ pub fn is_double_click(previous: Option<Instant>, now: Instant) -> bool {
 pub enum ServiceState {
     Running,
     Stopped,
+    /// El SCM reporta una transición (start/stop/pause pendiente).
+    Pending,
     Unknown,
-}
-
-impl ServiceState {
-    /// Traduce el resultado del SCM: `None` = no se pudo consultar.
-    pub fn from_running(running: Option<bool>) -> Self {
-        match running {
-            Some(true) => ServiceState::Running,
-            Some(false) => ServiceState::Stopped,
-            None => ServiceState::Unknown,
-        }
-    }
 }
 
 /// Color del icono de bandeja.
@@ -108,26 +99,73 @@ pub enum Overlay {
     Error,
 }
 
-/// Datos mínimos para decidir el overlay.
-#[derive(Debug, Clone, Copy)]
-pub struct TrayFacts {
-    pub service: ServiceState,
-    /// `true` si el agente está midiendo (captura o colector). En modo
-    /// collector-only `capture_status` es `disabled` y eso es lo normal.
-    pub capture_ok: bool,
-    pub spool_bytes: u64,
+/// Si el último poll exitoso es más viejo que esto, el agente se da por perdido.
+pub const POLL_STALE: Duration = Duration::from_secs(10);
+
+/// Antigüedad de `last_sync_at` que pasa el estado a ámbar en modo servicio.
+pub const SYNC_STALE_SECS: i64 = 5 * 60;
+
+/// Semáforo del panel y de la bandeja (F3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HealthLevel {
+    Ok,
+    Warn,
+    Error,
 }
 
-/// Rojo si el servicio no está en RUNNING; ámbar si la captura está degradada o
-/// el spool supera los 100 MB; si no, el icono normal (spec §19).
-pub fn overlay_for(facts: TrayFacts) -> Overlay {
+/// Lo que la GUI sabe en cada frame para decidir el semáforo.
+pub struct LiveFacts<'a> {
+    /// Estado tomado del SCM, no del JSON (si el servicio está caído, nadie
+    /// responde en `/status`).
+    pub service: ServiceState,
+    /// Último snapshot recibido; `None` = nunca respondió.
+    pub snapshot: Option<&'a crate::status_client::StatusSnapshot>,
+    /// Tiempo desde el último poll exitoso; `None` = nunca hubo uno.
+    pub poll_age: Option<Duration>,
+}
+
+/// Reglas del spec §19 ajustadas al modo servicio:
+///
+/// - **Rojo**: el SCM no está en Running, o no hay poll exitoso reciente
+///   (> `POLL_STALE`). Si el servicio está detenido no hay proceso que
+///   responda, así que "sin poll" es la señal correcta.
+/// - **Ámbar**: spool > 100 MB, captura degradada **solo en modo live**
+///   (`disabled` en modo `service` es lo esperado con `--no-capture`) o
+///   `last_sync_at` de más de 5 min en modo que debería sincronizar.
+/// - **Verde**: el resto.
+pub fn health_level(facts: LiveFacts<'_>, sync_age_secs: Option<i64>) -> HealthLevel {
     if facts.service != ServiceState::Running {
-        return Overlay::Error;
+        return HealthLevel::Error;
     }
-    if !facts.capture_ok || facts.spool_bytes > SPOOL_ALERT_BYTES {
-        return Overlay::Warn;
+    let poll_fresh = facts.poll_age.map(|age| age <= POLL_STALE).unwrap_or(false);
+    if !poll_fresh {
+        return HealthLevel::Error;
     }
-    Overlay::None
+    let Some(snapshot) = facts.snapshot else {
+        return HealthLevel::Error;
+    };
+    if snapshot.spool_bytes > SPOOL_ALERT_BYTES {
+        return HealthLevel::Warn;
+    }
+    if snapshot.mode != "service" && snapshot.capture_status != "ok" {
+        return HealthLevel::Warn;
+    }
+    if snapshot.mode == "service" {
+        match sync_age_secs {
+            Some(secs) if secs <= SYNC_STALE_SECS => {}
+            // Nunca sincronizó o lleva demasiado tiempo sin hacerlo.
+            _ => return HealthLevel::Warn,
+        }
+    }
+    HealthLevel::Ok
+}
+
+pub fn overlay_from_level(level: HealthLevel) -> Overlay {
+    match level {
+        HealthLevel::Ok => Overlay::None,
+        HealthLevel::Warn => Overlay::Warn,
+        HealthLevel::Error => Overlay::Error,
+    }
 }
 
 #[cfg(test)]
@@ -179,63 +217,110 @@ mod tests {
         assert_eq!(labels, vec!["Estado", "Stats", "Enrolar", "Ajustes"]);
     }
 
+    fn snapshot(mode: &str, capture: &str) -> crate::status_client::StatusSnapshot {
+        crate::status_client::StatusSnapshot {
+            capture_status: capture.to_string(),
+            mode: mode.to_string(),
+            ..Default::default()
+        }
+    }
+
     #[test]
-    fn el_estado_del_scm_se_traduce_sin_perder_el_desconocido() {
-        assert_eq!(
-            ServiceState::from_running(Some(true)),
-            ServiceState::Running
+    fn servicio_detenido_o_en_transicion_es_error() {
+        for service in [
+            ServiceState::Stopped,
+            ServiceState::Pending,
+            ServiceState::Unknown,
+        ] {
+            let snap = snapshot("service", "disabled");
+            let level = health_level(
+                LiveFacts {
+                    service,
+                    snapshot: Some(&snap),
+                    poll_age: Some(Duration::from_millis(100)),
+                },
+                Some(5),
+            );
+            assert_eq!(level, HealthLevel::Error, "{service:?}");
+        }
+    }
+
+    #[test]
+    fn sin_poll_reciente_es_error_aunque_el_servicio_este_arriba() {
+        let snap = snapshot("service", "disabled");
+        for age in [None, Some(POLL_STALE + Duration::from_millis(1))] {
+            let level = health_level(
+                LiveFacts {
+                    service: ServiceState::Running,
+                    snapshot: Some(&snap),
+                    poll_age: age,
+                },
+                Some(5),
+            );
+            assert_eq!(level, HealthLevel::Error);
+        }
+    }
+
+    #[test]
+    fn servicio_arriba_y_sincronizando_es_verde_en_modo_service() {
+        // `disabled` con `--no-capture` es configuración esperada, no alerta.
+        let snap = snapshot("service", "disabled");
+        let level = health_level(
+            LiveFacts {
+                service: ServiceState::Running,
+                snapshot: Some(&snap),
+                poll_age: Some(Duration::from_millis(200)),
+            },
+            Some(30),
         );
-        assert_eq!(
-            ServiceState::from_running(Some(false)),
-            ServiceState::Stopped
-        );
-        assert_eq!(ServiceState::from_running(None), ServiceState::Unknown);
+        assert_eq!(level, HealthLevel::Ok);
+        assert_eq!(overlay_from_level(level), Overlay::None);
     }
 
     #[test]
-    fn servicio_detenido_pinta_rojo() {
-        let facts = TrayFacts {
-            service: ServiceState::Stopped,
-            capture_ok: true,
-            spool_bytes: 0,
-        };
-        assert_eq!(overlay_for(facts), Overlay::Error);
-    }
-
-    #[test]
-    fn agente_sin_respuesta_pinta_rojo() {
-        let facts = TrayFacts {
-            service: ServiceState::Unknown,
-            capture_ok: true,
-            spool_bytes: 0,
-        };
-        assert_eq!(overlay_for(facts), Overlay::Error);
-    }
-
-    #[test]
-    fn captura_degradada_o_spool_saturado_pintan_ambar() {
-        let degraded = TrayFacts {
-            service: ServiceState::Running,
-            capture_ok: false,
-            spool_bytes: 0,
-        };
-        assert_eq!(overlay_for(degraded), Overlay::Warn);
-
-        let saturated = TrayFacts {
-            service: ServiceState::Running,
-            capture_ok: true,
+    fn spool_saturado_pinta_ambar() {
+        let snap = crate::status_client::StatusSnapshot {
             spool_bytes: SPOOL_ALERT_BYTES + 1,
+            ..snapshot("service", "disabled")
         };
-        assert_eq!(overlay_for(saturated), Overlay::Warn);
+        let level = health_level(
+            LiveFacts {
+                service: ServiceState::Running,
+                snapshot: Some(&snap),
+                poll_age: Some(Duration::from_millis(10)),
+            },
+            Some(5),
+        );
+        assert_eq!(level, HealthLevel::Warn);
     }
 
     #[test]
-    fn servicio_sano_no_lleva_overlay() {
-        let facts = TrayFacts {
-            service: ServiceState::Running,
-            capture_ok: true,
-            spool_bytes: SPOOL_ALERT_BYTES,
-        };
-        assert_eq!(overlay_for(facts), Overlay::None);
+    fn sync_viejo_o_inexistente_pinta_ambar() {
+        let snap = snapshot("service", "disabled");
+        for age in [None, Some(SYNC_STALE_SECS + 1)] {
+            let level = health_level(
+                LiveFacts {
+                    service: ServiceState::Running,
+                    snapshot: Some(&snap),
+                    poll_age: Some(Duration::from_millis(10)),
+                },
+                age,
+            );
+            assert_eq!(level, HealthLevel::Warn, "{age:?}");
+        }
+    }
+
+    #[test]
+    fn captura_degradada_solo_alerta_en_modo_live() {
+        let live = snapshot("console", "disabled");
+        let live_level = health_level(
+            LiveFacts {
+                service: ServiceState::Running,
+                snapshot: Some(&live),
+                poll_age: Some(Duration::from_millis(10)),
+            },
+            None,
+        );
+        assert_eq!(live_level, HealthLevel::Warn);
     }
 }

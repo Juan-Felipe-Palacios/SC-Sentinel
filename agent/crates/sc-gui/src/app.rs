@@ -1,22 +1,36 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
 
-//! Ventana principal. En F2 demuestra el ciclo de vida aprobado: la [×] oculta
-//! a la bandeja, el doble clic restaura y solo "Salir" termina el proceso. Los
-//! datos reales llegan en F3.
+//! Ventana principal. La [×] oculta a la bandeja, el doble clic restaura y solo
+//! "Salir" termina el proceso. Desde F3 el estado es real: se sondea `/status`
+//! en un hilo y se consulta el SCM de Windows para saber si el servicio vive.
 
 use crate::actions::{
-    close_action, overlay_for, CloseAction, MenuAction, Overlay, ServiceState, Tab, TrayFacts,
+    close_action, health_level, overlay_from_level, CloseAction, HealthLevel, LiveFacts,
+    MenuAction, Overlay, ServiceState, Tab,
 };
+use crate::scm;
+use crate::status_client::{status_url, Poller, StatusSnapshot};
 use crate::theme;
 use crate::tray::Tray;
+use chrono::Utc;
 use egui::{RichText, ViewportCommand};
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
+/// Cadencia de la consulta al SCM: una vez por segundo basta para ver arranques
+/// y paradas, y no satura el gestor de servicios.
+const SCM_QUERY_INTERVAL: Duration = Duration::from_secs(1);
 
 pub struct GuiApp {
     tray: Option<Tray>,
     tab: Tab,
     quitting: bool,
     last_overlay: Option<Overlay>,
+    poller: Poller,
+    snapshot: Option<StatusSnapshot>,
+    last_poll_ok: Option<Instant>,
+    service: ServiceState,
+    last_scm_query: Option<Instant>,
+    level: HealthLevel,
 }
 
 impl GuiApp {
@@ -34,17 +48,47 @@ impl GuiApp {
             tab: Tab::default(),
             quitting: false,
             last_overlay: None,
+            poller: Poller::spawn(status_url()),
+            snapshot: None,
+            last_poll_ok: None,
+            service: scm::query_service_state(scm::SERVICE_NAME),
+            last_scm_query: Some(Instant::now()),
+            level: HealthLevel::Error,
         }
     }
 
-    /// F3 reemplaza esto por el resultado del poll a /status + el SCM.
-    fn facts(&self) -> TrayFacts {
-        TrayFacts {
-            // F3 sustituye `None` por el resultado de QueryServiceStatus.
-            service: ServiceState::from_running(None),
-            capture_ok: true,
-            spool_bytes: 0,
+    /// Drena el poller, refresca el SCM y recalcula el semáforo.
+    fn refresh(&mut self) {
+        if let Some(result) = self.poller.try_latest() {
+            if result.is_some() {
+                self.last_poll_ok = Some(Instant::now());
+            }
+            // Un poll fallido borra el snapshot: el panel deja de mostrar datos
+            // viejos como si fueran actuales.
+            self.snapshot = result;
         }
+
+        let scm_due = self
+            .last_scm_query
+            .map(|at| at.elapsed() >= SCM_QUERY_INTERVAL)
+            .unwrap_or(true);
+        if scm_due {
+            self.service = scm::query_service_state(scm::SERVICE_NAME);
+            self.last_scm_query = Some(Instant::now());
+        }
+
+        let sync_age = self
+            .snapshot
+            .as_ref()
+            .and_then(|snapshot| snapshot.sync_age_secs(Utc::now()));
+        self.level = health_level(
+            LiveFacts {
+                service: self.service,
+                snapshot: self.snapshot.as_ref(),
+                poll_age: self.last_poll_ok.map(|at| at.elapsed()),
+            },
+            sync_age,
+        );
     }
 
     fn show_window(&self, ctx: &egui::Context) {
@@ -78,38 +122,181 @@ impl GuiApp {
         self.last_overlay = Some(overlay);
     }
 
-    fn header(&self, ui: &mut egui::Ui, overlay: Overlay) {
+    fn header(&self, ui: &mut egui::Ui) {
+        let overlay = overlay_from_level(self.level);
         ui.add_space(6.0);
         ui.horizontal(|ui| {
             let (rect, _) = ui.allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::hover());
             ui.painter()
                 .circle_filled(rect.center(), 5.0, overlay_color(overlay));
             ui.label(
-                RichText::new("Sin conexión con el agente")
+                RichText::new(headline(self.level))
                     .color(theme::TEXT)
                     .strong(),
             );
         });
         ui.add_space(2.0);
         ui.label(
-            RichText::new("Servicio: SC-Sentinel-Agent · esperando /status")
-                .color(theme::MUTED)
-                .size(12.0),
+            RichText::new(format!(
+                "Servicio: {} · {} (SCM)",
+                scm::SERVICE_NAME,
+                service_label(self.service)
+            ))
+            .color(theme::MUTED)
+            .size(12.0),
         );
+        let agent = match self.snapshot.as_ref() {
+            Some(snapshot) => format!(
+                "Agente {} · {} · {}",
+                if snapshot.agent_version.is_empty() {
+                    "—"
+                } else {
+                    snapshot.agent_version.as_str()
+                },
+                short_device(&snapshot.device_id),
+                if snapshot.mode.is_empty() {
+                    "modo —"
+                } else {
+                    snapshot.mode.as_str()
+                }
+            ),
+            None => "Agente sin respuesta en /status".to_string(),
+        };
+        ui.label(RichText::new(agent).color(theme::MUTED).size(12.0));
         ui.add_space(6.0);
     }
 
-    fn body(&self, ui: &mut egui::Ui) {
+    fn status_panel(&self, ui: &mut egui::Ui) {
         ui.add_space(12.0);
-        let (title, detail) = match self.tab {
-            Tab::Status => ("Estado", "El panel de estado llega en F3."),
-            Tab::Stats => ("Stats", "Contadores y sparkline llegan en F3."),
-            Tab::Enroll => ("Enrolar", "El wizard de enrolamiento llega en F4."),
-            Tab::Settings => ("Ajustes", "Los ajustes llegan en F5."),
+        ui.label(
+            RichText::new("Estado")
+                .color(theme::CYAN)
+                .size(18.0)
+                .strong(),
+        );
+        ui.add_space(8.0);
+
+        let Some(snapshot) = self.snapshot.as_ref() else {
+            ui.label(
+                RichText::new("Sin datos: el agente no responde en /status.").color(theme::MUTED),
+            );
+            ui.add_space(6.0);
+            ui.label(
+                RichText::new("Revisa el servicio o el spool; el panel se actualiza solo.")
+                    .color(theme::MUTED)
+                    .size(12.0),
+            );
+            return;
         };
-        ui.label(RichText::new(title).color(theme::CYAN).size(18.0).strong());
-        ui.add_space(4.0);
-        ui.label(RichText::new(detail).color(theme::MUTED));
+
+        egui::Grid::new("estado")
+            .num_columns(2)
+            .spacing([18.0, 6.0])
+            .show(ui, |ui| {
+                row(ui, "Dispositivo", device_label(snapshot));
+                row(ui, "Versión del agente", snapshot.agent_version.clone());
+                row(ui, "Modo", snapshot.mode.clone());
+                row(
+                    ui,
+                    "Captura",
+                    if snapshot.capture_status.is_empty() {
+                        "—"
+                    } else {
+                        snapshot.capture_status.as_str()
+                    },
+                );
+                row(
+                    ui,
+                    "Último sync",
+                    match snapshot.last_sync_at.as_deref() {
+                        Some(at) => format!("{at}{}", sync_age_label(snapshot)),
+                        None => "nunca desde este arranque".to_string(),
+                    },
+                );
+                row(ui, "Spool", human_bytes(snapshot.spool_bytes));
+                row(ui, "Cola de agregación", snapshot.queue_depth.to_string());
+                row(
+                    ui,
+                    "Paquetes",
+                    format!(
+                        "{} vistos · {} descartados · {} con error de parseo",
+                        snapshot.packets_seen, snapshot.packets_dropped, snapshot.parse_errors
+                    ),
+                );
+                row(
+                    ui,
+                    "Colector",
+                    if snapshot.collector_ports.is_empty() {
+                        "sin puertos configurados".to_string()
+                    } else {
+                        snapshot
+                            .collector_ports
+                            .iter()
+                            .map(|port| port.to_string())
+                            .collect::<Vec<_>>()
+                            .join(" · ")
+                    },
+                );
+                row(
+                    ui,
+                    "GeoIP",
+                    if snapshot.geo_loaded {
+                        "cargado"
+                    } else {
+                        "no cargado"
+                    },
+                );
+                row(
+                    ui,
+                    "Último error",
+                    snapshot
+                        .last_error
+                        .clone()
+                        .unwrap_or_else(|| "ninguno".to_string()),
+                );
+            });
+    }
+
+    fn stats_panel(&self, ui: &mut egui::Ui) {
+        ui.add_space(12.0);
+        ui.label(
+            RichText::new("Stats")
+                .color(theme::CYAN)
+                .size(18.0)
+                .strong(),
+        );
+        ui.add_space(8.0);
+        let Some(snapshot) = self.snapshot.as_ref() else {
+            ui.label(RichText::new("Sin datos del agente.").color(theme::MUTED));
+            return;
+        };
+        egui::Grid::new("stats")
+            .num_columns(2)
+            .spacing([18.0, 6.0])
+            .show(ui, |ui| {
+                row(ui, "Paquetes vistos", snapshot.packets_seen.to_string());
+                row(ui, "Descartados", snapshot.packets_dropped.to_string());
+                row(ui, "Errores de parseo", snapshot.parse_errors.to_string());
+                row(ui, "Cola", snapshot.queue_depth.to_string());
+                row(ui, "Spool", human_bytes(snapshot.spool_bytes));
+            });
+        ui.add_space(8.0);
+        ui.label(
+            RichText::new("La sparkline histórica llega en F4.")
+                .color(theme::MUTED)
+                .size(12.0),
+        );
+    }
+
+    fn body(&self, ui: &mut egui::Ui) {
+        match self.tab {
+            Tab::Status => self.status_panel(ui),
+            Tab::Stats => self.stats_panel(ui),
+            Tab::Enroll => {
+                placeholder(ui, "Enrolar", "El wizard de enrolamiento llega en F4.");
+            }
+            Tab::Settings => placeholder(ui, "Ajustes", "Los ajustes llegan en F5."),
+        }
     }
 
     fn tabs(&mut self, ui: &mut egui::Ui) {
@@ -126,6 +313,73 @@ impl GuiApp {
                 }
             }
         });
+    }
+}
+
+fn placeholder(ui: &mut egui::Ui, title: &str, detail: &str) {
+    ui.add_space(12.0);
+    ui.label(RichText::new(title).color(theme::CYAN).size(18.0).strong());
+    ui.add_space(4.0);
+    ui.label(RichText::new(detail).color(theme::MUTED));
+}
+
+fn row(ui: &mut egui::Ui, key: &str, value: impl Into<String>) {
+    ui.label(RichText::new(key).color(theme::MUTED).size(12.0));
+    ui.label(RichText::new(value.into()).color(theme::TEXT).size(13.0));
+    ui.end_row();
+}
+
+fn headline(level: HealthLevel) -> &'static str {
+    match level {
+        HealthLevel::Ok => "Agente operativo",
+        HealthLevel::Warn => "Requiere atención",
+        HealthLevel::Error => "Sin conexión con el agente",
+    }
+}
+
+fn service_label(state: ServiceState) -> &'static str {
+    match state {
+        ServiceState::Running => "Running",
+        ServiceState::Stopped => "Stopped",
+        ServiceState::Pending => "Pending",
+        ServiceState::Unknown => "desconocido",
+    }
+}
+
+fn short_device(device_id: &str) -> &str {
+    if device_id.is_empty() {
+        "device —"
+    } else {
+        device_id
+    }
+}
+
+fn device_label(snapshot: &StatusSnapshot) -> String {
+    if snapshot.device_id.is_empty() {
+        "—".to_string()
+    } else {
+        snapshot.device_id.clone()
+    }
+}
+
+fn sync_age_label(snapshot: &StatusSnapshot) -> String {
+    match snapshot.sync_age_secs(Utc::now()) {
+        Some(secs) if secs < 90 => format!(" (hace {secs} s)"),
+        Some(secs) => format!(" (hace {} min)", secs / 60),
+        None => String::new(),
+    }
+}
+
+fn human_bytes(bytes: u64) -> String {
+    const KB: f64 = 1024.0;
+    const MB: f64 = KB * 1024.0;
+    let value = bytes as f64;
+    if value >= MB {
+        format!("{:.1} MB", value / MB)
+    } else if value >= KB {
+        format!("{:.1} KB", value / KB)
+    } else {
+        format!("{bytes} B")
     }
 }
 
@@ -147,6 +401,8 @@ fn tooltip_for(overlay: Overlay) -> &'static str {
 
 impl eframe::App for GuiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.refresh();
+
         // Se sondea primero y se actúa después: el préstamo mutable de la
         // bandeja no puede convivir con `&mut self` en `handle`.
         let mut actions = Vec::new();
@@ -162,7 +418,7 @@ impl eframe::App for GuiApp {
             self.show_window(ctx);
         }
 
-        let overlay = overlay_for(self.facts());
+        let overlay = overlay_from_level(self.level);
         self.sync_tray(overlay);
 
         // La [×] nunca cierra el proceso: oculta la ventana y deja el icono en
@@ -179,7 +435,7 @@ impl eframe::App for GuiApp {
 
         egui::TopBottomPanel::top("cabecera")
             .frame(egui::Frame::none().fill(theme::PANEL).inner_margin(12.0))
-            .show(ctx, |ui| self.header(ui, overlay));
+            .show(ctx, |ui| self.header(ui));
 
         egui::TopBottomPanel::bottom("pestanas")
             .frame(egui::Frame::none().fill(theme::PANEL).inner_margin(8.0))
@@ -189,7 +445,7 @@ impl eframe::App for GuiApp {
             .frame(egui::Frame::none().fill(theme::BG).inner_margin(12.0))
             .show(ctx, |ui| self.body(ui));
 
-        // Sondeo barato de la bandeja: 4 veces por segundo, sin quemar CPU.
+        // La bandeja responde a 4 Hz y el poller es de 1 Hz: mismo repintado.
         ctx.request_repaint_after(Duration::from_millis(250));
     }
 }
