@@ -8,6 +8,7 @@ use crate::actions::{
     close_action, health_level, overlay_from_level, CloseAction, HealthLevel, LiveFacts,
     MenuAction, Overlay, ServiceState, Tab,
 };
+use crate::enroll::{self, EnrollRequest};
 use crate::scm;
 use crate::spool_history::{default_spool_path, read_window_packets, PacketHistory, MAX_POINTS};
 use crate::status_client::{status_url, Poller, StatusSnapshot};
@@ -37,6 +38,12 @@ pub struct GuiApp {
     /// Paquetes por ventana leídos del spool (vacío = usar `history`).
     spool_points: Vec<u64>,
     last_spool_read: Option<Instant>,
+    // Wizard de enrolamiento (F4).
+    enroll_device: String,
+    enroll_token: String,
+    enroll_token_saved: bool,
+    enroll_message: Option<String>,
+    toast: Option<(String, Instant)>,
 }
 
 impl GuiApp {
@@ -63,6 +70,11 @@ impl GuiApp {
             history: PacketHistory::default(),
             spool_points: read_window_packets(&default_spool_path(), MAX_POINTS),
             last_spool_read: Some(Instant::now()),
+            enroll_device: String::new(),
+            enroll_token: String::new(),
+            enroll_token_saved: false,
+            enroll_message: None,
+            toast: None,
         }
     }
 
@@ -91,8 +103,35 @@ impl GuiApp {
             .map(|at| at.elapsed() >= SCM_QUERY_INTERVAL)
             .unwrap_or(true);
         if scm_due {
+            let previous = self.service;
             self.service = scm::query_service_state(scm::SERVICE_NAME);
             self.last_scm_query = Some(Instant::now());
+            // Aviso de bandeja: el servicio dejó de correr.
+            if previous == ServiceState::Running && self.service != ServiceState::Running {
+                self.toast = Some((
+                    "SC-Sentinel: el servicio se detuvo".to_string(),
+                    Instant::now(),
+                ));
+            }
+        }
+
+        // Enrolamiento recién aplicado: confirmar cuando haya sync.
+        if self.enroll_token_saved {
+            let synced = self
+                .snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.last_sync_at.as_ref())
+                .is_some();
+            if synced
+                && self.service == ServiceState::Running
+                && self.enroll_message.as_deref() != Some(ENROLL_DONE)
+            {
+                self.enroll_message = Some(ENROLL_DONE.to_string());
+                self.toast = Some((
+                    "SC-Sentinel: enrolamiento completado".to_string(),
+                    Instant::now(),
+                ));
+            }
         }
 
         if let Some(snapshot) = self.snapshot.as_ref() {
@@ -194,6 +233,12 @@ impl GuiApp {
             None => "Agente sin respuesta en /status".to_string(),
         };
         ui.label(RichText::new(agent).color(theme::MUTED).size(12.0));
+        // Aviso temporal (equivalente al balloon de la bandeja).
+        if let Some((text, at)) = self.toast.as_ref() {
+            if at.elapsed() < Duration::from_secs(8) {
+                ui.label(RichText::new(text.clone()).color(theme::ORANGE).size(12.0));
+            }
+        }
         ui.add_space(6.0);
     }
 
@@ -326,13 +371,11 @@ impl GuiApp {
         sparkline(ui, &points);
     }
 
-    fn body(&self, ui: &mut egui::Ui) {
+    fn body(&mut self, ui: &mut egui::Ui) {
         match self.tab {
             Tab::Status => self.status_panel(ui),
             Tab::Stats => self.stats_panel(ui),
-            Tab::Enroll => {
-                placeholder(ui, "Enrolar", "El wizard de enrolamiento llega en F4.");
-            }
+            Tab::Enroll => self.enroll_panel(ui),
             Tab::Settings => placeholder(ui, "Ajustes", "Los ajustes llegan en F5."),
         }
     }
@@ -351,6 +394,112 @@ impl GuiApp {
                 }
             }
         });
+    }
+}
+
+const ENROLL_DONE: &str = "Enrolamiento aplicado: servicio Running y sync confirmado.";
+
+impl GuiApp {
+    fn enroll_panel(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(12.0);
+        ui.label(
+            RichText::new("Enrolar")
+                .color(theme::CYAN)
+                .size(18.0)
+                .strong(),
+        );
+        ui.add_space(4.0);
+        ui.label(
+            RichText::new(
+                "El device id y el token se generan en el panel web (Dispositivos → Enrolar). \
+                 Se guardan en el servicio con un solo UAC.",
+            )
+            .color(theme::MUTED)
+            .size(12.0),
+        );
+        ui.add_space(10.0);
+
+        let device_error = enroll::validate_device_id(&self.enroll_device).err();
+        let token_error = enroll::validate_token(&self.enroll_token).err();
+        let ready = device_error.is_none() && token_error.is_none() && !self.enroll_token_saved;
+
+        ui.label(RichText::new("Device id").color(theme::MUTED).size(12.0));
+        ui.add_enabled_ui(!self.enroll_token_saved, |ui| {
+            ui.add(
+                egui::TextEdit::singleline(&mut self.enroll_device)
+                    .hint_text("dev_…")
+                    .desired_width(420.0),
+            );
+        });
+        if let Some(error) = device_error.as_deref() {
+            ui.label(RichText::new(error).color(theme::RED).size(11.0));
+        }
+
+        ui.add_space(6.0);
+        ui.label(
+            RichText::new("Token de ingest")
+                .color(theme::MUTED)
+                .size(12.0),
+        );
+        if self.enroll_token_saved {
+            // Una vez guardado solo se muestra enmascarado.
+            ui.label(
+                RichText::new(enroll::mask_token(&self.enroll_token))
+                    .color(theme::TEXT)
+                    .size(13.0),
+            );
+        } else {
+            ui.add(
+                egui::TextEdit::singleline(&mut self.enroll_token)
+                    .hint_text("sc_dev_…")
+                    .password(true)
+                    .desired_width(420.0),
+            );
+            if let Some(error) = token_error.as_deref() {
+                ui.label(RichText::new(error).color(theme::RED).size(11.0));
+            }
+        }
+
+        ui.add_space(10.0);
+        if ui
+            .add_enabled(ready, egui::Button::new("Aplicar (pide UAC)"))
+            .clicked()
+        {
+            self.apply_enroll();
+        }
+        if let Some(message) = self.enroll_message.as_deref() {
+            ui.add_space(8.0);
+            ui.label(
+                RichText::new(message)
+                    .color(if message == ENROLL_DONE {
+                        theme::GREEN
+                    } else {
+                        theme::ORANGE
+                    })
+                    .size(12.0),
+            );
+        }
+    }
+
+    /// Escribe el payload (ACL restringida) y relanza el helper elevado.
+    fn apply_enroll(&mut self) {
+        let request = EnrollRequest {
+            device_id: self.enroll_device.trim().to_string(),
+            token: self.enroll_token.trim().to_string(),
+        };
+        match enroll::write_payload(&request).and_then(|payload| enroll::launch_elevated(&payload))
+        {
+            Ok(()) => {
+                self.enroll_token_saved = true;
+                self.enroll_message =
+                    Some("Esperando a que el servicio vuelva a Running…".to_string());
+                self.toast = Some((
+                    "SC-Sentinel: aplicando enrolamiento".to_string(),
+                    Instant::now(),
+                ));
+            }
+            Err(error) => self.enroll_message = Some(error),
+        }
     }
 }
 
