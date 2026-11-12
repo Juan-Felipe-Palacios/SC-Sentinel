@@ -1,0 +1,20 @@
+[package]
+name = "sc-gui"
+description = "GUI de administración del agente SC-Sentinel (bandeja + estado)"
+version.workspace = true
+edition.workspace = true
+# El agente mantiene el MSRV 1.75 del workspace; esta GUI no puede: `eframe`
+# 0.27 (stack aprobado para M5 §19) exige 1.76. Se documenta en ADR-0017.
+rust-version = "1.76"
+license-file = "../../../LICENSE"
+authors.workspace = true
+
+[[bin]]
+name = "sc-gui"
+path = "src/main.rs"
+
+[dependencies]
+eframe = { version = "0.27", default-features = false, features = ["glow", "default_fonts"] }
+egui = "0.27"
+# Bandeja del sistema Windows (menú Mostrar/Enrolar/Salir e icono con overlays).
+tray-icon = "0.15"

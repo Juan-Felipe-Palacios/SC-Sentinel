@@ -29,6 +29,18 @@ Los archivos heredados conservan sus headers de licencia originales. Sniffnet ©
 
 Licencias dominantes: **MIT / Apache-2.0** (ecosistema Rust). Listado completo y auditado en cada release con `cargo deny check --license` / `cargo audit`; esta sección cita los principales al momento del release: tokio, serde/serde_json, schemars, thiserror, anyhow, tracing, reqwest (rustls), rusqlite, backoff, config, clap, uuid/ulid, sha2, hmac, secrecy, flate2, zstd (opcional), insta (dev), proptest (dev), windows-service, pcap, etherparse.
 
+## 4b. Crates de Rust (GUI `sc-gui`)
+
+| Componente | Uso | Licencia / condición |
+|---|---|---|
+| egui / eframe / egui-winit / epaint 0.27 | ventana y bandeja de la GUI | MIT / Apache-2.0 (doble) |
+| tray-icon 0.15 / muda | icono y menú de bandeja | MIT / Apache-2.0 |
+| clipboard-win / error-code (vía arboard) | portapapeles de Windows | BSL-1.0 (Boost) |
+| option-ext (vía dirs) | rutas de configuración del SO | MPL-2.0 (copyleft por archivo, sin modificar) |
+| Fuentes por defecto de `epaint` (Ubuntu-Light, NotoEmoji, Hack) | se **embeben** en `sc-gui.exe` | SIL OFL-1.1 y Ubuntu Font License 1.0 |
+
+Las fuentes embebidas se redistribuyen dentro del binario bajo OFL-1.1/UFL-1.0: no se renombran, no se venden por separado y los avisos de copyright de sus autores originales se conservan en este documento. `cargo deny check licenses` (gate de cada release) valida el árbol completo.
+
 ## 5. Web (npm — inventario real de `web/package.json`, noviembre 2026)
 
 Licencias dominantes: **MIT / Apache-2.0**. Inventario efectivo de la aplicación y sus herramientas:

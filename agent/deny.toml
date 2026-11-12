@@ -10,6 +10,19 @@ allow = [
     "MIT", "Apache-2.0", "BSD-3-Clause", "BSD-2-Clause", "Unicode-3.0", "Zlib", "ISC", "CDLA-Permissive-2.0",
     # Licencia propietaria del workspace SC-Sentinel (ver LICENSE en la raíz).
     "LicenseRef-Proprietary",
+    # --- Árbol de la GUI (sc-gui, M5 §19) ---
+    # Boost 1.0: portapapeles de Windows (clipboard-win/error-code vía arboard).
+    # Permisiva y compatible; sin obligación de publicar fuentes.
+    "BSL-1.0",
+    # SIL OFL 1.1 + Ubuntu Font License 1.0: fuentes por defecto de epaint/egui.
+    # Se embeben en el binario: la atribución vive en THIRD_PARTY_NOTICES.
+    "OFL-1.1",
+    "LicenseRef-UFL-1.0",
+    # MPL-2.0 (option-ext, vía dirs → tray-icon): copyleft a nivel de archivo,
+    # solo en crates de terceros sin modificaciones.
+    "MPL-2.0",
+    # target-lexicon (build-time de system-deps, solo Linux/GTK).
+    "Apache-2.0 WITH LLVM-exception",
 ]
 
 # Los crates del workspace declaran `license-file = "../../../LICENSE"` (texto
@@ -47,6 +60,11 @@ license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
 
 [[licenses.clarify]]
 crate = "sc-detect"
+expression = "LicenseRef-Proprietary"
+license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+
+[[licenses.clarify]]
+crate = "sc-gui"
 expression = "LicenseRef-Proprietary"
 license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
 
