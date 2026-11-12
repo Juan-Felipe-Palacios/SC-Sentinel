@@ -127,6 +127,37 @@ async fn run_cli() -> i32 {
     run_agent(args).await
 }
 
+/// Ruta del fixture pcap de la demo offline.
+///
+/// Se busca en runtime (junto al binario, en sus ancestros y en los ancestros
+/// del directorio de trabajo) para que el ejecutable no arrastre la ruta de
+/// compilación embebida y siga siendo portable.
+fn default_fixture_path() -> Option<PathBuf> {
+    const FIXTURE: &str = "loopback-trace.pcap";
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            for level in 0..=6 {
+                let Some(ancestor) = dir.ancestors().nth(level) else {
+                    break;
+                };
+                candidates.push(ancestor.join("fixtures").join(FIXTURE));
+            }
+        }
+    }
+    if let Ok(cwd) = std::env::current_dir() {
+        for level in 0..=3 {
+            let Some(ancestor) = cwd.ancestors().nth(level) else {
+                break;
+            };
+            candidates.push(ancestor.join("fixtures").join(FIXTURE));
+        }
+    }
+
+    candidates.into_iter().find(|path| path.is_file())
+}
+
 /// Ciclo completo del agente con los datos ya parseados. Devuelve el código
 /// de salida: 0 = apagado limpio (también el Stop del SCM), 2 = error de
 /// configuración/argumentos, 1 = fallo de ejecución.
@@ -239,9 +270,16 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
 
     let health = HealthRegistry::new();
 
-    // Geo lookup
-    let geo: Arc<dyn sc_geo::CountryLookup> = match GeoLite2Country::from_agent_resources() {
-        Ok(g) => Arc::new(g),
+    // Geo lookup: la base GeoLite2 se resuelve en runtime (SC_GEOIP_DB o
+    // <dir del binario>/geolite2/), nunca con una ruta compilada.
+    let geo: Arc<dyn sc_geo::CountryLookup> = match GeoLite2Country::discover() {
+        Ok(g) => {
+            tracing::info!(
+                path = %g.path().display(),
+                "GeoIP: base GeoLite2 cargada"
+            );
+            Arc::new(g)
+        }
         Err(error) => {
             tracing::warn!(
                 %error,
@@ -308,10 +346,10 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
 
     // Setup capture
     let use_offline = args.offline || args.fixture.is_some();
-    // Ruta estable relativa al crate, no al cwd desde el que se lanza el agente.
-    let fixture_path = args.fixture.clone().unwrap_or_else(|| {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/loopback-trace.pcap")
-    });
+    // La ruta del fixture se resuelve en runtime: el binario no lleva la ruta
+    // de compilación embebida. Prioridad: --fixture, luego el árbol de
+    // desarrollo (junto al binario o en sus ancestros).
+    let fixture_path = args.fixture.clone().or_else(default_fixture_path);
 
     let capture = if args.no_capture {
         // Solo colector (M4): sin captura live ni offline; el pipeline sigue
@@ -325,7 +363,13 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
         // instante y el reenvío termina (el brazo del select queda desactivado).
         CaptureChannel::new()
     } else if use_offline {
-        match run_offline(&fixture_path, LocalIpSet::default()) {
+        let Some(fixture) = fixture_path.as_ref() else {
+            eprintln!(
+                "sc-sentinel-agent: no se encontró el fixture pcap; indica la ruta con --fixture <ruta>"
+            );
+            return 2;
+        };
+        match run_offline(fixture, LocalIpSet::default()) {
             Ok(capture) => capture,
             Err(error) => {
                 tracing::error!(event = "offline_load_failed", %error, "no se pudo abrir el fixture pcap");

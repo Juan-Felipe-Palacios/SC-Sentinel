@@ -16,7 +16,7 @@ sc-sentinel-agent (bin daemon, M1) · sc-gui (bin iced, M5)
 | `sc-core` | Tipos de dominio versionados con los contratos de `docs/contracts/` (`v: 1`) | completo (M0) |
 | `sc-capture` | Captura pcap en thread bloqueante puenteado a `tokio mpsc` con backpressure | completo (M1) |
 | `sc-collector` | Colector pasivo UDP: NetFlow v5/v9 + IPFIX, integrado en `sc-agent` con config y CLI (M4 fases 1–3) | en curso (M4) |
-| `sc-geo` | MaxMind GeoLite2 embebido con firma de integridad SHA-256 (ISO alpha-2) | completo (M1) |
+| `sc-geo` | MaxMind GeoLite2 resuelto en runtime (ISO alpha-2, ADR-0015) | completo (M1) |
 | `sc-aggregate` | Agregación por ventanas de 30–60 s → `WindowSnapshot` con HMAC host_mark | completo (M1) |
 | `sc-detect` | Motor determinista de `Alert` (blacklist, escaneo de puertos, DNS, volumen y salud) | completo (M3) |
 | `sc-sync` | Cliente `/api/ingest` con spool SQLite FIFO 500MB, backoff y gzip | completo (M1) |
@@ -101,6 +101,34 @@ Los `window_id` se derivan de la secuencia persistida en el spool más una base 
 - El **device id es obligatorio**: `--device-id dev_<uuid>` o `SC_SENTINEL_DEVICE_ID`. Ya no existe el fallback silencioso `dev-001`, que terminaba en 403 porque el `device.id` del sobre no coincidía con el token. El script de reinicio lo pasa siempre desde `config/.device-id`.
 - `hostname` y `boot_id` del sobre se resuelven del sistema (`COMPUTERNAME`/`/etc/hostname`, `/proc/sys/kernel/random/boot_id`); en plataformas sin boot id estable se usa un UUID por proceso.
 - `host_mark` usa una clave HMAC que **no** está en el binario. Precedencia: `SC_HMAC_KEY` → `privacy.hmac_key_file` → clave aleatoria generada y persistida en el primer arranque (`config/.host-key`, ignorado por git). Conservá ese archivo: si cambia la clave, los `host_key` nuevos dejan de coincidir con el historial del dashboard. Para mantener continuidad con instalaciones previas, fijá `SC_HMAC_KEY=sc-sentinel-dev-key` hasta hacer la migración.
+
+### Rutas relativas del `config.toml`
+
+Toda ruta relativa del TOML se resuelve **respecto del directorio donde vive el `config.toml`**, no del directorio de trabajo. En el repo el sample vive en `agent/config/`, así que:
+
+| Clave | Valor en `config/sc-agent.toml.sample` | Ruta efectiva |
+|---|---|---|
+| `[privacy] hmac_key_file` | `"./.host-key"` | `agent/config/.host-key` |
+| `[spool] path` | `"../spool/sc-spool.sqlite"` | `agent/spool/sc-spool.sqlite` |
+| `[detection] blacklist_file` | `"./blacklist.txt"` | `agent/config/blacklist.txt` |
+
+El instalador de producción (`scripts/install-agent.ps1`) escribe rutas **absolutas** (`C:\ProgramData\SC-Sentinel\...`), que no dependen de esta regla.
+
+### GeoLite2 en runtime (ADR-0015)
+
+La base `GeoLite2-Country.mmdb` **no va incrustada en el binario**: el agente la busca en el sistema de ficheros al arrancar, en este orden:
+
+1. Variable de entorno `SC_GEOIP_DB` (ruta absoluta). Si está definida y el fichero no existe, el arranque **falla** con un error explícito.
+2. `<dir del binario>/geolite2/`, `<dir del binario>/resources/geolite2/`, `<dir del binario>/../geolite2/` y los mismos hasta 6 niveles de ancestros (cubre `agent/target/release/` → `agent/resources/geolite2/`).
+3. `<cwd>/resources/geolite2/` y `<cwd>/geolite2/`.
+
+Si no encuentra ninguna, el agente **arranca igual** con el fallback `NoLookup` y lo avisa en el log (`GeoIP no disponible: se usa NoLookup`); los snapshots salen con el país vacío. El log también dice qué base se cargó:
+
+```text
+GeoIP: base GeoLite2 cargada path=.../geolite2/GeoLite2-Country.mmdb
+```
+
+El instalador copia la base a `C:\Program Files\SC-Sentinel\geolite2\` y publica `SC_GEOIP_DB` en el entorno del servicio. Actualizar la base de MaxMind ya no exige recompilar el agente (ver `docs/adr/0015-geolite2-runtime.md`).
 
 ### Detección determinista
 

@@ -773,15 +773,15 @@ mod tests {
         );
         assert_eq!(config.ingest.token_env, "SC_INGEST_TOKEN");
         assert_eq!(config.ingest.compression, "gzip");
-        assert_eq!(config.spool.path, PathBuf::from("./spool/sc-spool.sqlite"));
+        // Las rutas relativas del sample se resuelven contra el directorio del
+        // config.toml (`agent/config/`): el spool vive en `agent/spool/` y la
+        // clave HMAC junto al propio config.
+        assert_eq!(config.spool.path, PathBuf::from("../spool/sc-spool.sqlite"));
         assert_eq!(config.spool.max_bytes, 524_288_000);
         assert_eq!(config.spool.max_age_days, 7);
         assert_eq!(config.log.level, "info");
         assert_eq!(config.privacy.hmac_key_env, "SC_HMAC_KEY");
-        assert_eq!(
-            config.privacy.hmac_key_file,
-            PathBuf::from("./config/.host-key")
-        );
+        assert_eq!(config.privacy.hmac_key_file, PathBuf::from("./.host-key"));
         assert!(config.detection.enabled);
         assert_eq!(config.detection.port_scan_min_ports, 20);
         assert_eq!(config.detection.port_scan_min_connections, 20);

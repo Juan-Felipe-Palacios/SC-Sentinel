@@ -18,11 +18,15 @@ anonymize_hosts = false
 # Clave HMAC de host_mark. Prioridad: SC_HMAC_KEY → hmac_key_file → clave nueva
 # generada y persistida en el primer arranque. No versionar el .host-key: si
 # cambia la clave, los host_key del dashboard dejan de coincidir con el historial.
+# Las rutas relativas se resuelven respecto del directorio donde vive este
+# archivo (agent/config/): "./.host-key" → agent/config/.host-key.
 hmac_key_env = "SC_HMAC_KEY"
-hmac_key_file = "./config/.host-key"
+hmac_key_file = "./.host-key"
 
 [spool]
-path = "./spool/sc-spool.sqlite"
+# Las rutas relativas se resuelven respecto del directorio del archivo de
+# configuración: "../spool/sc-spool.sqlite" → agent/spool/sc-spool.sqlite.
+path = "../spool/sc-spool.sqlite"
 max_bytes = 524288000
 max_age_days = 7
 

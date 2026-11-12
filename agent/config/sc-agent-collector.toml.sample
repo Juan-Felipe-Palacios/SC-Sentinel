@@ -9,7 +9,9 @@ token_env = "SC_INGEST_TOKEN"
 compression = "gzip"
 
 [spool]
-path = "./spool/sc-spool.sqlite"
+# Ruta relativa al directorio de este archivo (agent/config/):
+# "../spool/sc-spool.sqlite" → agent/spool/sc-spool.sqlite
+path = "../spool/sc-spool.sqlite"
 max_bytes = 524288000
 max_age_days = 7
 
