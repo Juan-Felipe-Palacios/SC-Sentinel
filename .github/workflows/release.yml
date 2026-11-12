@@ -153,6 +153,14 @@ jobs:
           }
           Write-Host "OK: $exe no filtra rutas de compilacion"
 
+      # Gate: las guias de instalacion que viajan dentro de los paquetes no
+      # pueden apuntar a otra release (una version ya retirada o rota). El
+      # empaquetador reescribe la linea `VER=` del runbook de Linux, pero las
+      # URLs fijas de los runbooks del repo hay que mantenerlas al dia.
+      - name: Verificar que las guias apuntan a esta version
+        shell: pwsh
+        run: ./scripts/check-doc-versions.ps1 -Version "${{ steps.meta.outputs.version }}"
+
       - name: Empaquetar
         shell: pwsh
         run: ./scripts/package-release.ps1 -Version "${{ steps.meta.outputs.version }}" -Target "${{ matrix.target }}"

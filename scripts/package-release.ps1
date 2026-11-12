@@ -75,7 +75,42 @@ if ($esWindows) {
   }
 } else {
   # Linux no tiene instalador de un clic: el runbook documenta el paso a paso.
-  Copy-Item (Join-Path $repo 'docs/runbooks/install-agent-linux.md') (Join-Path $stage 'INSTALACION-LINUX.md') -Force
+  # El runbook lleva la version de la release en una linea `VER=`. Se reescribe
+  # aqui con la version real del artefacto para que el paquete nunca apunte a
+  # una release antigua (y a la version rota).
+  $linuxGuide = Join-Path $stage 'INSTALACION-LINUX.md'
+  $guideText = [System.IO.File]::ReadAllText((Join-Path $repo 'docs/runbooks/install-agent-linux.md'))
+  $guideText = [regex]::Replace($guideText, '(?m)^VER=.*$', "VER=$Version")
+  # Si sobrevive alguna version literal distinta de la del paquete, es un
+  # forgot de actualizar el runbook: se corta la release en vez de publicar
+  # una guia que descarga un binario roto.
+  $stale = [regex]::Matches($guideText, 'v\d+\.\d+\.\d+') |
+    ForEach-Object { $_.Value } |
+    Where-Object { $_ -ne "v$Version" } |
+    Select-Object -Unique
+  if ($stale) {
+    throw "El runbook de Linux menciona versiones obsoletas ($($stale -join ', ')); actualizalo a v$Version antes de empaquetar."
+  }
+  Write-TextNoBom $linuxGuide $guideText
+}
+
+# Guardia de version en TODO el paquete: ninguna guia, script ni README puede
+# apuntar a una release distinta de la que se esta empaquetando. Si lo hacen,
+# se corta la release en vez de publicar instrucciones que descargan un
+# binario roto (o ya retirado).
+$textExt = @('.md', '.txt', '.ps1', '.bat', '.sh', '.toml', '.json')
+$staleRefs = @()
+Get-ChildItem $stage -File -Recurse | Where-Object { $textExt -contains $_.Extension.ToLowerInvariant() } | ForEach-Object {
+  $file = $_
+  $content = [System.IO.File]::ReadAllText($file.FullName)
+  [regex]::Matches($content, 'v\d+\.\d+\.\d+') | ForEach-Object {
+    if ($_.Value -ne "v$Version") {
+      $staleRefs += "$($_.Value) en $($file.Name)"
+    }
+  }
+}
+if ($staleRefs) {
+  throw "El paquete menciona versiones obsoletas ($($staleRefs -join '; ')); debe ser solo v$Version."
 }
 
 # SHA256 de todos los ficheros del paquete (verificacion tras descomprimir).

@@ -21,11 +21,11 @@ Hay dos vías equivalentes. La **1.1** es la recomendada para un equipo sin acce
 
 ### 1.1 Instalador de un clic (ZIP de la release)
 
-1. Descargar el paquete de la release: `https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/download/v0.1.3/sc-sentinel-agent-v0.1.3-windows-x64.zip` (la última versión siempre está en <https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/latest>).
+1. Descargar el paquete de la release: `https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/download/v0.1.4/sc-sentinel-agent-v0.1.4-windows-x64.zip` (la última versión siempre está en <https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/latest>).
 2. Verificar el hash del artefacto contra `SHA256SUMS.txt` (mismo directorio en la release):
 
    ```powershell
-   Get-FileHash .\sc-sentinel-agent-v0.1.3-windows-x64.zip -Algorithm SHA256
+   Get-FileHash .\sc-sentinel-agent-v0.1.4-windows-x64.zip -Algorithm SHA256
    ```
 
 3. Descomprimir **todo** el ZIP en una carpeta (no solo el `.exe`).
@@ -85,7 +85,7 @@ Desinstalación simétrica: `.\scripts\uninstall-agent.ps1` (usa `-PurgeData` pa
 ## 2. Instalación manual (sin instalador)
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/download/v0.1.3/sc-sentinel-agent-v0.1.3-windows-x64.zip" -OutFile agent.zip
+Invoke-WebRequest -Uri "https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/download/v0.1.4/sc-sentinel-agent-v0.1.4-windows-x64.zip" -OutFile agent.zip
 Expand-Archive agent.zip -DestinationPath ".\sc-sentinel" -Force
 
 New-Item -ItemType Directory -Path "C:\ProgramData\SC-Sentinel\{config,spool,logs}" -Force

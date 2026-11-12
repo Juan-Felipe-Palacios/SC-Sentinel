@@ -11,6 +11,7 @@ Aplica a cada tag `vX.Y.Z` (SemVer estricto: breaking=major · features=minor ·
 - [ ] CHANGELOG actualizado (`docs/release/changelog.md`) con entrada de la versión.
 - [ ] Documentación actualizada si el comportamiento cambió: spec (changelog §C si aplica), runbooks, ADRs nuevos.
 - [ ] Versiones consistentes: `agent/Cargo.toml` workspace version, `web/package.json`, refs en docs.
+- [ ] Coherencia de versiones verificada: `pwsh ./scripts/check-doc-versions.ps1` (el mismo gate corre en el workflow de release y corta la publicación si una guía apunta a otra release).
 - [ ] No hay secrets en código/config de ejemplo (grep de `sk-`, tokens, `OPENROUTER`, `CRON_SECRET`).
 
 ## 2. Build y artefactos

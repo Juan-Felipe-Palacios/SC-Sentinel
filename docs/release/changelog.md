@@ -2,6 +2,31 @@
 
 Formato: Keep a Changelog 1.1 (semantic entries) publicado también en cada GitHub Release.
 
+## [0.1.4] — 2026-11-12
+
+Cierra el último hueco de la entrega: la guía de instalación que viaja dentro
+del paquete de Linux apuntaba a una release antigua (y rota).
+
+### Fixed
+- (M5) La guía `INSTALACION-LINUX.md` que se empaqueta con el artefacto de Linux
+  fijaba `VER=0.1.1`, es decir, enviaba al usuario a descargar la release v0.1.1,
+  cuyo binario arrancaba con `runtime: captura live no compilada` y código de
+  salida 2. El empaquetador reescribe ahora esa línea con la versión real del
+  artefacto, de modo que el paquete nunca puede apuntar a otra release.
+- (M5) El empaquetador aborta si algún fichero de texto del paquete (guía,
+  README, script, `.bat`) menciona una versión distinta de la que se publica:
+  es preferible cortar la release a publicar instrucciones que descargan un
+  binario roto o ya retirado.
+
+### Added
+- (M5) `scripts/check-doc-versions.ps1`: comprueba que los runbooks y los
+  scripts de entrega no apunten a una release distinta de la del workspace de
+  Rust. Se ejecuta como gate en el workflow de release, de modo que una
+  versión desalineada entre el binario y la documentación detiene la
+  publicación en lugar de llegar al usuario.
+- (M5) Entrada en el checklist de release para verificar la coherencia de
+  versiones antes de etiquetar.
+
 ## [0.1.3] — 2026-11-12
 
 Cierra la auditoría de parabilidad del agente en Windows: el binario publicado
