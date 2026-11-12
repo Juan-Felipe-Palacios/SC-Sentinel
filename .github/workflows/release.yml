@@ -119,15 +119,16 @@ jobs:
             Where-Object { $_.Name -notlike 'SHA256SUMS-*.txt' } |
             ForEach-Object { $_.FullName }
           if (-not $files) { throw "No hay artefactos que publicar" }
-          gh release view $env:TAG *> $null
+          # Este job no hace checkout, asi que no se puede usar --verify-tag
+          # ni dejar que gh deduzca el repositorio desde git: se indica
+          # --repo y se comprueba el tag contra el remoto.
+          $repo = "${{ github.repository }}"
+          gh release view $env:TAG --repo $repo *> $null
           if ($LASTEXITCODE -eq 0) {
             Write-Host "La release $env:TAG ya existe: se suben los artefactos."
-            gh release upload $env:TAG $files --clobber
+            gh release upload $env:TAG $files --repo $repo --clobber
           } else {
-            # Este job no hace checkout, asi que no se puede usar
-            # --verify-tag (exige un repositorio git local). Se comprueba el
-            # tag contra el remoto antes de crear la release.
-            gh api "repos/${{ github.repository }}/git/ref/tags/$env:TAG" --silent
+            gh api "repos/$repo/git/ref/tags/$env:TAG" --silent
             Write-Host "Creando la release $env:TAG."
-            gh release create $env:TAG $files --title "SC-Sentinel $env:TAG" --generate-notes
+            gh release create $env:TAG $files --repo $repo --title "SC-Sentinel $env:TAG" --generate-notes
           }
