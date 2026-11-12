@@ -5,29 +5,12 @@
 import { Activity, AlertTriangle } from 'lucide-react';
 import type { HealthMetric } from '@/lib/api-types';
 import { formatBytes, formatNum, timeAgo, dropRate } from '@/lib/format';
-
-type CaptureStatus = 'ok' | 'degraded' | 'error' | 'unknown';
-// El agente puede reportar `ok` y después callarse: sin señal fresca no hay captura en línea.
-type DisplayStatus = CaptureStatus | 'stale';
-
-/** El agente agrega ventanas cada 30 s; 5 minutos sin reporte ya es señal perdida. */
-const STALE_AFTER_MS = 5 * 60 * 1000;
-
-function captureStatusOf(raw: string | null | undefined): CaptureStatus {
-  switch ((raw ?? '').toLowerCase()) {
-    case 'ok': return 'ok';
-    case 'degraded': return 'degraded';
-    case 'error': return 'error';
-    default: return 'unknown';
-  }
-}
-
-function isStale(recordedAt: string | null | undefined, now: number = Date.now()): boolean {
-  if (!recordedAt) return false;
-  const at = new Date(recordedAt).getTime();
-  if (!Number.isFinite(at)) return false;
-  return now - at > STALE_AFTER_MS;
-}
+// El mapeo vive en lib/ para poder probarlo sin montar React.
+import {
+  captureStatusOf,
+  isStale,
+  type DisplayStatus,
+} from '@/lib/health/capture-display';
 
 const STATUS_CONFIG: Record<DisplayStatus, { label: string; dot: string; text: string; ring: string }> = {
   ok: {
@@ -47,6 +30,14 @@ const STATUS_CONFIG: Record<DisplayStatus, { label: string; dot: string; text: s
     dot: 'bg-red-400',
     text: 'text-red-400',
     ring: 'border-red-400/30 bg-red-400/5',
+  },
+  // Modo colector: el servicio corre con --no-capture y mide flujos, así que
+  // no es una degradación. "Captura en línea" queda para el modo live.
+  disabled: {
+    label: 'Modo colector · captura deshabilitada',
+    dot: 'bg-cyan-400',
+    text: 'text-cyan-300',
+    ring: 'border-cyan-400/30 bg-cyan-400/5',
   },
   unknown: {
     label: 'Sin datos del agente',
@@ -104,6 +95,7 @@ function Tile({
 export function AgentHealthCard({ health }: { health: HealthMetric | undefined }) {
   const reported = captureStatusOf(health?.capture_status);
   const stale = isStale(health?.recorded_at);
+  // `stale` manda para el color, pero el último estado reportado se conserva.
   const status: DisplayStatus = stale ? 'stale' : reported;
   const config = STATUS_CONFIG[status];
   const drops = health?.packets_dropped ?? 0;
