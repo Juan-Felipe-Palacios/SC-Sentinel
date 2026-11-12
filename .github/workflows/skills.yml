@@ -1,0 +1,70 @@
+name: Skills CI
+on:
+  push:
+    paths:
+      - ".opencode/**"
+      - ".agents/**"
+      - "skills-lock.json"
+      - "scripts/check-skills.ps1"
+      - ".github/workflows/skills.yml"
+  pull_request:
+    paths:
+      - ".opencode/**"
+      - ".agents/**"
+      - "skills-lock.json"
+      - "scripts/check-skills.ps1"
+      - ".github/workflows/skills.yml"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # OpenCode solo anuncia un skill si su directorio contiene un SKILL.md con
+      # frontmatter valido y `description`. Si el directorio no existe en la
+      # rama activa, los skills no fallan: sencillamente desaparecen.
+      - name: Validar que los skills son descubribles
+        shell: pwsh
+        run: ./scripts/check-skills.ps1
+
+      # El script anterior valida la estructura; este comprueba que el
+      # frontmatter es YAML de verdad (comillas sin cerrar, tabuladores, etc.).
+      # PYTHONIOENCODING=utf-8 evita que `print` reviente con UnicodeEncodeError
+      # en runners cuyo locale no es UTF-8 (cp1252 en Windows).
+      - name: Validar el YAML del frontmatter
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          python3 - <<'PY'
+          import pathlib, sys, yaml
+
+          roots = [pathlib.Path(".opencode/skills"), pathlib.Path(".agents/skills")]
+          errors = []
+          count = 0
+          for root in roots:
+              if not root.is_dir():
+                  continue
+              for skill in sorted(root.glob("**/SKILL.md")):
+                  count += 1
+                  text = skill.read_text(encoding="utf-8-sig")
+                  if not text.startswith("---"):
+                      errors.append(f"{skill}: sin frontmatter")
+                      continue
+                  try:
+                      _, frontmatter, _ = text.split("---", 2)
+                      data = yaml.safe_load(frontmatter) or {}
+                  except Exception as exc:
+                      errors.append(f"{skill}: frontmatter YAML invalido ({exc})")
+                      continue
+                  if not isinstance(data, dict):
+                      errors.append(f"{skill}: el frontmatter no es un mapa")
+                      continue
+                  for key in ("name", "description"):
+                      if not data.get(key):
+                          errors.append(f"{skill}: falta '{key}'")
+          print(f"validados {count} SKILL.md")
+          for e in errors:
+              print(f"  [FALLO] {e}")
+          sys.exit(1 if errors else 0)
+          PY

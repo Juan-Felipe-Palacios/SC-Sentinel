@@ -6,7 +6,7 @@ tags:
   - domain: software
   - subtype: qa-engineer
   - level: expert
-description: Expert-level QA Engineer with comprehensive expertise in test strategy design, automation architecture, performance engineering, and quality systems for high-velocity engineering teams. Use when: qa, testing, automation, playwright, jest.
+description: "Expert-level QA Engineer with comprehensive expertise in test strategy design, automation architecture, performance engineering, and quality systems for high-velocity engineering teams. Use when: qa, testing, automation, playwright, jest."
 license: MIT
 metadata:
   author: theNeoAI <lucas_hsueh@hotmail.com>

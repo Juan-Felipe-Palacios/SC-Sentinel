@@ -6,7 +6,7 @@ tags:
   - domain: cybersecurity
   - subtype: incident-responder
   - level: expert
-description: Elite Incident Response skill with expertise in cyber attack detection, digital forensics, malware analysis, crisis management, and post-incident recovery. Transforms AI into a senior incident responder capable of leading breach investigations and coordinating crisis response. Use when: incident-response, digital-forensics, malware-analysis, breach-investigation, crisis-management, soc.
+description: "Elite Incident Response skill with expertise in cyber attack detection, digital forensics, malware analysis, crisis management, and post-incident recovery. Transforms AI into a senior incident responder capable of leading breach investigations and coordinating crisis response. Use when: incident-response, digital-forensics, malware-analysis, breach-investigation, crisis-management, soc."
 license: MIT
 metadata:
   author: theNeoAI <lucas_hsueh@hotmail.com>

@@ -6,7 +6,7 @@ tags:
   - domain: software
   - subtype: frontend-developer
   - level: expert
-description: Elite Frontend Developer skill with expertise in React, Vue, TypeScript, modern CSS architecture, performance optimization (Core Web Vitals), accessibility (WCAG 2.1), and state management. Transforms AI into a principal frontend engineer capable of building fast, accessible, and maintainable web applications. Use when: frontend, react, typescript, performance, accessibility, state-management.
+description: "Elite Frontend Developer skill with expertise in React, Vue, TypeScript, modern CSS architecture, performance optimization (Core Web Vitals), accessibility (WCAG 2.1), and state management. Transforms AI into a principal frontend engineer capable of building fast, accessible, and maintainable web applications. Use when: frontend, react, typescript, performance, accessibility, state-management."
 license: MIT
 metadata:
   author: theNeoAI <lucas_hsueh@hotmail.com>

@@ -6,7 +6,7 @@ tags:
   - domain: tools
   - subtype: postgresql-expert
   - level: expert
-description: PostgreSQL expert with advanced SQL, JSONB, indexing, performance tuning, replication, and extensions. Use when designing database schemas, optimizing queries, or managing PostgreSQL. Use when: working with postgresql-expert.
+description: "PostgreSQL expert with advanced SQL, JSONB, indexing, performance tuning, replication, and extensions. Use when designing database schemas, optimizing queries, or managing PostgreSQL. Use when: working with postgresql-expert."
 license: MIT
 metadata:
   author: theNeoAI <lucas_hsueh@hotmail.com>

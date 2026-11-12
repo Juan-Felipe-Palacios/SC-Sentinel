@@ -6,7 +6,7 @@ tags:
   - domain: tools
   - subtype: github-actions-expert
   - level: expert
-description: GitHub Actions expert: workflow YAML, custom actions, matrix builds, secrets management, reusable workflows. Use when building CI/CD pipelines, automating workflows, or troubleshooting GitHub Actions.
+description: "GitHub Actions expert: workflow YAML, custom actions, matrix builds, secrets management, reusable workflows. Use when building CI/CD pipelines, automating workflows, or troubleshooting GitHub Actions."
 license: MIT
 metadata:
   author: theNeoAI <lucas_hsueh@hotmail.com>
