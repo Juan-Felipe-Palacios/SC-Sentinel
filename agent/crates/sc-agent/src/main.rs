@@ -13,7 +13,8 @@ use sc_config::{AgentConfig, CollectorSection};
 use sc_detect::{Blacklist, DetectorConfig};
 use sc_geo::{GeoLite2Country, NoLookup};
 use sc_sync::{
-    build_envelope, Applied, DeviceInfo, IngestClient, Spool, SpoolConfig, SyncDecision, Syncer,
+    build_envelope, rebase_device_id, Applied, DeviceInfo, IngestClient, Spool, SpoolConfig,
+    SyncDecision, Syncer,
 };
 use sc_telemetry::{logging, HealthRegistry};
 use std::path::PathBuf;
@@ -592,7 +593,12 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
     // Sync loop: solo un 2xx borra del spool (spec §9.2).
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let spool_sync = spool.clone();
-    let sync_handle = tokio::spawn(sync_loop(spool_sync, client, shutdown_rx));
+    let sync_handle = tokio::spawn(sync_loop(
+        spool_sync,
+        client,
+        device.id.clone(),
+        shutdown_rx,
+    ));
 
     // Apagado ordenado: primera señal (o fin de la captura) drena y persiste;
     // una segunda señal fuerza la salida con código != 0 (plan M1 §6).
@@ -788,6 +794,7 @@ async fn start_collector(
 async fn sync_loop(
     spool: Arc<Mutex<Spool>>,
     client: IngestClient,
+    device_id: String,
     mut shutdown: watch::Receiver<bool>,
 ) {
     let mut syncer = Syncer::new();
@@ -799,7 +806,7 @@ async fn sync_loop(
                 if syncer.enrollment_required() {
                     tracing::warn!("sync: el device necesita enrolarse; batches retenidos en el spool");
                     ENROLLMENT_RETRY
-                } else if sync_pass(&spool, &client, &mut syncer).await {
+                } else if sync_pass(&spool, &client, &mut syncer, &device_id).await {
                     syncer.delay()
                 } else {
                     continue;
@@ -818,11 +825,16 @@ async fn sync_loop(
         event = "sync_final_drain",
         "drenaje final del spool antes de salir"
     );
-    drain_spool(&spool, &client, &mut syncer).await;
+    drain_spool(&spool, &client, &mut syncer, &device_id).await;
 }
 
 /// Envía hasta 10 batches del spool. Devuelve `true` si hay que reintentar con backoff.
-async fn sync_pass(spool: &Arc<Mutex<Spool>>, client: &IngestClient, syncer: &mut Syncer) -> bool {
+async fn sync_pass(
+    spool: &Arc<Mutex<Spool>>,
+    client: &IngestClient,
+    syncer: &mut Syncer,
+    device_id: &str,
+) -> bool {
     let batches = {
         let mut s = spool.lock().await;
         s.next_batch(10).unwrap_or_default()
@@ -830,7 +842,21 @@ async fn sync_pass(spool: &Arc<Mutex<Spool>>, client: &IngestClient, syncer: &mu
 
     for batch in batches {
         let decision = match serde_json::from_slice::<sc_core::IngestEnvelope>(&batch.payload) {
-            Ok(env) => client.post_envelope(&env).await,
+            Ok(mut env) => {
+                // Un batch agregado antes de un re-enrolamiento lleva el device
+                // id de aquel momento. El backend responde 403 si no coincide
+                // con el dueño del token, y como la cola es FIFO ese batch
+                // bloqueaba el drenaje completo. Se reasigna al device actual.
+                if rebase_device_id(&mut env, device_id) {
+                    tracing::info!(
+                        event = "sync_rebased_device",
+                        window_id = %batch.window_id,
+                        device_id = %device_id,
+                        "sync: ventana reasignada al device enrolado"
+                    );
+                }
+                client.post_envelope(&env).await
+            }
             // Un payload ilegible no se puede reintentar: va a dead-letter.
             Err(_) => SyncDecision::InvalidContract,
         };
@@ -885,7 +911,12 @@ async fn sync_pass(spool: &Arc<Mutex<Spool>>, client: &IngestClient, syncer: &mu
 }
 
 /// Best-effort al apagar: vacía el spool sin esperar backoff ni enrolamiento.
-async fn drain_spool(spool: &Arc<Mutex<Spool>>, client: &IngestClient, syncer: &mut Syncer) {
+async fn drain_spool(
+    spool: &Arc<Mutex<Spool>>,
+    client: &IngestClient,
+    syncer: &mut Syncer,
+    device_id: &str,
+) {
     for _ in 0..DRAIN_ATTEMPTS {
         if syncer.enrollment_required() {
             break;
@@ -894,7 +925,7 @@ async fn drain_spool(spool: &Arc<Mutex<Spool>>, client: &IngestClient, syncer: &
         if pending == 0 {
             break;
         }
-        if sync_pass(spool, client, syncer).await {
+        if sync_pass(spool, client, syncer, device_id).await {
             // El backend pidió backoff: no tiene sentido bloquear el apagado.
             break;
         }

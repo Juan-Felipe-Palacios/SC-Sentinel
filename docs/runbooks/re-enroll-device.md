@@ -130,6 +130,12 @@ Criterio de cierre:
 - el spool deja de crecer: `Get-Item 'C:\ProgramData\SC-Sentinel\spool\sc-spool.sqlite'`
   se estabiliza y el dashboard muestra ventanas nuevas.
 
+Los batches que quedaron retenidos con el `device_id` anterior se reasignan al
+device enrolado al enviarlos y dejan su rastro `sync: ventana reasignada al
+device enrolado` (`event=sync_rebased_device`). Sin esa reasignación el backend
+responde 403 (`device.id` no es el dueño del token) y, como la cola es FIFO, el
+batch viejo bloqueaba el drenaje completo para siempre.
+
 ## Diagnóstico
 
 | Síntoma | Causa | Acción |

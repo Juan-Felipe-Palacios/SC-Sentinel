@@ -6,6 +6,6 @@ pub mod spool;
 pub mod syncer;
 
 pub use client::{IngestClient, IngestError, SyncDecision};
-pub use envelope::{build_envelope, window_id_for, DeviceInfo};
+pub use envelope::{build_envelope, rebase_device_id, window_id_for, DeviceInfo};
 pub use spool::{BatchRow, RetentionReport, Spool, SpoolConfig, SpoolError};
 pub use syncer::{Applied, Backoff, Syncer, BASE_BACKOFF, MAX_BACKOFF};
