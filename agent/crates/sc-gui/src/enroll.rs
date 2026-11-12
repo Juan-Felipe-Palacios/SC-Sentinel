@@ -76,7 +76,13 @@ pub fn write_payload(request: &EnrollRequest) -> Result<PathBuf, String> {
 
     let acl = Command::new("icacls")
         .arg(&path)
-        .args(["/inheritance:r", "/grant:r", "SYSTEM:F", "Administrators:F"])
+        // SIDs, no nombres: en un Windows en español «Administrators» no existe.
+        .args([
+            "/inheritance:r",
+            "/grant:r",
+            "*S-1-5-18:F",
+            "*S-1-5-32-544:F",
+        ])
         .output();
     if let Ok(output) = acl {
         if !output.status.success() {
@@ -114,18 +120,12 @@ pub fn launch_elevated(payload: &Path) -> Result<(), String> {
 /// Helper elevado: aplica el enrolamiento y espera a que el servicio vuelva.
 pub fn apply_elevated(payload: &Path) -> Result<String, String> {
     let request = read_payload(payload)?;
-    let script = std::path::Path::new("scripts/re-enroll-device.ps1");
-    if !script.exists() {
-        return Err(format!(
-            "no se encontró {} (ejecuta el helper desde la raíz del repo)",
-            script.display()
-        ));
-    }
+    let script = find_enroll_script()?;
 
     // El token viaja por entorno, no en la línea de comandos del proceso.
     let status = Command::new("powershell")
         .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
-        .arg(script)
+        .arg(&script)
         .args(["-DeviceId", &request.device_id, "-IngestToken"])
         .arg(&request.token)
         .env("SC_ENROLL_TOKEN", &request.token)
@@ -148,6 +148,21 @@ pub fn apply_elevated(payload: &Path) -> Result<String, String> {
         std::thread::sleep(Duration::from_secs(2));
     }
     Err("el servicio no confirmó el sync en 90 s; revisa el log del agente".to_string())
+}
+
+/// El helper arranca desde cualquier cwd (lo lanza el explorador o el shell
+/// elevado), así que busca el script también subiendo desde el ejecutable.
+fn find_enroll_script() -> Result<PathBuf, String> {
+    let mut candidates = vec![std::path::PathBuf::from("scripts/re-enroll-device.ps1")];
+    if let Ok(exe) = std::env::current_exe() {
+        for ancestor in exe.ancestors().skip(1).take(6) {
+            candidates.push(ancestor.join("scripts/re-enroll-device.ps1"));
+        }
+    }
+    candidates
+        .into_iter()
+        .find(|path| path.exists())
+        .ok_or_else(|| "no se encontró scripts/re-enroll-device.ps1".to_string())
 }
 
 #[cfg(test)]
