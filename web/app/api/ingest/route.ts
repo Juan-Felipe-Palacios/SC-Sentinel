@@ -2,14 +2,15 @@
 // Normative ingest endpoint: docs/contracts/ingest-api.v1.md + ADR-0008 + ADR-0009 + ADR-0011
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createHash, randomUUID } from 'crypto';
+import { createHash } from 'crypto';
+import { neon } from '@neondatabase/serverless';
 import { authenticateDeviceToken } from '@/lib/auth/device';
 import { checkRateLimit } from '@/lib/rate-limit/ingest';
 import { readIngestBody } from '@/lib/ingest/read-body';
 import { logServerError } from '@/lib/logging/error';
 import { IngestEnvelopeSchema } from '@/lib/schemas/ingest';
-import { alertDeadlines } from '@/lib/alerts/policy';
-import { db, ingestBatches, flowWindows, hostStats, alerts, agentHealth, devices } from '@/lib/db';
+import { buildPersistStatements, type SqlTag } from '@/lib/ingest/persist';
+import { db, flowWindows, alerts } from '@/lib/db';
 import { eq, and, gte } from 'drizzle-orm';
 import {
   CLOUD_HEURISTIC_RULE_ID,
@@ -129,77 +130,34 @@ export async function POST(request: NextRequest) {
   // 7. Calculate payload hash for ledger audit
   const payloadHash = createHash('sha256').update(rawBody).digest('hex');
 
-  // 8. Idempotent Database Insert
+  // 8. Persistencia transaccional (ADR-0008 + ADR-0015).
+  // Batch, ventana, host_stats, alerts, agent_health y devices viajan en una
+  // única transacción no interactiva: o se guardan todas o ninguna. Los ids
+  // son deterministas, así que el reintento del agente repara lo que falte en
+  // lugar de dejar la ventana huérfana y responder "duplicate".
   if (process.env.DATABASE_URL) {
+    const sql = neon(process.env.DATABASE_URL);
     try {
-      // Check if this window was already processed for this device (ADR-0008)
-      const existingBatch = await db
-        .select({ id: ingestBatches.id })
-        .from(ingestBatches)
-        .where(
-          and(
-            eq(ingestBatches.deviceId, envelope.device.id),
-            eq(ingestBatches.windowId, envelope.window.id)
-          )
-        )
-        .limit(1);
-
-      if (existingBatch.length > 0) {
-        // Idempotent duplicate: 200 { status: "duplicate" }
-        return NextResponse.json({ status: 'duplicate' }, { status: 200 });
-      }
-
-      const batchId = `bat_${randomUUID()}`;
-      const flowWindowDbId = `win_${randomUUID()}`;
-
-      // Ingest Batch
-      await db.insert(ingestBatches).values({
-        id: batchId,
-        deviceId: envelope.device.id,
-        windowId: envelope.window.id,
-        payloadHash,
-        status: 'processed',
-      });
-
-      // Flow Window. UNIQUE(device_id, start_at): un segundo agente reportando el mismo
-      // intervalo con otro window_id no crea una ventana nueva (evita métricas dobles).
-      const insertedWindows = await db
-        .insert(flowWindows)
-        .values({
-          id: flowWindowDbId,
-          batchId,
-          deviceId: envelope.device.id,
-          windowId: envelope.window.id,
-          startAt: new Date(envelope.window.start),
-          endAt: new Date(envelope.window.end),
-          sequence: envelope.window.sequence,
-          snapshotJson: envelope.snapshot,
-        })
-        // Sin target: cubre tanto (device_id, window_id) como (device_id, start_at).
-        .onConflictDoNothing()
-        .returning({ id: flowWindows.id });
-
-      if (insertedWindows.length === 0) {
-        // El intervalo ya estaba registrado para este device (otro window_id):
-        // se ignora el resto del batch y el agente lo descarta del spool.
-        await db
-          .update(ingestBatches)
-          .set({ status: 'duplicate' })
-          .where(eq(ingestBatches.id, batchId));
-        return NextResponse.json({ status: 'duplicate' }, { status: 200 });
-      }
-
       // Heurística de respaldo (ADR-0005): sc-detect aún no emite risk_score
       // ni alerts; la nube evalúa las señales del payload para que la tarjeta
       // "Riesgo del sistema" no quede en 0. El snapshot_json se guarda crudo
       // (verdad del agente); el enriquecimiento vive en host_stats/alerts.
       const cloudRisk = evaluateCloudRisk(envelope.snapshot);
+      const alertRows = [...envelope.snapshot.alerts];
+      if (cloudRisk.alert && !(await hasRecentHeuristicAlert(envelope.device.id))) {
+        alertRows.push(cloudRisk.alert);
+      }
 
-      // Host Stats
-      if (envelope.snapshot.top_hosts.length > 0) {
-        const hostRows = envelope.snapshot.top_hosts.map((h) => ({
-          id: `hst_${randomUUID()}`,
-          windowId: envelope.window.id,
+      const health = envelope.snapshot.health;
+      const statements = buildPersistStatements(sql as unknown as SqlTag, {
+        deviceId: envelope.device.id,
+        windowId: envelope.window.id,
+        payloadHash,
+        start: new Date(envelope.window.start),
+        end: new Date(envelope.window.end),
+        sequence: envelope.window.sequence,
+        snapshot: envelope.snapshot,
+        hostStats: envelope.snapshot.top_hosts.map((h) => ({
           hostKey: h.host_key,
           // IP legible solo cuando el agente envía anonymize_hosts=false.
           ipDisplay: h.ip_display ?? null,
@@ -208,65 +166,51 @@ export async function POST(request: NextRequest) {
           packets: h.packets,
           country: h.country ?? null,
           // Score del agente si existe; si no, el de la ventana (heurística).
-          riskScore: String(resolveHostRiskScore(h.risk_score, cloudRisk.score)),
-        }));
-        await db.insert(hostStats).values(hostRows);
-      }
-
-      // Alerts (agente + heurística de la nube cuando el agente no emitió)
-      const alertRows = [...envelope.snapshot.alerts];
-      if (cloudRisk.alert && !(await hasRecentHeuristicAlert(envelope.device.id))) {
-        alertRows.push(cloudRisk.alert);
-      }
-      if (alertRows.length > 0) {
-        const alertCreatedAt = new Date(envelope.window.start);
-        const rows = alertRows.map((a) => {
-          const deadlines = alertDeadlines(a.severity, alertCreatedAt);
-          return {
-            id: `alt_${randomUUID()}`,
-            windowId: envelope.window.id,
-            ruleId: a.rule_id,
-            severity: a.severity,
-            title: a.title,
-            description: a.description ?? '',
-            evidence: a.evidence ?? null,
-            slaDueAt: deadlines.slaDueAt,
-            expiresAt: deadlines.expiresAt,
-          };
-        });
-        await db.insert(alerts).values(rows);
-      }
-
-      // Agent Health
-      const h = envelope.snapshot.health;
-      await db.insert(agentHealth).values({
-        id: `hlt_${randomUUID()}`,
-        deviceId: envelope.device.id,
-        captureStatus: h.capture_status,
-        packetsSeen: h.packets_seen,
-        packetsDropped: h.packets_dropped,
-        parseErrors: h.parse_errors,
-        queueDepth: h.queue_depth ?? null,
-        spoolBytes: h.spool_bytes ?? null,
-        collectorPacketsReceived: h.collector_packets_received ?? null,
-        collectorPacketsDropped: h.collector_packets_dropped ?? null,
-        collectorParseErrors: h.collector_parse_errors ?? null,
-        collectorTemplatesCached: h.collector_templates_cached ?? null,
-        collectorFlowsNormalized: h.collector_flows_normalized ?? null,
-        lastError: h.last_error ?? null,
+          riskScore: resolveHostRiskScore(h.risk_score, cloudRisk.score),
+        })),
+        alerts: alertRows.map((a) => ({
+          ruleId: a.rule_id,
+          severity: a.severity,
+          title: a.title,
+          description: a.description ?? '',
+          evidence: a.evidence ?? null,
+        })),
+        health: {
+          captureStatus: health.capture_status,
+          packetsSeen: health.packets_seen,
+          packetsDropped: health.packets_dropped,
+          parseErrors: health.parse_errors,
+          queueDepth: health.queue_depth ?? null,
+          spoolBytes: health.spool_bytes ?? null,
+          collectorPacketsReceived: health.collector_packets_received ?? null,
+          collectorPacketsDropped: health.collector_packets_dropped ?? null,
+          collectorParseErrors: health.collector_parse_errors ?? null,
+          collectorTemplatesCached: health.collector_templates_cached ?? null,
+          collectorFlowsNormalized: health.collector_flows_normalized ?? null,
+          lastError: health.last_error ?? null,
+        },
+        // Primer ingest exitoso promueve enrolled_pending → active (ADR-0010).
+        promoteToActive: auth.deviceStatus === 'enrolled_pending',
       });
 
-      // Primer ingest exitoso promueve enrolled_pending → active (ADR-0010).
-      const devicePatch: { lastSeenAt: Date; status?: string } = { lastSeenAt: new Date() };
-      if (auth.deviceStatus === 'enrolled_pending') devicePatch.status = 'active';
-      await db
-        .update(devices)
-        .set(devicePatch)
-        .where(eq(devices.id, envelope.device.id));
+      // `sql.transaction` del driver HTTP envía el lote como una sola
+      // transacción de Postgres; el tipado genérico del lote se estrecha aquí.
+      const runTransaction = sql.transaction as unknown as (
+        queries: unknown[]
+      ) => Promise<unknown[][]>;
+      const results = await runTransaction(statements);
 
-      return NextResponse.json({ status: 'processed' }, { status: 200 });
+      // La primera sentencia devuelve la fila del batch solo si era nueva:
+      // si viene vacía, la ventana ya estaba persistida (reintento).
+      const batchInserted = Array.isArray(results?.[0]) && results[0].length > 0;
+      return NextResponse.json(
+        { status: batchInserted ? 'processed' : 'duplicate' },
+        { status: 200 }
+      );
     } catch (err) {
-      logServerError('ingest_db_failed', err);
+      // Con el mensaje incluido: sin él solo veíamos `error: "Error"` y el
+      // drift de esquema (42703) pasó inadvertido durante días.
+      logServerError('ingest_db_failed', err, { includeMessage: true });
       return NextResponse.json(
         { error: 'server_error', message: 'Failed to persist ingest batch' },
         { status: 500 }
