@@ -12,7 +12,7 @@ import { maybeAlertCost } from './cost-alert';
 import type { AiFacts } from './facts';
 import type { AiLanguage } from './openrouter';
 
-export type AnalysisStatus = 'ok' | 'degraded' | 'cached' | 'no_data';
+export type AnalysisStatus = 'ok' | 'degraded' | 'cached' | 'no_data' | 'no_traffic';
 
 export interface AiInsightRecord {
   id: string;
@@ -200,6 +200,12 @@ const DEGRADED_SUMMARY: Record<AiLanguage, string> = {
   en: 'The deterministic engine analyzed the windows normally; the AI analysis is unavailable in degraded mode. Review the alerts and the window metrics.',
 };
 
+/// Período sin un solo byte observado: no es "normalidad con tráfico".
+const NO_TRAFFIC_SUMMARY: Record<AiLanguage, string> = {
+  es: 'Sin tráfico observado en el período: ninguna ventana reportó bytes. Revisa que el agente esté capturando o que el exportador NetFlow/IPFIX envíe flujos.',
+  en: 'No traffic observed in the period: no window reported bytes. Check that the agent is capturing or that the NetFlow/IPFIX exporter is sending flows.',
+};
+
 function buildDegradedOutput(language: AiLanguage = 'es'): {
   summary: string;
   risk_level: 'low';
@@ -273,6 +279,57 @@ export async function runAnalysisPipeline(
       if (latest) return { status: 'cached', insight: latest };
       return { status: 'degraded', insight: null };
     }
+  }
+
+  // Período con 0 bytes en todas las ventanas: se declara explícitamente y no
+  // se gasta una llamada a la IA. Es distinguible de "normalidad con tráfico"
+  // tanto por `status` como por el resumen guardado.
+  if (facts.total_bytes === 0) {
+    const id = `ins_${randomUUID()}`;
+    const summary = NO_TRAFFIC_SUMMARY[language];
+    const empty = { findings: [], recommendations: [] };
+    const created_at = new Date().toISOString();
+    await database.execute(
+      sql`INSERT INTO ai_insights
+            (id, device_id, period_start, period_end, model, status, language, risk_level, summary,
+             recommendations_json, facts_hash, input_tokens, output_tokens, cost_usd, latency_ms, status_code)
+          VALUES (
+            ${id},
+            ${deviceId},
+            ${facts.period.start}::timestamptz,
+            ${facts.period.end}::timestamptz,
+            'deterministic-fallback',
+            'no_traffic',
+            ${language},
+            'info',
+            ${summary},
+            ${JSON.stringify(empty)}::jsonb,
+            ${hash},
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL
+          )`
+    );
+    return {
+      status: 'no_traffic',
+      insight: {
+        id,
+        device_id: deviceId,
+        period_start: facts.period.start,
+        period_end: facts.period.end,
+        model: 'deterministic-fallback',
+        status: 'no_traffic',
+        language,
+        risk_level: 'info',
+        summary,
+        findings: [],
+        recommendations: [],
+        facts_hash: hash,
+        created_at,
+      },
+    };
   }
 
   const chain = await callAiChain(facts, { language });

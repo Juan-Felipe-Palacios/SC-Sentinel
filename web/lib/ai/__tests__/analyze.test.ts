@@ -149,4 +149,24 @@ describe('modo cron (Estrategias A y B)', () => {
     expect(result.status).toBe('degraded');
     expect(result.insight?.model).toBe('deterministic-fallback');
   });
+
+  it('sin tráfico en el período declara no_traffic sin llamar a la IA', async () => {
+    vi.stubEnv('GROQ_API_KEY', '');
+    vi.stubEnv('GEMINI_API_KEY', '');
+    vi.stubEnv('GOOGLE_AI_API_KEY', '');
+    vi.stubEnv('OPENROUTER_API_KEY', '');
+    // Primera consulta: no hay insight previo con el mismo hash. La segunda es
+    // el INSERT del insight determinista (no debe faltar).
+    const db = fakeDb([[]]);
+    const emptyFacts: AiFacts = { ...facts, total_bytes: 0, total_packets: 0 };
+
+    const result = await runAnalysisPipeline(emptyFacts, 'dev_x', db, 'es');
+
+    expect(result.status).toBe('no_traffic');
+    expect(result.insight?.status).toBe('no_traffic');
+    expect(result.insight?.summary).toMatch(/Sin tráfico observado/);
+    // Sin hallazgos ni recomendaciones inventadas: el período está vacío.
+    expect(result.insight?.findings).toEqual([]);
+    expect(result.insight?.recommendations).toEqual([]);
+  });
 });
