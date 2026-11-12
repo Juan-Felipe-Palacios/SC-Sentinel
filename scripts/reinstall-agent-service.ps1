@@ -1,4 +1,4 @@
-# Reinstala el binario del agente en el servicio SC-Sentinel-Agent.
+﻿# Reinstala el binario del agente en el servicio SC-Sentinel-Agent.
 # Requiere consola elevada (Administrador). El binario instalado se respalda con
 # marca de tiempo antes de sobrescribirlo, así un rollback es un Copy-Item.
 #
