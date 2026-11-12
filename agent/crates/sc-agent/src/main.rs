@@ -841,7 +841,17 @@ async fn sync_pass(spool: &Arc<Mutex<Spool>>, client: &IngestClient, syncer: &mu
         };
 
         match applied {
-            Ok(Applied::Confirmed) => {}
+            // Prueba directa de publicación: solo un 2xx borra la fila del
+            // spool, así que esta línea es la evidencia de que el device está
+            // autenticado y el batch entró en el backend. La usa
+            // `scripts/re-enroll-device.ps1` para devolver exit 0.
+            Ok(Applied::Confirmed) => {
+                tracing::info!(
+                    event = "sync_confirmed",
+                    window_id = %batch.window_id,
+                    "sync: ventana aceptada por el backend"
+                );
+            }
             Ok(Applied::DeadLettered) => {
                 tracing::warn!(window_id = %batch.window_id, ?decision, "sync: batch a dead-letter");
             }
