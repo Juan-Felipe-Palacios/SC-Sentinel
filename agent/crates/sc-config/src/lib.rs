@@ -63,7 +63,7 @@ pub enum ConfigError {
     MissingToken(String),
 }
 
-#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct AgentConfig {
     pub ingest: IngestConfig,
@@ -71,6 +71,7 @@ pub struct AgentConfig {
     pub spool: SpoolSection,
     pub log: LogSection,
     pub collector: CollectorSection,
+    pub detection: DetectionSection,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -135,6 +136,29 @@ pub struct LogSection {
     pub file: Option<PathBuf>,
 }
 
+/// Motor determinista local. La lista de IPs es opcional; si se configura una
+/// ruta, el agente falla al arrancar cuando el archivo no se puede leer.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct DetectionSection {
+    pub enabled: bool,
+    pub blacklist_file: Option<PathBuf>,
+    pub port_scan_min_ports: u32,
+    pub port_scan_min_connections: u64,
+    pub port_scan_max_connections_per_port: u64,
+    pub inbound_scan_enabled: bool,
+    pub inbound_scan_min_ports: u32,
+    pub inbound_scan_min_connections: u64,
+    pub inbound_scan_max_connections_per_port: u64,
+    pub dns_min_queries: u64,
+    pub dns_min_bytes: u64,
+    pub dns_min_avg_bytes: u64,
+    pub volume_min_bytes: u64,
+    pub drop_ratio_percent: f64,
+    pub min_drops: u64,
+    pub min_parse_errors: u64,
+}
+
 impl Default for IngestConfig {
     fn default() -> Self {
         Self {
@@ -160,6 +184,29 @@ impl Default for LogSection {
         Self {
             level: DEFAULT_LOG_LEVEL.to_string(),
             file: None,
+        }
+    }
+}
+
+impl Default for DetectionSection {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            blacklist_file: None,
+            port_scan_min_ports: 20,
+            port_scan_min_connections: 20,
+            port_scan_max_connections_per_port: 3,
+            inbound_scan_enabled: true,
+            inbound_scan_min_ports: 20,
+            inbound_scan_min_connections: 20,
+            inbound_scan_max_connections_per_port: 3,
+            dns_min_queries: 100,
+            dns_min_bytes: 64 * 1024,
+            dns_min_avg_bytes: 100,
+            volume_min_bytes: 100 * 1024 * 1024,
+            drop_ratio_percent: 5.0,
+            min_drops: 100,
+            min_parse_errors: 10,
         }
     }
 }
@@ -245,6 +292,9 @@ impl AgentConfig {
         }
         absolutize(&mut self.spool.path, base);
         absolutize(&mut self.privacy.hmac_key_file, base);
+        if let Some(path) = &mut self.detection.blacklist_file {
+            absolutize(path, base);
+        }
     }
 
     /// Parsea TOML sin tocar el filesystem (tests y defaults).
@@ -396,7 +446,72 @@ impl AgentConfig {
                 expected: "ruta para persistir la clave HMAC",
             });
         }
+        self.validate_detection()?;
         self.validate_collector()?;
+        Ok(())
+    }
+
+    fn validate_detection(&self) -> Result<(), ConfigError> {
+        let positive = [
+            (
+                "detection.port_scan_min_ports",
+                u64::from(self.detection.port_scan_min_ports),
+            ),
+            (
+                "detection.port_scan_min_connections",
+                self.detection.port_scan_min_connections,
+            ),
+            (
+                "detection.port_scan_max_connections_per_port",
+                self.detection.port_scan_max_connections_per_port,
+            ),
+            (
+                "detection.inbound_scan_min_ports",
+                u64::from(self.detection.inbound_scan_min_ports),
+            ),
+            (
+                "detection.inbound_scan_min_connections",
+                self.detection.inbound_scan_min_connections,
+            ),
+            (
+                "detection.inbound_scan_max_connections_per_port",
+                self.detection.inbound_scan_max_connections_per_port,
+            ),
+            ("detection.dns_min_queries", self.detection.dns_min_queries),
+            ("detection.dns_min_bytes", self.detection.dns_min_bytes),
+            (
+                "detection.dns_min_avg_bytes",
+                self.detection.dns_min_avg_bytes,
+            ),
+            (
+                "detection.volume_min_bytes",
+                self.detection.volume_min_bytes,
+            ),
+            ("detection.min_drops", self.detection.min_drops),
+            (
+                "detection.min_parse_errors",
+                self.detection.min_parse_errors,
+            ),
+        ];
+        for (field, value) in positive {
+            if value == 0 {
+                return Err(ConfigError::Invalid {
+                    field,
+                    value: "0".to_string(),
+                    expected: "un entero mayor que 0",
+                });
+            }
+        }
+        if !self.detection.drop_ratio_percent.is_finite()
+            || self.detection.drop_ratio_percent <= 0.0
+            || self.detection.drop_ratio_percent > 100.0
+        {
+            return Err(ConfigError::Invalid {
+                field: "detection.drop_ratio_percent",
+                value: self.detection.drop_ratio_percent.to_string(),
+                expected: "un porcentaje mayor que 0 y menor o igual a 100",
+            });
+        }
         Ok(())
     }
 
@@ -667,6 +782,21 @@ mod tests {
             config.privacy.hmac_key_file,
             PathBuf::from("./config/.host-key")
         );
+        assert!(config.detection.enabled);
+        assert_eq!(config.detection.port_scan_min_ports, 20);
+        assert_eq!(config.detection.port_scan_min_connections, 20);
+        assert_eq!(config.detection.port_scan_max_connections_per_port, 3);
+        assert!(config.detection.inbound_scan_enabled);
+        assert_eq!(config.detection.inbound_scan_min_ports, 20);
+        assert_eq!(config.detection.inbound_scan_min_connections, 20);
+        assert_eq!(config.detection.inbound_scan_max_connections_per_port, 3);
+        assert_eq!(config.detection.dns_min_queries, 100);
+        assert_eq!(config.detection.dns_min_bytes, 65_536);
+        assert_eq!(config.detection.dns_min_avg_bytes, 100);
+        assert_eq!(config.detection.volume_min_bytes, 104_857_600);
+        assert_eq!(config.detection.drop_ratio_percent, 5.0);
+        assert_eq!(config.detection.min_drops, 100);
+        assert_eq!(config.detection.min_parse_errors, 10);
         assert!(config.collector.enabled);
         assert_eq!(
             config.collector.bind_addr,
@@ -685,6 +815,123 @@ mod tests {
         assert_eq!(config, AgentConfig::default());
         assert_eq!(config.ingest.url, DEFAULT_INGEST_URL);
         assert_eq!(config.spool.max_age_days, 7);
+        assert!(config.detection.enabled);
+        assert!(config.detection.blacklist_file.is_none());
+        assert_eq!(config.detection.port_scan_min_ports, 20);
+        assert_eq!(config.detection.port_scan_min_connections, 20);
+        assert_eq!(config.detection.port_scan_max_connections_per_port, 3);
+        assert!(config.detection.inbound_scan_enabled);
+        assert_eq!(config.detection.inbound_scan_min_ports, 20);
+        assert_eq!(config.detection.inbound_scan_min_connections, 20);
+        assert_eq!(config.detection.inbound_scan_max_connections_per_port, 3);
+        assert_eq!(config.detection.dns_min_queries, 100);
+        assert_eq!(config.detection.dns_min_bytes, 65_536);
+        assert_eq!(config.detection.dns_min_avg_bytes, 100);
+        assert_eq!(config.detection.volume_min_bytes, 104_857_600);
+        assert_eq!(config.detection.drop_ratio_percent, 5.0);
+        assert_eq!(config.detection.min_drops, 100);
+        assert_eq!(config.detection.min_parse_errors, 10);
+    }
+
+    #[test]
+    fn la_blacklist_configurada_se_resuelve_contra_el_config() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let config_path = dir.path().join("config.toml");
+        std::fs::write(
+            &config_path,
+            b"[detection]\nblacklist_file = \"config/blacklist.txt\"\n",
+        )
+        .expect("escribe config");
+
+        let config = AgentConfig::load(&config_path).expect("config válido");
+        assert!(config.detection.enabled);
+        assert_eq!(
+            config.detection.blacklist_file,
+            Some(dir.path().join("config").join("blacklist.txt"))
+        );
+    }
+
+    #[test]
+    fn parsea_umbrales_de_deteccion_desde_toml() {
+        let config = AgentConfig::parse(
+            r#"
+            [detection]
+            enabled = false
+            port_scan_min_ports = 8
+            port_scan_min_connections = 9
+            port_scan_max_connections_per_port = 4
+            inbound_scan_enabled = false
+            inbound_scan_min_ports = 10
+            inbound_scan_min_connections = 11
+            inbound_scan_max_connections_per_port = 5
+            dns_min_queries = 12
+            dns_min_bytes = 13
+            dns_min_avg_bytes = 14
+            volume_min_bytes = 15
+            drop_ratio_percent = 2.5
+            min_drops = 16
+            min_parse_errors = 17
+            "#,
+        )
+        .expect("umbrales válidos");
+
+        assert!(!config.detection.enabled);
+        assert_eq!(config.detection.port_scan_min_ports, 8);
+        assert_eq!(config.detection.port_scan_min_connections, 9);
+        assert_eq!(config.detection.port_scan_max_connections_per_port, 4);
+        assert!(!config.detection.inbound_scan_enabled);
+        assert_eq!(config.detection.inbound_scan_min_ports, 10);
+        assert_eq!(config.detection.inbound_scan_min_connections, 11);
+        assert_eq!(config.detection.inbound_scan_max_connections_per_port, 5);
+        assert_eq!(config.detection.dns_min_queries, 12);
+        assert_eq!(config.detection.dns_min_bytes, 13);
+        assert_eq!(config.detection.dns_min_avg_bytes, 14);
+        assert_eq!(config.detection.volume_min_bytes, 15);
+        assert_eq!(config.detection.drop_ratio_percent, 2.5);
+        assert_eq!(config.detection.min_drops, 16);
+        assert_eq!(config.detection.min_parse_errors, 17);
+    }
+
+    #[test]
+    fn rechaza_umbrales_de_deteccion_invalidos() {
+        for (raw, field) in [
+            ("port_scan_min_ports = 0", "detection.port_scan_min_ports"),
+            (
+                "port_scan_min_connections = 0",
+                "detection.port_scan_min_connections",
+            ),
+            (
+                "port_scan_max_connections_per_port = 0",
+                "detection.port_scan_max_connections_per_port",
+            ),
+            (
+                "inbound_scan_min_ports = 0",
+                "detection.inbound_scan_min_ports",
+            ),
+            (
+                "inbound_scan_min_connections = 0",
+                "detection.inbound_scan_min_connections",
+            ),
+            (
+                "inbound_scan_max_connections_per_port = 0",
+                "detection.inbound_scan_max_connections_per_port",
+            ),
+            ("dns_min_queries = 0", "detection.dns_min_queries"),
+            ("dns_min_bytes = 0", "detection.dns_min_bytes"),
+            ("dns_min_avg_bytes = 0", "detection.dns_min_avg_bytes"),
+            ("volume_min_bytes = 0", "detection.volume_min_bytes"),
+            ("drop_ratio_percent = 0.0", "detection.drop_ratio_percent"),
+            ("drop_ratio_percent = 101.0", "detection.drop_ratio_percent"),
+            ("min_drops = 0", "detection.min_drops"),
+            ("min_parse_errors = 0", "detection.min_parse_errors"),
+        ] {
+            let toml = format!("[detection]\n{raw}\n");
+            let error = AgentConfig::parse(&toml).expect_err("umbral inválido");
+            assert!(
+                matches!(error, ConfigError::Invalid { field: f, .. } if f == field),
+                "se esperaba {field} para {raw}, se obtuvo {error}"
+            );
+        }
     }
 
     #[test]

@@ -61,6 +61,43 @@ pub struct HostStats {
     pub risk_score: Option<f64>, // 0.0–1.0
 }
 
+/// Señales internas por host que consume `sc-detect`. No forman parte del
+/// contrato de ingest: viven solo en memoria mientras se cierra la ventana.
+/// `destinations` se ordena y se acota para que la evaluación sea determinista
+/// sin conservar flujos individuales.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HostSignal {
+    pub host_key: String,
+    pub ip_display: Option<String>,
+    pub country: Option<Alpha2>,
+    /// `true` para el extremo local del nodo; `false` para el peer remoto.
+    pub is_local: bool,
+    pub bytes_in: u64,
+    pub bytes_out: u64,
+    pub packets: u64,
+    /// Destinos únicos `(IP, puerto)` vistos en flujos salientes.
+    pub outbound_connections: u64,
+    pub distinct_dst_ports: u32,
+    pub distinct_dst_ips: u32,
+    /// Flujos entrantes observados en este peer remoto (intentos totales).
+    pub inbound_connections: u64,
+    /// Puertos locales distintos tocados por este peer remoto.
+    pub distinct_inbound_ports: u32,
+    /// Destinos únicos para reglas de blacklist; ordenados por IP.
+    pub destinations: Vec<u128>,
+    pub dns_queries: u64,
+    pub dns_bytes: u64,
+}
+
+/// Entrada del motor determinista para una ventana cerrada. Es interna y no se
+/// serializa: el snapshot que viaja al backend sigue siendo `WindowSnapshot`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DetectionInput {
+    pub hosts: Vec<HostSignal>,
+    pub ports: Vec<PortStat>,
+    pub health: AgentHealth,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PortStat {
     pub port: u16,

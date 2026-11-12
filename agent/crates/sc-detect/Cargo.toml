@@ -1,6 +1,6 @@
 [package]
 name = "sc-detect"
-description = "Detección de anomalías de tráfico (M0: esqueleto)"
+description = "Motor determinista de detección de tráfico (reglas, blacklist y riesgo)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,3 +9,7 @@ authors.workspace = true
 
 [dependencies]
 sc-core = { path = "../sc-core" }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+chrono = { workspace = true }

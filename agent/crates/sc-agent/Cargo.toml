@@ -15,6 +15,7 @@ path = "src/main.rs"
 sc-capture = { path = "../sc-capture" }
 sc-collector = { path = "../sc-collector" }
 sc-aggregate = { path = "../sc-aggregate" }
+sc-detect = { path = "../sc-detect" }
 sc-config = { path = "../sc-config" }
 sc-sync = { path = "../sc-sync" }
 sc-core = { path = "../sc-core" }

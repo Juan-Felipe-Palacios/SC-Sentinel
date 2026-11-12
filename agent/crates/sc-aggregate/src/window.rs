@@ -3,13 +3,22 @@
 use crate::accumulator::Accumulator;
 use crate::snapshot::build_snapshot;
 use sc_capture::FlowUpdate;
-use sc_core::{Window, WindowSnapshot};
+use sc_core::{DetectionInput, Window, WindowSnapshot};
 use sc_geo::CountryLookup;
 use sc_telemetry::HealthRegistry;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
+
+/// Resultado de cerrar una ventana: snapshot contractual + señales internas
+/// que `sc-detect` evalúa antes de persistir el sobre en el spool.
+#[derive(Debug, Clone)]
+pub struct AggregatedWindow {
+    pub window: Window,
+    pub snapshot: WindowSnapshot,
+    pub signals: DetectionInput,
+}
 
 pub trait Clock: Send + Sync {
     fn now_epoch_s(&self) -> i64;
@@ -154,7 +163,7 @@ impl WindowAggregator {
     pub async fn run(
         self,
         mut rx: mpsc::Receiver<FlowUpdate>,
-        snapshots: mpsc::Sender<(Window, WindowSnapshot)>,
+        snapshots: mpsc::Sender<AggregatedWindow>,
     ) {
         let window_seconds = self.cfg.window_seconds as i64;
         let now = self.clock.now_epoch_s();
@@ -253,7 +262,7 @@ impl WindowAggregator {
         bounds: WindowBounds,
         last_dropped: &mut u64,
         queue_depth: u64,
-        snapshots: &mpsc::Sender<(Window, WindowSnapshot)>,
+        snapshots: &mpsc::Sender<AggregatedWindow>,
     ) {
         // Backlog real del canal de captura en este instante (§9).
         self.health
@@ -277,14 +286,14 @@ impl WindowAggregator {
             duration_ms: (bounds.end - bounds.start).max(0) as u64 * 1000,
             sequence: bounds.id_counter,
         };
-        let snapshot = build_snapshot(
+        let aggregated = build_snapshot(
             accumulator,
             &self.cfg,
             &self.health,
-            window.clone(),
+            window,
             bounds.id_counter,
         );
-        let _ = snapshots.send((window, snapshot)).await;
+        let _ = snapshots.send(aggregated).await;
     }
 }
 
@@ -359,10 +368,12 @@ mod tests {
             .expect("flujo 3");
         tokio::task::yield_now().await;
 
-        let (window, snapshot) = tokio::time::timeout(t, snap_rx.recv())
+        let frame = tokio::time::timeout(t, snap_rx.recv())
             .await
             .expect("timeout esperando la ventana")
             .expect("ventana cerrada");
+        let window = frame.window;
+        let snapshot = frame.snapshot;
         assert_eq!(window.start.timestamp(), 990);
         assert_eq!(window.end.timestamp(), 1_020);
         assert_eq!(window.duration_ms, 30_000);
@@ -408,10 +419,12 @@ mod tests {
         // El reloj pasa el borde de la ventana y NO llega más tráfico.
         clock.store(1_001, Ordering::Relaxed);
 
-        let (window, snapshot) = tokio::time::timeout(t, snap_rx.recv())
+        let frame = tokio::time::timeout(t, snap_rx.recv())
             .await
             .expect("la ventana debe cerrarse aunque no llegue tráfico")
             .expect("ventana cerrada");
+        let window = frame.window;
+        let snapshot = frame.snapshot;
         assert_eq!(window.start.timestamp(), 1_000);
         assert_eq!(window.end.timestamp(), 1_001);
         assert_eq!(window.duration_ms, 1_000);

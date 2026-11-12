@@ -8,5 +8,6 @@ pub mod window;
 pub use host_mark::host_key;
 pub use snapshot::build_snapshot;
 pub use window::{
-    AggregatorConfig, CaptureCounters, Clock, FixedClock, SystemClock, WindowAggregator,
+    AggregatedWindow, AggregatorConfig, CaptureCounters, Clock, FixedClock, SystemClock,
+    WindowAggregator,
 };

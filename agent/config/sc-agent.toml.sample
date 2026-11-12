@@ -33,6 +33,38 @@ level = "info"                 # SC_LOG tiene prioridad
 # usa C:\ProgramData\SC-Sentinel\logs\agent.log.
 # file = "C:/ProgramData/SC-Sentinel/logs/agent.log"
 
+[detection]
+# Motor determinista local: blacklist, escaneos salientes/entrantes, DNS,
+# volumen y salud. Se ejecuta siempre que la captura esté activa.
+enabled = true
+# Una IP exacta (IPv4 o IPv6) por línea; `#` inicia un comentario.
+# Si se configura y el archivo no existe, el agente no arranca.
+# blacklist_file = "./blacklist.txt"
+
+# Escaneo saliente: el extremo local toca muchos puertos remotos distintos.
+port_scan_min_ports = 20
+port_scan_min_connections = 20
+port_scan_max_connections_per_port = 3
+
+# Escaneo entrante: un peer remoto toca muchos puertos locales distintos.
+inbound_scan_enabled = true
+inbound_scan_min_ports = 20
+inbound_scan_min_connections = 20
+inbound_scan_max_connections_per_port = 3
+
+# Túnel DNS: consultas, bytes totales y tamaño medio por consulta.
+dns_min_queries = 100
+dns_min_bytes = 65536
+dns_min_avg_bytes = 100
+
+# Volumen por peer remoto en la ventana de 30 s.
+volume_min_bytes = 104857600
+
+# Salud operativa: drops y errores de parseo.
+drop_ratio_percent = 5.0
+min_drops = 100
+min_parse_errors = 10
+
 [collector]
 # Colector pasivo UDP: recibe NetFlow v5/v9 e IPFIX de routers y switches y
 # los entrega al mismo aggregator que la captura local. false = solo pcap.

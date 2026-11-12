@@ -1,7 +1,7 @@
 //! sc-sentinel-agent — daemon headless SCNet.
 
 use clap::Parser;
-use sc_aggregate::{AggregatorConfig, CaptureCounters, WindowAggregator};
+use sc_aggregate::{AggregatedWindow, AggregatorConfig, CaptureCounters, WindowAggregator};
 use sc_capture::{
     list_interfaces, local_ips_for_interface, run_live, run_offline, CaptureChannel,
     CaptureChannelPair, FlowProducer, LocalIpSet,
@@ -10,6 +10,7 @@ use sc_collector::{
     Collector, CollectorConfig, CollectorHandle, CollectorMetrics, ListenerConfig, ProtocolFilter,
 };
 use sc_config::{AgentConfig, CollectorSection};
+use sc_detect::{Blacklist, DetectorConfig};
 use sc_geo::{GeoLite2Country, NoLookup};
 use sc_sync::{
     build_envelope, Applied, DeviceInfo, IngestClient, Spool, SpoolConfig, SyncDecision, Syncer,
@@ -262,8 +263,48 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
         max_alerts: 50,
     };
 
+    // Motor determinista: evalúa cada ventana cerrada antes de persistirla en
+    // el spool. La blacklist es opcional; si está configurada y no se puede
+    // leer, el agente no arranca (mejor fallar que detectar a ciegas).
+    let blacklist = match &config.detection.blacklist_file {
+        Some(path) => match Blacklist::from_path(path) {
+            Ok(list) => list,
+            Err(error) => {
+                eprintln!("sc-sentinel-agent: blacklist inválida: {error}");
+                return 2;
+            }
+        },
+        None => Blacklist::default(),
+    };
+    let detection = &config.detection;
+    let detector_config = DetectorConfig {
+        enabled: detection.enabled,
+        max_alerts: agg_cfg.max_alerts,
+        blacklist,
+        port_scan_min_ports: detection.port_scan_min_ports,
+        port_scan_min_connections: detection.port_scan_min_connections,
+        port_scan_max_connections_per_port: detection.port_scan_max_connections_per_port,
+        inbound_scan_enabled: detection.inbound_scan_enabled,
+        inbound_scan_min_ports: detection.inbound_scan_min_ports,
+        inbound_scan_min_connections: detection.inbound_scan_min_connections,
+        inbound_scan_max_connections_per_port: detection.inbound_scan_max_connections_per_port,
+        dns_min_queries: detection.dns_min_queries,
+        dns_min_bytes: detection.dns_min_bytes,
+        dns_min_avg_bytes: detection.dns_min_avg_bytes,
+        volume_min_bytes: detection.volume_min_bytes,
+        drop_ratio_percent: detection.drop_ratio_percent,
+        min_drops: detection.min_drops,
+        min_parse_errors: detection.min_parse_errors,
+    };
+    if !detector_config.enabled {
+        tracing::warn!(
+            event = "detection_disabled",
+            "motor determinista deshabilitado por configuración"
+        );
+    }
+
     // Channels
-    let (snap_tx, mut snap_rx) = mpsc::channel::<(sc_core::Window, sc_core::WindowSnapshot)>(1000);
+    let (snap_tx, mut snap_rx) = mpsc::channel::<AggregatedWindow>(1000);
 
     // Setup capture
     let use_offline = args.offline || args.fixture.is_some();
@@ -447,7 +488,22 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
     let device_clone = device.clone();
     let spooler_handle = tokio::spawn(async move {
         let seq_base = sequence_base();
-        while let Some((window, snap)) = snap_rx.recv().await {
+        while let Some(frame) = snap_rx.recv().await {
+            let AggregatedWindow {
+                window,
+                mut snapshot,
+                signals,
+            } = frame;
+            let detected =
+                sc_detect::detect_and_apply(&window, &signals, &detector_config, &mut snapshot);
+            if !detected.alerts.is_empty() {
+                tracing::debug!(
+                    event = "alerts_detected",
+                    count = detected.alerts.len(),
+                    window = %window.id,
+                    "alertas deterministas generadas"
+                );
+            }
             let now = chrono::Utc::now();
             let mut s = spool_clone.lock().await;
             // La secuencia vive en el spool: un contador en memoria reiniciaba en 1 en
@@ -466,7 +522,7 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
                 seq,
                 window.start.timestamp(),
                 window.end.timestamp(),
-                &snap,
+                &snapshot,
             );
             match serde_json::to_vec(&env) {
                 Ok(json) => {

@@ -1577,6 +1577,7 @@ dependencies = [
  "sc-collector",
  "sc-config",
  "sc-core",
+ "sc-detect",
  "sc-geo",
  "sc-sync",
  "sc-telemetry",
@@ -1667,7 +1668,9 @@ dependencies = [
 name = "sc-detect"
 version = "0.1.2"
 dependencies = [
+ "chrono",
  "sc-core",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

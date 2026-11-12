@@ -18,7 +18,7 @@ sc-sentinel-agent (bin daemon, M1) · sc-gui (bin iced, M5)
 | `sc-collector` | Colector pasivo UDP: NetFlow v5/v9 + IPFIX, integrado en `sc-agent` con config y CLI (M4 fases 1–3) | en curso (M4) |
 | `sc-geo` | MaxMind GeoLite2 embebido con firma de integridad SHA-256 (ISO alpha-2) | completo (M1) |
 | `sc-aggregate` | Agregación por ventanas de 30–60 s → `WindowSnapshot` con HMAC host_mark | completo (M1) |
-| `sc-detect` | Motor determinista de `Alert` (blacklist/umbrales) | esqueleto (M3) |
+| `sc-detect` | Motor determinista de `Alert` (blacklist, escaneo de puertos, DNS, volumen y salud) | completo (M3) |
 | `sc-sync` | Cliente `/api/ingest` con spool SQLite FIFO 500MB, backoff y gzip | completo (M1) |
 | `sc-config` | Configuración y secrets (TOML) | completo (M1) |
 | `sc-telemetry` | Logging estructurado con redacción de tokens y HealthRegistry | completo (M1) |
@@ -101,6 +101,53 @@ Los `window_id` se derivan de la secuencia persistida en el spool más una base 
 - El **device id es obligatorio**: `--device-id dev_<uuid>` o `SC_SENTINEL_DEVICE_ID`. Ya no existe el fallback silencioso `dev-001`, que terminaba en 403 porque el `device.id` del sobre no coincidía con el token. El script de reinicio lo pasa siempre desde `config/.device-id`.
 - `hostname` y `boot_id` del sobre se resuelven del sistema (`COMPUTERNAME`/`/etc/hostname`, `/proc/sys/kernel/random/boot_id`); en plataformas sin boot id estable se usa un UUID por proceso.
 - `host_mark` usa una clave HMAC que **no** está en el binario. Precedencia: `SC_HMAC_KEY` → `privacy.hmac_key_file` → clave aleatoria generada y persistida en el primer arranque (`config/.host-key`, ignorado por git). Conservá ese archivo: si cambia la clave, los `host_key` nuevos dejan de coincidir con el historial del dashboard. Para mantener continuidad con instalaciones previas, fijá `SC_HMAC_KEY=sc-sentinel-dev-key` hasta hacer la migración.
+
+### Detección determinista
+
+Cada ventana cerrada pasa por `sc-detect` antes de entrar al spool. El motor
+evalúa señales agregadas (nunca paquetes crudos) y escribe `snapshot.alerts` y
+`top_hosts[].risk_score`; la IA solo interpreta esos hechos.
+
+Reglas de v1:
+
+- `blacklist_hit`: un peer remoto (saliente o entrante) está en la blacklist
+  local. Requiere
+  `detection.blacklist_file` (una IP exacta por línea, IPv4 o IPv6; `#`
+  comenta). Sin archivo, la regla no se evalúa.
+- `port_scan`: el extremo local toca al menos 20 puertos remotos distintos con
+  pocos intentos por puerto en la ventana.
+- `inbound_port_scan`: un peer remoto toca al menos 20 puertos locales distintos
+  con pocos intentos por puerto. Detecta escaneos dirigidos al equipo.
+- `dns_tunneling`: al menos 100 consultas DNS salientes, 64 KB y 100 bytes de
+  media por consulta.
+- `volume_anomaly`: un host remoto supera 100 MB agregados en la ventana.
+- `capture_error`, `capture_degraded`, `packet_drops` y `parse_errors`: salud
+  del agente y backpressure.
+
+Todos los umbrales se configuran en `[detection]` y se validan al cargar el
+TOML (deben ser mayores que 0; el ratio de drops, entre 0 y 100):
+
+```toml
+[detection]
+enabled = true
+port_scan_min_ports = 20
+port_scan_min_connections = 20
+port_scan_max_connections_per_port = 3
+inbound_scan_enabled = true
+inbound_scan_min_ports = 20
+inbound_scan_min_connections = 20
+inbound_scan_max_connections_per_port = 3
+dns_min_queries = 100
+dns_min_bytes = 65536
+dns_min_avg_bytes = 100
+volume_min_bytes = 104857600
+drop_ratio_percent = 5.0
+min_drops = 100
+min_parse_errors = 10
+```
+
+La lista de IPs se resuelve relativa al `config.toml`; si el archivo
+configurado falta, el agente falla al arrancar.
 
 ### Colector de flujos (NetFlow/IPFIX)
 
