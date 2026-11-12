@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
 
 pub mod logging;
+pub mod status;
 
 use sc_core::{AgentHealth, CaptureStatus};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};

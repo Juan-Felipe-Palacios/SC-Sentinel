@@ -12,3 +12,15 @@ sc-core = { path = "../sc-core" }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
+# Endpoint loopback /status (F1). hyper ya viene en el lock por reqwest, así que
+# no agrega árbol nuevo; axum no se usa para no sumar tower.
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body-util = "0.1"
+serde = { workspace = true }
+serde_json = "1.0"
+chrono = { workspace = true }
+tokio = { workspace = true, features = ["net", "rt", "io-util", "time"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "io-util", "time"] }

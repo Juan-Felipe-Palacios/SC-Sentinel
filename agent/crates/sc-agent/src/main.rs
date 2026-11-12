@@ -16,6 +16,7 @@ use sc_sync::{
     build_envelope, rebase_device_id, Applied, DeviceInfo, IngestClient, Spool, SpoolConfig,
     SyncDecision, Syncer,
 };
+use sc_telemetry::status::{StatusConfig, StatusServer, StatusShared, STATUS_ADDR};
 use sc_telemetry::{logging, HealthRegistry};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
@@ -273,22 +274,25 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
 
     // Geo lookup: la base GeoLite2 se resuelve en runtime (SC_GEOIP_DB o
     // <dir del binario>/geolite2/), nunca con una ruta compilada.
-    let geo: Arc<dyn sc_geo::CountryLookup> = match GeoLite2Country::discover() {
-        Ok(g) => {
-            tracing::info!(
-                path = %g.path().display(),
-                "GeoIP: base GeoLite2 cargada"
-            );
-            Arc::new(g)
-        }
-        Err(error) => {
-            tracing::warn!(
-                %error,
-                "GeoIP no disponible: se usa NoLookup (los países quedan vacíos)"
-            );
-            Arc::new(NoLookup)
-        }
-    };
+    // `geo_loaded` se publica en /status para que la GUI pueda mostrar si la
+    // base GeoLite2 se cargó (sin ella los países salen vacíos).
+    let (geo, geo_loaded): (Arc<dyn sc_geo::CountryLookup>, bool) =
+        match GeoLite2Country::discover() {
+            Ok(g) => {
+                tracing::info!(
+                    path = %g.path().display(),
+                    "GeoIP: base GeoLite2 cargada"
+                );
+                (Arc::new(g), true)
+            }
+            Err(error) => {
+                tracing::warn!(
+                    %error,
+                    "GeoIP no disponible: se usa NoLookup (los países quedan vacíos)"
+                );
+                (Arc::new(NoLookup), false)
+            }
+        };
 
     // Aggregator config
     let agg_cfg = AggregatorConfig {
@@ -593,10 +597,58 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
     // Sync loop: solo un 2xx borra del spool (spec §9.2).
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let spool_sync = spool.clone();
+    // F1: endpoint local para la GUI (127.0.0.1:8387). No lleva autenticación,
+    // así que solo se abre en loopback. Si el puerto está ocupado, el agente
+    // sigue funcionando y la GUI mostrará "Desconectado".
+    let status_shared = StatusShared::new(
+        health.clone(),
+        StatusConfig {
+            agent_version: env!("CARGO_PKG_VERSION").to_string(),
+            device_id: device.id.clone(),
+            mode: if service::is_service() {
+                "service".to_string()
+            } else {
+                "console".to_string()
+            },
+            capture_enabled: !args.no_capture,
+            collector_ports: if config.collector.enabled {
+                config
+                    .collector
+                    .listeners
+                    .iter()
+                    .map(|listener| listener.port)
+                    .collect()
+            } else {
+                Vec::new()
+            },
+            geo_loaded,
+        },
+    );
+    match STATUS_ADDR.parse::<std::net::SocketAddr>() {
+        Ok(addr) => match StatusServer::bind(addr, status_shared.clone()).await {
+            Ok(server) => tracing::info!(
+                event = "status_server_started",
+                addr = %server.local_addr(),
+                "endpoint de estado local activo"
+            ),
+            Err(error) => tracing::warn!(
+                event = "status_server_failed",
+                %error,
+                "el endpoint de estado local no se pudo abrir; la GUI quedará en Desconectado"
+            ),
+        },
+        Err(error) => tracing::warn!(
+            event = "status_addr_invalid",
+            %error,
+            "dirección del endpoint de estado inválida"
+        ),
+    }
+
     let sync_handle = tokio::spawn(sync_loop(
         spool_sync,
         client,
         device.id.clone(),
+        status_shared,
         shutdown_rx,
     ));
 
@@ -795,6 +847,7 @@ async fn sync_loop(
     spool: Arc<Mutex<Spool>>,
     client: IngestClient,
     device_id: String,
+    status: Arc<StatusShared>,
     mut shutdown: watch::Receiver<bool>,
 ) {
     let mut syncer = Syncer::new();
@@ -806,7 +859,7 @@ async fn sync_loop(
                 if syncer.enrollment_required() {
                     tracing::warn!("sync: el device necesita enrolarse; batches retenidos en el spool");
                     ENROLLMENT_RETRY
-                } else if sync_pass(&spool, &client, &mut syncer, &device_id).await {
+                } else if sync_pass(&spool, &client, &mut syncer, &device_id, &status).await {
                     syncer.delay()
                 } else {
                     continue;
@@ -825,7 +878,7 @@ async fn sync_loop(
         event = "sync_final_drain",
         "drenaje final del spool antes de salir"
     );
-    drain_spool(&spool, &client, &mut syncer, &device_id).await;
+    drain_spool(&spool, &client, &mut syncer, &device_id, &status).await;
 }
 
 /// Envía hasta 10 batches del spool. Devuelve `true` si hay que reintentar con backoff.
@@ -834,6 +887,7 @@ async fn sync_pass(
     client: &IngestClient,
     syncer: &mut Syncer,
     device_id: &str,
+    status: &StatusShared,
 ) -> bool {
     let batches = {
         let mut s = spool.lock().await;
@@ -877,6 +931,8 @@ async fn sync_pass(
                     window_id = %batch.window_id,
                     "sync: ventana aceptada por el backend"
                 );
+                // Alimenta `last_sync_at` de /status (lo muestra la GUI).
+                status.note_sync(&batch.window_id);
             }
             Ok(Applied::DeadLettered) => {
                 tracing::warn!(window_id = %batch.window_id, ?decision, "sync: batch a dead-letter");
@@ -916,6 +972,7 @@ async fn drain_spool(
     client: &IngestClient,
     syncer: &mut Syncer,
     device_id: &str,
+    status: &StatusShared,
 ) {
     for _ in 0..DRAIN_ATTEMPTS {
         if syncer.enrollment_required() {
@@ -925,7 +982,7 @@ async fn drain_spool(
         if pending == 0 {
             break;
         }
-        if sync_pass(spool, client, syncer, device_id).await {
+        if sync_pass(spool, client, syncer, device_id, status).await {
             // El backend pidió backoff: no tiene sentido bloquear el apagado.
             break;
         }
