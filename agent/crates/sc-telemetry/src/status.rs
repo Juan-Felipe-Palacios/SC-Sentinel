@@ -70,7 +70,9 @@ impl std::error::Error for StatusError {
     }
 }
 
-/// Cuerpo de `GET /status`. Nombres estables: la GUI los consume tal cual.
+/// Cuerpo de `GET /status`. Contrato estable de `/status`; sc-gui lo consume
+/// por polling (F3) y deserializa con valores por defecto, así que añadir
+/// campos aquí no rompe a un cliente anterior.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct AgentStatus {
     pub agent_version: String,
