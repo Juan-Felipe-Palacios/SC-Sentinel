@@ -624,7 +624,11 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
             geo_loaded,
         },
     );
-    match STATUS_ADDR.parse::<std::net::SocketAddr>() {
+    // Permite una segunda instancia (demo/temporal) sin chocar con el servicio,
+    // que ya ocupa el puerto por defecto. Solo loopback: no es configurable la
+    // interfaz, únicamente el puerto.
+    let status_addr = std::env::var("SC_STATUS_ADDR").unwrap_or_else(|_| STATUS_ADDR.to_string());
+    match status_addr.parse::<std::net::SocketAddr>() {
         Ok(addr) => match StatusServer::bind(addr, status_shared.clone()).await {
             Ok(server) => tracing::info!(
                 event = "status_server_started",
