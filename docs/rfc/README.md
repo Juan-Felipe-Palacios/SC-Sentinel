@@ -17,7 +17,13 @@ Usar la plantilla [`0000-template.md`](0000-template.md). Numeración: 4 dígito
 
 | # | Título | Estado | Autor | Fecha |
 |---|---|---|---|---|
-| — | (sin RFCs aún) | — | — | — |
+| 0001 | Multi-tenant v2 (organizaciones y usuarios) | Borrador | SC-Sentinel core | 2026-11-12 |
+| 0002 | OpenTelemetry en agente y route handlers | Borrador | SC-Sentinel core | 2026-11-12 |
+| 0003 | Rate limiting distribuido en Postgres | Borrador | SC-Sentinel core | 2026-11-12 |
+| 0004 | Dominio propio como alias post-v1 | Borrador | SC-Sentinel core | 2026-11-12 |
+| 0005 | Alertas por email (proveedor externo) | Borrador | SC-Sentinel core | 2026-11-12 |
+| 0006 | Distribución de Npcap en el instalador (OEM) | Borrador | SC-Sentinel core | 2026-11-12 |
+| 0007 | Contrato v2 y coexistencia de versiones | Borrador | SC-Sentinel core | 2026-11-12 |
 
 ## Reglas
 
