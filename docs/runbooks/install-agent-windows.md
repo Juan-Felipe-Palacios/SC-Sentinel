@@ -145,6 +145,15 @@ Checklist:
 - [ ] Log por archivo activo: la config del servicio no define stdout; las líneas aparecen en `agent.log` con `collector_started` o captura activa (sin datos sensibles: el log lleva evento/claves contractuales, no tokens ni payloads; §9.3).
 - [ ] `C:\ProgramData\SC-Sentinel\config\.host-key` existe (clave HMAC persistida del host) y el spool `spool\sc-spool.sqlite` está inicializado.
 - [ ] El log muestra `GeoIP: base GeoLite2 cargada path=…` (si no aparece, la geolocalización de países está vacía: ver §7).
+- [ ] El proceso del agente **escucha en UDP** los puertos del colector (`2055` y `4739` por defecto). El script lo comprueba mirando los sockets del proceso; a mano:
+      ```powershell
+      Get-NetUDPEndpoint -OwningProcess (Get-Process sc-sentinel-agent).Id | Select-Object LocalAddress,LocalPort
+      ```
+- [ ] El `Environment` del servicio contiene un par **real** `SC_INGEST_TOKEN=sc_dev_…` + `SC_SENTINEL_DEVICE_ID=dev_…`:
+      ```powershell
+      (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\SC-Sentinel-Agent').Environment
+      ```
+      Con un token de prueba (`local-eval-token`) el backend responde **401/403** y nunca hay drain: es un problema de credenciales, no del agente.
 - [ ] Dashboard → Settings muestra el device con "último sync exitoso" reciente.
 - [ ] Dashboard → Overview tiene datos de ventanas.
 - [ ] `sc.exe failure` tras un `/ping` de red caída: el SCM reinicia el daemon (se ve en el log un arranque nuevo con el mismo spool).

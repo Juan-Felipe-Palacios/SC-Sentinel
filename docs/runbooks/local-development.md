@@ -150,3 +150,48 @@ siendo `*.sqlite`.
 > Nota: en Windows, `sqlite3` puede no estar instalado. Con Python:
 > `python -c "import sqlite3;print(sqlite3.connect('spool/sc-spool.sqlite').execute('SELECT COUNT(*) FROM batches').fetchone())"`.
 
+### 7.3 Un script PowerShell falla en runtime aunque el parser diga 0 errores
+
+**Síntoma:** un `.ps1` que valida sintaxis no da ningún error, pero al ejecutarlo
+aparece en medio de la salida:
+
+```
+else: C:\...\script.ps1:251
+Line |
+ 251 |   } else {
+     |   ~~~~
+     | El término "else" no se reconoce como nombre de un cmdlet.
+```
+
+**Causa:** hay **dos `else` para el mismo `if`**. El segundo `else` se queda
+colgado y, al no pertenecer a ningún `if`, PowerShell lo interpreta como un
+**comando** (un *bareword*) en vez de como palabra clave.
+
+**Por qué el parser no lo detecta:** `[System.Management.Automation.Language.Parser]::ParseFile`
+**sí lo acepta**, porque `else` es un nombre de cmdlet perfectamente válido en
+la posición de comando. Es decir: **una estructura `if/else` rota es un error
+de RUNTIME, no de sintaxis**, y la validación sintáctica da un falso "todo bien".
+
+**Cómo evitarlo:**
+
+1. Ejecuta el script entero, no solo la validación sintáctica: es el único
+   que detecta el `else` huérfano.
+2. Si aparece este error, mira el `if` al que debería pertenecer el `else` y
+   comprueba que no haya otro `else` antes en el mismo bloque. Un patrón que
+   lo evita es **inicializar la variable antes del `if`** y no usar un `else`
+   para el caso "no aplica":
+
+   ```powershell
+   # en vez de:
+   if ($svc) { ... } else { $flag = $false }
+
+   # mejor:
+   $flag = $false          # valor por defecto antes del if
+   if ($svc) { $flag = $true }
+   ```
+
+3. Alternativa de comprobación estática: contar los `if`/`else` por bloque, o
+   apoyarse en un formateador/linter de PSScriptAnalyzer (`PSScriptAnalyzer`
+   reporta `PossibleIncorrectComparisonWithNull` y similares, pero **no** este
+   caso: sigue haciendo falta ejecutar).
+

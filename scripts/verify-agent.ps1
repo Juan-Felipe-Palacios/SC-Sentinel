@@ -192,6 +192,9 @@ if ($Service) {
   Write-Head 'SERVICIO (instalacion Windows)'
 
   $svc = Get-Service -Name 'SC-Sentinel-Agent' -ErrorAction SilentlyContinue
+  # Se inicializa aqui porque el bloque del log (mas abajo) la consulta incluso
+  # cuando el servicio no existe.
+  $credsPlaceholder = $false
   if (-not $svc) {
     Write-Fail 'El servicio SC-Sentinel-Agent no esta instalado'
   } else {
@@ -218,6 +221,36 @@ if ($Service) {
     Test-Expect $hasToken 'SC_INGEST_TOKEN en el Environment del servicio' 'SC_INGEST_TOKEN no esta en el Environment del servicio'
     if ($hasGeo) { Write-Ok 'SC_GEOIP_DB en el Environment del servicio' }
     else { Write-Warn 'SC_GEOIP_DB no esta en el Environment: se usara la busqueda automatica junto al binario' }
+
+    # Forma de las credenciales: el backend solo acepta un token real
+    # (sc_dev_...) emparejado con su device_id (dev_...). Con credenciales de
+    # prueba el sync SIEMPRE responde 401/403 y nunca hay drain: no es un
+    # defecto del agente, asi que hay que distinguirlo antes de fallar.
+    $tokenValue = (($envVal | Where-Object { $_ -like 'SC_INGEST_TOKEN=*' }) -split '=', 2)[-1]
+    $deviceValue = (($envVal | Where-Object { $_ -like 'SC_SENTINEL_DEVICE_ID=*' }) -split '=', 2)[-1]
+    $tokenShape = [bool]($tokenValue -match '^sc_dev_')
+    $deviceShape = [bool]($deviceValue -match '^dev_')
+    $credsPlaceholder = -not ($tokenShape -and $deviceShape)
+    if ($credsPlaceholder) {
+      Write-Warn "Credenciales de PRUEBA instaladas: token='$tokenValue' device_id='$deviceValue'."
+      Write-Info 'El backend solo acepta un token real (sc_dev_...) con su device_id (dev_...); con estos valores el sync responde 401/403 y por eso no hay drain ni sync.'
+    } else {
+      Write-Ok "Credenciales con forma valida: device_id='$deviceValue'"
+    }
+
+    # El colector debe tener sockets UDP abiertos: prueba de que el servicio
+    # no solo esta vivo, sino que escucha de verdad.
+    $agentProc = Get-CimInstance Win32_Process -Filter "Name='sc-sentinel-agent.exe'" -ErrorAction SilentlyContinue |
+      Select-Object -First 1
+    if ($agentProc) {
+      $udp = @(Get-NetUDPEndpoint -ErrorAction SilentlyContinue | Where-Object { $_.OwningProcess -eq $agentProc.ProcessId })
+      if ($udp.Count -gt 0) {
+        $ports = ($udp | ForEach-Object { $_.LocalPort } | Sort-Object -Unique) -join ', '
+        Write-Ok "El colector escucha en UDP $ports"
+      } else {
+        Write-Warn 'El proceso del agente no tiene sockets UDP abiertos: el colector no esta escuchando'
+      }
+    }
   }
 
   # El instalador deja config/spool/logs solo para SYSTEM y Administradores,
@@ -244,14 +277,38 @@ if ($Service) {
   if ($spoolOk) { Write-Ok 'Spool inicializado (spool\sc-spool.sqlite)' }
   elseif (-not $isAdmin) { Write-Warn 'No se puede leer spool\sc-spool.sqlite sin elevación' }
   else { Write-Fail 'Falta spool\sc-spool.sqlite' }
+  if ($spoolOk) {
+    try {
+      $spoolSize = (Get-Item $spool -ErrorAction Stop).Length
+      if ($spoolSize -gt 0) {
+        Write-Info ("Spool con datos pendientes: {0:N0} bytes" -f $spoolSize)
+      } else {
+        Write-Info 'Spool vacio: el agente no tiene ventanas que enviar'
+      }
+    } catch { }
+  }
 
   $log = $null
   try { $log = Get-Content $logFile -Tail 400 -ErrorAction Stop | Out-String } catch { }
   if ($log) {
     Write-Info "Log: $logFile"
     Test-Expect ($log -match 'GeoIP: base GeoLite2 cargada') 'El log registra la carga de GeoLite2' 'El log no registra la carga de GeoLite2'
-    Test-Expect ($log -match 'spool_flushed|sync_final_drain|sync_ok') 'El log registra un drain/sync del spool' 'El log no registra ningun drain/sync'
-    if ($log -match '401|403') { Write-Warn 'El log muestra 401/403: revisa que el token y el device_id sean el mismo par' }
+    $hasSync = [bool]($log -match 'spool_flushed|sync_final_drain|sync_ok')
+    $hasAuthError = [bool]($log -match '(401|403)')
+    if ($hasSync) {
+      Write-Ok 'El log registra un drain/sync del spool'
+    } elseif ($credsPlaceholder) {
+      Write-Info 'Sin drain/sync: es lo esperado con credenciales de prueba (el backend rechaza el sync con 401/403).'
+    } else {
+      Write-Fail 'El log no registra ningun drain/sync'
+    }
+    if ($hasAuthError) {
+      if ($credsPlaceholder) {
+        Write-Warn 'El log muestra 401/403: coherente con las credenciales de prueba instaladas (no es un defecto del agente).'
+      } else {
+        Write-Fail 'El log muestra 401/403 con credenciales de forma valida: el backend rechaza el token, o el device_id no es el dueno del token.'
+      }
+    }
   } elseif (-not $isAdmin) {
     Write-Warn 'No se puede leer el log sin elevación'
   } else {
