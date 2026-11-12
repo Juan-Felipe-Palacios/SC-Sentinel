@@ -17,6 +17,7 @@ mod spool_history;
 mod status_client;
 mod theme;
 mod tray;
+mod tray_balloon;
 
 use app::GuiApp;
 

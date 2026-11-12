@@ -14,6 +14,7 @@ use crate::spool_history::{default_spool_path, read_window_packets, PacketHistor
 use crate::status_client::{status_url, Poller, StatusSnapshot};
 use crate::theme;
 use crate::tray::Tray;
+use crate::tray_balloon;
 use chrono::Utc;
 use egui::{RichText, ViewportCommand};
 use std::time::{Duration, Instant};
@@ -43,7 +44,6 @@ pub struct GuiApp {
     enroll_token: String,
     enroll_token_saved: bool,
     enroll_message: Option<String>,
-    toast: Option<(String, Instant)>,
 }
 
 impl GuiApp {
@@ -74,7 +74,6 @@ impl GuiApp {
             enroll_token: String::new(),
             enroll_token_saved: false,
             enroll_message: None,
-            toast: None,
         }
     }
 
@@ -106,12 +105,12 @@ impl GuiApp {
             let previous = self.service;
             self.service = scm::query_service_state(scm::SERVICE_NAME);
             self.last_scm_query = Some(Instant::now());
-            // Aviso de bandeja: el servicio dejó de correr.
+            // Globo de bandeja: el servicio dejó de correr.
             if previous == ServiceState::Running && self.service != ServiceState::Running {
-                self.toast = Some((
-                    "SC-Sentinel: el servicio se detuvo".to_string(),
-                    Instant::now(),
-                ));
+                tray_balloon::warning(
+                    "Servicio detenido",
+                    "SC-Sentinel-Agent dejó de ejecutarse. Revisa la pestaña Estado.",
+                );
             }
         }
 
@@ -127,10 +126,10 @@ impl GuiApp {
                 && self.enroll_message.as_deref() != Some(ENROLL_DONE)
             {
                 self.enroll_message = Some(ENROLL_DONE.to_string());
-                self.toast = Some((
-                    "SC-Sentinel: enrolamiento completado".to_string(),
-                    Instant::now(),
-                ));
+                tray_balloon::info(
+                    "Enrolamiento completado",
+                    "El servicio está en marcha y el primer sync se confirmó.",
+                );
             }
         }
 
@@ -233,12 +232,6 @@ impl GuiApp {
             None => "Agente sin respuesta en /status".to_string(),
         };
         ui.label(RichText::new(agent).color(theme::MUTED).size(12.0));
-        // Aviso temporal (equivalente al balloon de la bandeja).
-        if let Some((text, at)) = self.toast.as_ref() {
-            if at.elapsed() < Duration::from_secs(8) {
-                ui.label(RichText::new(text.clone()).color(theme::ORANGE).size(12.0));
-            }
-        }
         ui.add_space(6.0);
     }
 
@@ -493,10 +486,10 @@ impl GuiApp {
                 self.enroll_token_saved = true;
                 self.enroll_message =
                     Some("Esperando a que el servicio vuelva a Running…".to_string());
-                self.toast = Some((
-                    "SC-Sentinel: aplicando enrolamiento".to_string(),
-                    Instant::now(),
-                ));
+                tray_balloon::info(
+                    "Enrolamiento en curso",
+                    "Acepta el UAC para guardar el token en el servicio.",
+                );
             }
             Err(error) => self.enroll_message = Some(error),
         }

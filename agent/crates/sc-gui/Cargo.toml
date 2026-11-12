@@ -29,4 +29,11 @@ flate2 = "1.0"
 
 [target.'cfg(windows)'.dependencies]
 # Estado real del servicio por SCM (nunca parseando `sc.exe`).
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Services"] }
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Services",
+    # Globo nativo de la bandeja (Shell_NotifyIconW + ventana oculta).
+    "Win32_System_LibraryLoader",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
