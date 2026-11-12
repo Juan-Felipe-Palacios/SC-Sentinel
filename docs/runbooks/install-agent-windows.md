@@ -120,10 +120,24 @@ New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\SC-Sentinel-Agen
 
 ## 3. Verificación post-instalación
 
+Lo más rápido es el script de verificación, que hace las comprobaciones de este
+apartado y devuelve 0 si todo está correcto:
+
+```powershell
+.\scripts\verify-agent.ps1            # verifica el paquete (dist\*.zip o -ZipPath)
+.\scripts\verify-agent.ps1 -Service   # ademas verifica la instalacion del servicio
+```
+
+> El nivel `-Service` necesita **permisos de administrador** para leer
+> `config\`, `spool\` y `logs\` (el instalador los restringe a SYSTEM y
+> Administradores). Sin elevación el script lo avisa, pero no falla.
+
+Equivalente a mano:
+
 ```powershell
 sc.exe query "SC-Sentinel-Agent"                 # RUNNING (No se requiere reinicio)
 sc.exe qfailure "SC-Sentinel-Agent"              # FAILURE_ACTIONS: RESTART 5000/10000/30000, RESET 86400
-Get-Content "C:\ProgramData\SC-Sentinel\logs\agent.log" -Tail 50 -Wait
+Get-Content "C:\ProgramData\SC-Sentinel\logs\agent.log" -Tail 50
 ```
 
 Checklist:
