@@ -146,6 +146,17 @@ batch viejo bloqueaba el drenaje completo para siempre.
 | `Environment` con dos entradas de token | se usó `New-ItemProperty` sobre una lista que ya las tenía | repetir el paso (b) con el filtro |
 | Log ilegible sin elevación | ACL del instalador (SYSTEM + Administradores) | repetir en consola elevada |
 
+## Notas de operación
+
+- Entre la rotación del token y el completado del script **son esperables
+  `401`/`403`**. El agente retiene los batches en el spool y los drena solo
+  cuando el servicio arranca con las credenciales nuevas: no hay que limpiar
+  `spool/` a mano ni repetir el re-enrolamiento por ver esos códigos.
+- Si tras completar el script los batches siguen retenidos, lo primero es
+  mirar el log del backend (`ingest_db_failed`): un `42703` significa esquema
+  desactualizado, no un problema de credenciales. Ver
+  `docs/runbooks/apply-db-migrations.md`.
+
 ## Recordatorios
 
 - El token **nunca** va en `config.toml` (`token_env = "SC_INGEST_TOKEN"`) ni en
