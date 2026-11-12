@@ -18,6 +18,11 @@ thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
 proptest = "1.5"
 
+# Emisor sintético para demos: manda v5+v9+IPFIX a una instancia de prueba.
+[[bin]]
+name = "sc-collector-testsend"
+path = "src/bin/sc-collector-testsend.rs"
+
 [[bench]]
 name = "collector_throughput"
 harness = false
