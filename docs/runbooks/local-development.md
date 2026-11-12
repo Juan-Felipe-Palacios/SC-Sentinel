@@ -117,3 +117,36 @@ cargo clean          # borra todo target/ (varios GiB)
 que el `mtime` queda por delante del artefacto compilado, o forzar el
 `cargo clean -p` del crate afectado antes de volver a pasar los gates.
 
+### 7.2 Aparece un `spool/` en la raíz del repo
+
+**Síntoma:** tras arrancar el agente sin `--config` aparece
+`D:\ProyectosWeb\SC-Sentinel\spool\sc-spool.sqlite` (y su `-wal`/`-shm`).
+
+**Causa:** sin `--config`, el agente usa `DEFAULT_SPOOL_PATH = "./spool/sc-spool.sqlite"`
+y `DEFAULT_HMAC_KEY_FILE = "./config/.host-key"`, que son **relativos al
+directorio de trabajo**, no al directorio del `config.toml`. Si lanzas el agente
+desde la raíz del repo, el spool se crea ahí.
+
+**Regla:** para desarrollo, **pasa siempre `--config`** (por ejemplo
+`--config agent/config/sc-agent.toml`); las rutas de ese fichero se resuelven
+contra el directorio del propio `config.toml` (`./.host-key` →
+`agent/config/.host-key`, `../spool/sc-spool.sqlite` → `agent/spool/`). Y cuando
+arranques el agente desde la raíz del repo, no reutilices la ruta por defecto.
+
+**Si ya existe un spool así:** sus batches pertenecen a la sesión que lo creó.
+Comprueba el dispositivo y la versión antes de tirarlo:
+
+```bash
+sqlite3 spool/sc-spool.sqlite \
+  "SELECT COUNT(*) FROM batches;
+   SELECT json_extract(payload,'\$.device.id') FROM batches LIMIT 1;"
+```
+
+Si son datos de evaluación y no de producción, **archívalos fuera del repo**
+(comprimidos, con su `README` y el SHA256) y borra el original; no los arrastres
+en el árbol de trabajo, porque el repo solo los ignora mientras el nombre siga
+siendo `*.sqlite`.
+
+> Nota: en Windows, `sqlite3` puede no estar instalado. Con Python:
+> `python -c "import sqlite3;print(sqlite3.connect('spool/sc-spool.sqlite').execute('SELECT COUNT(*) FROM batches').fetchone())"`.
+
