@@ -12,3 +12,11 @@
 .env*
 !.env.example
 env.local
+# Dependencias y artefactos: el CLI subía web/node_modules (696 MB) desde la raíz.
+/web/node_modules
+/node_modules
+**/node_modules/**
+**/.next/**
+**/*.tsbuildinfo
+/.tools
+/web/.env.production.local
