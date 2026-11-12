@@ -12,6 +12,7 @@
 mod actions;
 mod app;
 mod scm;
+mod spool_history;
 mod status_client;
 mod theme;
 mod tray;

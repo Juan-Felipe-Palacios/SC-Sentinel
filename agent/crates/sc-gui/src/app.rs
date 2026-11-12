@@ -9,6 +9,7 @@ use crate::actions::{
     MenuAction, Overlay, ServiceState, Tab,
 };
 use crate::scm;
+use crate::spool_history::{default_spool_path, read_window_packets, PacketHistory, MAX_POINTS};
 use crate::status_client::{status_url, Poller, StatusSnapshot};
 use crate::theme;
 use crate::tray::Tray;
@@ -31,6 +32,11 @@ pub struct GuiApp {
     service: ServiceState,
     last_scm_query: Option<Instant>,
     level: HealthLevel,
+    /// Respaldo en memoria cuando el spool no es legible.
+    history: PacketHistory,
+    /// Paquetes por ventana leídos del spool (vacío = usar `history`).
+    spool_points: Vec<u64>,
+    last_spool_read: Option<Instant>,
 }
 
 impl GuiApp {
@@ -54,6 +60,18 @@ impl GuiApp {
             service: scm::query_service_state(scm::SERVICE_NAME),
             last_scm_query: Some(Instant::now()),
             level: HealthLevel::Error,
+            history: PacketHistory::default(),
+            spool_points: read_window_packets(&default_spool_path(), MAX_POINTS),
+            last_spool_read: Some(Instant::now()),
+        }
+    }
+
+    /// Puntos de la sparkline: spool si se pudo leer, ring-buffer si no.
+    fn sparkline_points(&self) -> Vec<u64> {
+        if self.spool_points.len() >= 2 {
+            self.spool_points.clone()
+        } else {
+            self.history.points()
         }
     }
 
@@ -75,6 +93,19 @@ impl GuiApp {
         if scm_due {
             self.service = scm::query_service_state(scm::SERVICE_NAME);
             self.last_scm_query = Some(Instant::now());
+        }
+
+        if let Some(snapshot) = self.snapshot.as_ref() {
+            self.history.push(snapshot.packets_seen);
+        }
+        // Releer el spool cada 5 s: es I/O local y el servicio lo escribe cada 30 s.
+        let spool_due = self
+            .last_spool_read
+            .map(|at| at.elapsed() >= Duration::from_secs(5))
+            .unwrap_or(true);
+        if spool_due {
+            self.spool_points = read_window_packets(&default_spool_path(), MAX_POINTS);
+            self.last_spool_read = Some(Instant::now());
         }
 
         let sync_age = self
@@ -280,12 +311,19 @@ impl GuiApp {
                 row(ui, "Cola", snapshot.queue_depth.to_string());
                 row(ui, "Spool", human_bytes(snapshot.spool_bytes));
             });
-        ui.add_space(8.0);
+        ui.add_space(12.0);
+        let points = self.sparkline_points();
+        let source = if self.spool_points.len() >= 2 {
+            "spool del agente"
+        } else {
+            "memoria (spool no legible)"
+        };
         ui.label(
-            RichText::new("La sparkline histórica llega en F4.")
+            RichText::new(format!("Paquetes por ventana · {source}"))
                 .color(theme::MUTED)
                 .size(12.0),
         );
+        sparkline(ui, &points);
     }
 
     fn body(&self, ui: &mut egui::Ui) {
@@ -321,6 +359,55 @@ fn placeholder(ui: &mut egui::Ui, title: &str, detail: &str) {
     ui.label(RichText::new(title).color(theme::CYAN).size(18.0).strong());
     ui.add_space(4.0);
     ui.label(RichText::new(detail).color(theme::MUTED));
+}
+
+/// Sparkline sin dependencias extra: polilínea escalada al máximo del tramo.
+fn sparkline(ui: &mut egui::Ui, values: &[u64]) {
+    let height = 90.0;
+    let (rect, _) = ui.allocate_exact_size(
+        egui::vec2(ui.available_width().max(120.0), height),
+        egui::Sense::hover(),
+    );
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 6.0, theme::PANEL);
+
+    if values.len() < 2 {
+        painter.text(
+            rect.center(),
+            egui::Align2::CENTER_CENTER,
+            "aún sin ventanas suficientes",
+            egui::FontId::proportional(12.0),
+            theme::MUTED,
+        );
+        return;
+    }
+
+    let max = values.iter().copied().max().unwrap_or(0).max(1) as f32;
+    let inner = rect.shrink(8.0);
+    let step = inner.width() / (values.len() - 1) as f32;
+    let points: Vec<egui::Pos2> = values
+        .iter()
+        .enumerate()
+        .map(|(index, value)| {
+            let ratio = (*value as f32 / max).clamp(0.0, 1.0);
+            egui::pos2(
+                inner.left() + step * index as f32,
+                inner.bottom() - inner.height() * ratio,
+            )
+        })
+        .collect();
+
+    painter.add(egui::Shape::line(
+        points,
+        egui::Stroke::new(1.5_f32, theme::CYAN),
+    ));
+    painter.text(
+        egui::pos2(inner.left(), inner.top()),
+        egui::Align2::LEFT_TOP,
+        format!("máx {max:.0}"),
+        egui::FontId::proportional(10.0),
+        theme::MUTED,
+    );
 }
 
 fn row(ui: &mut egui::Ui, key: &str, value: impl Into<String>) {
