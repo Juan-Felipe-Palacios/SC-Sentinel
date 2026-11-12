@@ -253,6 +253,25 @@ defectos reales, ninguno visible leyendo el código.
 - [x] La release de Linux se mantiene **sin** la feature `live`: el crate `pcap`
       enlaza dinámicamente y el despliegue Linux documentado es colector-only.
 
+### Verificación end-to-end del artefacto publicado (sin elevación)
+
+Hecha sobre el **ZIP descargado de la release v0.1.3**, no sobre el binario local:
+
+- [x] **Captura live real**: `--interface "Intel(R) Wireless-AC 9560 160MHz"` →
+      `capture_status: ok`, `packets_seen: 88`, `packets_dropped: 0`,
+      `parse_errors: 0`, ventana `win_000000006af5d4da` de 30 s entregada.
+- [x] **GeoIP en runtime**: `GeoIP: base GeoLite2 cargada path=…\geolite2\GeoLite2-Country.mmdb`
+      (descubrimiento junto al exe, **sin** `SC_GEOIP_DB`) → `top_countries: 3`.
+- [x] **Colector UDP**: datagrama NetFlow v5 sintético al puerto 2056 →
+      `top_hosts: 2`, `top_ports: 2`, `top_countries: 1`.
+- [x] **Entrega a la ingesta**: `POST /api/ingest` con `Authorization: Bearer …`
+      y `Content-Encoding: gzip`; el lote llega con `device.agent_version: 0.1.3`.
+- [x] **Rutas relativas del `config.toml`**: `./.host-key` y `./spool/sc-spool.sqlite`
+      resuelven contra el directorio del `config.toml`, no contra el cwd.
+- [x] **Higiene del binario**: sin `captura live no compilada`, sin
+      `D:\ProyectosWeb`, sin `CARGO_MANIFEST_DIR`, sin `crates\sc-geo`, sin
+      `.cargo\registry`.
+
 ### Lección operativa (documentada)
 
 - [x] **La trampa del `mtime`**: Cargo decide recompilar por fecha de
@@ -267,4 +286,6 @@ defectos reales, ninguno visible leyendo el código.
 > Pendiente de cierre: la repetición del **ciclo físico de 9 etapas** con el
 > instalador ya curado del auto-bloqueo de ACLs (`.bat` completo, con UAC) que
 > deja el bache 1 de M5 con evidencia de servicio completo (drenaje, recovery y
-> reinstalación) sobre el binario de la release.
+> reinstalación) sobre el binario de la release. Todo lo que **no** requiere
+> elevación ya está verificado arriba; lo que queda es el ciclo del SCM
+> (instalar/desinstalar/recovery), que necesita un token de administrador.
