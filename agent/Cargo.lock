@@ -1568,7 +1568,7 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "sc-agent"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "chrono",
  "clap",
@@ -1593,7 +1593,7 @@ dependencies = [
 
 [[package]]
 name = "sc-aggregate"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "chrono",
  "hex",
@@ -1611,7 +1611,7 @@ dependencies = [
 
 [[package]]
 name = "sc-capture"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "assert_matches",
  "chrono",
@@ -1633,7 +1633,7 @@ dependencies = [
 
 [[package]]
 name = "sc-collector"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "proptest",
  "sc-capture",
@@ -1645,7 +1645,7 @@ dependencies = [
 
 [[package]]
 name = "sc-config"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "serde",
  "tempfile",
@@ -1656,7 +1656,7 @@ dependencies = [
 
 [[package]]
 name = "sc-core"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "chrono",
  "serde",
@@ -1666,7 +1666,7 @@ dependencies = [
 
 [[package]]
 name = "sc-detect"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "chrono",
  "sc-core",
@@ -1675,7 +1675,7 @@ dependencies = [
 
 [[package]]
 name = "sc-geo"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "hex",
  "maxminddb",
@@ -1688,7 +1688,7 @@ dependencies = [
 
 [[package]]
 name = "sc-sync"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "backoff",
  "chrono",
@@ -1712,7 +1712,7 @@ dependencies = [
 
 [[package]]
 name = "sc-telemetry"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "sc-core",
  "tracing",
