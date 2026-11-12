@@ -33,14 +33,6 @@ jobs:
           - os: ubuntu-latest
             target: linux-x64
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: agent -> target
-
       - name: Determinar version y tag
         id: meta
         shell: pwsh
@@ -52,6 +44,18 @@ jobs:
           }
           "tag=$tag" >> $env:GITHUB_OUTPUT
           "version=$($tag -replace '^v','')" >> $env:GITHUB_OUTPUT
+
+      # Se compila exactamente el codigo del tag, no la rama: asi un
+      # workflow_dispatch con un tag existente reproduce esa release.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.meta.outputs.tag }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: agent -> target
 
       - name: Compilar agente
         working-directory: agent
@@ -120,6 +124,10 @@ jobs:
             Write-Host "La release $env:TAG ya existe: se suben los artefactos."
             gh release upload $env:TAG $files --clobber
           } else {
+            # Este job no hace checkout, asi que no se puede usar
+            # --verify-tag (exige un repositorio git local). Se comprueba el
+            # tag contra el remoto antes de crear la release.
+            gh api "repos/${{ github.repository }}/git/ref/tags/$env:TAG" --silent
             Write-Host "Creando la release $env:TAG."
-            gh release create $env:TAG $files --title "SC-Sentinel $env:TAG" --generate-notes --verify-tag
+            gh release create $env:TAG $files --title "SC-Sentinel $env:TAG" --generate-notes
           }
