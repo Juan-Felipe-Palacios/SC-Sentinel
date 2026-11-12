@@ -977,6 +977,38 @@ pre-1.0 (v0.x)</a></li>
 id="toc-proceso-de-tag-orden-obligatorio">Proceso de tag (orden
 obligatorio)</a></li>
 </ul></li>
+<li><a href="#rfc-0000--título-descriptivo-del-cambio"
+id="toc-rfc-0000--título-descriptivo-del-cambio">RFC-0000 — Título
+descriptivo del cambio</a>
+<ul>
+<li><a href="#1-resumen" id="toc-1-resumen">1. Resumen</a></li>
+<li><a href="#2-motivación" id="toc-2-motivación">2. Motivación</a></li>
+<li><a href="#3-propuesta" id="toc-3-propuesta">3. Propuesta</a></li>
+<li><a href="#4-alternativas-consideradas"
+id="toc-4-alternativas-consideradas">4. Alternativas
+consideradas</a></li>
+<li><a href="#5-impacto" id="toc-5-impacto">5. Impacto</a></li>
+<li><a href="#6-plan-de-implementación"
+id="toc-6-plan-de-implementación">6. Plan de implementación</a></li>
+<li><a href="#7-riesgos-y-mitigaciones"
+id="toc-7-riesgos-y-mitigaciones">7. Riesgos y mitigaciones</a></li>
+<li><a href="#8-preguntas-abiertas" id="toc-8-preguntas-abiertas">8.
+Preguntas abiertas</a></li>
+<li><a href="#9-referencias" id="toc-9-referencias">9.
+Referencias</a></li>
+</ul></li>
+<li><a href="#rfcs--request-for-comments"
+id="toc-rfcs--request-for-comments">RFCs — Request for Comments</a>
+<ul>
+<li><a href="#ciclo-de-vida" id="toc-ciclo-de-vida">Ciclo de
+vida</a></li>
+<li><a href="#formato" id="toc-formato">Formato</a></li>
+<li><a href="#índice" id="toc-índice">Índice</a></li>
+<li><a href="#reglas-1" id="toc-reglas-1">Reglas</a></li>
+<li><a href="#relación-con-otros-directorios"
+id="toc-relación-con-otros-directorios">Relación con otros
+directorios</a></li>
+</ul></li>
 <li><a href="#runbook--colector-netflowipfix-con-mikrotik-y-cisco"
 id="toc-runbook--colector-netflowipfix-con-mikrotik-y-cisco">Runbook —
 Colector NetFlow/IPFIX con MikroTik y Cisco</a>
@@ -1042,7 +1074,7 @@ cron no corre</a></li>
 <li><a href="#vacío-preventivo-reducir-retención"
 id="toc-vacío-preventivo-reducir-retención">Vacío preventivo (reducir
 retención)</a></li>
-<li><a href="#reglas-1" id="toc-reglas-1">Reglas</a></li>
+<li><a href="#reglas-2" id="toc-reglas-2">Reglas</a></li>
 </ul></li>
 <li><a href="#runbook--exportación-de-datasets-grandes-10k-filas"
 id="toc-runbook--exportación-de-datasets-grandes-10k-filas">Runbook —
@@ -1191,7 +1223,7 @@ Troubleshoot de sincronización (sc-sync)</a>
 de síntomas</a></li>
 <li><a href="#secuencia-de-diagnóstico"
 id="toc-secuencia-de-diagnóstico">Secuencia de diagnóstico</a></li>
-<li><a href="#reglas-2" id="toc-reglas-2">Reglas</a></li>
+<li><a href="#reglas-3" id="toc-reglas-3">Reglas</a></li>
 </ul></li>
 <li><a href="#runbook--rotación-y-revocación-de-trust-pages"
 id="toc-runbook--rotación-y-revocación-de-trust-pages">Runbook —
@@ -1870,7 +1902,7 @@ id="toc-fixtures-de-prueba-organización-y-reglas">Fixtures de prueba
 <ul>
 <li><a href="#ubicación-en-el-repo"
 id="toc-ubicación-en-el-repo">Ubicación en el repo</a></li>
-<li><a href="#reglas-3" id="toc-reglas-3">Reglas</a></li>
+<li><a href="#reglas-4" id="toc-reglas-4">Reglas</a></li>
 </ul></li>
 <li><a href="#fixtures-del-colector-netflowipfix-m4"
 id="toc-fixtures-del-colector-netflowipfix-m4">Fixtures del colector
@@ -2128,6 +2160,11 @@ checklist (ver “Reglas de mantenimiento” abajo).</p>
 <td>spec §3</td>
 </tr>
 <tr>
+<td><code>rfc/</code></td>
+<td>RFCs (propuestas): README + plantilla 0000; numeración 0001+</td>
+<td>proceso</td>
+</tr>
+<tr>
 <td><code>contracts/</code></td>
 <td>contratos <code>/api/ingest</code> v1 y <code>/api/chat</code> v1 +
 3 schemas JSON + 4 ejemplos en <code>examples/</code></td>
@@ -2311,6 +2348,11 @@ en el mismo PR.</li>
 <td>adr/</td>
 <td>✅ 14 ADRs (0001–0014)</td>
 <td>M0, M3.5, M4</td>
+</tr>
+<tr>
+<td>rfc/</td>
+<td>✅ plantilla + índice (sin RFCs aún)</td>
+<td>proceso</td>
 </tr>
 <tr>
 <td>contracts/</td>
@@ -6555,6 +6597,146 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href=
 <span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> tag <span class="at">-a</span> v0.1.0 <span class="at">-m</span> <span class="st">&quot;SC-Sentinel v0.1.0&quot;</span></span>
 <span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> push origin main <span class="at">--tags</span></span>
 <span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. workflow de release construye artefactos + SHA256SUMS y crea el GitHub Release</span></span></code></pre></div>
+<h1 id="rfc-0000--título-descriptivo-del-cambio">RFC-0000 — Título
+descriptivo del cambio</h1>
+<p><strong>Estado:</strong> Borrador | En discusión | Aceptado |
+Rechazado | Implementado <strong>Autor:</strong> nombre
+<strong>Fecha:</strong> YYYY-MM-DD <strong>Deriva del spec:</strong> §X
+(si aplica) <strong>ADRs relacionados:</strong> ADR-XXXX (si aplica)</p>
+<h2 id="1-resumen">1. Resumen</h2>
+<p>Una o dos frases: qué se propone y por qué.</p>
+<h2 id="2-motivación">2. Motivación</h2>
+<p>Problema actual, dolor, métrica o limitación que motiva el cambio.
+Evidencia (logs, métricas, feedback).</p>
+<h2 id="3-propuesta">3. Propuesta</h2>
+<p>Descripción detallada de la solución propuesta. Incluir:</p>
+<ul>
+<li>Cambios en arquitectura / componentes afectados.</li>
+<li>Contratos (API, schema, eventos) nuevos o modificados.</li>
+<li>Impacto en datos (migraciones, retención).</li>
+<li>Impacto en seguridad y privacidad.</li>
+</ul>
+<h2 id="4-alternativas-consideradas">4. Alternativas consideradas</h2>
+<table>
+<thead>
+<tr>
+<th>Alternativa</th>
+<th>Pros</th>
+<th>Contras</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>B</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="5-impacto">5. Impacto</h2>
+<ul>
+<li><strong>Compatibilidad:</strong> breaking / non-breaking; plan de
+migración.</li>
+<li><strong>Rendimiento:</strong> latencia, throughput, coste.</li>
+<li><strong>Operación:</strong> runbooks, monitoreo, rollback.</li>
+<li><strong>Testing:</strong> cobertura requerida, fixtures.</li>
+</ul>
+<h2 id="6-plan-de-implementación">6. Plan de implementación</h2>
+<p>Hitos, PRs, orden sugerido. Referencia a
+<code>superpowers/plans/</code> si aplica.</p>
+<h2 id="7-riesgos-y-mitigaciones">7. Riesgos y mitigaciones</h2>
+<table>
+<thead>
+<tr>
+<th>Riesgo</th>
+<th>Probabilidad</th>
+<th>Impacto</th>
+<th>Mitigación</th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<h2 id="8-preguntas-abiertas">8. Preguntas abiertas</h2>
+<ul>
+<li>…</li>
+</ul>
+<h2 id="9-referencias">9. Referencias</h2>
+<ul>
+<li>Spec §X</li>
+<li>ADR-XXXX</li>
+<li>Links externos</li>
+</ul>
+<h1 id="rfcs--request-for-comments">RFCs — Request for Comments</h1>
+<p><strong>Propósito:</strong> propuestas de cambio o nuevas capacidades
+antes de convertirse en ADRs o features. Un RFC es un documento de
+discusión; un ADR es la decisión resultante.</p>
+<h2 id="ciclo-de-vida">Ciclo de vida</h2>
+<ol type="1">
+<li><strong>Borrador</strong> — se abre PR con
+<code>docs/rfc/NNNN-titulo-kebab.md</code> en estado
+<code>Borrador</code>.</li>
+<li><strong>Discusión</strong> — revisión por maintainers; comentarios
+en el PR.</li>
+<li><strong>Aceptado / Rechazado</strong> — si se acepta, se crea el ADR
+correspondiente (numeración siguiente en <code>docs/adr/</code>) y el
+RFC se marca <code>Aceptado</code> (no se borra, queda como
+histórico).</li>
+<li><strong>Implementado</strong> — cuando la feature/decisión está en
+producción, se actualiza el estado.</li>
+</ol>
+<h2 id="formato">Formato</h2>
+<p>Usar la plantilla <a
+href="0000-template.md"><code>0000-template.md</code></a>. Numeración: 4
+dígitos, correlativa (0001, 0002…). El RFC 0000 es la plantilla y no se
+usa.</p>
+<h2 id="índice">Índice</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Título</th>
+<th>Estado</th>
+<th>Autor</th>
+<th>Fecha</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>—</td>
+<td>(sin RFCs aún)</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="reglas-1">Reglas</h2>
+<ul>
+<li>Un RFC NO cambia código por sí solo; requiere PR separado para
+implementación.</li>
+<li>Idioma: español internacional profesional (misma voz que ADRs y
+runbooks).</li>
+<li>Referenciar spec
+(<code>docs/superpowers/specs/SC-Sentinel-Spec-Completo-2026-11-03.md</code>)
+y ADRs relacionados.</li>
+<li>Si un RFC se acepta, el ADR resultante debe citarlo en
+"Contexto".</li>
+</ul>
+<h2 id="relación-con-otros-directorios">Relación con otros
+directorios</h2>
+<ul>
+<li><code>adr/</code> — decisiones aceptadas (resultado de RFCs o
+decisiones directas).</li>
+<li><code>superpowers/plans/</code> — planes de ejecución por hito
+(M0–M5, Ruta B).</li>
+<li><code>superpowers/specs/</code> — spec v2.2 (fuente de verdad).</li>
+</ul>
 <!-- Copyright (c) 2026 Strategic Connex. Todos los derechos reservados. -->
 
 <h1 id="runbook--colector-netflowipfix-con-mikrotik-y-cisco">Runbook —
@@ -7067,7 +7249,7 @@ class="sourceCode sql"><code class="sourceCode sql"><span id="cb31-1"><a href="#
 <span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a><span class="co">-- solo si este cleanup fue confirmado por el propietario (el resto usa las pautas estándar del cron)</span></span></code></pre></div>
 <p>Después: <code>VACUUM ANALYZE;</code> (Neon lo ejecuta automático; si
 no, ejecutar).</p>
-<h2 id="reglas-1">Reglas</h2>
+<h2 id="reglas-2">Reglas</h2>
 <ul>
 <li><strong>Nunca</strong> ejecutar <code>TRUNCATE</code> sobre
 <code>devices</code> ni <code>settings</code> (perdería el enrollment).
@@ -7914,7 +8096,7 @@ minutos.</li>
 <li>Si 400/413: dead_letter local existe en disco → revisar con
 <code>sqlite3 spool.sqlite</code> y abrir issue (sin datos crudos).</li>
 </ol>
-<h2 id="reglas-2">Reglas</h2>
+<h2 id="reglas-3">Reglas</h2>
 <ul>
 <li><strong>Nunca borrar el spool para "arreglar" el sync</strong>:
 contiene datos de ventanas que el dashboard perdería. Solo se borra si
@@ -21739,7 +21921,7 @@ agent/crates/*/tests/fixtures/       # fixtures específicos de Rust
 └── golden/                          # golden files de snapshots (insta) — regenerar con cargo insta
 
 web/lib/schemas/__fixtures__/        # mismos shapes reutilizados en Vitest (zod)</code></pre>
-<h2 id="reglas-3">Reglas</h2>
+<h2 id="reglas-4">Reglas</h2>
 <ol type="1">
 <li><strong>Un solo juego de verdades</strong>: los JSON de
 <code>docs/contracts/examples/</code> son los que validan zod (web) y

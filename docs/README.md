@@ -11,6 +11,7 @@
 | `superpowers/specs/` | Spec completo v2.2 (fuente de verdad) + diseño de producto previo (superseded, histórico) | — |
 | `superpowers/plans/` | 8 planes de ejecución: M0, M1, M2, M3, M4, M5 y Ruta B v1/v2 | spec §13 |
 | `adr/` | 14 decisiones de arquitectura (0001–0014) | spec §3 |
+| `rfc/` | RFCs (propuestas): README + plantilla 0000; numeración 0001+ | proceso |
 | `contracts/` | contratos `/api/ingest` v1 y `/api/chat` v1 + 3 schemas JSON + 4 ejemplos en `examples/` | spec §5, §6 |
 | `diagrams/` | 12 mermaid en `mermaid/` + 4 drawio en `drawio/` + reglas de exports (`README.md` propio) | spec §17 |
 | `architecture/` | C4 overview (L1–L3), data-flow (DFD), decisiones (atajo a `adr/`) | spec §3, §17 |
@@ -57,6 +58,7 @@ Módulos que sostienen estas rutas: `web/lib/export`, `web/lib/ai/metrics.ts` y 
 | superpowers/specs/ | ✅ v2.2 (consolidación IA free-tier 2026-11-08) | base |
 | superpowers/plans/ | ✅ 8 planes (M0–M5, Ruta B v1/v2) | M0–M5 |
 | adr/ | ✅ 14 ADRs (0001–0014) | M0, M3.5, M4 |
+| rfc/ | ✅ plantilla + índice (sin RFCs aún) | proceso |
 | contracts/ | ✅ v1 congelados (3 schemas + 4 ejemplos) | M0 |
 | diagrams/ | ✅ 17 fuentes (12 mermaid + 4 drawio + exports) | M0–M5 + visual docs |
 | architecture/ | ✅ C4 + DFD + atajo ADRs | visual docs |
