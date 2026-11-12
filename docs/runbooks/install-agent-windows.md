@@ -21,11 +21,11 @@ Hay dos vías equivalentes. La **1.1** es la recomendada para un equipo sin acce
 
 ### 1.1 Instalador de un clic (ZIP de la release)
 
-1. Descargar el paquete de la release: `https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/download/v0.1.1/sc-sentinel-agent-v0.1.1-windows-x64.zip`.
+1. Descargar el paquete de la release: `https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/download/v0.1.2/sc-sentinel-agent-v0.1.2-windows-x64.zip` (la última versión siempre está en <https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/latest>).
 2. Verificar el hash del artefacto contra `SHA256SUMS.txt` (mismo directorio en la release):
 
    ```powershell
-   Get-FileHash .\sc-sentinel-agent-v0.1.1-windows-x64.zip -Algorithm SHA256
+   Get-FileHash .\sc-sentinel-agent-v0.1.2-windows-x64.zip -Algorithm SHA256
    ```
 
 3. Descomprimir **todo** el ZIP en una carpeta (no solo el `.exe`).
@@ -78,12 +78,13 @@ Desinstalación simétrica: `.\scripts\uninstall-agent.ps1` (usa `-PurgeData` pa
 ## 2. Instalación manual (sin instalador)
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/download/v0.1.1/sc-sentinel-agent-v0.1.1-windows-x64.zip" -OutFile agent.zip
+Invoke-WebRequest -Uri "https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/download/v0.1.2/sc-sentinel-agent-v0.1.2-windows-x64.zip" -OutFile agent.zip
 Expand-Archive agent.zip -DestinationPath ".\sc-sentinel" -Force
 
 New-Item -ItemType Directory -Path "C:\ProgramData\SC-Sentinel\{config,spool,logs}" -Force
-Copy-Item ".\agent\config\sc-agent.toml.sample" "C:\ProgramData\SC-Sentinel\config\config.toml"
-# editar rutas absolutas en config.toml (spool/log/hmac_key_file) y icacls:
+# El config.toml lo genera install-agent.ps1 (incluido en el ZIP). Si se copia a mano,
+# el esquema real esta en docs/runbooks/install-agent-linux.md (seccion "Configuracion").
+# Rutas absolutas en config.toml (spool/log/hmac_key_file) y ACLs:
 icacls "C:\ProgramData\SC-Sentinel\config\config.toml" /inheritance:r /grant "SYSTEM:F" /grant "Administrators:F"
 
 sc.exe create "SC-Sentinel-Agent" binPath= "\"C:\Program Files\SC-Sentinel\sc-sentinel-agent.exe\" --config \"C:\ProgramData\SC-Sentinel\config\config.toml\" --no-capture" start= auto
