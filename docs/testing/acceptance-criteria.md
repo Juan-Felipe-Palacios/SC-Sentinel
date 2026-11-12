@@ -202,3 +202,69 @@ Alcance de cierre: backend seguro, RAG agregado de 24 h, streaming SSE, persiste
 > - Nota operativa: las corridas elevadas solapadas se pisan entre sí (una
 >   instancia desinstala mientras otra consulta); el bucle de reintentos no debe
 >   dejarse en paralelo con la ejecución de la prueba.
+
+## M5 — Auditoría de parabilidad del agente en Windows (2026-11-12)
+
+Alcance: comprobar que el **artefacto publicado** (el ZIP de la release) es
+completo, portable y que funciona en una máquina limpia. La auditoría se hizo
+sobre el ZIP descargado de la release, no sobre el código: se ejecutó el binario
+extraído y se escanearon sus bytes. Resultado inicial: **88 %** — cuatro
+defectos reales, ninguno visible leyendo el código.
+
+### Defectos bloqueantes (todos corregidos y verificados)
+
+- [x] **D1 — la release de Windows se publicaba sin captura live.**
+      `release.yml` compilaba sin `--features sc-capture/live`, así que el ZIP
+      publicado moría con `runtime: captura live no compilada` (exit 2) y
+      `--list-interfaces` no listaba nada. *Criterio:* el ZIP de la release
+      responde `--list-interfaces` con las interfaces del sistema.
+- [x] **D2 — el binario filtraba la ruta de la máquina de compilación.**
+      `sc-geo` usaba `env!("CARGO_MANIFEST_DIR")` para localizar la base
+      GeoLite2 y `main.rs` hacía lo mismo con el fixture pcap; ambos quedaban
+      grabados en el `.exe`. *Criterio:* el binario no contiene ninguna ruta
+      absoluta de compilación y encuentra la base GeoLite2 en runtime.
+- [x] **D3 — las rutas relativas del `config.toml` de ejemplo apuntaban mal.**
+      El spool acababa en `agent/config/spool/` y la clave HMAC en
+      `agent/config/config/`, con lo que el agente creaba una clave nueva en
+      cada arranque y rompía la continuidad de `host_key`. *Criterio:* con el
+      `config.toml` de ejemplo, el spool se abre en `agent/spool/` y la clave se
+      leen de `agent/config/.host-key`.
+- [x] **D4 — el paquete de instalación no incluía la base GeoLite2.**
+      Sin ella el agente arranca, pero todos los países salen vacíos. *Criterio:*
+      el ZIP incluye `geolite2/GeoLite2-Country.mmdb`, el instalador la copia con
+      verificación SHA256 y la deja legible solo por SYSTEM y Administradores.
+
+### Funcionalidad añadida (no es un defecto, pero formaba parte del cierre)
+
+- [x] **Motor determinista de detección local** (`sc-detect`): blacklist,
+      escaneo de puertos, escaneo entrante, anomalías DNS, umbral de volumen y
+      salud del enlace; se evalúa **antes** de persistir la ventana en el spool.
+      La blacklist se configura con un fichero de texto (una IP o CIDR por
+      línea, `#` para comentarios, IPv4 e IPv6); si está configurada y el
+      fichero no existe, el agente **falla al arrancar** en vez de ignorar la
+      regla en silencio.
+
+### Higiene del artefacto
+
+- [x] El `SHA256SUMS.txt` del paquete lista **todos** los ficheros, no solo el
+      binario (7 entradas verificadas, 0 incorrectas).
+- [x] Las rutas del registro de Cargo del máquina que compila no quedan en el
+      binario (`--remap-path-prefix` en el pipeline de release).
+- [x] La release de Linux se mantiene **sin** la feature `live`: el crate `pcap`
+      enlaza dinámicamente y el despliegue Linux documentado es colector-only.
+
+### Lección operativa (documentada)
+
+- [x] **La trampa del `mtime`**: Cargo decide recompilar por fecha de
+      modificación. Tras una restauración textual de ficheros (un revert, un
+      `git checkout` de otra rama, un split de commit con copia) el `mtime` puede
+      quedar **más antiguo** que el del artefacto compilado, Cargo no recompila y
+      se ejecuta el binario viejo: el test falla con asserts que ya no existen
+      en el código. *Criterio operativo:* ante un test que falla con el código
+      correcto en disco **y en HEAD**, `cargo clean -p <crates>` antes de depurar
+      el código. Ver `docs/runbooks/local-development.md` §7.1.
+
+> Pendiente de cierre: la repetición del **ciclo físico de 9 etapas** con el
+> instalador ya curado del auto-bloqueo de ACLs (`.bat` completo, con UAC) que
+> deja el bache 1 de M5 con evidencia de servicio completo (drenaje, recovery y
+> reinstalación) sobre el binario de la release.

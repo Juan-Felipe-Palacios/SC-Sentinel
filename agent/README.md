@@ -219,3 +219,24 @@ SC_COLLECTOR_PORTS=2055,4739,9995
 Los puertos deben ser ≥1024 y no repetirse; `protocol` acepta `auto`, `v5`, `v9` o `ipfix`.
 
 Cada listener tiene su propia cache de templates. Si un puerto no se puede abrir, el agente registra el error, lo publica en `last_error` del health y sigue con la captura pcap: no se cae el monitoreo local. Las métricas del colector (`packets_received`, `flows_normalized`, `parse_errors`, `templates_cached`, etc.) viajan en `snapshot.health`, se persisten en `agent_health` y se muestran en la tarjeta de salud del dashboard (T4.1).
+
+### Trampa del `mtime`: un test falla con el código correcto
+
+Si un test falla con un valor que **sí** está en el fichero (fuente correcto en
+disco y en `HEAD`, `git diff` limpio) y el error apunta a una línea antigua, el
+problema no suele ser el código: Cargo decide recompilar comparando el
+**`mtime`** del fuente con el del artefacto compilado, y una restauración
+textual del fichero (un revert, un `git checkout` de otra rama, un split de
+commit con copia) puede dejar el `mtime` **más antiguo** que el del binario de
+test ya compilado. Cargo lo da por fresco, no recompila y ejecuta el binario
+viejo con los asserts viejos.
+
+Ante un fallo de test inesperado con el código correcto en disco, fuerza la
+recompilación **antes** de depurar el código:
+
+```bash
+cargo clean -p sc-config -p sc-geo -p sc-agent   # solo los crates tocados
+cargo test --workspace
+```
+
+Detalle y otros errores típicos: `docs/runbooks/local-development.md` §7.

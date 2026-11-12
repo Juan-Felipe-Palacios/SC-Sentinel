@@ -2,6 +2,31 @@
 
 Formato: Keep a Changelog 1.1 (semantic entries) publicado también en cada GitHub Release.
 
+## [0.1.3] — 2026-11-12
+
+Cierra la auditoría de parabilidad del agente en Windows: el binario publicado
+deja de estar incompleto y de filtrar rutas de la máquina de compilación.
+
+### Added
+- (M5) Motor determinista de detección local (`sc-detect`): reglas de blacklist, escaneo de puertos, escaneo entrante, anomalías DNS, umbral de volumen y estado de salud del enlace. Las reglas se evalúan **antes** de persistir el sobre en el spool, de modo que una alerta se genera aunque el backend esté caído. La blacklist es un fichero de texto (una IP o CIDR por línea, `#` para comentarios, IPv4 e IPv6); si está configurada y no existe, el agente **falla al arrancar** en lugar de empezar sin ella.
+- (M5) La ventana agregada transporta ahora las **señales internas** (`DetectionInput`) además del snapshot contractual: el motor de detección ve hasta 500 hosts remotos (no solo el top visual de 50), que es lo que hace falta para detectar un escaneo de puertos de poco volumen.
+- (M5) `docs/runbooks/npcap-install.md`: runbook de instalación del runtime y del SDK de Npcap, con el diagnóstico de los seis síntomas más frecuentes (incluido `--list-interfaces` que responde «captura live no compilada»).
+- (M5) `docs/adr/0015-geolite2-runtime.md`: decisión de resolver la base GeoLite2 **en runtime** en lugar de embeberla en el binario.
+- (M5) Runbook de Npcap, notas legales de MaxMind y runbook de instalación Windows actualizados con la base GeoLite2, la variable `SC_GEOIP_DB` y el requisito de Npcap en runtime.
+
+### Changed
+- (M5) La release de Windows se compila **con captura live** (`--features sc-capture/live`) e instala el Npcap SDK en el runner. Antes se publicaba un binario sin la feature: arrancaba con `runtime: captura live no compilada` y código de salida 2.
+- (M5) El artefacto de Windows incluye la base `geolite2/GeoLite2-Country.mmdb` y el instalador la copia al directorio de instalación con verificación SHA256 y ACLs de solo lectura. `SHA256SUMS.txt` pasa a listar **todos** los ficheros del paquete (antes solo el binario).
+- (M5) El binario se compila con `--remap-path-prefix` sobre el directorio de Cargo: el `.exe` publicado ya no incluye la ruta del usuario de la máquina de build (`C:\Users\<usuario>\.cargo\registry\…`) ni la ruta de los fuentes del proyecto.
+- (M5) CI: el check `cargo check -p sc-capture --features live` deja de ser exclusivo de Linux y se añade un gate que verifica que el binario de Windows no filtra rutas de compilación.
+
+### Fixed
+- (M5) La base GeoLite2 ya no se busca con `CARGO_MANIFEST_DIR` (una ruta absoluta de la máquina de compilación incrustada en el `.exe`). Ahora se resuelve **en runtime**: variable `SC_GEOIP_DB` → junto al ejecutable (`geolite2/`, `resources/geolite2/`) → ancestros del ejecutable → directorio de trabajo. Si no aparece, el agente sigue funcionando con `NoLookup` (los países salen vacíos) en lugar de morir.
+- (M5) El fixture pcap de desarrollo ya no se busca con `CARGO_MANIFEST_DIR` (misma clase de fuga): se busca junto al ejecutable y en sus ancestros, y el error orienta a usar `--fixture <ruta>`.
+- (M5) Las rutas relativas del `config.toml` de ejemplo apuntaban a `./spool/sc-spool.sqlite` y `./config/.host-key`. Como las rutas relativas se resuelven contra el **directorio del propio `config.toml`**, el spool acababa en `agent/config/spool/` y la clave HMAC en `agent/config/config/.host-key` (una clave nueva en cada arranque, con lo que el `host_mark` de los hosts cambiaba). Ahora son `../spool/sc-spool.sqlite` y `./.host-key`.
+- (M5) El instalador de Windows incluye la copia de la base GeoLite2, las ACLs de solo lectura sobre ella y `SC_GEOIP_DB` en el entorno del servicio.
+- (M5) La release de Linux se sigue publicando **sin** la feature `live` (modo colector), tal como documenta `docs/runbooks/install-agent-linux.md`: con `live` el binario enlaza dinámicamente con `libpcap.so` y dejaría de arrancar en equipos sin Npcap/libpcap.
+
 ## [0.1.2] — 2026-11-12
 
 Corrige un defecto real en el cierre de las ventanas de métricas: la ventana solo se cerraba cuando llegaba tráfico nuevo.
