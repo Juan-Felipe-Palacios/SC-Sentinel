@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run && pnpm test:contracts",
-    "test:contracts": "node --experimental-strip-types ../scripts/test-contracts-zod.mjs"
+    "test:contracts": "node --experimental-strip-types ../scripts/test-contracts-zod.mjs",
+    "operator:create": "node scripts/create-operator.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.32.0",
@@ -34,6 +35,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.16",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/d3-geo": "^3.1.1",

@@ -101,12 +101,64 @@ export interface AlertItem {
   description: string | null;
   evidence: Record<string, unknown> | null;
   created_at: string | null;
+  status: 'open' | 'acknowledged' | 'resolved' | 'expired';
+  assignee: string | null;
+  assignee_operator_id: string | null;
+  acknowledged_at: string | null;
+  resolved_at: string | null;
+  sla_due_at: string | null;
+  expires_at: string | null;
+  sla_breached: boolean;
+  sla_remaining_seconds: number;
+  updated_at: string | null;
+  notes_count: number;
 }
 
 export interface AlertsResponse {
   range: QueryRange;
   alerts: AlertItem[];
   total: number;
+}
+
+export interface AlertNoteItem {
+  id: string;
+  alert_id: string;
+  author: string;
+  author_operator_id: string | null;
+  body: string;
+  created_at: string | null;
+}
+
+export interface AlertAuditItem {
+  id: string;
+  alert_id: string;
+  action: string;
+  actor: string;
+  actor_operator_id: string | null;
+  details: Record<string, unknown> | null;
+  created_at: string | null;
+}
+
+export interface AlertDetailResponse {
+  alert: AlertItem;
+  notes: AlertNoteItem[];
+  audit: AlertAuditItem[];
+}
+
+export interface AlertMutationResponse {
+  alert: AlertItem;
+  changed: boolean;
+  note?: AlertNoteItem;
+}
+
+export interface OperatorSummary {
+  id: string;
+  email: string;
+  name: string;
+}
+
+export interface OperatorsResponse {
+  operators: OperatorSummary[];
 }
 
 /** metric=hosts — lista de hosts del período (drill-down nivel 2). */

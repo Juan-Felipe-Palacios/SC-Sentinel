@@ -9,6 +9,7 @@ import { db } from '@/lib/db';
  * - flow_windows: 7 días
  * - host_stats:   7 días
  * - alerts:       30 días (se atan a flow_windows.start_at — alerts no tiene timestamp propio)
+ * - alert_audit_log: 90 días (sobrevive al borrado de la alerta y se poda aparte)
  * - agent_health: 7 días
  * - ai_insights:  15 días
  * - ingest_batches: 2 días (solo idempotencia) — se borra solo si NO tiene flow_windows vivo
@@ -21,6 +22,7 @@ export const RETENTION_DAYS = {
   flowWindows: 7,
   hostStats: 7,
   alerts: 30,
+  alertAudit: 90,
   agentHealth: 7,
   aiInsights: 15,
   ingestBatches: 2,
@@ -54,6 +56,7 @@ export async function runRetentionCleanup(now: Date = new Date()): Promise<Clean
     flowWindows: retentionCutoff(RETENTION_DAYS.flowWindows, now),
     hostStats: retentionCutoff(RETENTION_DAYS.hostStats, now),
     alerts: retentionCutoff(RETENTION_DAYS.alerts, now),
+    alertAudit: retentionCutoff(RETENTION_DAYS.alertAudit, now),
     agentHealth: retentionCutoff(RETENTION_DAYS.agentHealth, now),
     aiInsights: retentionCutoff(RETENTION_DAYS.aiInsights, now),
     ingestBatches: retentionCutoff(RETENTION_DAYS.ingestBatches, now),
@@ -68,7 +71,14 @@ export async function runRetentionCleanup(now: Date = new Date()): Promise<Clean
     RETURNING alerts.id
   `);
 
-  // 2. Host stats de ventanas más viejas que 7 días.
+  // 2. Auditoría de alertas más vieja que 90 días (sin FK: no depende del alert vivo).
+  const alertAuditResult = await db.execute(sql`
+    DELETE FROM alert_audit_log
+    WHERE created_at < ${cutoffs.alertAudit}
+    RETURNING id
+  `);
+
+  // 3. Host stats de ventanas más viejas que 7 días.
   const hostStatsResult = await db.execute(sql`
     DELETE FROM host_stats
     USING flow_windows
@@ -77,7 +87,7 @@ export async function runRetentionCleanup(now: Date = new Date()): Promise<Clean
     RETURNING host_stats.id
   `);
 
-  // 3. Ventanas viejas sin alertas vivas. Las que aún tengan alertas se conservan.
+  // 4. Ventanas viejas sin alertas vivas. Las que aún tengan alertas se conservan.
   const flowResult = await db.execute(sql`
     DELETE FROM flow_windows AS fw
     WHERE fw.start_at < ${cutoffs.flowWindows}
@@ -95,21 +105,21 @@ export async function runRetentionCleanup(now: Date = new Date()): Promise<Clean
       )
   `);
 
-  // 4. Health snapshots más viejos que 7 días.
+  // 5. Health snapshots más viejos que 7 días.
   const healthResult = await db.execute(sql`
     DELETE FROM agent_health
     WHERE recorded_at < ${cutoffs.agentHealth}
     RETURNING id
   `);
 
-  // 5. Insights de IA más viejos que 15 días.
+  // 6. Insights de IA más viejos que 15 días.
   const aiInsightsResult = await db.execute(sql`
     DELETE FROM ai_insights
     WHERE created_at < ${cutoffs.aiInsights}
     RETURNING id
   `);
 
-  // 6. Batches viejos sin ventanas referenciándolos (FK flow_windows.batch_id).
+  // 7. Batches viejos sin ventanas referenciándolos (FK flow_windows.batch_id).
   const batchesResult = await db.execute(sql`
     DELETE FROM ingest_batches AS ib
     WHERE ib.received_at < ${cutoffs.ingestBatches}
@@ -119,7 +129,7 @@ export async function runRetentionCleanup(now: Date = new Date()): Promise<Clean
     RETURNING ib.id
   `);
 
-  // 7. Tamaño total de la DB para el umbral de 400 MB (spec §12.4). No crítico si falla.
+  // 8. Tamaño total de la DB para el umbral de 400 MB (spec §12.4). No crítico si falla.
   let databaseBytes: number | null = null;
   try {
     const sizeResult = await db.execute<{ bytes: number | string }>(sql`
@@ -136,6 +146,7 @@ export async function runRetentionCleanup(now: Date = new Date()): Promise<Clean
       flowWindows: flowResult.rows.length,
       hostStats: hostStatsResult.rows.length,
       alerts: alertsResult.rows.length,
+      alertAudit: alertAuditResult.rows.length,
       agentHealth: healthResult.rows.length,
       aiInsights: aiInsightsResult.rows.length,
       ingestBatches: batchesResult.rows.length,

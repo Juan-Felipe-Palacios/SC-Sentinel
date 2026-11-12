@@ -9,7 +9,7 @@ import { getRangeBounds, type RangeBounds } from './range';
 import { bigintToNumber, defaultQueryDb, isoOrNull, queryRows, type QueryDb } from './db-rows';
 import type { QueryRange } from '@/lib/schemas/query';
 import type { HostMetricItem } from './hosts';
-import type { AlertItem } from './alerts';
+import type { AlertExportItem } from './alerts';
 
 export const EXPORT_ROW_LIMIT = 10_000;
 // LIMIT 10001: si el resultado trae 10001, hay más de 10000 y el route responde 413.
@@ -24,7 +24,7 @@ export class ExportTooLargeError extends Error {
 }
 
 export interface ExportHostsResult { rows: number; hosts: HostMetricItem[] }
-export interface ExportAlertsResult { rows: number; alerts: AlertItem[] }
+export interface ExportAlertsResult { rows: number; alerts: AlertExportItem[] }
 export interface ExportWindowItem { window_id: string; start_at: string | null; end_at: string | null; sequence: number }
 export interface ExportWindowsResult { rows: number; windows: ExportWindowItem[] }
 
@@ -92,7 +92,7 @@ export async function queryAlertsExport(range: QueryRange = '1h', deviceId?: str
         ORDER BY fw.start_at DESC
         LIMIT ${LIMIT_WITH_OVERFLOW}`
   );
-  const alerts: AlertItem[] = rows.map((row) => ({
+  const alerts: AlertExportItem[] = rows.map((row) => ({
     id: row.id, window_id: row.window_id, rule_id: row.rule_id, severity: row.severity, title: row.title,
     description: row.description, evidence: null, created_at: isoOrNull(row.created_at),
   }));

@@ -8,6 +8,7 @@ import { checkRateLimit } from '@/lib/rate-limit/ingest';
 import { readIngestBody } from '@/lib/ingest/read-body';
 import { logServerError } from '@/lib/logging/error';
 import { IngestEnvelopeSchema } from '@/lib/schemas/ingest';
+import { alertDeadlines } from '@/lib/alerts/policy';
 import { db, ingestBatches, flowWindows, hostStats, alerts, agentHealth, devices } from '@/lib/db';
 import { eq, and, gte } from 'drizzle-orm';
 import {
@@ -218,15 +219,21 @@ export async function POST(request: NextRequest) {
         alertRows.push(cloudRisk.alert);
       }
       if (alertRows.length > 0) {
-        const rows = alertRows.map((a) => ({
-          id: `alt_${randomUUID()}`,
-          windowId: envelope.window.id,
-          ruleId: a.rule_id,
-          severity: a.severity,
-          title: a.title,
-          description: a.description ?? '',
-          evidence: a.evidence ?? null,
-        }));
+        const alertCreatedAt = new Date(envelope.window.start);
+        const rows = alertRows.map((a) => {
+          const deadlines = alertDeadlines(a.severity, alertCreatedAt);
+          return {
+            id: `alt_${randomUUID()}`,
+            windowId: envelope.window.id,
+            ruleId: a.rule_id,
+            severity: a.severity,
+            title: a.title,
+            description: a.description ?? '',
+            evidence: a.evidence ?? null,
+            slaDueAt: deadlines.slaDueAt,
+            expiresAt: deadlines.expiresAt,
+          };
+        });
         await db.insert(alerts).values(rows);
       }
 

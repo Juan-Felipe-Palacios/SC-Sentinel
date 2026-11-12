@@ -110,6 +110,8 @@ lib/
 
 - `POST /api/ingest` — ingesta de snapshots del agente (token de device)
 - `GET /api/query` — métricas del dashboard (admin o demo)
+- `GET /api/alerts/[id]` — detalle de alerta con notas y auditoría (solo admin)
+- `PATCH /api/alerts/[id]` — acknowledge, resolve, asignación y notas (solo admin)
 - `POST /api/chat` — chat con RAG y streaming (admin o demo)
 - `POST /api/auth/login` / `POST /api/auth/logout` — sesión admin
 - `POST /api/auth/guest-login` — sesión de demo

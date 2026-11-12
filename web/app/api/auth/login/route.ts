@@ -2,25 +2,35 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { SESSION_COOKIE, createSessionToken, sessionCookieOptions } from '@/lib/auth/session';
+import {
+  SESSION_COOKIE,
+  createOperatorSessionToken,
+  createSessionToken,
+  sessionCookieOptions,
+} from '@/lib/auth/session';
 import { GUEST_COOKIE, guestCookieOptions } from '@/lib/auth/guest';
+import { normalizeOperatorEmail, verifyOperatorPassword } from '@/lib/auth/operator-password';
 import { safeEqual } from '@/lib/auth/secrets';
 import { clientIp } from '@/lib/auth/resolve';
+import { findActiveOperatorByEmail, markOperatorLogin } from '@/lib/query/operators';
 import { checkRateLimit } from '@/lib/rate-limit/ingest';
 import { logServerError } from '@/lib/logging/error';
 
 const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
-
-// 5 intentos por minuto y por IP; el burst inicial es 5.
 const LOGIN_RATE_PER_MINUTE = 5;
 const LOGIN_BURST = 5;
-// Iguala el tiempo de respuesta entre "sin secreto configurado" y "contraseña mala".
 const FAILED_ATTEMPT_DELAY_MS = 250;
 
 const LoginSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254).optional(),
   password: z.string().min(1).max(256),
   rememberMe: z.boolean().optional(),
 });
+
+async function invalidCredentials() {
+  await new Promise((resolve) => setTimeout(resolve, FAILED_ATTEMPT_DELAY_MS));
+  return NextResponse.json({ error: 'invalid_credentials' }, { status: 401, headers: noStoreHeaders });
+}
 
 export async function POST(request: NextRequest) {
   const limit = checkRateLimit(
@@ -51,29 +61,35 @@ export async function POST(request: NextRequest) {
   const parsed = LoginSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: 'bad_request', message: 'password requerido' },
+      { error: 'bad_request', message: 'email y password requeridos' },
       { status: 400, headers: noStoreHeaders }
     );
   }
 
-  const adminSecret = process.env.ADMIN_SECRET;
-  const { password, rememberMe: rememberMeInput } = parsed.data;
+  const { password, rememberMe: rememberMeInput, email: emailInput } = parsed.data;
   const rememberMe = rememberMeInput !== undefined ? rememberMeInput : false;
-
-  // Sin ADMIN_SECRET solo se admite con SC_DEV_AUTH=1 fuera de producción.
-  const devAuthEnabled =
-    process.env.NODE_ENV !== 'production' && process.env.SC_DEV_AUTH === '1';
-  const accepted = adminSecret ? safeEqual(password, adminSecret) : devAuthEnabled;
-
-  if (!accepted) {
-    await new Promise((resolve) => setTimeout(resolve, FAILED_ATTEMPT_DELAY_MS));
-    return NextResponse.json({ error: 'invalid_credentials' }, { status: 401, headers: noStoreHeaders });
-  }
+  const email = emailInput ? normalizeOperatorEmail(emailInput) : null;
 
   try {
-    const token = await createSessionToken(rememberMe);
+    let token: string;
+    if (email) {
+      const operator = await findActiveOperatorByEmail(email);
+      const valid = operator ? await verifyOperatorPassword(password, operator.passwordHash) : false;
+      if (!operator || !valid) return invalidCredentials();
+      token = await createOperatorSessionToken(operator, rememberMe);
+      await markOperatorLogin(operator.id).catch((error) =>
+        logServerError('operator_last_login_failed', error)
+      );
+    } else {
+      const adminSecret = process.env.ADMIN_SECRET;
+      const devAuthEnabled =
+        process.env.NODE_ENV !== 'production' && process.env.SC_DEV_AUTH === '1';
+      const accepted = adminSecret ? safeEqual(password, adminSecret) : devAuthEnabled;
+      if (!accepted) return invalidCredentials();
+      token = await createSessionToken(rememberMe);
+    }
+
     const response = NextResponse.json({ ok: true }, { headers: noStoreHeaders });
-    // Admin reemplaza cualquier sesión de visitante previa.
     response.cookies.set(GUEST_COOKIE, '', { ...guestCookieOptions(), maxAge: 0 });
     response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(rememberMe));
     return response;

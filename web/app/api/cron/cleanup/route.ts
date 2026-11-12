@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { runRetentionCleanup } from '@/lib/cleanup/retention';
+import { expireAlerts } from '@/lib/query/alerts';
 import { safeEqual } from '@/lib/auth/secrets';
 
 export const runtime = 'nodejs';
@@ -31,11 +32,12 @@ async function handleCron(request: NextRequest) {
   }
 
   try {
+    const expiredAlerts = await expireAlerts();
     const report = await runRetentionCleanup();
     console.log(
-      JSON.stringify({ event: 'cron_cleanup', ...report })
+      JSON.stringify({ event: 'cron_cleanup', ...report, expiredAlerts })
     );
-    return NextResponse.json(report, { headers: noStoreHeaders });
+    return NextResponse.json({ ...report, expiredAlerts }, { headers: noStoreHeaders });
   } catch (error) {
     console.error(
       JSON.stringify({

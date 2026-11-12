@@ -9,6 +9,7 @@ describe('lib/cleanup/retention', () => {
       flowWindows: 7,
       hostStats: 7,
       alerts: 30,
+      alertAudit: 90,
       agentHealth: 7,
       aiInsights: 15,
       ingestBatches: 2,

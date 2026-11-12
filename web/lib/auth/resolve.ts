@@ -4,13 +4,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminAuth } from '@/lib/auth/admin';
 import { GUEST_COOKIE, verifyGuestToken, type GuestSession } from '@/lib/auth/guest';
+import type { SessionPrincipal } from '@/lib/auth/session';
 
 const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
 
 export type AuthRole = 'admin' | 'guest';
 
 export type ResolvedAuth =
-  | { role: 'admin' }
+  | { role: 'admin'; principal?: SessionPrincipal }
   | { role: 'guest'; guest: GuestSession };
 
 export type Authorization =
@@ -28,7 +29,7 @@ export async function authorize(
 ): Promise<Authorization> {
   const admin = await verifyAdminAuth(request);
   if (admin.authenticated) {
-    return { ok: true, auth: { role: 'admin' } };
+    return { ok: true, auth: { role: 'admin', principal: admin.principal } };
   }
 
   const guestToken = request.cookies.get(GUEST_COOKIE)?.value;

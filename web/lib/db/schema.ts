@@ -52,6 +52,19 @@ export const hostStats = pgTable('host_stats', {
   windowIdx: index('host_stats_window_idx').on(table.windowId),
 }));
 
+export const operators = pgTable('operators', {
+  id: text('id').primaryKey(),
+  email: text('email').notNull().unique(),
+  name: text('name').notNull(),
+  passwordHash: text('password_hash').notNull(),
+  status: text('status').default('active').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+}, (table) => ({
+  statusIdx: index('operators_status_idx').on(table.status),
+}));
+
 export const alerts = pgTable('alerts', {
   id: text('id').primaryKey(),
   windowId: text('window_id').notNull(),
@@ -60,8 +73,53 @@ export const alerts = pgTable('alerts', {
   title: text('title').notNull(),
   description: text('description').notNull(),
   evidence: jsonb('evidence'),
+  // Ciclo de vida operativo: open → acknowledged → resolved → reopen/expired.
+  status: text('status').default('open').notNull(),
+  // Responsable textual (snapshot legible) y referencia estable a la cuenta.
+  assignee: text('assignee'),
+  assigneeOperatorId: text('assignee_operator_id').references(() => operators.id, {
+    onDelete: 'set null',
+  }),
+  acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  // SLA y vencimiento se calculan al crear la alerta desde la ventana de origen.
+  slaDueAt: timestamp('sla_due_at', { withTimezone: true }).notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   windowIdx: index('alerts_window_idx').on(table.windowId),
+  statusIdx: index('alerts_status_idx').on(table.status),
+  assigneeOperatorIdx: index('alerts_assignee_operator_idx').on(table.assigneeOperatorId),
+  expiresAtIdx: index('alerts_expires_at_idx').on(table.expiresAt),
+}));
+
+export const alertNotes = pgTable('alert_notes', {
+  id: text('id').primaryKey(),
+  alertId: text('alert_id')
+    .notNull()
+    .references(() => alerts.id, { onDelete: 'cascade' }),
+  author: text('author').default('admin').notNull(),
+  authorOperatorId: text('author_operator_id').references(() => operators.id, {
+    onDelete: 'set null',
+  }),
+  body: text('body').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  alertCreatedIdx: index('alert_notes_alert_created_idx').on(table.alertId, table.createdAt),
+}));
+
+// Sin FK a alerts: la auditoría sobrevive al borrado por retención.
+export const alertAuditLog = pgTable('alert_audit_log', {
+  id: text('id').primaryKey(),
+  alertId: text('alert_id').notNull(),
+  action: text('action').notNull(),
+  actor: text('actor').notNull(),
+  // Sin FK: la auditoría sobrevive al borrado de la cuenta y conserva el ID estable.
+  actorOperatorId: text('actor_operator_id'),
+  details: jsonb('details'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  alertCreatedIdx: index('alert_audit_alert_created_idx').on(table.alertId, table.createdAt),
 }));
 
 export const agentHealth = pgTable('agent_health', {

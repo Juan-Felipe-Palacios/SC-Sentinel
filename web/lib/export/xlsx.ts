@@ -3,7 +3,7 @@
 // Workbook XLSX multi-sheet desde filas tabulares. Mismos datos que el CSV.
 import * as XLSX from 'xlsx';
 import type { HostMetricItem } from '@/lib/query/hosts';
-import type { AlertItem } from '@/lib/query/alerts';
+import type { AlertExportItem } from '@/lib/query/alerts';
 import type { OverviewResult } from '@/lib/query/overview';
 import type { ExportWindowItem } from '@/lib/query/export';
 
@@ -17,7 +17,7 @@ export function rowsFromHosts(hosts: HostMetricItem[]): ExportRow[] {
   }));
 }
 
-export function rowsFromAlerts(alerts: AlertItem[]): ExportRow[] {
+export function rowsFromAlerts(alerts: AlertExportItem[]): ExportRow[] {
   return alerts.map((alert) => ({
     id: alert.id, window_id: alert.window_id, rule_id: alert.rule_id,
     severity: alert.severity, title: alert.title, created_at: alert.created_at,

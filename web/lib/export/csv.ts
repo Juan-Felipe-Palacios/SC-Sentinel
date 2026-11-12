@@ -5,7 +5,7 @@
 // con comilla simple para que Excel las trate como texto.
 
 import type { HostMetricItem } from '@/lib/query/hosts';
-import type { AlertItem } from '@/lib/query/alerts';
+import type { AlertExportItem } from '@/lib/query/alerts';
 import type { OverviewResult } from '@/lib/query/overview';
 
 /** Antepone ' si el valor (tras espacios) empieza con =, +, -, @. */
@@ -40,7 +40,7 @@ export function hostsToCsv(hosts: HostMetricItem[]): string {
   return `${lines.join('\n')}\n`;
 }
 
-export function alertsToCsv(alerts: AlertItem[]): string {
+export function alertsToCsv(alerts: AlertExportItem[]): string {
   const lines = [ALERTS_HEADER];
   for (const alert of alerts) {
     lines.push(row([alert.id, alert.window_id, alert.rule_id, alert.severity, alert.title, alert.created_at]));

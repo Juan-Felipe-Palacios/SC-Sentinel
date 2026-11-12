@@ -11,6 +11,27 @@ export const SESSION_REMEMBER_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 días
 
 export const SESSION_ISSUER = 'sc-sentinel';
 
+/** Identidad estable del actor autenticado que consume el ciclo de alertas. */
+export interface SessionPrincipal {
+  kind: 'admin' | 'operator';
+  operatorId: string | null;
+  name: string;
+  email: string | null;
+}
+
+export const LEGACY_ADMIN_PRINCIPAL: SessionPrincipal = {
+  kind: 'admin',
+  operatorId: null,
+  name: 'Administrador',
+  email: null,
+};
+
+export interface OperatorSessionIdentity {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export function getSessionSecret(): Uint8Array {
   const configured = process.env.SC_SESSION_SECRET?.trim();
   if (configured && configured.length >= 32) {
@@ -38,14 +59,51 @@ export async function createSessionToken(rememberMe: boolean = false): Promise<s
     .sign(getSessionSecret());
 }
 
-export async function verifySessionToken(token: string): Promise<boolean> {
+export async function createOperatorSessionToken(
+  operator: OperatorSessionIdentity,
+  rememberMe: boolean = false
+): Promise<string> {
+  const ttl = getSessionTtlSeconds(rememberMe);
+  return new SignJWT({ role: 'operator', name: operator.name, email: operator.email })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(operator.id)
+    .setIssuedAt()
+    .setIssuer(SESSION_ISSUER)
+    .setExpirationTime(`${ttl}s`)
+    .sign(getSessionSecret());
+}
+
+export async function readSessionPrincipal(token: string): Promise<SessionPrincipal | null> {
   try {
     const { payload } = await jwtVerify(token, getSessionSecret(), { issuer: SESSION_ISSUER });
+
     // Los tokens guest comparten secreto pero no pueden actuar como admin.
-    return payload.sub === 'admin' && payload.role !== 'guest';
+    if (payload.role === 'guest') return null;
+
+    if (payload.role === 'operator') {
+      if (
+        typeof payload.sub !== 'string' ||
+        typeof payload.name !== 'string' ||
+        typeof payload.email !== 'string'
+      ) {
+        return null;
+      }
+      return {
+        kind: 'operator',
+        operatorId: payload.sub,
+        name: payload.name,
+        email: payload.email,
+      };
+    }
+
+    return payload.sub === 'admin' ? LEGACY_ADMIN_PRINCIPAL : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export async function verifySessionToken(token: string): Promise<boolean> {
+  return (await readSessionPrincipal(token)) !== null;
 }
 
 export function sessionCookieOptions(rememberMe: boolean) {

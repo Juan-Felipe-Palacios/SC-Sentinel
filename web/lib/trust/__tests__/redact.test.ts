@@ -27,6 +27,17 @@ const alert: AlertItem = {
   description: 'El host 203.0.113.7 consultó dominios sospechosos',
   evidence: { src_ip: '203.0.113.7' },
   created_at: '2026-11-09T00:00:00.000Z',
+  status: 'open',
+  assignee: null,
+  assignee_operator_id: null,
+  acknowledged_at: null,
+  resolved_at: null,
+  sla_due_at: '2026-11-11T12:00:00.000Z',
+  expires_at: '2026-11-18T11:00:00.000Z',
+  sla_breached: false,
+  sla_remaining_seconds: 3600,
+  updated_at: '2026-11-09T00:00:00.000Z',
+  notes_count: 0,
 };
 
 const insight: AiInsightRecord = {

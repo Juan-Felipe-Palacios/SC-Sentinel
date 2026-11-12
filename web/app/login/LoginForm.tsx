@@ -5,12 +5,13 @@ import { FormEvent, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, Loader2, LockKeyhole } from 'lucide-react';
 
-type LoginMode = 'admin' | 'guest';
+type LoginMode = 'operator' | 'admin' | 'guest';
 
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [mode, setMode] = useState<LoginMode>('admin');
+  const [mode, setMode] = useState<LoginMode>('operator');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [deviceId, setDeviceId] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -18,6 +19,7 @@ export function LoginForm() {
   const [rememberMe, setRememberMe] = useState(false);
 
   const isGuest = mode === 'guest';
+  const isOperator = mode === 'operator';
 
   function switchMode(next: LoginMode) {
     if (submitting || next === mode) return;
@@ -41,7 +43,9 @@ export function LoginForm() {
             ? deviceId.trim()
               ? { deviceId: deviceId.trim() }
               : {}
-            : { password, rememberMe }
+            : isOperator
+              ? { email: email.trim(), password, rememberMe }
+              : { password, rememberMe }
         ),
       });
 
@@ -68,7 +72,9 @@ export function LoginForm() {
       } else {
         setError(
           body?.error === 'invalid_credentials'
-            ? 'Contraseña incorrecta.'
+            ? isOperator
+              ? 'Email o contraseña incorrectos.'
+              : 'Contraseña incorrecta.'
             : 'No se pudo iniciar sesión. Revisá la configuración del servidor.'
         );
       }
@@ -84,9 +90,9 @@ export function LoginForm() {
       <div
         role="group"
         aria-label="Tipo de acceso"
-        className="grid grid-cols-2 gap-1 rounded-md border sc-hairline bg-sc-surface p-1"
+        className="grid grid-cols-3 gap-1 rounded-md border sc-hairline bg-sc-surface p-1"
       >
-        {(['admin', 'guest'] as const).map((option) => {
+        {(['operator', 'admin', 'guest'] as const).map((option) => {
           const active = mode === option;
           return (
             <button
@@ -101,7 +107,7 @@ export function LoginForm() {
                   : 'border border-transparent text-sc-text-muted hover:bg-sc-surface-alt hover:text-sc-text'
               }`}
             >
-              {option === 'admin' ? 'Administrador' : 'Visitante'}
+              {option === 'operator' ? 'Operador' : option === 'admin' ? 'Admin' : 'Visitante'}
             </button>
           );
         })}
@@ -133,15 +139,34 @@ export function LoginForm() {
         </div>
       ) : (
         <div className="space-y-3">
+          {isOperator ? (
+            <div>
+              <label htmlFor="email" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.22em] text-sc-text-muted">
+                Email del operador
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="username"
+                autoFocus
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className="w-full rounded-md border sc-hairline bg-sc-surface px-4 py-3 text-[15px] text-sc-text outline-none transition-colors placeholder:text-sc-text-muted/60 hover:border-sc-text-muted/30 focus-visible:border-sc-viz-in focus-visible:ring-2 focus-visible:ring-sc-viz-in/30"
+                placeholder="operador@empresa.com"
+              />
+            </div>
+          ) : null}
           <label htmlFor="password" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.22em] text-sc-text-muted">
-            Contraseña de administrador
+            {isOperator ? 'Contraseña' : 'Contraseña de administrador'}
           </label>
           <input
             id="password"
             name="password"
             type="password"
             autoComplete="current-password"
-            autoFocus
+            autoFocus={!isOperator}
             required
             value={password}
             onChange={(event) => setPassword(event.target.value)}
@@ -173,7 +198,7 @@ export function LoginForm() {
 
       <button
         type="submit"
-        disabled={submitting || (!isGuest && password.length === 0)}
+        disabled={submitting || (!isGuest && password.length === 0) || (isOperator && !email.trim())}
         className="flex w-full items-center justify-center gap-2 rounded-md border border-sc-viz-in/40 bg-sc-viz-in/10 px-4 py-3 font-display text-[15px] font-semibold text-sc-viz-in transition-all hover:bg-sc-viz-in/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sc-viz-in/50 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {submitting ? (
