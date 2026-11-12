@@ -8,7 +8,7 @@ use sc_geo::CountryLookup;
 use sc_telemetry::HealthRegistry;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
 
 pub trait Clock: Send + Sync {
@@ -53,6 +53,20 @@ pub struct AggregatorConfig {
     pub top_ports: usize,
     pub top_countries: usize,
     pub max_alerts: usize,
+}
+
+/// Límites y contador de la ventana en curso.
+///
+/// Se agrupan en una struct para no pasar ocho parámetros sueltos al
+/// publicador de la ventana (`clippy::too_many_arguments`).
+#[derive(Clone, Copy)]
+struct WindowBounds {
+    /// Inicio de la ventana, alineado al bloque de `window_seconds`.
+    start: i64,
+    /// Fin de la ventana (exclusivo).
+    end: i64,
+    /// Número de ventana dentro de la vida del proceso.
+    id_counter: u64,
 }
 
 /// Contadores crudos del canal de captura, compartidos con el aggregator para
@@ -133,91 +147,142 @@ impl WindowAggregator {
 
     /// Emite `(Window, WindowSnapshot)`: el spool necesita los extremos reales de
     /// la ventana, no un `now-30..now` aproximado al momento de persistirla.
+    ///
+    /// La ventana se cierra por **tiempo** (ticker de 1 s) y no solo cuando llega
+    /// tráfico: si el flujo se detiene, la última ventana con datos se quedaba en
+    /// memoria sin persistir (y sin enviar al backend) hasta la siguiente actualización.
     pub async fn run(
         self,
         mut rx: mpsc::Receiver<FlowUpdate>,
         snapshots: mpsc::Sender<(Window, WindowSnapshot)>,
     ) {
         let window_seconds = self.cfg.window_seconds as i64;
-        let mut current_start = (self.clock.now_epoch_s() / window_seconds) * window_seconds;
+        let now = self.clock.now_epoch_s();
+        let mut bounds = WindowBounds {
+            start: (now / window_seconds) * window_seconds,
+            end: (now / window_seconds) * window_seconds + window_seconds,
+            id_counter: 0,
+        };
         let mut accumulator = Accumulator::new(
             self.cfg.hmac_key.clone(),
             self.cfg.anonymize_hosts,
             self.country.clone(),
         );
-        let mut window_id_counter: u64 = 0;
         // Último total de drops ya registrado, para loguear solo el delta de la ventana.
         let mut last_dropped: u64 = 0;
+        // Ticker de rotación: permite cerrar la ventana aunque no llegue tráfico.
+        // Se usa un `Sleep` rearmable (y no `interval`) porque el futuro de
+        // `interval` se dropea cuando gana otra rama del `select!`, lo que hace
+        // que el tick se re-dispare de inmediato y perdería su caducidad real.
+        let ticker = tokio::time::sleep(Duration::from_secs(1));
+        tokio::pin!(ticker);
 
         loop {
             tokio::select! {
-                Some(update) = rx.recv() => {
-                    let now = self.clock.now_epoch_s();
-                    let window_end = current_start + window_seconds;
-                    if now >= window_end {
-                        // Flush current window
-                        let _ = chrono::Utc;
-                        // Backlog real del canal de captura en este instante (§9).
-                        self.health
-                            .queue_depth
-                            .store(rx.len() as u64, Ordering::Relaxed);
-                        self.sync_capture_counters();
-                        let dropped = self.health.packets_dropped.load(Ordering::Relaxed);
-                        if dropped > last_dropped {
-                            tracing::warn!(
-                                event = "capture_drops",
-                                dropped_window = dropped - last_dropped,
-                                dropped_total = dropped,
-                                "canal de captura lleno: paquetes descartados por backpressure"
-                            );
-                            last_dropped = dropped;
+                update = rx.recv() => {
+                    match update {
+                        None => break,
+                        Some(update) => {
+                            let now = self.clock.now_epoch_s();
+                            if now >= bounds.end {
+                                // Flush current window
+                                self.flush_window(
+                                    &accumulator,
+                                    bounds,
+                                    &mut last_dropped,
+                                    rx.len() as u64,
+                                    &snapshots,
+                                )
+                                .await;
+                                bounds.id_counter += 1;
+                                // Start new window
+                                bounds.start = (now / window_seconds) * window_seconds;
+                                bounds.end = bounds.start + window_seconds;
+                                accumulator = Accumulator::new(self.cfg.hmac_key.clone(), self.cfg.anonymize_hosts, self.country.clone());
+                            }
+                            accumulator.add_flow(&update);
                         }
-                        let window = Window {
-                            id: format!("win_{}", window_id_counter),
-                            start: chrono::DateTime::<chrono::Utc>::from_timestamp(current_start, 0).unwrap(),
-                            end: chrono::DateTime::<chrono::Utc>::from_timestamp(window_end, 0).unwrap(),
-                            duration_ms: (window_seconds * 1000) as u64,
-                            sequence: window_id_counter,
-                        };
-                        let snapshot = build_snapshot(
+                    }
+                }
+                _ = &mut ticker => {
+                    // Cierre por tiempo: la ventana se publica aunque no haya tráfico.
+                    ticker
+                        .as_mut()
+                        .reset(tokio::time::Instant::now() + Duration::from_secs(1));
+                    let now = self.clock.now_epoch_s();
+                    if now >= bounds.end {
+                        self.flush_window(
                             &accumulator,
-                            &self.cfg,
-                            &self.health,
-                            window.clone(),
-                            window_id_counter,
-                        );
-                        window_id_counter += 1;
-                        let _ = snapshots.send((window, snapshot)).await;
-                        // Start new window
-                        current_start = (now / window_seconds) * window_seconds;
+                            bounds,
+                            &mut last_dropped,
+                            rx.len() as u64,
+                            &snapshots,
+                        )
+                        .await;
+                        bounds.id_counter += 1;
+                        bounds.start = (now / window_seconds) * window_seconds;
+                        bounds.end = bounds.start + window_seconds;
                         accumulator = Accumulator::new(self.cfg.hmac_key.clone(), self.cfg.anonymize_hosts, self.country.clone());
                     }
-                    accumulator.add_flow(&update);
                 }
-                else => break,
             }
         }
         // Flush remaining
         let now = self.clock.now_epoch_s();
-        let window_end = current_start + window_seconds;
-        let end_time = if now > window_end { window_end } else { now };
+        let end_time = if now > bounds.end { bounds.end } else { now };
+        self.flush_window(
+            &accumulator,
+            WindowBounds {
+                end: end_time,
+                ..bounds
+            },
+            &mut last_dropped,
+            rx.len() as u64,
+            &snapshots,
+        )
+        .await;
+    }
+
+    /// Publica la ventana actual en el canal del spooler.
+    ///
+    /// Se usa tanto al cerrar por tráfico como al cerrar por tiempo, para que
+    /// ambos caminos produzcan exactamente la misma ventana.
+    async fn flush_window(
+        &self,
+        accumulator: &Accumulator,
+        bounds: WindowBounds,
+        last_dropped: &mut u64,
+        queue_depth: u64,
+        snapshots: &mpsc::Sender<(Window, WindowSnapshot)>,
+    ) {
+        // Backlog real del canal de captura en este instante (§9).
         self.health
             .queue_depth
-            .store(rx.len() as u64, Ordering::Relaxed);
+            .store(queue_depth, Ordering::Relaxed);
         self.sync_capture_counters();
+        let dropped = self.health.packets_dropped.load(Ordering::Relaxed);
+        if dropped > *last_dropped {
+            tracing::warn!(
+                event = "capture_drops",
+                dropped_window = dropped - *last_dropped,
+                dropped_total = dropped,
+                "canal de captura lleno: paquetes descartados por backpressure"
+            );
+            *last_dropped = dropped;
+        }
         let window = Window {
-            id: format!("win_{}", window_id_counter),
-            start: chrono::DateTime::<chrono::Utc>::from_timestamp(current_start, 0).unwrap(),
-            end: chrono::DateTime::<chrono::Utc>::from_timestamp(end_time, 0).unwrap(),
-            duration_ms: ((end_time - current_start).max(0)) as u64 * 1000,
-            sequence: window_id_counter,
+            id: format!("win_{}", bounds.id_counter),
+            start: chrono::DateTime::<chrono::Utc>::from_timestamp(bounds.start, 0).unwrap(),
+            end: chrono::DateTime::<chrono::Utc>::from_timestamp(bounds.end, 0).unwrap(),
+            duration_ms: (bounds.end - bounds.start).max(0) as u64 * 1000,
+            sequence: bounds.id_counter,
         };
         let snapshot = build_snapshot(
-            &accumulator,
+            accumulator,
             &self.cfg,
             &self.health,
             window.clone(),
-            window_id_counter,
+            bounds.id_counter,
         );
         let _ = snapshots.send((window, snapshot)).await;
     }
@@ -304,6 +369,55 @@ mod tests {
         let host = snapshot.top_hosts.first().expect("host agregado");
         assert_eq!(host.packets, 2, "solo los flujos de 990..1020");
         assert_eq!(host.bytes_out, 200);
+
+        drop(tx);
+        tokio::time::timeout(t, handle)
+            .await
+            .expect("timeout cerrando el aggregator")
+            .expect("aggregator sin panico");
+    }
+
+    /// La ventana se cierra por tiempo aunque no llegue más tráfico: si no, la
+    /// última ventana con datos se queda en memoria sin persistir ni enviar, y
+    /// el panel no la ve hasta que vuelve a haber flujo.
+    #[tokio::test]
+    async fn la_ventana_se_cierra_sin_trafico() {
+        let clock = Arc::new(std::sync::atomic::AtomicI64::new(1_000));
+        let (tx, rx) = mpsc::channel(16);
+        let (snap_tx, mut snap_rx) = mpsc::channel(16);
+        let aggregator = WindowAggregator::new(
+            AggregatorConfig {
+                window_seconds: 1,
+                anonymize_hosts: false,
+                ..AggregatorConfig::default()
+            },
+            Arc::new(sc_geo::NoLookup),
+            HealthRegistry::new(),
+        )
+        .with_clock(Arc::new(StepClock(clock.clone())));
+        let handle = tokio::spawn(aggregator.run(rx, snap_tx));
+        tokio::task::yield_now().await;
+
+        let t = std::time::Duration::from_secs(5);
+        tokio::time::timeout(t, tx.send(update(1_000, 100)))
+            .await
+            .expect("timeout flujo")
+            .expect("flujo");
+        tokio::task::yield_now().await;
+
+        // El reloj pasa el borde de la ventana y NO llega más tráfico.
+        clock.store(1_001, Ordering::Relaxed);
+
+        let (window, snapshot) = tokio::time::timeout(t, snap_rx.recv())
+            .await
+            .expect("la ventana debe cerrarse aunque no llegue tráfico")
+            .expect("ventana cerrada");
+        assert_eq!(window.start.timestamp(), 1_000);
+        assert_eq!(window.end.timestamp(), 1_001);
+        assert_eq!(window.duration_ms, 1_000);
+        let host = snapshot.top_hosts.first().expect("host agregado");
+        assert_eq!(host.packets, 1, "la ventana con datos se publica");
+        assert_eq!(host.bytes_out, 100);
 
         drop(tx);
         tokio::time::timeout(t, handle)

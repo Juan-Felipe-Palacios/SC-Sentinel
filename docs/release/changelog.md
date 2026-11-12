@@ -2,6 +2,13 @@
 
 Formato: Keep a Changelog 1.1 (semantic entries) publicado también en cada GitHub Release.
 
+## [0.1.2] — 2026-11-12
+
+Corrige un defecto real en el cierre de las ventanas de métricas: la ventana solo se cerraba cuando llegaba tráfico nuevo.
+
+### Fixed
+- (M5) La ventana de métricas ya se cierra **por tiempo** y no solo al recibir tráfico. Antes, `WindowAggregator::run` rotaba la ventana únicamente dentro de la rama que consume actualizaciones del colector: si el tráfico cesaba, la última ventana con datos se quedaba en memoria y no se persistía en el spool hasta que llegaba el siguiente paquete (o se paraba el agente). En redes con tráfico esporádico eso retrasaba —y con una ventana sin tráfico previo, perdía— las métricas del dashboard y el envío al backend. Ahora el agregador comprueba el límite de la ventana cada segundo, con un test de regresión (`la_ventana_se_cierra_sin_trafico`) que falla sin el arreglo.
+
 ## [0.1.1] — 2026-11-11
 
 Cierra el gap de instalación: release publicada con binario + sumas SHA256 e instalador de un clic para Windows.
