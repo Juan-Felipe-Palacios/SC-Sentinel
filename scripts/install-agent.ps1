@@ -66,6 +66,34 @@ function Grant-DirWrite {
 $SystemSid = "S-1-5-18"
 $AdminsSid = "S-1-5-32-544"
 
+# Una instalacion previa deja los ficheros con ACLs explicitos (sin herencia),
+# por ejemplo el binario con SYSTEM:(F) + Administradores:(RX). Con esa ACL un
+# administrador NO puede sobrescribir el fichero: Copy-Item falla con "Acceso
+# denegado" y el servicio se queda sirviendo la version antigua.
+# Esta rutina devuelve el control del fichero y comprueba que de verdad se
+# puede escribir en el.
+# Se usan SIDs con prefijo * y /setowner en lugar de takeown: takeown /D cambia
+# entre idiomas ("Y" en ingles, "S" en espanol) y rompe el script en un Windows
+# no ingles.
+function Ensure-FileWritable {
+  param([string]$Path)
+  if (-not (Test-Path $Path)) { return $true }
+  icacls $Path /setowner "*${AdminsSid}" 2>&1 | Out-Null
+  icacls $Path /inheritance:e /grant "*${SystemSid}:(F)" /grant "*${AdminsSid}:(F)" 2>&1 | Out-Null
+  try {
+    $fs = [System.IO.File]::Open(
+      $Path,
+      [System.IO.FileMode]::Open,
+      [System.IO.FileAccess]::Write,
+      [System.IO.FileShare]::ReadWrite
+    )
+    $fs.Close()
+    return $true
+  } catch {
+    return $false
+  }
+}
+
 function Write-Step {
  param([string]$Message, [string]$Status = "✓")
  Write-Host "$Status $Message" -ForegroundColor $(if ($Status -eq "✗") { "Red" } else { "Green" })
@@ -126,8 +154,28 @@ foreach ($dir in @($InstallDir, $ConfigDir, $LogDir, $SpoolDir)) {
 
 # Paso 4: Copiar binario
 Write-Step "Copiando binario a $InstallDir..."
-Copy-Item $BinSource "$InstallDir\sc-sentinel-agent.exe" -Force
 $BinPath = "$InstallDir\sc-sentinel-agent.exe"
+# Reutilizacion: el binario de la instalacion anterior puede tener ACLs
+# explicitos que impiden sobrescribirlo. Recuperar el control y borrarlo antes
+# de copiar garantiza que el servicio arranca con la version nueva.
+if (Test-Path $BinPath) {
+  if (-not (Ensure-FileWritable $BinPath)) {
+    Write-Error-Exit "No se puede reemplazar el binario instalado ($BinPath).`nDesinstalalo antes: scripts\uninstall-agent.ps1"
+  }
+  Remove-Item $BinPath -Force -ErrorAction SilentlyContinue
+}
+Copy-Item $BinSource $BinPath -Force
+if (-not (Test-Path $BinPath)) {
+  Write-Error-Exit "No se pudo copiar el binario a $BinPath"
+}
+# Verificar que lo copiado es identico al origen: si la copia falla en
+# silencio el servicio se quedaria con la version antigua.
+$srcHash = (Get-FileHash $BinSource -Algorithm SHA256).Hash
+$dstHash = (Get-FileHash $BinPath -Algorithm SHA256).Hash
+if ($srcHash -ne $dstHash) {
+  Write-Error-Exit "El binario copiado no coincide con el de origen`n  origen: $srcHash`n  copiado: $dstHash"
+}
+Write-Step "Binario verificado (SHA256 $srcHash)"
 # Residuo de instalaciones antiguas que usaban otro nombre de binario
 Remove-Item "$InstallDir\sc-agent.exe" -Force -ErrorAction SilentlyContinue
 
@@ -174,6 +222,7 @@ template_cache_ttl_secs = 3600
 
 # Sin BOM: el crate `toml` lo tolera, pero un config sin BOM es lo portable
 # (PS 5.1 escribe UTF-8 con BOM en -Encoding UTF8).
+Ensure-FileWritable $ConfigFile | Out-Null
 [System.IO.File]::WriteAllText($ConfigFile, "$configContent`r`n", [System.Text.UTF8Encoding]::new($false))
 
 # Paso 6: Aplicar permisos restrictivos usando SIDs con prefijo *

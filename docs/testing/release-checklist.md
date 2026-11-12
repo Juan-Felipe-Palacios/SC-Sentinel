@@ -21,6 +21,8 @@ Aplica a cada tag `vX.Y.Z` (SemVer estricto: breaking=major · features=minor ·
   - `sc-sentinel-agent-vX.Y.Z-linux-x64.tar.gz`
   - `SHA256SUMS.txt` (hashes de TODOS los binarios, generado por CI).
 - [ ] Binarios probados en máquina limpia (o VM): instalar, capturar 2 min, verificar ingesta, desinstalar.
+- [ ] Instalador de un clic probado de verdad: doble clic en `instalar-sc-sentinel.bat` (o modo desatendido con `<device_id> <token>`), UAC aceptado, servicio «SC Sentinel Network Agent» en ejecución, puertos 2055/4739 abiertos y `SC_INGEST_TOKEN`/`SC_SENTINEL_DEVICE_ID` en el `Environment` del servicio.
+- [ ] `desinstalar-sc-sentinel.bat` probado: servicio eliminado (`sc.exe query` → 1060), sin residuos en `C:\Program Files` ni en `C:\ProgramData`.
 
 ## 3. Firma (fase actual: plan registrada)
 

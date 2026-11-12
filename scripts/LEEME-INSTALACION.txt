@@ -1,0 +1,82 @@
+===============================================================================
+  SC-Sentinel - Agente de red para Windows
+  Guia rapida de instalacion (sin conocimientos de informatica)
+===============================================================================
+
+QUE ES ESTO
+-----------
+Este paquete instala en tu equipo un servicio de Windows que mide el trafico
+de red y lo envia al panel web de SC-Sentinel. Funciona como un antivirus:
+se instala una vez, arranca solo al encender el equipo y no hay que hacer
+nada mas.
+
+NO NECESITAS INSTALAR NPCAP NI NINGUN DRIVER ADICIONAL: el agente solo
+recibe datos de flujo que ya le envia tu router o switch.
+
+
+QUE NECESITAS TENER ANTES DE EMPEZAR
+-------------------------------------
+  1. Un PC con Windows 10, Windows 11 o Windows Server 2016 o superior.
+  2. Acceso al panel web de SC-Sentinel con tu usuario.
+  3. Los dos datos del dispositivo (ver el paso 1).
+
+
+PASO 1 - SACAR LOS DOS DATOS DEL PANEL WEB
+------------------------------------------
+  1. Abre el panel web de SC-Sentinel y entra en "Configuracion".
+  2. Pulsa el boton "Enrolar dispositivo".
+  3. Apareceran dos textos:
+       - Device ID  -> empieza por "dev_"  (ejemplo: dev_3f2a...-9c1b)
+       - Token      -> empieza por "sc_dev_" (ejemplo: sc_dev_7b4e...-10de)
+  4. Copialos. El token SOLO se muestra una vez: si lo pierdes, en el panel
+     web puedes borrar ese dispositivo y enrolar uno nuevo.
+
+  IMPORTANTE: el Device ID y el Token tienen que ser los del mismo
+  dispositivo. Si se mezclan, el panel web rechaza los datos.
+
+
+PASO 2 - INSTALAR EN EL EQUIPO
+------------------------------
+  1. Descomprime este ZIP en una carpeta (por ejemplo, en el Escritorio).
+  2. Doble clic en el archivo  "instalar-sc-sentinel.bat".
+  3. Windows preguntara si permites los cambios: pulsa "Si".
+  4. Pega el Device ID y luego el Token cuando te lo pida (boton derecho >
+     Pegar, o Ctrl+V).
+  5. Espera a que termine. Si todo va bien, veras "INSTALACION COMPLETADA".
+
+  Listo. Ya esta instalado y funcionando.
+
+
+PASO 3 - COMPROBAR QUE FUNCIONA
+-------------------------------
+  1. Pulsa Windows + R, escribe  services.msc  y dale a Enter.
+  2. Busca "SC Sentinel Network Agent": debe poner "En ejecucion".
+  3. En el panel web, entra en "Configuracion" y mira la fecha del ultimo
+     envio correcto. Ese dato es la prueba definitiva de que todo funciona.
+
+  Si el servicio no esta en ejecucion, el propio Windows lo reinicia solo a
+  los 5, 10 y 30 segundos, y lo que no se haya enviado se guarda en disco y
+  se reintenta luego.
+
+
+SI ALGO FALLA
+-------------
+  - Revisa el registro:  C:\ProgramData\SC-Sentinel\logs\agent.log
+    (puedes abrirlo con el Bloc de notas; necesitarias permisos de
+    administrador para leerlo).
+  - En el panel web, "Configuracion" permite rotar el token si crees que se
+    ha filtrado o lo has perdido.
+  - Para quitar el agente: doble clic en "desinstalar-sc-sentinel.bat".
+
+
+ARCHIVOS DE ESTE PAQUETE
+------------------------
+  instalar-sc-sentinel.bat      Instalador de un clic.
+  desinstalar-sc-sentinel.bat   Desinstalador de un clic.
+  sc-sentinel-agent.exe         El agente en si.
+  install-agent.ps1             Logica de instalacion (la usa el instalador).
+  uninstall-agent.ps1           Logica de desinstalacion.
+  LEEME-INSTALACION.txt         Esta guia.
+  SHA256SUMS.txt                Huellas de verificacion de los binarios.
+
+===============================================================================

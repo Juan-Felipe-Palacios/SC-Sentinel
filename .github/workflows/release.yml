@@ -1,0 +1,120 @@
+name: Release
+
+# Publica los artefactos del agente cuando se crea un tag vX.Y.Z.
+# El tag se compila en Windows y Linux, se empaqueta y se publica como
+# GitHub Release con el SHA256SUMS.txt de todos los artefactos.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag ya existente que se quiere publicar (p.ej. v0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: windows-x64
+          - os: ubuntu-latest
+            target: linux-x64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: agent -> target
+
+      - name: Determinar version y tag
+        id: meta
+        shell: pwsh
+        run: |
+          $tag = "${{ github.event.inputs.tag }}"
+          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = "${{ github.ref_name }}" }
+          if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "El tag '$tag' no cumple SemVer estricto (vX.Y.Z)"
+          }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "version=$($tag -replace '^v','')" >> $env:GITHUB_OUTPUT
+
+      - name: Compilar agente
+        working-directory: agent
+        run: cargo build --release -p sc-agent
+
+      - name: Empaquetar
+        shell: pwsh
+        run: ./scripts/package-release.ps1 -Version "${{ steps.meta.outputs.version }}" -Target "${{ matrix.target }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: |
+            dist/sc-sentinel-agent-*
+            dist/SHA256SUMS-*.txt
+          if-no-files-found: error
+
+  publish:
+    name: Publicar release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Determinar tag
+        id: meta
+        shell: pwsh
+        run: |
+          $tag = "${{ github.event.inputs.tag }}"
+          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = "${{ github.ref_name }}" }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Fusionar sumas SHA256
+        shell: pwsh
+        run: |
+          $lines = Get-ChildItem dist -Filter 'SHA256SUMS-*.txt' |
+            Sort-Object Name |
+            ForEach-Object { Get-Content $_.FullName }
+          if (-not $lines) { throw "No hay ficheros de sumas SHA256 que fusionar" }
+          # UTF-8 sin BOM: un BOM rompe `sha256sum -c` en Linux.
+          [System.IO.File]::WriteAllText(
+            'dist/SHA256SUMS.txt',
+            ($lines -join "`n") + "`n",
+            [System.Text.UTF8Encoding]::new($false))
+          Get-Content 'dist/SHA256SUMS.txt'
+
+      - name: Publicar en GitHub Releases
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          $files = Get-ChildItem dist -File | ForEach-Object { $_.FullName }
+          gh release view $env:TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "La release $env:TAG ya existe: se suben los artefactos."
+            gh release upload $env:TAG $files --clobber
+          } else {
+            Write-Host "Creando la release $env:TAG."
+            gh release create $env:TAG $files --title "SC-Sentinel $env:TAG" --generate-notes --verify-tag
+          }

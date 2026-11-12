@@ -39,3 +39,11 @@ git tag -a v0.1.0 -m "SC-Sentinel v0.1.0"
 git push origin main --tags
 # 4. workflow de release construye artefactos + SHA256SUMS y crea el GitHub Release
 ```
+
+El paso 4 lo ejecuta `.github/workflows/release.yml`: se dispara con el push del tag `v*`
+(o a mano con `workflow_dispatch` + input `tag`), compila en Windows y Ubuntu, llama a
+`scripts/package-release.ps1` y publica `sc-sentinel-agent-vX.Y.Z-windows-x64.zip`,
+`sc-sentinel-agent-vX.Y.Z-linux-x64.tar.gz` y `SHA256SUMS.txt` en la release.
+
+Si la release ya existe (por ejemplo, creada a mano antes de que corriera el CI), el
+workflow sube los artefactos con `--clobber`: no duplica, los reemplaza.

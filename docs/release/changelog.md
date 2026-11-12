@@ -2,6 +2,25 @@
 
 Formato: Keep a Changelog 1.1 (semantic entries) publicado también en cada GitHub Release.
 
+## [0.1.1] — 2026-11-11
+
+Cierra el gap de instalación: release publicada con binario + sumas SHA256 e instalador de un clic para Windows.
+
+### Added
+- (M5) Instalador de un clic para Windows (`scripts/instalar-sc-sentinel.bat`): se auto-eleva con UAC, pide el `device_id` y el token, instala el servicio y lo deja en ejecución. Modo desatendido: `instalar-sc-sentinel.bat <device_id> <token> [puertos]`. Bitácora sin secretos en `%TEMP%\sc-sentinel-instalador.log`.
+- (M5) Desinstalador de un clic (`scripts/desinstalar-sc-sentinel.bat`): pregunta si se borran los datos (spool, `.host-key`) y propaga el código de salida.
+- (M5) Guía `scripts/LEEME-INSTALACION.txt` en lenguaje llano para usuarios sin conocimientos de informática (requisitos, enrolment en el panel, instalación, verificación y qué hacer si algo falla).
+- (M5) `scripts/package-release.ps1`: empaquetado por plataforma (`windows-x64` en ZIP, `linux-x64` en tar.gz) con `SHA256SUMS.txt` dentro del paquete y `SHA256SUMS-<target>.txt` como sidecar del artefacto.
+- (M5) Workflow `.github/workflows/release.yml`: al publicar un tag `v*` compila en Windows y Ubuntu, empaqueta y publica los artefactos con sus sumas SHA256 en la GitHub Release.
+
+### Changed
+- (M5) Runbook de instalación Windows: documenta las dos vías (un clic desde la release y PowerShell desde el repo), la verificación del hash del ZIP y el formato real de credenciales (`dev_…` + `sc_dev_…`).
+- (M5) Runbook de instalación Linux reescrito: `config.toml` con el esquema real de `sc-config`, unit de systemd con `EnvironmentFile`, `--no-capture` y hardening, y descarga desde la release con verificación de sha256.
+
+### Fixed
+- (M5) `install-agent.ps1` ya no se queda en silencio con la versión antigua del binario: el `Copy-Item` sobre el `.exe` instalado fallaba con «Acceso denegado» (ACL sin herencia de una instalación previa) y el servicio arrancaba con la build previa; ahora ajusta los permisos del fichero, borra, copia y **verifica el SHA256** antes de continuar.
+- (M5) `SHA256SUMS.txt` se escribe sin BOM (con BOM, `sha256sum -c` falla en Linux).
+
 ## [0.1.0] — 2026-11-11
 
 Primer release funcional: agente con captura y colector NetFlow/IPFIX, dashboard completo, IA, exports, Trust Pages y servicio Windows.
