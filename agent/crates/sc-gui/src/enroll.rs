@@ -66,24 +66,30 @@ pub struct EnrollRequest {
     pub token: String,
 }
 
-/// Escribe el payload en `%TEMP%` y le quita la herencia de ACL: solo SYSTEM y
-/// Administradores pueden leerlo (el helper corre elevado).
+/// Escribe el payload en `%TEMP%` y le quita la herencia de ACL: solo SYSTEM,
+/// Administradores y el usuario que lo creó (que necesita poder borrarlo).
 pub fn write_payload(request: &EnrollRequest) -> Result<PathBuf, String> {
     let path = std::env::temp_dir().join(format!("sc-sentinel-enroll-{}.json", std::process::id()));
     let body = serde_json::to_vec(request).map_err(|error| error.to_string())?;
     std::fs::write(&path, body)
         .map_err(|error| format!("no se pudo escribir el payload: {error}"))?;
 
-    let acl = Command::new("icacls")
-        .arg(&path)
-        // SIDs, no nombres: en un Windows en español «Administrators» no existe.
-        .args([
-            "/inheritance:r",
-            "/grant:r",
-            "*S-1-5-18:F",
-            "*S-1-5-32-544:F",
-        ])
-        .output();
+    // SIDs, no nombres: en un Windows en español «Administrators» no existe.
+    let mut acl_args: Vec<String> = vec![
+        "/inheritance:r".to_string(),
+        "/grant:r".to_string(),
+        "*S-1-5-18:F".to_string(),
+        "*S-1-5-32-544:F".to_string(),
+    ];
+    // El dueño conserva acceso: sin esto el payload queda ilegible también para
+    // quien lo escribió y nadie puede limpiarlo.
+    if let Ok(user) = std::env::var("USERNAME") {
+        let user = user.trim();
+        if !user.is_empty() {
+            acl_args.push(format!("{user}:F"));
+        }
+    }
+    let acl = Command::new("icacls").arg(&path).args(&acl_args).output();
     if let Ok(output) = acl {
         if !output.status.success() {
             // Sin ACL el fichero sigue siendo válido; se avisa por stderr y se
@@ -120,6 +126,8 @@ pub fn launch_elevated(payload: &Path) -> Result<(), String> {
 /// Helper elevado: aplica el enrolamiento y espera a que el servicio vuelva.
 pub fn apply_elevated(payload: &Path) -> Result<String, String> {
     let request = read_payload(payload)?;
+    // El token ya está en memoria: el fichero temporal no debe sobrevivir.
+    let _ = std::fs::remove_file(payload);
     let script = find_enroll_script()?;
 
     // El token viaja por entorno, no en la línea de comandos del proceso.
