@@ -198,7 +198,8 @@ if (Test-Path $LogPath) {
 if (-not $KeepCapture) {
     Write-Step 'Comprobando el modo del service (colector)'
 
-    $imagePath = (Get-ItemProperty -Path $ServiceRegPath -Name 'ImagePath' -ErrorAction SilentlyContinue).ImagePath
+    $imagePath = $null
+    try { $imagePath = (Get-ItemProperty -Path $ServiceRegPath -Name 'ImagePath' -ErrorAction Stop).ImagePath } catch { $imagePath = $null }
     $exe = $null
     if ($imagePath -match '^\s*"?([^"]+?\.exe)"?(\s|$)') { $exe = $Matches[1] }
 
