@@ -294,7 +294,13 @@ if ($Service) {
     Write-Info "Log: $logFile"
     Test-Expect ($log -match 'GeoIP: base GeoLite2 cargada') 'El log registra la carga de GeoLite2' 'El log no registra la carga de GeoLite2'
     $hasSync = [bool]($log -match 'spool_flushed|sync_final_drain|sync_ok')
-    $hasAuthError = [bool]($log -match '(401|403)')
+    # Los 401/403 anteriores al ultimo arranque no cuentan: tras re-enrolar, el
+    # log conserva el historial del token viejo (un WARN cada 60 s) y durante
+    # horas seguiria dentro del tail de 400 lineas. Solo importa el tramo del
+    # proceso en curso.
+    $starts = [regex]::Matches($log, '(?m)^.*collector_started.*$')
+    $currentRun = if ($starts.Count -gt 0) { $log.Substring($starts[$starts.Count - 1].Index) } else { $log }
+    $hasAuthError = [bool]($currentRun -match '(401|403)')
     if ($hasSync) {
       Write-Ok 'El log registra un drain/sync del spool'
     } elseif ($credsPlaceholder) {
