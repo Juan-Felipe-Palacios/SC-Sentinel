@@ -226,15 +226,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\deploy-agent-service
 # 3. Volver adelante tras un rollback
 #    (el .new que guardo el Deploy, o el .new-<marca> que guarda el Rollback)
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\deploy-agent-service.ps1 `
-    -Mode Deploy -Source "$env:TEMP\sc-rollback-agent\sc-sentinel-agent.exe.new"
+    -Mode Deploy -Source "C:\ProgramData\SC-Sentinel\backup\sc-sentinel-agent.exe.new"
 
 # 4. Ver el plan sin tocar el servicio (no necesita elevacion)
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\deploy-agent-service.ps1 -DryRun
 ```
 
 Parámetros: `-Source` (binario nuevo), `-Target` (instalado), `-Service`,
-`-BackupDir` (`%TEMP%\sc-rollback-agent`), `-LogPath` (`agent.log`) y los topes
-`-StopTimeoutSec` / `-StartTimeoutSec` / `-SyncTimeoutSec`.
+`-BackupDir` (`C:\ProgramData\SC-Sentinel\backup`, protegida),
+`-LegacyBackupDir` (`%TEMP%\sc-rollback-agent`, solo para migrar),
+`-LogPath` (`agent.log`), los topes `-StopTimeoutSec` / `-StartTimeoutSec` /
+`-SyncTimeoutSec` y `-StrictBackupAcl`.
 
 ### 8.2 Qué esperar
 
@@ -270,6 +272,28 @@ proceder y con 20 si abortaría antes de tocar nada.
 (aborta con 25): el `Deploy` los rota y usarlos como origen confunde respaldo
 con binario nuevo. Compila el `.exe` o apunta a una copia fuera de esa carpeta.
 
+**Carpeta de respaldo protegida.** El respaldo vive en
+`C:\ProgramData\SC-Sentinel\backup`, fuera de `%TEMP%` (que un proceso no
+elevado del usuario puede escribir). Si no existe, el script la crea con
+`icacls /inheritance:r` y control total solo para SYSTEM (`S-1-5-18`) y
+Administradores (`S-1-5-32-544`), y **después relee la ACL** para comprobar que
+quedó exactamente así: si no, `ABORTA (27)`. Si ya existe, revisa **dueño y
+ACL** antes de usarla: dueño distinto de SYSTEM/Administradores, herencia viva o
+alguna ACE de `Users`/`Authenticated Users`/`Everyone`/`INTERACTIVE` con
+escritura (`WriteData`, `CreateFiles`, `AppendData`, `Delete`,
+`DeleteSubdirectoriesAndFiles`, `TakeOwnership`, `ChangePermissions`, o los
+compuestos `Modify`/`FullControl`) ⇒ `ABORTA (26)`. Las ACE de tipo `Deny` se
+ignoran. Un `-BackupDir` explícito inseguro solo **avisa**, salvo que añadas
+`-StrictBackupAcl`, que lo convierte en aborto.
+
+**Migración del respaldo heredado.** La primera vez que se usa la carpeta nueva
+se migra el `.bak` de `%TEMP%\sc-rollback-agent` (`-LegacyBackupDir`), pero solo
+si su SHA coincide con el binario instalado: se copia, se recalcula el `.sha256`
+en el destino y se comprueba el SHA después de copiar (`ABORTA (28)` si no
+cuadra). Del origen no se mueve ni se borra nada. Si el `.bak` heredado no
+coincide con lo instalado, **no se migra**: aviso claro, y el siguiente `Deploy`
+crea ya un `.bak` nuevo en la carpeta protegida.
+
 Si el servicio no arranca después de copiar, el script **no reintenta solo**:
 imprime `binario nuevo instalado, servicio detenido`, el SHA que quedó y el
 comando exacto de rollback. Ejecútalo tú tras mirar el log.
@@ -301,19 +325,26 @@ marca que imprime `drenaje :` es anterior al reinicio que acabas de pedir.
 ### 8.5 Ramas sin probar en vivo
 
 Probado sobre el servicio real: abortos **10** (origen inexistente) y **22**
-(`.bak` que no coincide con su `.sha256`), más `Deploy` y `Rollback` completos
-con respaldo, rotación, `.sha256`, drenaje y `sync_confirmed`. Sin ejercitar: 13
+(`.bak` que no coincide con su `.sha256`), **26** (carpeta con ACL permisiva,
+con `-StrictBackupAcl`), más `Deploy` y `Rollback` completos con respaldo,
+rotación, `.sha256`, drenaje y `sync_confirmed`. Sin ejercitar: 13
 (respaldo no verificable), 14 (copia `.new` fallida), 15 (el servicio no para),
 16 estricto (parada sin drenaje), 17 (copia no coincide), 18 (no arranca), 19
 (sin sync), 20 (falta el `.bak`), 21 (falta el `.sha256`), 23 (no se puede
 guardar el binario actual), 24 (instalado ilegible) y 25 (origen = artefacto de
 respaldo). Provocarlas exige romper el servicio o el disco a propósito.
 
-### 8.6 Pendiente: mover el respaldo fuera de `%TEMP%`
+### 8.6 Resuelto: el respaldo ya no vive en `%TEMP%` (2026-11-13)
 
-`-BackupDir` está por defecto en `%TEMP%\sc-rollback-agent`, que un proceso no
-elevado del usuario puede escribir: el `.sha256` detecta corrupción, no
+Antes `-BackupDir` apuntaba a `%TEMP%\sc-rollback-agent`, escribible por
+cualquier proceso no elevado del usuario: el `.sha256` detectaba corrupción, no
 manipulación deliberada (quien puede escribir el `.bak` puede escribir su hash).
-Lo correcto es `C:\ProgramData\SC-Sentinel\backup` con ACL solo SYSTEM +
-Administradores, como el resto de `DataDir`. Queda pendiente, en commit propio.
+Ahora el valor por defecto es `C:\ProgramData\SC-Sentinel\backup`, con la ACL y
+las comprobaciones de dueño descritas en §8.2, y un `-BackupDir` explícito
+permisivo avisa (o aborta con `-StrictBackupAcl`). El respaldo existente se
+migra copiando solo el `.bak` vigente, previa verificación de SHA.
+
+Límite que sigue en pie: la carpeta protege de procesos **no elevados**. Un
+administrador puede cambiarla, como cualquier ruta del sistema; eso no lo cubre
+el script.
 
