@@ -53,6 +53,24 @@ impl Tab {
     }
 }
 
+/// Secciones del menú lateral de Ajustes. Solo hay ajustes/información reales:
+/// no existen toggles decorativos, i18n ni URL de dashboard en la configuración.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SettingsSection {
+    #[default]
+    Notifications,
+    Service,
+    About,
+}
+
+impl SettingsSection {
+    pub const ALL: [(SettingsSection, &'static str); 3] = [
+        (SettingsSection::Notifications, "Notificaciones"),
+        (SettingsSection::Service, "Servicio"),
+        (SettingsSection::About, "Acerca de"),
+    ];
+}
+
 /// Qué hacer cuando el usuario cierra la ventana con la [×].
 ///
 /// Cerrar nunca termina el proceso: la ventana se oculta a la bandeja y solo
@@ -285,6 +303,15 @@ mod tests {
     fn las_pestanas_tienen_etiqueta_unica() {
         let labels: Vec<&str> = Tab::ALL.iter().map(|tab| tab.label()).collect();
         assert_eq!(labels, vec!["Estado", "Stats", "Enrolar", "Ajustes"]);
+    }
+
+    #[test]
+    fn las_secciones_de_ajustes_tienen_etiqueta_unica() {
+        let labels: Vec<&str> = SettingsSection::ALL
+            .iter()
+            .map(|(_, label)| *label)
+            .collect();
+        assert_eq!(labels, vec!["Notificaciones", "Servicio", "Acerca de"]);
     }
 
     fn snapshot(mode: &str, capture: &str) -> crate::status_client::StatusSnapshot {

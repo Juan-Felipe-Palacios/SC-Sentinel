@@ -6,7 +6,7 @@
 
 use crate::actions::{
     close_action, health_level, overlay_from_level, substatuses, CloseAction, HealthLevel,
-    LiveFacts, MenuAction, Overlay, ServiceState, Tab,
+    LiveFacts, MenuAction, Overlay, ServiceState, SettingsSection, Tab,
 };
 use crate::enroll::{self, EnrollRequest};
 use crate::scm;
@@ -31,6 +31,7 @@ const SUMMARY_ROWS: usize = 10;
 pub struct GuiApp {
     tray: Option<Tray>,
     tab: Tab,
+    settings_section: SettingsSection,
     quitting: bool,
     last_overlay: Option<Overlay>,
     poller: Poller,
@@ -70,6 +71,7 @@ impl GuiApp {
         Self {
             tray,
             tab: Tab::default(),
+            settings_section: SettingsSection::default(),
             quitting: false,
             last_overlay: None,
             poller: Poller::spawn(status_url()),
@@ -613,23 +615,121 @@ impl GuiApp {
         }
     }
 
-    fn settings_panel(&self, ui: &mut egui::Ui) {
+    fn settings_panel(&mut self, ui: &mut egui::Ui) {
         ui.add_space(theme::GAP);
         theme::page_title(ui, "Ajustes");
-        let (label, color) = match self.toast_enabled {
-            Some(true) => ("Notificaciones de Windows: activas", theme::GREEN),
-            Some(false) => ("Notificaciones de Windows: desactivadas", theme::ORANGE),
-            None => ("Notificaciones de Windows: no determinado", theme::MUTED),
-        };
-        ui.label(RichText::new(label).color(color).size(theme::VALUE_SIZE));
-        ui.add_space(theme::GAP_SMALL);
+        ui.horizontal_top(|ui| {
+            ui.allocate_ui_with_layout(
+                egui::vec2(theme::SIDEBAR_WIDTH, ui.available_height()),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    theme::sidebar(ui, |ui| {
+                        if let Some(section) =
+                            theme::side_menu(ui, self.settings_section, &SettingsSection::ALL)
+                        {
+                            self.settings_section = section;
+                        }
+                    });
+                },
+            );
+            ui.add_space(theme::GAP);
+            ui.vertical(|ui| match self.settings_section {
+                SettingsSection::Notifications => self.settings_notifications(ui),
+                SettingsSection::Service => self.settings_service(ui),
+                SettingsSection::About => self.settings_about(ui),
+            });
+        });
+    }
+
+    fn settings_notifications(&self, ui: &mut egui::Ui) {
+        theme::card(ui, "Notificaciones de Windows", |ui| {
+            let (label, color) = match self.toast_enabled {
+                Some(true) => ("ACTIVAS", theme::GREEN),
+                Some(false) => ("DESACTIVADAS", theme::ORANGE),
+                None => ("NO DETERMINADO", theme::MUTED),
+            };
+            theme::status_chip(ui, label, color);
+            ui.add_space(theme::GAP_SMALL);
+            ui.label(
+                RichText::new(
+                    "La GUI no cambia este ajuste: lo controla Windows para cada usuario.",
+                )
+                .color(theme::MUTED)
+                .size(theme::LABEL_SIZE),
+            );
+            ui.add_space(theme::GAP_SMALL);
+            ui.label(
+                RichText::new(
+                    "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\PushNotifications\\ToastEnabled",
+                )
+                .color(theme::MUTED)
+                .size(theme::SMALL_SIZE),
+            );
+        });
+        ui.add_space(theme::GAP);
+        theme::banner(
+            ui,
+            "Respaldo en la ventana",
+            "Si los globos están desactivados o Windows no los muestra, el aviso aparece \
+             en la cabecera de la GUI.",
+            theme::CYAN,
+        );
+    }
+
+    fn settings_service(&self, ui: &mut egui::Ui) {
+        theme::card(ui, "Servicio del agente", |ui| {
+            egui::Grid::new("ajustes_servicio")
+                .num_columns(2)
+                .spacing([theme::GRID_SPACING_X, theme::GAP_SMALL])
+                .show(ui, |ui| {
+                    row(ui, "Servicio", scm::SERVICE_NAME);
+                    row(ui, "Estado (SCM)", service_label(self.service));
+                    row(ui, "Endpoint", status_url());
+                    row(ui, "Spool", default_spool_path().display().to_string());
+                    row(
+                        ui,
+                        "Versión del agente",
+                        self.snapshot
+                            .as_ref()
+                            .map(|snapshot| snapshot.agent_version.clone())
+                            .filter(|version| !version.is_empty())
+                            .unwrap_or_else(|| "—".to_string()),
+                    );
+                });
+        });
+        ui.add_space(theme::GAP);
         ui.label(
             RichText::new(
-                "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\PushNotifications\\ToastEnabled",
+                "Solo lectura: la GUI consulta el SCM y /status; no modifica el servicio \
+                 ni su configuración.",
             )
             .color(theme::MUTED)
-            .size(theme::SMALL_SIZE),
+            .size(theme::LABEL_SIZE),
         );
+    }
+
+    fn settings_about(&self, ui: &mut egui::Ui) {
+        theme::card(ui, "SC-Sentinel", |ui| {
+            ui.label(
+                RichText::new(format!("GUI {}", env!("CARGO_PKG_VERSION")))
+                    .color(theme::TEXT)
+                    .size(theme::VALUE_SIZE),
+            );
+            ui.label(
+                RichText::new("Copyright (c) 2026 Strategic Connex.")
+                    .color(theme::MUTED)
+                    .size(theme::LABEL_SIZE),
+            );
+            ui.add_space(theme::GAP_SMALL);
+            ui.label(
+                RichText::new(
+                    "El agente y la GUI son binarios separados. El servicio se administra \
+                     desde el SCM de Windows.",
+                )
+                .color(theme::MUTED)
+                .size(theme::LABEL_SIZE),
+            );
+        });
     }
 
     fn tabs(&mut self, ui: &mut egui::Ui) {

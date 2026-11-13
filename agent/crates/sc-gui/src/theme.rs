@@ -68,6 +68,9 @@ pub const TAB_HEIGHT: f32 = 34.0;
 pub const TAB_RADIUS: f32 = 8.0;
 pub const TAB_MIN_WIDTH: f32 = 80.0;
 
+pub const SIDEBAR_WIDTH: f32 = 170.0;
+pub const SIDE_ITEM_HEIGHT: f32 = 34.0;
+
 pub const FIELD_WIDTH_WIDE: f32 = 420.0;
 pub const FIELD_WIDTH: f32 = 340.0;
 
@@ -256,6 +259,59 @@ pub fn tab_bar(ui: &mut egui::Ui, selected: Tab) -> Option<Tab> {
             }
         }
     });
+    clicked
+}
+
+/// Contenedor del menú lateral, con la superficie de una tarjeta.
+pub fn sidebar<R>(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    egui::Frame::none()
+        .fill(CARD_FILL)
+        .stroke(Stroke::new(CARD_STROKE, CARD_BORDER))
+        .rounding(Rounding::same(CARD_RADIUS))
+        .inner_margin(CARD_PADDING)
+        .show(ui, |ui| {
+            ui.set_min_width(SIDEBAR_WIDTH - CARD_PADDING * 2.0);
+            add_contents(ui)
+        })
+        .inner
+}
+
+/// Menú lateral de Ajustes: una fila por sección, resaltada la activa.
+pub fn side_menu<T: Copy + PartialEq>(
+    ui: &mut egui::Ui,
+    selected: T,
+    items: &[(T, &'static str)],
+) -> Option<T> {
+    let mut clicked = None;
+    let width = ui.available_width();
+    for (value, label) in items {
+        let is_selected = *value == selected;
+        let (fill, stroke, color) = if is_selected {
+            (
+                CYAN.gamma_multiply(TAB_SELECTED_FILL_ALPHA),
+                Stroke::new(CARD_STROKE, CYAN),
+                CYAN,
+            )
+        } else {
+            (
+                Color32::TRANSPARENT,
+                Stroke::new(CARD_STROKE, Color32::TRANSPARENT),
+                MUTED,
+            )
+        };
+        let button = egui::Button::new(
+            RichText::new(*label)
+                .color(color)
+                .size(TAB_FONT_SIZE)
+                .strong(),
+        )
+        .fill(fill)
+        .stroke(stroke)
+        .rounding(Rounding::same(TAB_RADIUS));
+        if ui.add_sized([width, SIDE_ITEM_HEIGHT], button).clicked() {
+            clicked = Some(*value);
+        }
+    }
     clicked
 }
 
