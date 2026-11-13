@@ -58,6 +58,13 @@ pub fn normalize_pasted_token(raw: &str) -> String {
     raw.trim().to_string()
 }
 
+/// `true` si ya hay texto y el token no empieza por `sc_dev_`. La GUI muestra
+/// el aviso del prefijo solo cuando se cumple esta condición.
+pub fn needs_token_prefix_hint(raw: &str) -> bool {
+    let value = raw.trim();
+    !value.is_empty() && !value.starts_with("sc_dev_")
+}
+
 /// `sc_dev_…4f21`: suficiente para reconocerlo sin exponerlo.
 pub fn mask_token(raw: &str) -> String {
     let value = raw.trim();
@@ -228,6 +235,16 @@ mod tests {
         assert_eq!(normalized, token);
         assert_eq!(normalized.len(), 43);
         assert_eq!(validate_token(&normalized).unwrap(), token);
+    }
+
+    #[test]
+    fn el_aviso_del_prefijo_solo_aparece_si_falta() {
+        assert!(!needs_token_prefix_hint(""));
+        assert!(!needs_token_prefix_hint("   "));
+        assert!(!needs_token_prefix_hint("sc_dev_"));
+        assert!(!needs_token_prefix_hint("  sc_dev_corto  "));
+        assert!(needs_token_prefix_hint("token"));
+        assert!(needs_token_prefix_hint("sc-dev_token"));
     }
 
     #[test]

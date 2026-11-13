@@ -645,106 +645,156 @@ impl GuiApp {
     fn enroll_panel(&mut self, ui: &mut egui::Ui) {
         ui.add_space(theme::GAP);
         theme::page_title(ui, "Enrolar");
-        ui.label(
-            RichText::new(
-                "El device id y el token se generan en el panel web (Dispositivos → Enrolar). \
-                 Se guardan en el servicio con un solo UAC.",
-            )
-            .color(theme::MUTED)
-            .size(theme::LABEL_SIZE),
+        theme::banner(
+            ui,
+            "Enrolamiento del equipo",
+            "El device id y el token se generan en el panel web (Dispositivos > Enrolar). \
+             Se guardan en el servicio con un solo UAC.",
+            theme::CYAN,
         );
         ui.add_space(theme::GAP);
 
         let device_error = enroll::validate_device_id(&self.enroll_device).err();
         let token_error = enroll::validate_token(&self.enroll_token).err();
+        let token_touched = !self.enroll_token.trim().is_empty();
+        // El aviso del prefijo solo aparece cuando hay texto y no lo cumple.
+        let prefix_missing = enroll::needs_token_prefix_hint(&self.enroll_token);
         let ready = device_error.is_none() && token_error.is_none() && !self.enroll_token_saved;
 
-        ui.label(
-            RichText::new("Device id")
+        theme::card(ui, "1 · Generar Id", |ui| {
+            ui.label(
+                RichText::new(
+                    "En el panel web, abre Dispositivos > Enrolar y genera el device id \
+                     y el token de ingest para este equipo.",
+                )
                 .color(theme::MUTED)
                 .size(theme::LABEL_SIZE),
-        );
-        ui.add_enabled_ui(!self.enroll_token_saved, |ui| {
-            ui.add(
-                egui::TextEdit::singleline(&mut self.enroll_device)
-                    .hint_text("dev_…")
-                    .desired_width(theme::FIELD_WIDTH_WIDE),
             );
         });
-        if let Some(error) = device_error.as_deref() {
-            ui.label(
-                RichText::new(error)
-                    .color(theme::RED)
-                    .size(theme::SMALL_SIZE),
-            );
-        }
 
-        ui.add_space(theme::GAP_SMALL);
-        ui.label(
-            RichText::new("Token de ingest")
-                .color(theme::MUTED)
-                .size(theme::LABEL_SIZE),
-        );
-        if self.enroll_token_saved {
-            // Una vez guardado solo se muestra enmascarado.
+        ui.add_space(theme::GAP);
+        theme::card(ui, "2 · Ingresar Id y token", |ui| {
             ui.label(
-                RichText::new(enroll::mask_token(&self.enroll_token))
-                    .color(theme::TEXT)
-                    .size(theme::VALUE_SIZE),
-            );
-        } else {
-            ui.horizontal(|ui| {
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.enroll_token)
-                        .hint_text("sc_dev_…")
-                        .password(true)
-                        .desired_width(theme::FIELD_WIDTH),
-                );
-                if ui
-                    .button("Pegar")
-                    .on_hover_text("Pega el token completo desde el portapapeles")
-                    .clicked()
-                {
-                    match arboard::Clipboard::new().and_then(|mut clipboard| clipboard.get_text()) {
-                        Ok(text) => {
-                            self.enroll_token = enroll::normalize_pasted_token(&text);
-                            self.enroll_message = None;
-                        }
-                        Err(error) => {
-                            self.enroll_message =
-                                Some(format!("No se pudo leer el portapapeles: {error}"));
-                        }
-                    }
-                }
-            });
-            if let Some(error) = token_error.as_deref() {
-                ui.label(
-                    RichText::new(error)
-                        .color(theme::RED)
-                        .size(theme::SMALL_SIZE),
-                );
-            }
-        }
-
-        ui.add_space(theme::GAP_SMALL);
-        if ui
-            .add_enabled(ready, egui::Button::new("Aplicar (pide UAC)"))
-            .clicked()
-        {
-            self.apply_enroll();
-        }
-        if let Some(message) = self.enroll_message.as_deref() {
-            ui.add_space(theme::GAP_SMALL);
-            ui.label(
-                RichText::new(message)
-                    .color(if message == ENROLL_DONE {
-                        theme::GREEN
-                    } else {
-                        theme::ORANGE
-                    })
+                RichText::new("Device id")
+                    .color(theme::MUTED)
                     .size(theme::LABEL_SIZE),
             );
-        }
+            ui.add_enabled_ui(!self.enroll_token_saved, |ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.enroll_device)
+                        .hint_text("dev_…")
+                        .desired_width(theme::FIELD_WIDTH_WIDE),
+                );
+            });
+            if !self.enroll_device.trim().is_empty() {
+                if let Some(error) = device_error.as_deref() {
+                    ui.label(
+                        RichText::new(error)
+                            .color(theme::RED)
+                            .size(theme::SMALL_SIZE),
+                    );
+                }
+            }
+
+            ui.add_space(theme::GAP_SMALL);
+            ui.label(
+                RichText::new("Token de ingest")
+                    .color(theme::MUTED)
+                    .size(theme::LABEL_SIZE),
+            );
+            if self.enroll_token_saved {
+                // Una vez guardado solo se muestra enmascarado.
+                ui.label(
+                    RichText::new(enroll::mask_token(&self.enroll_token))
+                        .color(theme::TEXT)
+                        .size(theme::VALUE_SIZE),
+                );
+            } else {
+                ui.horizontal(|ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.enroll_token)
+                            .hint_text("sc_dev_…")
+                            .password(true)
+                            .desired_width(theme::FIELD_WIDTH),
+                    );
+                    if ui
+                        .button("Pegar")
+                        .on_hover_text("Pega el token completo desde el portapapeles")
+                        .clicked()
+                    {
+                        match arboard::Clipboard::new()
+                            .and_then(|mut clipboard| clipboard.get_text())
+                        {
+                            Ok(text) => {
+                                // Solo se recorta el exterior; la validación no
+                                // reescribe el campo.
+                                self.enroll_token = enroll::normalize_pasted_token(&text);
+                                self.enroll_message = None;
+                            }
+                            Err(error) => {
+                                self.enroll_message =
+                                    Some(format!("No se pudo leer el portapapeles: {error}"));
+                            }
+                        }
+                    }
+                });
+                if prefix_missing {
+                    ui.label(
+                        RichText::new("El token debe empezar por `sc_dev_`.")
+                            .color(theme::ORANGE)
+                            .size(theme::SMALL_SIZE),
+                    );
+                } else if token_touched {
+                    if let Some(error) = token_error.as_deref() {
+                        ui.label(
+                            RichText::new(error)
+                                .color(theme::RED)
+                                .size(theme::SMALL_SIZE),
+                        );
+                    }
+                }
+            }
+        });
+
+        ui.add_space(theme::GAP);
+        theme::card(ui, "3 · Aplicar", |ui| {
+            ui.label(
+                RichText::new(
+                    "Se guarda en el servicio con un solo UAC y se espera el sync de \
+                     confirmación antes de dar el enrolamiento por bueno.",
+                )
+                .color(theme::MUTED)
+                .size(theme::LABEL_SIZE),
+            );
+            ui.add_space(theme::GAP_SMALL);
+            if ui
+                .add_enabled(ready, egui::Button::new("Aplicar (pide UAC)"))
+                .clicked()
+            {
+                self.apply_enroll();
+            }
+            if !ready && !self.enroll_token_saved {
+                ui.label(
+                    RichText::new(
+                        "Completa un device id y un token válidos para habilitar Aplicar.",
+                    )
+                    .color(theme::MUTED)
+                    .size(theme::SMALL_SIZE),
+                );
+            }
+            if let Some(message) = self.enroll_message.as_deref() {
+                ui.add_space(theme::GAP_SMALL);
+                ui.label(
+                    RichText::new(message)
+                        .color(if message == ENROLL_DONE {
+                            theme::GREEN
+                        } else {
+                            theme::ORANGE
+                        })
+                        .size(theme::LABEL_SIZE),
+                );
+            }
+        });
     }
 
     /// Escribe el payload (ACL restringida) y relanza el helper elevado.
