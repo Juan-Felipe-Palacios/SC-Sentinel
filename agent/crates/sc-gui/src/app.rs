@@ -10,7 +10,9 @@ use crate::actions::{
 };
 use crate::enroll::{self, EnrollRequest};
 use crate::scm;
-use crate::spool_history::{default_spool_path, read_window_packets, PacketHistory, MAX_POINTS};
+use crate::spool_history::{
+    default_spool_path, read_window_summaries, PacketHistory, WindowSummary, MAX_POINTS,
+};
 use crate::status_client::{status_url, Poller, StatusSnapshot};
 use crate::theme;
 use crate::tray::Tray;
@@ -22,6 +24,9 @@ use std::time::{Duration, Instant};
 /// Cadencia de la consulta al SCM: una vez por segundo basta para ver arranques
 /// y paradas, y no satura el gestor de servicios.
 const SCM_QUERY_INTERVAL: Duration = Duration::from_secs(1);
+
+/// Filas visibles de «Últimos resúmenes»; el resto sigue en el spool.
+const SUMMARY_ROWS: usize = 10;
 
 pub struct GuiApp {
     tray: Option<Tray>,
@@ -38,8 +43,8 @@ pub struct GuiApp {
     toast_enabled: Option<bool>,
     /// Respaldo en memoria cuando el spool no es legible.
     history: PacketHistory,
-    /// Paquetes por ventana leídos del spool (vacío = usar `history`).
-    spool_points: Vec<u64>,
+    /// Resúmenes por ventana leídos del spool (vacío = usar `history`).
+    spool_windows: Vec<WindowSummary>,
     last_spool_read: Option<Instant>,
     // Wizard de enrolamiento (F4).
     enroll_device: String,
@@ -75,7 +80,7 @@ impl GuiApp {
             level: HealthLevel::Error,
             toast_enabled: tray_balloon::windows_notifications_enabled(),
             history: PacketHistory::default(),
-            spool_points: read_window_packets(&default_spool_path(), MAX_POINTS),
+            spool_windows: read_window_summaries(&default_spool_path(), MAX_POINTS),
             last_spool_read: Some(Instant::now()),
             enroll_device: String::new(),
             enroll_token: String::new(),
@@ -89,8 +94,11 @@ impl GuiApp {
 
     /// Puntos de la sparkline: spool si se pudo leer, ring-buffer si no.
     fn sparkline_points(&self) -> Vec<u64> {
-        if self.spool_points.len() >= 2 {
-            self.spool_points.clone()
+        if self.spool_windows.len() >= 2 {
+            self.spool_windows
+                .iter()
+                .map(|window| window.packets_seen)
+                .collect()
         } else {
             self.history.points()
         }
@@ -168,7 +176,7 @@ impl GuiApp {
             .map(|at| at.elapsed() >= Duration::from_secs(5))
             .unwrap_or(true);
         if spool_due {
-            self.spool_points = read_window_packets(&default_spool_path(), MAX_POINTS);
+            self.spool_windows = read_window_summaries(&default_spool_path(), MAX_POINTS);
             self.last_spool_read = Some(Instant::now());
         }
 
@@ -468,17 +476,26 @@ impl GuiApp {
             ui.label(RichText::new("Sin datos del agente.").color(theme::MUTED));
             return;
         };
+
+        let discard_rate = if snapshot.packets_seen > 0 {
+            Some(snapshot.packets_dropped as f64 * 100.0 / snapshot.packets_seen as f64)
+        } else {
+            None
+        };
         theme::kpi_row(
             ui,
             &[
                 theme::Kpi {
                     value: snapshot.packets_seen.to_string(),
-                    label: "Paquetes vistos",
+                    label: "Paquetes totales",
                     color: theme::CYAN,
                 },
                 theme::Kpi {
-                    value: snapshot.packets_dropped.to_string(),
-                    label: "Descartados",
+                    value: match discard_rate {
+                        Some(rate) => format!("{rate:.2}%"),
+                        None => "—".to_string(),
+                    },
+                    label: "Tasa de descarte",
                     color: if snapshot.packets_dropped > 0 {
                         theme::ORANGE
                     } else {
@@ -487,7 +504,7 @@ impl GuiApp {
                 },
                 theme::Kpi {
                     value: snapshot.parse_errors.to_string(),
-                    label: "Errores de parseo",
+                    label: "Errores totales",
                     color: if snapshot.parse_errors > 0 {
                         theme::RED
                     } else {
@@ -496,29 +513,93 @@ impl GuiApp {
                 },
             ],
         );
+
         ui.add_space(theme::GAP);
-        theme::card(ui, "Actividad por ventana", |ui| {
+        theme::card(ui, "Paquetes por ventana", |ui| {
             let points = self.sparkline_points();
-            let source = if self.spool_points.len() >= 2 {
+            let from_spool = self.spool_windows.len() >= 2;
+            let source = if from_spool {
                 "spool del agente"
             } else {
                 "memoria (spool no legible)"
             };
             ui.label(
-                RichText::new(format!("Paquetes por ventana · {source}"))
+                RichText::new(format!("Vistos por ventana · {source}"))
                     .color(theme::MUTED)
                     .size(theme::LABEL_SIZE),
             );
             sparkline(ui, &points);
+            if !from_spool {
+                ui.add_space(theme::GAP_SMALL);
+                ui.label(
+                    RichText::new(
+                        "El spool no es legible: la línea usa el ring-buffer de /status, \
+                         que solo conoce paquetes vistos.",
+                    )
+                    .color(theme::ORANGE)
+                    .size(theme::SMALL_SIZE),
+                );
+            }
         });
+
         ui.add_space(theme::GAP);
-        theme::card(ui, "Cola y spool", |ui| {
-            egui::Grid::new("stats")
-                .num_columns(2)
+        theme::card(ui, "Últimos resúmenes", |ui| {
+            if self.spool_windows.is_empty() {
+                ui.label(
+                    RichText::new(
+                        "Sin resúmenes: no se pudo leer el spool del agente. \
+                         La tabla solo muestra datos reales de la base.",
+                    )
+                    .color(theme::MUTED)
+                    .size(theme::LABEL_SIZE),
+                );
+                return;
+            }
+            egui::Grid::new("ultimos_resumenes")
+                .num_columns(4)
+                .striped(true)
                 .spacing([theme::GRID_SPACING_X, theme::GAP_SMALL])
                 .show(ui, |ui| {
-                    row(ui, "Cola", snapshot.queue_depth.to_string());
-                    row(ui, "Spool", human_bytes(snapshot.spool_bytes));
+                    for header in ["Hora", "Vistos", "Descartados", "Errores"] {
+                        ui.label(
+                            RichText::new(header)
+                                .color(theme::MUTED)
+                                .size(theme::SMALL_SIZE)
+                                .strong(),
+                        );
+                    }
+                    ui.end_row();
+                    for summary in self.spool_windows.iter().rev().take(SUMMARY_ROWS) {
+                        ui.label(
+                            RichText::new(window_time(summary))
+                                .color(theme::TEXT)
+                                .size(theme::LABEL_SIZE),
+                        );
+                        ui.label(
+                            RichText::new(summary.packets_seen.to_string())
+                                .color(theme::TEXT)
+                                .size(theme::LABEL_SIZE),
+                        );
+                        ui.label(
+                            RichText::new(summary.packets_dropped.to_string())
+                                .color(if summary.packets_dropped > 0 {
+                                    theme::ORANGE
+                                } else {
+                                    theme::TEXT
+                                })
+                                .size(theme::LABEL_SIZE),
+                        );
+                        ui.label(
+                            RichText::new(summary.parse_errors.to_string())
+                                .color(if summary.parse_errors > 0 {
+                                    theme::RED
+                                } else {
+                                    theme::TEXT
+                                })
+                                .size(theme::LABEL_SIZE),
+                        );
+                        ui.end_row();
+                    }
                 });
         });
     }
@@ -857,6 +938,16 @@ fn connection_hint(snapshot: &StatusSnapshot, sync_age: Option<i64>, level: Heal
     match sync_age {
         Some(secs) => format!("Último sync hace {}.", human_age(secs)),
         None => "Sin sync desde el arranque.".to_string(),
+    }
+}
+
+fn window_time(summary: &WindowSummary) -> String {
+    match summary.start {
+        Some(at) => at
+            .with_timezone(&chrono::Local)
+            .format("%H:%M:%S")
+            .to_string(),
+        None => "—".to_string(),
     }
 }
 

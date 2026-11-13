@@ -7,6 +7,7 @@
 //! fichero, así que cualquier fallo degrada al ring-buffer de polls
 //! (`PacketHistory`), que siempre está disponible en memoria.
 
+use chrono::{DateTime, Utc};
 use flate2::read::GzDecoder;
 use rusqlite::{Connection, OpenFlags};
 use serde_json::Value;
@@ -17,6 +18,16 @@ use std::path::{Path, PathBuf};
 /// Puntos que muestra la sparkline (60 ventanas de 30 s ≈ 30 min).
 pub const MAX_POINTS: usize = 60;
 
+/// Resumen de una ventana tal como quedó en el spool.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WindowSummary {
+    /// `window.start` del sobre; `None` si falta o no es RFC 3339.
+    pub start: Option<DateTime<Utc>>,
+    pub packets_seen: u64,
+    pub packets_dropped: u64,
+    pub parse_errors: u64,
+}
+
 /// Ruta del spool: `SC_GUI_SPOOL_DB` o la del servicio instalado.
 pub fn default_spool_path() -> PathBuf {
     match std::env::var_os("SC_GUI_SPOOL_DB") {
@@ -25,11 +36,11 @@ pub fn default_spool_path() -> PathBuf {
     }
 }
 
-/// Últimas `limit` ventanas con sus `packets_seen`, en orden cronológico.
+/// Últimas `limit` ventanas con sus contadores, en orden cronológico.
 ///
 /// Devuelve vacío si el fichero no existe, está bloqueado o no se puede leer:
 /// el llamador debe caer al ring-buffer.
-pub fn read_window_packets(path: &Path, limit: usize) -> Vec<u64> {
+pub fn read_window_summaries(path: &Path, limit: usize) -> Vec<WindowSummary> {
     let Ok(conn) = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY) else {
         return Vec::new();
     };
@@ -42,26 +53,41 @@ pub fn read_window_packets(path: &Path, limit: usize) -> Vec<u64> {
         return Vec::new();
     };
 
-    let mut points: Vec<u64> = rows
+    let mut summaries: Vec<WindowSummary> = rows
         .filter_map(Result::ok)
-        .filter_map(|payload| packets_seen(&payload))
+        .filter_map(|payload| summary(&payload))
         .collect();
-    points.reverse(); // la consulta viene del más nuevo al más viejo
-    points
+    summaries.reverse(); // la consulta viene del más nuevo al más viejo
+    summaries
 }
 
-/// `packets_seen` de un payload gzip+JSON del spool.
-fn packets_seen(payload: &[u8]) -> Option<u64> {
+/// Resumen de un payload gzip+JSON del spool.
+fn summary(payload: &[u8]) -> Option<WindowSummary> {
     let mut decoded = Vec::new();
     if GzDecoder::new(payload).read_to_end(&mut decoded).is_err() {
         return None;
     }
     let envelope: Value = serde_json::from_slice(&decoded).ok()?;
-    envelope
-        .get("snapshot")?
-        .get("health")?
-        .get("packets_seen")?
-        .as_u64()
+    let health = envelope.get("snapshot")?.get("health")?;
+    let packets_seen = health.get("packets_seen")?.as_u64()?;
+    let start = envelope
+        .get("window")
+        .and_then(|window| window.get("start"))
+        .and_then(Value::as_str)
+        .and_then(|raw| DateTime::parse_from_rfc3339(raw).ok())
+        .map(|when| when.with_timezone(&Utc));
+    Some(WindowSummary {
+        start,
+        packets_seen,
+        packets_dropped: health
+            .get("packets_dropped")
+            .and_then(Value::as_u64)
+            .unwrap_or(0),
+        parse_errors: health
+            .get("parse_errors")
+            .and_then(Value::as_u64)
+            .unwrap_or(0),
+    })
 }
 
 /// Ring-buffer de respaldo: un punto por poll exitoso de `/status`.
@@ -126,27 +152,81 @@ mod tests {
         (path, dir)
     }
 
+    fn packets(path: &Path, limit: usize) -> Vec<u64> {
+        read_window_summaries(path, limit)
+            .into_iter()
+            .map(|summary| summary.packets_seen)
+            .collect()
+    }
+
     #[test]
     fn lee_paquetes_en_orden_cronologico() {
         let (path, _guard) = spool_with(&[(1, payload(10)), (2, payload(20)), (3, payload(30))]);
-        assert_eq!(read_window_packets(&path, MAX_POINTS), vec![10, 20, 30]);
+        assert_eq!(packets(&path, MAX_POINTS), vec![10, 20, 30]);
     }
 
     #[test]
     fn respeta_el_limite_quedandose_con_las_ultimas() {
         let (path, _guard) = spool_with(&[(1, payload(10)), (2, payload(20)), (3, payload(30))]);
-        assert_eq!(read_window_packets(&path, 2), vec![20, 30]);
+        assert_eq!(packets(&path, 2), vec![20, 30]);
     }
 
     #[test]
     fn un_spool_inexistente_o_ilegible_devuelve_vacio() {
-        assert!(read_window_packets(Path::new("C:/no/existe/spool.sqlite"), 10).is_empty());
+        assert!(packets(Path::new("C:/no/existe/spool.sqlite"), 10).is_empty());
     }
 
     #[test]
     fn ignora_payloads_que_no_son_json_gzip() {
         let (path, _guard) = spool_with(&[(1, b"basura".to_vec()), (2, payload(7))]);
-        assert_eq!(read_window_packets(&path, MAX_POINTS), vec![7]);
+        assert_eq!(packets(&path, MAX_POINTS), vec![7]);
+    }
+
+    fn full_payload(start: &str, seen: u64, dropped: u64, errors: u64) -> Vec<u8> {
+        let envelope = serde_json::json!({
+            "window": { "start": start },
+            "snapshot": { "health": {
+                "capture_status": "ok",
+                "packets_seen": seen,
+                "packets_dropped": dropped,
+                "parse_errors": errors
+            } }
+        });
+        gzip(&envelope.to_string())
+    }
+
+    #[test]
+    fn lee_resumenes_con_hora_y_contadores() {
+        let (path, _guard) = spool_with(&[
+            (1, full_payload("2026-11-12T21:00:00Z", 100, 3, 1)),
+            (2, full_payload("2026-11-12T21:00:30Z", 120, 4, 2)),
+        ]);
+        let summaries = read_window_summaries(&path, MAX_POINTS);
+        assert_eq!(summaries.len(), 2);
+        assert_eq!(summaries[0].packets_seen, 100);
+        assert_eq!(summaries[0].packets_dropped, 3);
+        assert_eq!(summaries[0].parse_errors, 1);
+        assert_eq!(
+            summaries[0].start,
+            Some(
+                DateTime::parse_from_rfc3339("2026-11-12T21:00:00Z")
+                    .unwrap()
+                    .with_timezone(&Utc)
+            )
+        );
+        assert_eq!(summaries[1].packets_seen, 120);
+        assert_eq!(packets(&path, MAX_POINTS), vec![100, 120]);
+    }
+
+    #[test]
+    fn un_resumen_sin_window_start_conserva_los_contadores() {
+        let (path, _guard) = spool_with(&[(1, payload(10))]);
+        let summaries = read_window_summaries(&path, MAX_POINTS);
+        assert_eq!(summaries.len(), 1);
+        assert_eq!(summaries[0].start, None);
+        assert_eq!(summaries[0].packets_seen, 10);
+        assert_eq!(summaries[0].packets_dropped, 0);
+        assert_eq!(summaries[0].parse_errors, 0);
     }
 
     #[test]
