@@ -60,6 +60,26 @@ Si `TrayIconBuilder::build()` falla (shell sin explorer, sesión remota rara), l
 GUI arranca igual con la ventana y avisa por `stderr`; se pierde la bandeja,
 no la aplicación.
 
+### 7. Globo nativo: icono temporal de ~10 s
+
+Los avisos de estado salen como globo real del shell (`Shell_NotifyIconW` con
+`NIF_INFO`), no como texto en la cabecera. Windows solo dibuja un globo asociado
+a un icono registrado, y `tray-icon` 0.15 no expone ni el `hWnd` ni el `uID` con
+los que registra el suyo, así que no hay forma de reutilizarlo desde fuera.
+
+Por eso `tray_balloon` crea su propia ventana oculta (`HWND_MESSAGE`) con bomba
+de mensajes en un hilo aparte, registra un icono temporal, muestra el globo y lo
+retira a los 10 s: durante ese rato puede verse un segundo icono en el área de
+notificación. Es el precio de no reescribir la bandeja.
+
+**Limitación conocida**: si Windows tiene las notificaciones desactivadas o el
+Asistente de concentración activo, el icono aparece y desaparece sin globo. No
+es un fallo del código y no se puede detectar de forma fiable desde la app.
+
+**Alternativa** si el icono temporal molesta: implementar la bandeja completa
+sobre Win32 (registro propio, menú y `NIF_INFO` en el mismo `NOTIFYICONDATAW`),
+perdiendo `tray-icon` y su menú multiplataforma.
+
 ## Consecuencias
 
 - La GUI no necesita privilegios; solo el enrolamiento (F4) pedirá UAC.

@@ -112,6 +112,22 @@ La respuesta debe traer `totals.bytes_in > 0`, `hosts_count > 0` y la serie.
 3. Dejar el device demo si se va a repetir la demo; si no, purgarlo con el SQL
    de arriba.
 
+## 5. Decisión sobre `dev_demo_synth` (2026-11-13)
+
+**Se conserva como device de demo, sin instancia viva.** El device queda
+`dev_demo_synth` en el panel con sus ventanas históricas, para poder repetir la
+demo sin volver a enrolar; la instancia CLI que lo alimentaba se detuvo (el
+proceso con `--config …sc-synth…` ya no corre y `127.0.0.1:8388/status` no
+responde). Consecuencia práctica: el device no recibe ventanas nuevas, así que
+sus gráficas se congelan — es lo esperado y no indica un fallo del agente.
+
+Si en el futuro se quiere purgar (por ejemplo antes de una demo con cifras
+limpias), el orden es: (1) confirmar que no hay instancia CLI viva, (2) borrar
+las filas del device con el SQL de §3, (3) verificar que el device de producción
+`dev_fe4b1eb6-…` sigue con ventanas nuevas. La purga solo toca `dev_demo_synth`.
+
+Nunca se envían datos sintéticos bajo el device de producción.
+
 ## Trampa conocida: acumulado envenenado
 
 El acumulador de la instancia es **de proceso**: si se envía un datagrama

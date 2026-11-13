@@ -213,3 +213,21 @@ El manual equivale a: `sc.exe stop` + `sc.exe delete` + borrar key `HKLM\...\Ser
 | `sc-sentinel-agent --list-interfaces` no lista dispositivos | falta el runtime de Npcap | instalarlo desde https://npcap.com/#download (§Requisitos y `docs/runbooks/npcap-install.md`) |
 | El instalador se queda colgado esperando teclado | se lanzó sin datos y el prompt `set /p` espera una pegada | usar el modo desatendido: `instalar-sc-sentinel.bat <device_id> <token>` |
 | Log del instalador | traza sin secretos | `%TEMP%\sc-sentinel-instalador.log` (instalación) y `%TEMP%\sc-sentinel-instalador-ps.log` (salida de `install-agent.ps1`) |
+
+### 7.1 Captura live y colector en el mismo host
+
+El servicio puede correr con captura pcap **y** con colector NetFlow/IPFIX a la
+vez (`--interface` + `[collector] enabled = true`). Es una configuración válida
+para validar el pipeline, pero **no** para medir: el mismo flujo que entra por
+pcap y llega exportado desde un router se cuenta dos veces. El agente lo detecta
+y lo deja en el log como `source_overlap`.
+
+Regla: **una sola fuente por segmento**.
+
+- Solo captura: `--interface \Device\NPF_{...}` y `[collector] enabled = false`.
+- Solo exportadores: `--no-capture` y los puertos del colector abiertos.
+- Si necesitas las dos cosas, sepáralas en hosts distintos (o al menos en
+devices distintos), nunca en el mismo device.
+
+Los números de `packets_seen` y de `host_stats` de un device con
+`source_overlap` no sirven como evidencia de tráfico real: son una cota superior.
