@@ -26,6 +26,13 @@ pub fn warning(title: &str, body: &str) {
     show(BalloonKind::Warning, title, body);
 }
 
+/// `true`/`false` = `ToastEnabled` de Windows; `None` = valor ausente o
+/// ilegible. En Windows 11 la clave puede no existir aunque los avisos estén
+/// activos, así que `None` no se trata como desactivado.
+pub fn windows_notifications_enabled() -> Option<bool> {
+    platform::toast_enabled()
+}
+
 fn show(kind: BalloonKind, title: &str, body: &str) {
     let title = title.to_string();
     let body = body.to_string();
@@ -40,10 +47,12 @@ fn show(kind: BalloonKind, title: &str, body: &str) {
 mod platform {
     use super::BalloonKind;
     use std::ffi::OsStr;
+    use std::io::Write;
     use std::os::windows::ffi::OsStrExt;
     use std::time::{Duration, Instant};
-    use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+    use windows_sys::Win32::Foundation::{GetLastError, HWND, LPARAM, LRESULT, WPARAM};
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows_sys::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_DWORD};
     use windows_sys::Win32::UI::Shell::{
         Shell_NotifyIconW, NIF_ICON, NIF_INFO, NIF_TIP, NIIF_ERROR, NIIF_INFO, NIM_ADD, NIM_DELETE,
         NOTIFYICONDATAW,
@@ -65,6 +74,47 @@ mod platform {
             .encode_wide()
             .chain(std::iter::once(0))
             .collect()
+    }
+
+    /// Telemetría del globo: `%TEMP%\sc-gui-balloon.log`. Best-effort: si el
+    /// fichero no se puede abrir, el aviso sigue su curso.
+    fn log(line: &str) {
+        let path = std::env::temp_dir().join("sc-gui-balloon.log");
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
+            let _ = writeln!(file, "{} {line}", chrono::Utc::now().to_rfc3339());
+        }
+    }
+
+    pub fn toast_enabled() -> Option<bool> {
+        let subkey = wide("Software\\Microsoft\\Windows\\CurrentVersion\\PushNotifications");
+        let value = wide("ToastEnabled");
+        let mut data: u32 = 0;
+        let mut size = std::mem::size_of::<u32>() as u32;
+        let status = unsafe {
+            RegGetValueW(
+                HKEY_CURRENT_USER,
+                subkey.as_ptr(),
+                value.as_ptr(),
+                RRF_RT_REG_DWORD,
+                std::ptr::null_mut(),
+                (&mut data as *mut u32).cast(),
+                &mut size,
+            )
+        };
+        let enabled = if status == 0 { Some(data != 0) } else { None };
+        log(&format!(
+            "event=ToastEnabled value={} status={status}",
+            match enabled {
+                Some(true) => "1",
+                Some(false) => "0",
+                None => "missing",
+            }
+        ));
+        enabled
     }
 
     /// Copia `text` en un buffer fijo terminado en NUL (`szInfo`, `szTip`…).
@@ -102,7 +152,11 @@ mod platform {
         };
         // Registrar dos veces la misma clase devuelve error y da igual: lo que
         // importa es que la clase exista antes de crear la ventana.
-        RegisterClassW(&class);
+        let registered = RegisterClassW(&class);
+        let register_error = GetLastError();
+        log(&format!(
+            "event=RegisterClassW ret={registered} last_error={register_error}"
+        ));
 
         let hwnd = CreateWindowExW(
             0,
@@ -118,6 +172,10 @@ mod platform {
             instance,
             std::ptr::null(),
         );
+        let create_error = GetLastError();
+        log(&format!(
+            "event=CreateWindowExW hwnd={hwnd:?} last_error={create_error}"
+        ));
         if hwnd.is_null() {
             return;
         }
@@ -142,7 +200,12 @@ mod platform {
             BalloonKind::Warning => NIIF_ERROR,
         };
 
-        if Shell_NotifyIconW(NIM_ADD, &data) == 0 {
+        let added = Shell_NotifyIconW(NIM_ADD, &data);
+        let add_error = GetLastError();
+        log(&format!(
+            "event=Shell_NotifyIconW op=NIM_ADD ret={added} last_error={add_error}"
+        ));
+        if added == 0 {
             DestroyWindow(hwnd);
             return;
         }
@@ -158,7 +221,11 @@ mod platform {
             std::thread::sleep(Duration::from_millis(120));
         }
 
-        Shell_NotifyIconW(NIM_DELETE, &data);
+        let deleted = Shell_NotifyIconW(NIM_DELETE, &data);
+        let delete_error = GetLastError();
+        log(&format!(
+            "event=Shell_NotifyIconW op=NIM_DELETE ret={deleted} last_error={delete_error}"
+        ));
         DestroyWindow(hwnd);
     }
 }
@@ -168,4 +235,8 @@ mod platform {
     use super::BalloonKind;
 
     pub fn balloon(_kind: BalloonKind, _title: &str, _body: &str) {}
+
+    pub fn toast_enabled() -> Option<bool> {
+        None
+    }
 }

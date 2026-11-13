@@ -34,6 +34,8 @@ pub struct GuiApp {
     service: ServiceState,
     last_scm_query: Option<Instant>,
     level: HealthLevel,
+    /// `ToastEnabled` de Windows: `None` si la clave no existe (Windows 11).
+    toast_enabled: Option<bool>,
     /// Respaldo en memoria cuando el spool no es legible.
     history: PacketHistory,
     /// Paquetes por ventana leídos del spool (vacío = usar `history`).
@@ -69,6 +71,7 @@ impl GuiApp {
             service: scm::query_service_state(scm::SERVICE_NAME),
             last_scm_query: Some(Instant::now()),
             level: HealthLevel::Error,
+            toast_enabled: tray_balloon::windows_notifications_enabled(),
             history: PacketHistory::default(),
             spool_points: read_window_packets(&default_spool_path(), MAX_POINTS),
             last_spool_read: Some(Instant::now()),
@@ -376,8 +379,33 @@ impl GuiApp {
             Tab::Status => self.status_panel(ui),
             Tab::Stats => self.stats_panel(ui),
             Tab::Enroll => self.enroll_panel(ui),
-            Tab::Settings => placeholder(ui, "Ajustes", "Los ajustes llegan en F5."),
+            Tab::Settings => self.settings_panel(ui),
         }
+    }
+
+    fn settings_panel(&self, ui: &mut egui::Ui) {
+        ui.add_space(12.0);
+        ui.label(
+            RichText::new("Ajustes")
+                .color(theme::CYAN)
+                .size(18.0)
+                .strong(),
+        );
+        ui.add_space(8.0);
+        let (label, color) = match self.toast_enabled {
+            Some(true) => ("Notificaciones de Windows: activas", theme::GREEN),
+            Some(false) => ("Notificaciones de Windows: desactivadas", theme::ORANGE),
+            None => ("Notificaciones de Windows: no determinado", theme::MUTED),
+        };
+        ui.label(RichText::new(label).color(color).size(13.0));
+        ui.add_space(4.0);
+        ui.label(
+            RichText::new(
+                "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\PushNotifications\\ToastEnabled",
+            )
+            .color(theme::MUTED)
+            .size(11.0),
+        );
     }
 
     fn tabs(&mut self, ui: &mut egui::Ui) {
@@ -520,13 +548,6 @@ impl GuiApp {
             Err(error) => self.enroll_message = Some(error),
         }
     }
-}
-
-fn placeholder(ui: &mut egui::Ui, title: &str, detail: &str) {
-    ui.add_space(12.0);
-    ui.label(RichText::new(title).color(theme::CYAN).size(18.0).strong());
-    ui.add_space(4.0);
-    ui.label(RichText::new(detail).color(theme::MUTED));
 }
 
 /// Sparkline sin dependencias extra: polilínea escalada al máximo del tramo.

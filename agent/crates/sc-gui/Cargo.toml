@@ -36,6 +36,8 @@ windows-sys = { version = "0.59", features = [
     "Win32_System_Services",
     # Globo nativo de la bandeja (Shell_NotifyIconW + ventana oculta).
     "Win32_System_LibraryLoader",
+    # Telemetría del globo: ToastEnabled en HKCU.
+    "Win32_System_Registry",
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
 ] }
