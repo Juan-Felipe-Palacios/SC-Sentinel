@@ -218,19 +218,30 @@ impl GuiApp {
     }
 
     fn header(&self, ui: &mut egui::Ui) {
-        let overlay = overlay_from_level(self.level);
-        ui.add_space(6.0);
+        ui.add_space(theme::GAP_SMALL);
         ui.horizontal(|ui| {
-            let (rect, _) = ui.allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::hover());
-            ui.painter()
-                .circle_filled(rect.center(), 5.0, overlay_color(overlay));
-            ui.label(
-                RichText::new(headline(self.level))
-                    .color(theme::TEXT)
-                    .strong(),
-            );
+            ui.vertical(|ui| {
+                ui.label(
+                    RichText::new("SC-Sentinel")
+                        .color(theme::TEXT)
+                        .size(theme::HEADER_TITLE_SIZE)
+                        .strong(),
+                );
+                ui.label(
+                    RichText::new(headline(self.level))
+                        .color(theme::MUTED)
+                        .size(theme::LABEL_SIZE),
+                );
+            });
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                theme::status_chip(
+                    ui,
+                    theme::level_label(self.level),
+                    theme::level_color(self.level),
+                );
+            });
         });
-        ui.add_space(2.0);
+        ui.add_space(theme::GAP_SMALL);
         ui.label(
             RichText::new(format!(
                 "Servicio: {} · {} (SCM)",
@@ -238,7 +249,7 @@ impl GuiApp {
                 service_label(self.service)
             ))
             .color(theme::MUTED)
-            .size(12.0),
+            .size(theme::LABEL_SIZE),
         );
         let agent = match self.snapshot.as_ref() {
             Some(snapshot) => format!(
@@ -257,25 +268,16 @@ impl GuiApp {
             ),
             None => "Agente sin respuesta en /status".to_string(),
         };
-        ui.label(RichText::new(agent).color(theme::MUTED).size(12.0));
+        ui.label(
+            RichText::new(agent)
+                .color(theme::MUTED)
+                .size(theme::LABEL_SIZE),
+        );
         if let Some((title, body)) = self.balloon_fallback() {
-            ui.add_space(6.0);
-            egui::Frame::none()
-                .fill(theme::PANEL)
-                .stroke(egui::Stroke::new(1.0_f32, theme::ORANGE))
-                .rounding(egui::Rounding::same(6.0))
-                .inner_margin(8.0)
-                .show(ui, |ui| {
-                    ui.label(
-                        RichText::new(title)
-                            .color(theme::ORANGE)
-                            .strong()
-                            .size(12.0),
-                    );
-                    ui.label(RichText::new(body).color(theme::TEXT).size(12.0));
-                });
+            ui.add_space(theme::GAP_SMALL);
+            theme::banner(ui, &title, &body, theme::ORANGE);
         }
-        ui.add_space(6.0);
+        ui.add_space(theme::GAP_SMALL);
     }
 
     /// Banner de cabecera cuando el globo no es una vía fiable: Windows
@@ -289,132 +291,152 @@ impl GuiApp {
     }
 
     fn status_panel(&self, ui: &mut egui::Ui) {
-        ui.add_space(12.0);
-        ui.label(
-            RichText::new("Estado")
-                .color(theme::CYAN)
-                .size(18.0)
-                .strong(),
-        );
-        ui.add_space(8.0);
+        ui.add_space(theme::GAP);
+        theme::page_title(ui, "Estado");
 
         let Some(snapshot) = self.snapshot.as_ref() else {
             ui.label(
                 RichText::new("Sin datos: el agente no responde en /status.").color(theme::MUTED),
             );
-            ui.add_space(6.0);
+            ui.add_space(theme::GAP_SMALL);
             ui.label(
                 RichText::new("Revisa el servicio o el spool; el panel se actualiza solo.")
                     .color(theme::MUTED)
-                    .size(12.0),
+                    .size(theme::LABEL_SIZE),
             );
             return;
         };
 
-        egui::Grid::new("estado")
-            .num_columns(2)
-            .spacing([18.0, 6.0])
-            .show(ui, |ui| {
-                row(ui, "Dispositivo", device_label(snapshot));
-                row(ui, "Versión del agente", snapshot.agent_version.clone());
-                row(ui, "Modo", snapshot.mode.clone());
-                row(
-                    ui,
-                    "Captura",
-                    if snapshot.capture_status.is_empty() {
-                        "—"
-                    } else {
-                        snapshot.capture_status.as_str()
-                    },
-                );
-                row(
-                    ui,
-                    "Último sync",
-                    match snapshot.last_sync_at.as_deref() {
-                        Some(at) => format!("{at}{}", sync_age_label(snapshot)),
-                        None => "nunca desde este arranque".to_string(),
-                    },
-                );
-                row(ui, "Spool", human_bytes(snapshot.spool_bytes));
-                row(ui, "Cola de agregación", snapshot.queue_depth.to_string());
-                row(
-                    ui,
-                    "Paquetes",
-                    format!(
-                        "{} vistos · {} descartados · {} con error de parseo",
-                        snapshot.packets_seen, snapshot.packets_dropped, snapshot.parse_errors
-                    ),
-                );
-                row(
-                    ui,
-                    "Colector",
-                    if snapshot.collector_ports.is_empty() {
-                        "sin puertos configurados".to_string()
-                    } else {
+        theme::card(ui, "Detalles del dispositivo", |ui| {
+            egui::Grid::new("estado")
+                .num_columns(2)
+                .spacing([theme::GRID_SPACING_X, theme::GAP_SMALL])
+                .show(ui, |ui| {
+                    row(ui, "Dispositivo", device_label(snapshot));
+                    row(ui, "Versión del agente", snapshot.agent_version.clone());
+                    row(ui, "Modo", snapshot.mode.clone());
+                    row(
+                        ui,
+                        "Captura",
+                        if snapshot.capture_status.is_empty() {
+                            "—"
+                        } else {
+                            snapshot.capture_status.as_str()
+                        },
+                    );
+                    row(
+                        ui,
+                        "Último sync",
+                        match snapshot.last_sync_at.as_deref() {
+                            Some(at) => format!("{at}{}", sync_age_label(snapshot)),
+                            None => "nunca desde este arranque".to_string(),
+                        },
+                    );
+                    row(ui, "Spool", human_bytes(snapshot.spool_bytes));
+                    row(ui, "Cola de agregación", snapshot.queue_depth.to_string());
+                    row(
+                        ui,
+                        "Paquetes",
+                        format!(
+                            "{} vistos · {} descartados · {} con error de parseo",
+                            snapshot.packets_seen, snapshot.packets_dropped, snapshot.parse_errors
+                        ),
+                    );
+                    row(
+                        ui,
+                        "Colector",
+                        if snapshot.collector_ports.is_empty() {
+                            "sin puertos configurados".to_string()
+                        } else {
+                            snapshot
+                                .collector_ports
+                                .iter()
+                                .map(|port| port.to_string())
+                                .collect::<Vec<_>>()
+                                .join(" · ")
+                        },
+                    );
+                    row(
+                        ui,
+                        "GeoIP",
+                        if snapshot.geo_loaded {
+                            "cargado"
+                        } else {
+                            "no cargado"
+                        },
+                    );
+                    row(
+                        ui,
+                        "Último error",
                         snapshot
-                            .collector_ports
-                            .iter()
-                            .map(|port| port.to_string())
-                            .collect::<Vec<_>>()
-                            .join(" · ")
-                    },
-                );
-                row(
-                    ui,
-                    "GeoIP",
-                    if snapshot.geo_loaded {
-                        "cargado"
-                    } else {
-                        "no cargado"
-                    },
-                );
-                row(
-                    ui,
-                    "Último error",
-                    snapshot
-                        .last_error
-                        .clone()
-                        .unwrap_or_else(|| "ninguno".to_string()),
-                );
-            });
+                            .last_error
+                            .clone()
+                            .unwrap_or_else(|| "ninguno".to_string()),
+                    );
+                });
+        });
     }
 
     fn stats_panel(&self, ui: &mut egui::Ui) {
-        ui.add_space(12.0);
-        ui.label(
-            RichText::new("Stats")
-                .color(theme::CYAN)
-                .size(18.0)
-                .strong(),
-        );
-        ui.add_space(8.0);
+        ui.add_space(theme::GAP);
+        theme::page_title(ui, "Stats");
         let Some(snapshot) = self.snapshot.as_ref() else {
             ui.label(RichText::new("Sin datos del agente.").color(theme::MUTED));
             return;
         };
-        egui::Grid::new("stats")
-            .num_columns(2)
-            .spacing([18.0, 6.0])
-            .show(ui, |ui| {
-                row(ui, "Paquetes vistos", snapshot.packets_seen.to_string());
-                row(ui, "Descartados", snapshot.packets_dropped.to_string());
-                row(ui, "Errores de parseo", snapshot.parse_errors.to_string());
-                row(ui, "Cola", snapshot.queue_depth.to_string());
-                row(ui, "Spool", human_bytes(snapshot.spool_bytes));
-            });
-        ui.add_space(12.0);
-        let points = self.sparkline_points();
-        let source = if self.spool_points.len() >= 2 {
-            "spool del agente"
-        } else {
-            "memoria (spool no legible)"
-        };
-        ui.label(
-            RichText::new(format!("Paquetes por ventana · {source}"))
-                .color(theme::MUTED)
-                .size(12.0),
+        theme::kpi_row(
+            ui,
+            &[
+                theme::Kpi {
+                    value: snapshot.packets_seen.to_string(),
+                    label: "Paquetes vistos",
+                    color: theme::CYAN,
+                },
+                theme::Kpi {
+                    value: snapshot.packets_dropped.to_string(),
+                    label: "Descartados",
+                    color: if snapshot.packets_dropped > 0 {
+                        theme::ORANGE
+                    } else {
+                        theme::GREEN
+                    },
+                },
+                theme::Kpi {
+                    value: snapshot.parse_errors.to_string(),
+                    label: "Errores de parseo",
+                    color: if snapshot.parse_errors > 0 {
+                        theme::RED
+                    } else {
+                        theme::GREEN
+                    },
+                },
+            ],
         );
-        sparkline(ui, &points);
+        ui.add_space(theme::GAP);
+        theme::card(ui, "Actividad por ventana", |ui| {
+            let points = self.sparkline_points();
+            let source = if self.spool_points.len() >= 2 {
+                "spool del agente"
+            } else {
+                "memoria (spool no legible)"
+            };
+            ui.label(
+                RichText::new(format!("Paquetes por ventana · {source}"))
+                    .color(theme::MUTED)
+                    .size(theme::LABEL_SIZE),
+            );
+            sparkline(ui, &points);
+        });
+        ui.add_space(theme::GAP);
+        theme::card(ui, "Cola y spool", |ui| {
+            egui::Grid::new("stats")
+                .num_columns(2)
+                .spacing([theme::GRID_SPACING_X, theme::GAP_SMALL])
+                .show(ui, |ui| {
+                    row(ui, "Cola", snapshot.queue_depth.to_string());
+                    row(ui, "Spool", human_bytes(snapshot.spool_bytes));
+                });
+        });
     }
 
     fn body(&mut self, ui: &mut egui::Ui) {
@@ -427,44 +449,28 @@ impl GuiApp {
     }
 
     fn settings_panel(&self, ui: &mut egui::Ui) {
-        ui.add_space(12.0);
-        ui.label(
-            RichText::new("Ajustes")
-                .color(theme::CYAN)
-                .size(18.0)
-                .strong(),
-        );
-        ui.add_space(8.0);
+        ui.add_space(theme::GAP);
+        theme::page_title(ui, "Ajustes");
         let (label, color) = match self.toast_enabled {
             Some(true) => ("Notificaciones de Windows: activas", theme::GREEN),
             Some(false) => ("Notificaciones de Windows: desactivadas", theme::ORANGE),
             None => ("Notificaciones de Windows: no determinado", theme::MUTED),
         };
-        ui.label(RichText::new(label).color(color).size(13.0));
-        ui.add_space(4.0);
+        ui.label(RichText::new(label).color(color).size(theme::VALUE_SIZE));
+        ui.add_space(theme::GAP_SMALL);
         ui.label(
             RichText::new(
                 "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\PushNotifications\\ToastEnabled",
             )
             .color(theme::MUTED)
-            .size(11.0),
+            .size(theme::SMALL_SIZE),
         );
     }
 
     fn tabs(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
-            for tab in Tab::ALL {
-                let selected = self.tab == tab;
-                let text = RichText::new(tab.label()).color(if selected {
-                    theme::CYAN
-                } else {
-                    theme::MUTED
-                });
-                if ui.selectable_label(selected, text).clicked() {
-                    self.tab = tab;
-                }
-            }
-        });
+        if let Some(tab) = theme::tab_bar(ui, self.tab) {
+            self.tab = tab;
+        }
     }
 }
 
@@ -472,52 +478,54 @@ const ENROLL_DONE: &str = "Enrolamiento aplicado: servicio Running y sync confir
 
 impl GuiApp {
     fn enroll_panel(&mut self, ui: &mut egui::Ui) {
-        ui.add_space(12.0);
-        ui.label(
-            RichText::new("Enrolar")
-                .color(theme::CYAN)
-                .size(18.0)
-                .strong(),
-        );
-        ui.add_space(4.0);
+        ui.add_space(theme::GAP);
+        theme::page_title(ui, "Enrolar");
         ui.label(
             RichText::new(
                 "El device id y el token se generan en el panel web (Dispositivos → Enrolar). \
                  Se guardan en el servicio con un solo UAC.",
             )
             .color(theme::MUTED)
-            .size(12.0),
+            .size(theme::LABEL_SIZE),
         );
-        ui.add_space(10.0);
+        ui.add_space(theme::GAP);
 
         let device_error = enroll::validate_device_id(&self.enroll_device).err();
         let token_error = enroll::validate_token(&self.enroll_token).err();
         let ready = device_error.is_none() && token_error.is_none() && !self.enroll_token_saved;
 
-        ui.label(RichText::new("Device id").color(theme::MUTED).size(12.0));
+        ui.label(
+            RichText::new("Device id")
+                .color(theme::MUTED)
+                .size(theme::LABEL_SIZE),
+        );
         ui.add_enabled_ui(!self.enroll_token_saved, |ui| {
             ui.add(
                 egui::TextEdit::singleline(&mut self.enroll_device)
                     .hint_text("dev_…")
-                    .desired_width(420.0),
+                    .desired_width(theme::FIELD_WIDTH_WIDE),
             );
         });
         if let Some(error) = device_error.as_deref() {
-            ui.label(RichText::new(error).color(theme::RED).size(11.0));
+            ui.label(
+                RichText::new(error)
+                    .color(theme::RED)
+                    .size(theme::SMALL_SIZE),
+            );
         }
 
-        ui.add_space(6.0);
+        ui.add_space(theme::GAP_SMALL);
         ui.label(
             RichText::new("Token de ingest")
                 .color(theme::MUTED)
-                .size(12.0),
+                .size(theme::LABEL_SIZE),
         );
         if self.enroll_token_saved {
             // Una vez guardado solo se muestra enmascarado.
             ui.label(
                 RichText::new(enroll::mask_token(&self.enroll_token))
                     .color(theme::TEXT)
-                    .size(13.0),
+                    .size(theme::VALUE_SIZE),
             );
         } else {
             ui.horizontal(|ui| {
@@ -525,7 +533,7 @@ impl GuiApp {
                     egui::TextEdit::singleline(&mut self.enroll_token)
                         .hint_text("sc_dev_…")
                         .password(true)
-                        .desired_width(340.0),
+                        .desired_width(theme::FIELD_WIDTH),
                 );
                 if ui
                     .button("Pegar")
@@ -545,11 +553,15 @@ impl GuiApp {
                 }
             });
             if let Some(error) = token_error.as_deref() {
-                ui.label(RichText::new(error).color(theme::RED).size(11.0));
+                ui.label(
+                    RichText::new(error)
+                        .color(theme::RED)
+                        .size(theme::SMALL_SIZE),
+                );
             }
         }
 
-        ui.add_space(10.0);
+        ui.add_space(theme::GAP_SMALL);
         if ui
             .add_enabled(ready, egui::Button::new("Aplicar (pide UAC)"))
             .clicked()
@@ -557,7 +569,7 @@ impl GuiApp {
             self.apply_enroll();
         }
         if let Some(message) = self.enroll_message.as_deref() {
-            ui.add_space(8.0);
+            ui.add_space(theme::GAP_SMALL);
             ui.label(
                 RichText::new(message)
                     .color(if message == ENROLL_DONE {
@@ -565,7 +577,7 @@ impl GuiApp {
                     } else {
                         theme::ORANGE
                     })
-                    .size(12.0),
+                    .size(theme::LABEL_SIZE),
             );
         }
     }
@@ -613,27 +625,29 @@ fn balloon_fallback_for(
 
 /// Sparkline sin dependencias extra: polilínea escalada al máximo del tramo.
 fn sparkline(ui: &mut egui::Ui, values: &[u64]) {
-    let height = 90.0;
     let (rect, _) = ui.allocate_exact_size(
-        egui::vec2(ui.available_width().max(120.0), height),
+        egui::vec2(
+            ui.available_width().max(theme::SPARKLINE_MIN_WIDTH),
+            theme::SPARKLINE_HEIGHT,
+        ),
         egui::Sense::hover(),
     );
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 6.0, theme::PANEL);
+    painter.rect_filled(rect, theme::SPARKLINE_RADIUS, theme::PANEL);
 
     if values.len() < 2 {
         painter.text(
             rect.center(),
             egui::Align2::CENTER_CENTER,
             "aún sin ventanas suficientes",
-            egui::FontId::proportional(12.0),
+            egui::FontId::proportional(theme::SPARKLINE_LABEL_SIZE),
             theme::MUTED,
         );
         return;
     }
 
     let max = values.iter().copied().max().unwrap_or(0).max(1) as f32;
-    let inner = rect.shrink(8.0);
+    let inner = rect.shrink(theme::SPARKLINE_PADDING);
     let step = inner.width() / (values.len() - 1) as f32;
     let points: Vec<egui::Pos2> = values
         .iter()
@@ -649,20 +663,28 @@ fn sparkline(ui: &mut egui::Ui, values: &[u64]) {
 
     painter.add(egui::Shape::line(
         points,
-        egui::Stroke::new(1.5_f32, theme::CYAN),
+        egui::Stroke::new(theme::SPARKLINE_LINE, theme::CYAN),
     ));
     painter.text(
         egui::pos2(inner.left(), inner.top()),
         egui::Align2::LEFT_TOP,
         format!("máx {max:.0}"),
-        egui::FontId::proportional(10.0),
+        egui::FontId::proportional(theme::SPARKLINE_AXIS_SIZE),
         theme::MUTED,
     );
 }
 
 fn row(ui: &mut egui::Ui, key: &str, value: impl Into<String>) {
-    ui.label(RichText::new(key).color(theme::MUTED).size(12.0));
-    ui.label(RichText::new(value.into()).color(theme::TEXT).size(13.0));
+    ui.label(
+        RichText::new(key)
+            .color(theme::MUTED)
+            .size(theme::LABEL_SIZE),
+    );
+    ui.label(
+        RichText::new(value.into())
+            .color(theme::TEXT)
+            .size(theme::VALUE_SIZE),
+    );
     ui.end_row();
 }
 
@@ -720,14 +742,6 @@ fn human_bytes(bytes: u64) -> String {
     }
 }
 
-fn overlay_color(overlay: Overlay) -> egui::Color32 {
-    match overlay {
-        Overlay::None => theme::GREEN,
-        Overlay::Warn => theme::ORANGE,
-        Overlay::Error => theme::RED,
-    }
-}
-
 fn tooltip_for(overlay: Overlay) -> &'static str {
     match overlay {
         Overlay::None => "SC-Sentinel · operativo",
@@ -771,16 +785,32 @@ impl eframe::App for GuiApp {
         }
 
         egui::TopBottomPanel::top("cabecera")
-            .frame(egui::Frame::none().fill(theme::PANEL).inner_margin(12.0))
+            .frame(
+                egui::Frame::none()
+                    .fill(theme::PANEL)
+                    .inner_margin(theme::HEADER_PADDING),
+            )
             .show(ctx, |ui| self.header(ui));
 
         egui::TopBottomPanel::bottom("pestanas")
-            .frame(egui::Frame::none().fill(theme::PANEL).inner_margin(8.0))
+            .frame(
+                egui::Frame::none()
+                    .fill(theme::PANEL)
+                    .inner_margin(theme::TAB_BAR_PADDING),
+            )
             .show(ctx, |ui| self.tabs(ui));
 
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(theme::BG).inner_margin(12.0))
-            .show(ctx, |ui| self.body(ui));
+            .frame(
+                egui::Frame::none()
+                    .fill(theme::BG)
+                    .inner_margin(theme::PAGE_PADDING),
+            )
+            .show(ctx, |ui| {
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| self.body(ui));
+            });
 
         // La bandeja responde a 4 Hz y el poller es de 1 Hz: mismo repintado.
         ctx.request_repaint_after(Duration::from_millis(250));
