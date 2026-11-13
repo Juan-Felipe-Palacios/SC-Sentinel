@@ -308,14 +308,26 @@ Hecha sobre el **ZIP descargado de la release v0.1.3**, no sobre el binario loca
 > elevación ya está verificado arriba; lo que queda es el ciclo del SCM
 > (instalar/desinstalar/recovery), que necesita un token de administrador.
 >
-> El script está escrito y listo (`%TEMP%\m4-chr\run\m5-verify2.ps1`, 10 etapas
-> P0..P9, todo con los `.bat` de un clic del ZIP publicado). Se auto-eleva, así
-> que basta con lanzarlo y **aceptar el aviso de UAC**:
+> El script ya está **versionado** en el repo: `scripts/verify-m5-cycle.ps1`
+> (10 etapas P0..P9, todo con los `.bat` de un clic del ZIP publicado). Antes
+> vivía solo en `%TEMP%\m4-chr\run\m5-verify2.ps1`; se trajo al repo para que
+> el procedimiento no dependa de un directorio temporal, con el token, el device
+> id y las rutas como parámetros. Se auto-eleva, así que basta con lanzarlo y
+> **aceptar el aviso de UAC**:
 >
 > ```powershell
-> powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\m4-chr\run\m5-verify2.ps1"
+> powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\verify-m5-cycle.ps1 `
+>   -PackageDir <carpeta del ZIP extraido> -DeviceId <device> -IngestToken <token>
 > ```
 >
-> Transcript: `%TEMP%\m4-chr\run\m5-verify2.log`. Hasta la fecha el aviso de
-> UAC se ha cancelado en los intentos automáticos (siete), por lo que el ciclo
-> queda a un solo clic de administrador.
+> Sin ejecutar nada, valida el paquete y muestra el plan:
+>
+> ```powershell
+> powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\verify-m5-cycle.ps1 `
+>   -PackageDir <carpeta del ZIP extraido> -DeviceId <device> -DryRun
+> ```
+>
+> El transcript va a `-RunDir` (por defecto `%TEMP%\m5-cycle`, un fichero
+> `m5-cycle-<marca>.log` por corrida). Hasta la fecha el aviso de UAC se ha
+> cancelado en los intentos automáticos (siete), por lo que el ciclo sigue
+> pendiente y queda a un solo clic de administrador.
