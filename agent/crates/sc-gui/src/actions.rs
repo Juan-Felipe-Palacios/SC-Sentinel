@@ -160,6 +160,76 @@ pub fn health_level(facts: LiveFacts<'_>, sync_age_secs: Option<i64>) -> HealthL
     HealthLevel::Ok
 }
 
+/// Subestados de la vista Estado. Cada tarjeta lleva su propio chip: el
+/// semáforo general puede estar en ámbar por el spool y el resto en verde.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SubStatuses {
+    /// Dispositivo enrolado y captura en el estado esperado para el modo.
+    pub device: HealthLevel,
+    /// Poll fresco y sync reciente cuando el modo lo exige.
+    pub connection: HealthLevel,
+    /// Spool por debajo del umbral de alerta.
+    pub retention: HealthLevel,
+}
+
+impl SubStatuses {
+    /// Los tres en rojo: sin servicio o sin `/status` no hay nada que evaluar.
+    const UNREACHABLE: Self = Self {
+        device: HealthLevel::Error,
+        connection: HealthLevel::Error,
+        retention: HealthLevel::Error,
+    };
+}
+
+/// Deriva los tres subestados de la vista Estado a partir de los mismos hechos
+/// que `health_level`, sin duplicar reglas de presentación.
+///
+/// - **Dispositivo**: verde si hay `device_id` y la captura no está degradada;
+///   en modo servicio `disabled` es lo esperado (el colector no captura).
+/// - **Conexión**: verde si el poll es fresco y, en modo servicio, el último
+///   sync no supera `SYNC_STALE_SECS`. En consola no hay sync programado.
+/// - **Conservación**: verde mientras el spool no supere `SPOOL_ALERT_BYTES`.
+pub fn substatuses(facts: LiveFacts<'_>, sync_age_secs: Option<i64>) -> SubStatuses {
+    if facts.service != ServiceState::Running {
+        return SubStatuses::UNREACHABLE;
+    }
+    let poll_fresh = facts.poll_age.map(|age| age <= POLL_STALE).unwrap_or(false);
+    if !poll_fresh {
+        return SubStatuses::UNREACHABLE;
+    }
+    let Some(snapshot) = facts.snapshot else {
+        return SubStatuses::UNREACHABLE;
+    };
+
+    let capture_ok = snapshot.mode == "service" || snapshot.capture_status == "ok";
+    let device = if snapshot.device_id.is_empty() || !capture_ok {
+        HealthLevel::Warn
+    } else {
+        HealthLevel::Ok
+    };
+
+    let connection = if snapshot.mode != "service" {
+        HealthLevel::Ok
+    } else {
+        match sync_age_secs {
+            Some(secs) if secs <= SYNC_STALE_SECS => HealthLevel::Ok,
+            Some(_) | None => HealthLevel::Warn,
+        }
+    };
+
+    let retention = if snapshot.spool_bytes > SPOOL_ALERT_BYTES {
+        HealthLevel::Warn
+    } else {
+        HealthLevel::Ok
+    };
+
+    SubStatuses {
+        device,
+        connection,
+        retention,
+    }
+}
+
 pub fn overlay_from_level(level: HealthLevel) -> Overlay {
     match level {
         HealthLevel::Ok => Overlay::None,
@@ -322,5 +392,107 @@ mod tests {
             None,
         );
         assert_eq!(live_level, HealthLevel::Warn);
+    }
+
+    /// Snapshot enrolado y sano, listo para variar un campo por prueba.
+    fn enrolled(mode: &str, capture: &str) -> crate::status_client::StatusSnapshot {
+        crate::status_client::StatusSnapshot {
+            device_id: "dev_deadbeef".to_string(),
+            ..snapshot(mode, capture)
+        }
+    }
+
+    fn facts(snapshot: &crate::status_client::StatusSnapshot) -> LiveFacts<'_> {
+        LiveFacts {
+            service: ServiceState::Running,
+            snapshot: Some(snapshot),
+            poll_age: Some(Duration::from_millis(10)),
+        }
+    }
+
+    #[test]
+    fn servicio_sano_deja_los_tres_subestados_en_verde() {
+        let snap = enrolled("service", "disabled");
+        assert_eq!(
+            substatuses(facts(&snap), Some(30)),
+            SubStatuses {
+                device: HealthLevel::Ok,
+                connection: HealthLevel::Ok,
+                retention: HealthLevel::Ok,
+            }
+        );
+    }
+
+    #[test]
+    fn sin_servicio_o_sin_poll_los_tres_subestados_son_error() {
+        let snap = enrolled("service", "disabled");
+        for service in [
+            ServiceState::Stopped,
+            ServiceState::Pending,
+            ServiceState::Unknown,
+        ] {
+            let broken = LiveFacts {
+                service,
+                snapshot: Some(&snap),
+                poll_age: Some(Duration::from_millis(10)),
+            };
+            assert_eq!(substatuses(broken, Some(30)), SubStatuses::UNREACHABLE);
+        }
+        for age in [None, Some(POLL_STALE + Duration::from_millis(1))] {
+            let stale = LiveFacts {
+                service: ServiceState::Running,
+                snapshot: Some(&snap),
+                poll_age: age,
+            };
+            assert_eq!(substatuses(stale, Some(30)), SubStatuses::UNREACHABLE);
+        }
+    }
+
+    #[test]
+    fn sin_device_id_el_dispositivo_pide_atencion() {
+        let snap = snapshot("service", "disabled");
+        assert_eq!(
+            substatuses(facts(&snap), Some(30)).device,
+            HealthLevel::Warn
+        );
+    }
+
+    #[test]
+    fn captura_degradada_marca_el_dispositivo_solo_en_consola() {
+        let console = enrolled("console", "error");
+        let statuses = substatuses(facts(&console), None);
+        assert_eq!(statuses.device, HealthLevel::Warn);
+        assert_eq!(statuses.connection, HealthLevel::Ok);
+        assert_eq!(statuses.retention, HealthLevel::Ok);
+
+        // En servicio `disabled` es lo esperado por `--no-capture`.
+        let service = enrolled("service", "disabled");
+        assert_eq!(
+            substatuses(facts(&service), Some(5)).device,
+            HealthLevel::Ok
+        );
+    }
+
+    #[test]
+    fn sync_viejo_marca_solo_la_conexion() {
+        let snap = enrolled("service", "disabled");
+        for age in [None, Some(SYNC_STALE_SECS + 1)] {
+            let statuses = substatuses(facts(&snap), age);
+            assert_eq!(statuses.device, HealthLevel::Ok);
+            assert_eq!(statuses.connection, HealthLevel::Warn, "{age:?}");
+            assert_eq!(statuses.retention, HealthLevel::Ok);
+        }
+    }
+
+    #[test]
+    fn spool_saturado_marca_solo_la_conservacion() {
+        let snap = crate::status_client::StatusSnapshot {
+            spool_bytes: SPOOL_ALERT_BYTES + 1,
+            ..enrolled("service", "disabled")
+        };
+        let statuses = substatuses(facts(&snap), Some(5));
+        assert_eq!(statuses.device, HealthLevel::Ok);
+        assert_eq!(statuses.connection, HealthLevel::Ok);
+        assert_eq!(statuses.retention, HealthLevel::Warn);
     }
 }

@@ -5,8 +5,8 @@
 //! en un hilo y se consulta el SCM de Windows para saber si el servicio vive.
 
 use crate::actions::{
-    close_action, health_level, overlay_from_level, CloseAction, HealthLevel, LiveFacts,
-    MenuAction, Overlay, ServiceState, Tab,
+    close_action, health_level, overlay_from_level, substatuses, CloseAction, HealthLevel,
+    LiveFacts, MenuAction, Overlay, ServiceState, Tab,
 };
 use crate::enroll::{self, EnrollRequest};
 use crate::scm;
@@ -295,25 +295,70 @@ impl GuiApp {
         theme::page_title(ui, "Estado");
 
         let Some(snapshot) = self.snapshot.as_ref() else {
-            ui.label(
-                RichText::new("Sin datos: el agente no responde en /status.").color(theme::MUTED),
-            );
-            ui.add_space(theme::GAP_SMALL);
-            ui.label(
-                RichText::new("Revisa el servicio o el spool; el panel se actualiza solo.")
-                    .color(theme::MUTED)
-                    .size(theme::LABEL_SIZE),
-            );
+            theme::card(ui, "Sin datos del agente", |ui| {
+                theme::status_chip(ui, "ERROR", theme::RED);
+                ui.add_space(theme::GAP_SMALL);
+                ui.label(
+                    RichText::new("El agente no responde en /status.")
+                        .color(theme::TEXT)
+                        .size(theme::LABEL_SIZE),
+                );
+                ui.label(
+                    RichText::new("Revisa el servicio o el spool; el panel se actualiza solo.")
+                        .color(theme::MUTED)
+                        .size(theme::SMALL_SIZE),
+                );
+            });
             return;
         };
 
+        let sync_age = snapshot.sync_age_secs(Utc::now());
+        let statuses = substatuses(
+            LiveFacts {
+                service: self.service,
+                snapshot: Some(snapshot),
+                poll_age: self.last_poll_ok.map(|at| at.elapsed()),
+            },
+            sync_age,
+        );
+
+        ui.columns(3, |columns| {
+            status_card(
+                &mut columns[0],
+                "Dispositivo",
+                statuses.device,
+                &device_hint(snapshot),
+            );
+            status_card(
+                &mut columns[1],
+                "Conexión",
+                statuses.connection,
+                &connection_hint(snapshot, sync_age, statuses.connection),
+            );
+            status_card(
+                &mut columns[2],
+                "Conservación",
+                statuses.retention,
+                &format!(
+                    "Spool {} · {}",
+                    human_bytes(snapshot.spool_bytes),
+                    if statuses.retention == HealthLevel::Ok {
+                        "bajo el umbral"
+                    } else {
+                        "sobre 100 MB"
+                    }
+                ),
+            );
+        });
+
+        ui.add_space(theme::GAP);
         theme::card(ui, "Detalles del dispositivo", |ui| {
             egui::Grid::new("estado")
                 .num_columns(2)
                 .spacing([theme::GRID_SPACING_X, theme::GAP_SMALL])
                 .show(ui, |ui| {
-                    row(ui, "Dispositivo", device_label(snapshot));
-                    row(ui, "Versión del agente", snapshot.agent_version.clone());
+                    row(ui, "Device ID", device_label(snapshot));
+                    row(ui, "Versión", snapshot.agent_version.clone());
                     row(ui, "Modo", snapshot.mode.clone());
                     row(
                         ui,
@@ -326,25 +371,64 @@ impl GuiApp {
                     );
                     row(
                         ui,
-                        "Último sync",
+                        "Última sync",
                         match snapshot.last_sync_at.as_deref() {
                             Some(at) => format!("{at}{}", sync_age_label(snapshot)),
                             None => "nunca desde este arranque".to_string(),
                         },
                     );
                     row(ui, "Spool", human_bytes(snapshot.spool_bytes));
-                    row(ui, "Cola de agregación", snapshot.queue_depth.to_string());
+                });
+        });
+
+        ui.add_space(theme::GAP);
+        theme::kpi_row(
+            ui,
+            &[
+                theme::Kpi {
+                    value: snapshot.packets_seen.to_string(),
+                    label: "Vistos",
+                    color: theme::CYAN,
+                },
+                theme::Kpi {
+                    value: snapshot.packets_dropped.to_string(),
+                    label: "Descartados",
+                    color: if snapshot.packets_dropped > 0 {
+                        theme::ORANGE
+                    } else {
+                        theme::GREEN
+                    },
+                },
+                theme::Kpi {
+                    value: snapshot.parse_errors.to_string(),
+                    label: "Errores de parseo",
+                    color: if snapshot.parse_errors > 0 {
+                        theme::RED
+                    } else {
+                        theme::GREEN
+                    },
+                },
+                theme::Kpi {
+                    value: snapshot.queue_depth.to_string(),
+                    label: "Cola de agregación",
+                    color: if snapshot.queue_depth > 0 {
+                        theme::ORANGE
+                    } else {
+                        theme::CYAN
+                    },
+                },
+            ],
+        );
+
+        ui.add_space(theme::GAP);
+        theme::card(ui, "Colector y diagnóstico", |ui| {
+            egui::Grid::new("estado_diagnostico")
+                .num_columns(2)
+                .spacing([theme::GRID_SPACING_X, theme::GAP_SMALL])
+                .show(ui, |ui| {
                     row(
                         ui,
-                        "Paquetes",
-                        format!(
-                            "{} vistos · {} descartados · {} con error de parseo",
-                            snapshot.packets_seen, snapshot.packets_dropped, snapshot.parse_errors
-                        ),
-                    );
-                    row(
-                        ui,
-                        "Colector",
+                        "Puertos del colector",
                         if snapshot.collector_ports.is_empty() {
                             "sin puertos configurados".to_string()
                         } else {
@@ -723,9 +807,56 @@ fn device_label(snapshot: &StatusSnapshot) -> String {
 
 fn sync_age_label(snapshot: &StatusSnapshot) -> String {
     match snapshot.sync_age_secs(Utc::now()) {
-        Some(secs) if secs < 90 => format!(" (hace {secs} s)"),
-        Some(secs) => format!(" (hace {} min)", secs / 60),
+        Some(secs) => format!(" (hace {})", human_age(secs)),
         None => String::new(),
+    }
+}
+
+fn human_age(secs: i64) -> String {
+    if secs < 90 {
+        format!("{secs} s")
+    } else if secs < 3600 {
+        format!("{} min", secs / 60)
+    } else {
+        format!("{} h", secs / 3600)
+    }
+}
+
+/// Tarjeta de subestado: chip grande y una línea de contexto real.
+fn status_card(ui: &mut egui::Ui, title: &str, level: HealthLevel, hint: &str) {
+    theme::card(ui, title, |ui| {
+        theme::status_chip(ui, theme::level_label(level), theme::level_color(level));
+        ui.add_space(theme::GAP_SMALL);
+        ui.label(
+            RichText::new(hint)
+                .color(theme::MUTED)
+                .size(theme::SMALL_SIZE),
+        );
+    });
+}
+
+fn device_hint(snapshot: &StatusSnapshot) -> String {
+    if snapshot.device_id.is_empty() {
+        return "Sin device id: el equipo no está enrolado.".to_string();
+    }
+    match snapshot.capture_status.as_str() {
+        "ok" => "Enrolado · captura activa".to_string(),
+        "disabled" if snapshot.mode == "service" => "Enrolado · captura deshabilitada".to_string(),
+        "" => "Enrolado · captura sin reportar".to_string(),
+        other => format!("Enrolado · captura {other}"),
+    }
+}
+
+fn connection_hint(snapshot: &StatusSnapshot, sync_age: Option<i64>, level: HealthLevel) -> String {
+    if level == HealthLevel::Error {
+        return "Sin poll reciente de /status.".to_string();
+    }
+    if snapshot.mode != "service" {
+        return "Consola: sin sync programado.".to_string();
+    }
+    match sync_age {
+        Some(secs) => format!("Último sync hace {}.", human_age(secs)),
+        None => "Sin sync desde el arranque.".to_string(),
     }
 }
 
