@@ -184,7 +184,7 @@ Alcance de cierre: backend seguro, RAG agregado de 24 h, streaming SSE, persiste
 > 5. `config.toml` con BOM (inocuo para `toml` pero normalizado) y rutas
 >    relativas resueltas contra el directorio del config.
 >
-> Script de la prueba: `C:\Users\Juan\AppData\Local\Temp\m4-chr\run\m5-verify.ps1`
+> Script de la prueba: `scriptserify-m5-cycle.ps1`
 > (transcript a `run\m5-verify.log`).
 >
 > **Verificación final con la build definitiva (2026-11-11, 10:18–10:22 UTC):**
@@ -227,11 +227,15 @@ versionado `scripts/deploy-agent-service.ps1` (`bab98b7`) y su fix posterior
       8 minutos vieja). Ahora exige que la línea sea posterior al `sc stop`;
       probado contra el log real: con `since=ahora` no acepta nada y con
       `since=ahora−2h` devuelve la línea más reciente, no la vieja.
+- [x] **Reinicio real del servidor (2026-11-13):** `LastBootUpTime` 20:20:10
+      local; servicio `Running` sin arranque manual, `AUTO_START`; npcap
+      `RUNNING`; captura live con `--interface`; `packets_seen` creciente;
+      `sync_confirmed` posterior al arranque. GUI post-reinicio confirmada por
+      el propietario.
 
 No probado en vivo: abortos 13, 14, 15, 16 (estricto), 17, 18, 19, 20, 21, 23,
 24 y 25 de `deploy-agent-service.ps1` (requieren romper el servicio o el disco a
-propósito), el `install`/`uninstall` desde el ZIP publicado y el reinicio real
-del servidor.
+propósito), el `install`/`uninstall` desde el ZIP publicado.
 
 ## M5 — Auditoría de parabilidad del agente en Windows (2026-11-12)
 
