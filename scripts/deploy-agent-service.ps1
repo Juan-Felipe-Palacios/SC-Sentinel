@@ -43,7 +43,8 @@ param(
     [int]$StartTimeoutSec = 45,
     [int]$SyncTimeoutSec = 60,
     [switch]$StrictBackupAcl,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$ExportFunctions
 )
 
 $ErrorActionPreference = 'Stop'
@@ -68,7 +69,7 @@ function Get-LogTail([int]$lines = 80) {
 }
 
 function Get-LineStamp([string]$line) {
-    $m = [regex]::Match($line, '^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})')
+    $m = [regex]::Match($line, '^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?)')
     if (-not $m.Success) { return $null }
     return [datetime]::Parse(
         $m.Groups[1].Value + 'Z',
@@ -212,6 +213,14 @@ function Wait-SyncAfter([datetime]$sinceUtc, [int]$seconds) {
     } while ((Get-Date).ToUniversalTime() -lt $deadline)
     return $null
 }
+
+function Write-ServiceStoppedNotice {
+    Write-Host ''
+    Write-Host 'SERVICIO DETENIDO: ejecutá sc start SC-Sentinel-Agent' -ForegroundColor Red
+    Write-Host ''
+}
+
+if ($ExportFunctions) { return }
 
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
     [Security.Principal.WindowsBuiltInRole]::Administrator
@@ -638,6 +647,7 @@ if ($state -ne 'Stopped') {
 $drain = Wait-SpoolDrained $stopUtc 15
 if (-not $drain) {
     Write-Host 'ABORTA (16): el drenaje no confirmo spool_flushed pending=0; no se copio nada'
+    Write-ServiceStoppedNotice
     Show-State
     exit 16
 }
@@ -648,6 +658,7 @@ Copy-Item -LiteralPath $artifactToInstall -Destination $Target -Force
 $shaCopied = Get-Sha $Target
 if ($shaCopied -ne $shaTarget) {
     Write-Host "ABORTA (17): la copia no coincide (copiado=$shaCopied esperado=$shaTarget); servicio detenido"
+    Write-ServiceStoppedNotice
     Show-State
     exit 17
 }
@@ -663,6 +674,7 @@ if ($state -ne 'Running') {
     } else {
         Write-Host "volver adelante: $forwardHint"
     }
+    Write-ServiceStoppedNotice
     Show-State
     exit 18
 }

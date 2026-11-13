@@ -1,0 +1,4 @@
+2026-11-13T21:52:30Z  INFO sc_sentinel_agent: spool persistido: salida limpia event="spool_flushed" pending=0
+2026-11-13T21:52:32.377Z  INFO sc_sentinel_agent: senal de apagado event="shutdown_signal"
+2026-11-13T21:52:32.634451Z  INFO sc_sentinel_agent: spool persistido: salida limpia event="spool_flushed" pending=0
+2026-11-13T21:52:33.100Z  INFO sc_sentinel_agent: sync: ventana aceptada por el backend event="sync_confirmed" window_id=win_test
