@@ -41,15 +41,19 @@ Hay dos vías equivalentes. La **1.1** es la recomendada para un equipo sin acce
 
 3. Descomprimir **todo** el ZIP en una carpeta (no solo el `.exe`).
 4. Doble clic en **`instalar-sc-sentinel.bat`**. Windows pedirá permisos de administrador: pulsar «Sí».
-5. Pegar el `device_id` (`dev_…`) y el token (`sc_dev_…`) cuando los pida. El instalador valida que no falte ninguno y **no escribe el token en disco ni en el log**.
+5. Pegar el `device_id` (`dev_…`) y el token (`sc_dev_…`) cuando los pida. El instalador valida que no falte ninguno y **no escribe el token en disco ni en el log**. El token se pide por teclado sin mostrarlo y **no viaja por la línea de comandos**: no aparece en la lista de procesos ni en la transcripción de nada.
 6. Al terminar, el servicio «SC Sentinel Network Agent» queda **En ejecución** y el instalador ofrece abrir la lista de servicios.
 
 Modo desatendido (equipos con automatización, p. ej. GPO o Intune):
 
 ```powershell
-instalar-sc-sentinel.bat dev_2f1c… sc_dev_9a04…            # puertos por defecto: 2055 y 4739
-instalar-sc-sentinel.bat dev_2f1c… sc_dev_9a04… 2056,4739     # puertos alternativos
+set SCS_INSTALL_TOKEN=sc_dev_9a04…                            # el token va por entorno, nunca como argumento
+instalar-sc-sentinel.bat dev_2f1c…                            # puertos por defecto: 2055 y 4739
+instalar-sc-sentinel.bat dev_2f1c… 2056,4739                  # puertos alternativos
+set SCS_INSTALL_TOKEN=
 ```
+
+Si el `.bat` tiene que elevarse, se relanza solo con el `device_id` y los puertos: la variable **no** cruza el UAC y el proceso elevado pide el token por teclado. Para automatización de verdad, lanzar el `.bat` ya elevado con `SCS_INSTALL_TOKEN` puesto.
 
 Contenido del ZIP:
 
@@ -57,7 +61,7 @@ Contenido del ZIP:
 |---|---|
 | `sc-sentinel-agent.exe` | El agente. |
 | `geolite2/GeoLite2-Country.mmdb` | Base de geolocalización de países (MaxMind GeoLite2). Sin ella el agente arranca igual, pero los países de los snapshots salen vacíos. |
-| `instalar-sc-sentinel.bat` | Instalador de un clic (pide el token y device id, se auto-eleva). |
+| `instalar-sc-sentinel.bat` | Instalador de un clic (pide el token y device id, se auto-eleva). El token entra por teclado sin eco o por `SCS_INSTALL_TOKEN`, nunca por argumentos. |
 | `desinstalar-sc-sentinel.bat` | Desinstalador de un clic (pregunta si se borran los datos). |
 | `install-agent.ps1` / `uninstall-agent.ps1` | Los instaladores en PowerShell que usa el `.bat`. |
 | `LEEME-INSTALACION.txt` | Guía en lenguaje llano para usuarios sin conocimientos de informática. |
@@ -222,7 +226,7 @@ El manual equivale a: `sc.exe stop` + `sc.exe delete` + borrar key `HKLM\...\Ser
 | Los países de los snapshots salen vacíos | falta la base GeoLite2 | copiar `geolite2\GeoLite2-Country.mmdb` a `C:\Program Files\SC-Sentinel\geolite2\` o fijar `SC_GEOIP_DB`; el log debe mostrar `GeoIP: base GeoLite2 cargada path=…` |
 | `sc-sentinel-agent --list-interfaces` responde «captura live no compilada» | binario compilado sin `--features sc-capture/live` | recompilar con la feature (§1.2) y con el SDK de Npcap (`docs/runbooks/npcap-install.md`) |
 | `sc-sentinel-agent --list-interfaces` no lista dispositivos | falta el runtime de Npcap | instalarlo desde https://npcap.com/#download (§Requisitos y `docs/runbooks/npcap-install.md`) |
-| El instalador se queda colgado esperando teclado | se lanzó sin datos y el prompt `set /p` espera una pegada | usar el modo desatendido: `instalar-sc-sentinel.bat <device_id> <token>` |
+| El instalador se queda colgado esperando teclado | se lanzó sin datos y espera el `device_id` o el token por teclado | modo desatendido: `set SCS_INSTALL_TOKEN=…` y `instalar-sc-sentinel.bat <device_id> [puertos]` |
 | Log del instalador | traza sin secretos | `%TEMP%\sc-sentinel-instalador.log` (instalación) y `%TEMP%\sc-sentinel-instalador-ps.log` (salida de `install-agent.ps1`) |
 
 ### 7.1 Captura live y colector en el mismo host

@@ -31,9 +31,11 @@
  final. No lo lances en un equipo con datos que deban conservarse ni dos
  instancias en paralelo (una desinstala mientras la otra consulta).
 
- El token de ingesta se pasa al instalador como argumento; mientras dura la
- instalacion es visible en la lista de procesos del equipo. No se escribe en el
- transcript ni se imprime nunca.
+ El token de ingesta NO viaja por argumentos: el proceso elevado lo pide a quien
+ lo ejecuta con Read-Host -AsSecureString (o lo toma de la variable de entorno
+ SCS_INSTALL_TOKEN, pensada para CI) y se lo pasa al instalador por entorno,
+ borrandolo del suyo despues. La transcripcion se abre despues de leerlo, asi
+ que no queda ni en el argv de ningun proceso ni en el transcript.
 
 .PARAMETER PackageDir
  Carpeta donde se extrajo el ZIP de la release (debe contener
@@ -41,9 +43,6 @@
 
 .PARAMETER DeviceId
  Device id con el que se enrola el agente en el ciclo.
-
-.PARAMETER IngestToken
- Token de ingesta. Obligatorio salvo con -DryRun. No se registra.
 
 .PARAMETER RunDir
  Carpeta del transcript. Por defecto %TEMP%\m5-cycle.
@@ -72,7 +71,8 @@
 
 .EXAMPLE
  powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify-m5-cycle.ps1 `
-   -PackageDir "$env:TEMP\m5-pkg" -DeviceId dev_m5svc -IngestToken <token>
+   -PackageDir "$env:TEMP\m5-pkg" -DeviceId dev_m5svc
+ El token se pide por teclado (sin eco) una vez elevado el proceso.
 
 .EXAMPLE
  powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify-m5-cycle.ps1 `
@@ -85,8 +85,6 @@ param(
 
     [Parameter(Mandatory = $true)]
     [string]$DeviceId,
-
-    [string]$IngestToken = '',
 
     [string]$RunDir = (Join-Path $env:TEMP 'm5-cycle'),
     [string]$Service = 'SC-Sentinel-Agent',
@@ -111,7 +109,6 @@ $geoInstalled = Join-Path $InstallDir 'geolite2\GeoLite2-Country.mmdb'
 # --------------------------------------------------------------- modo simulacion
 if ($DryRun) {
     Write-Host '=== DryRun: ciclo M5 (no se modifica nada) ==='
-    $tieneToken = [bool]$IngestToken
     Write-Host "paquete       : $PackageDir"
     Write-Host "  exe         : $(if (Test-Path $exe) { "$((Get-Item $exe).Length) B sha=$(Get-FileHash $exe -Algorithm SHA256 | Select-Object -ExpandProperty Hash)" } else { 'FALTA' })"
     Write-Host "  sumas       : $(if (Test-Path $sumsFile) { 'presente' } else { 'FALTA' })"
@@ -120,7 +117,7 @@ if ($DryRun) {
     Write-Host "  desinstalador: $(if (Test-Path $uninstallerBat) { 'presente' } else { 'FALTA' })"
     $masked = if ($DeviceId.Length -gt 6) { $DeviceId.Substring(0, 6) + '...' } else { '...' }
     Write-Host "device id     : $masked (enmascarado)"
-    Write-Host "token         : $(if ($tieneToken) { 'presente' } else { 'ausente (obligatorio para ejecutar)' })"
+    Write-Host 'token         : se pide al ejecutar (Read-Host -AsSecureString) o via SCS_INSTALL_TOKEN'
     Write-Host "servicio      : $Service"
     Write-Host "version esp.  : $ExpectedVersion (minimo $MinSums sumas correctas)"
     Write-Host "puertos       : $CollectorPorts"
@@ -165,10 +162,6 @@ if ($DryRun) {
     exit 0
 }
 
-if (-not $IngestToken) {
-    Write-Host 'ABORTA: falta -IngestToken (obligatorio para instalar el agente).'
-    exit 1
-}
 if (-not (Test-Path $exe)) {
     Write-Host "ABORTA: no existe $exe (extrae el ZIP de la release en -PackageDir)."
     exit 1
@@ -184,12 +177,38 @@ if (-not $isAdmin) {
     if (-not $shell) { $shell = (Get-Command powershell.exe).Source }
     $p = Start-Process -FilePath $shell `
         -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath,
-        '-PackageDir', $PackageDir, '-DeviceId', $DeviceId, '-IngestToken', $IngestToken,
+        '-PackageDir', $PackageDir, '-DeviceId', $DeviceId,
         '-RunDir', $RunDir, '-Service', $Service, '-CollectorPorts', $CollectorPorts,
         '-ExpectedVersion', $ExpectedVersion, '-MinSums', "$MinSums") `
         -Verb RunAs -Wait -PassThru
     Write-Host "rc del ciclo elevado: $($p.ExitCode)"
     exit $p.ExitCode
+}
+
+# --- token: fuera de la linea de comandos -----------------------------------
+# El proceso elevado no hereda el entorno del que lo lanzo (ShellExecute/UAC),
+# asi que el token se pide aqui, ya elevado. En CI se puede dejar en
+# SCS_INSTALL_TOKEN: se lee y se borra del entorno del acto seguido.
+function Get-IngestToken {
+    $fromEnv = [Environment]::GetEnvironmentVariable('SCS_INSTALL_TOKEN')
+    if ($fromEnv) {
+        Remove-Item Env:\SCS_INSTALL_TOKEN -ErrorAction SilentlyContinue
+        Write-Host 'token: leido de SCS_INSTALL_TOKEN (se borra del entorno)' -ForegroundColor Gray
+        return $fromEnv
+    }
+    if ([Console]::IsInputRedirected) { return '' }
+    $sec = Read-Host 'Token de ingesta (no se muestra al escribir)' -AsSecureString
+    if (-not $sec -or $sec.Length -eq 0) { return '' }
+    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
+    try { return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
+    finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+}
+
+Write-Host 'Token de ingesta: hace falta para instalar el agente (P2 y P9).' -ForegroundColor Gray
+$IngestToken = Get-IngestToken
+if (-not $IngestToken) {
+    Write-Host 'ABORTA: sin token no se puede instalar (ni por teclado ni por SCS_INSTALL_TOKEN).' -ForegroundColor Red
+    exit 1
 }
 
 if (-not (Test-Path $RunDir)) { New-Item -ItemType Directory -Force -Path $RunDir | Out-Null }
@@ -238,7 +257,14 @@ try {
     Check "no queda $DataDir" (-not (Test-Path $DataDir)) ''
 
     Step 'P2 install con el .bat de un clic del paquete publicado'
-    & cmd /c "`"$installerBat`" $DeviceId $IngestToken $CollectorPorts" 2>&1 | Select-Object -Last 25 | Write-Host
+    # El token va por entorno del hijo, nunca por argv: %* del .bat queda
+    # reducido a device id y puertos.
+    $env:SCS_INSTALL_TOKEN = $IngestToken
+    try {
+        & cmd /c "`"$installerBat`" $DeviceId $CollectorPorts" 2>&1 | Select-Object -Last 25 | Write-Host
+    } finally {
+        Remove-Item Env:\SCS_INSTALL_TOKEN -ErrorAction SilentlyContinue
+    }
     $rcInstall = $LASTEXITCODE
     Check 'el instalador de un clic devuelve 0' ($rcInstall -eq 0) "rc=$rcInstall"
 
@@ -322,7 +348,12 @@ try {
     Check 'no quedan residuos en Program Files ni ProgramData' ($null -eq $resid -or $resid.Count -eq 0) (($resid | ForEach-Object { $_.FullName }) -join ', ')
 
     Step 'P9 reinstall final (un clic) -> dejar RUNNING'
-    & cmd /c "`"$installerBat`" $DeviceId $IngestToken $CollectorPorts" 2>&1 | Select-Object -Last 20 | Write-Host
+    $env:SCS_INSTALL_TOKEN = $IngestToken
+    try {
+        & cmd /c "`"$installerBat`" $DeviceId $CollectorPorts" 2>&1 | Select-Object -Last 20 | Write-Host
+    } finally {
+        Remove-Item Env:\SCS_INSTALL_TOKEN -ErrorAction SilentlyContinue
+    }
     $rcInstall = $LASTEXITCODE
     Check 'el instalador de un clic devuelve 0' ($rcInstall -eq 0) "rc=$rcInstall"
     Start-Sleep 8

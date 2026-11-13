@@ -10,7 +10,13 @@ REM
 REM  Como usarlo: descomprime el ZIP y doble clic en este archivo.
 REM
 REM  Uso opcional (instalacion desatendida):
-REM    instalar-sc-sentinel.bat <device_id> <token> [puertos]
+REM    set SCS_INSTALL_TOKEN=<token>
+REM    instalar-sc-sentinel.bat <device_id> [puertos]
+REM
+REM  El token NO se acepta por linea de comandos -quedaria en la lista de
+REM  procesos del equipo-: se toma de la variable de entorno SCS_INSTALL_TOKEN
+REM  o se pide por teclado sin mostrarlo. Si hay que elevar, el .bat se relanza
+REM  solo con el device id y los puertos, y el proceso elevado pide el token.
 REM
 REM  "puertos" es opcional y son los puertos UDP del colector, separados por
 REM  comas (por defecto 2055,4739). Solo hace falta si el equipo ya tiene otro
@@ -29,10 +35,10 @@ set "PS1=%DIR%install-agent.ps1"
 set "LOG=%TEMP%\sc-sentinel-instalador.log"
 set "PSOUT=%TEMP%\sc-sentinel-instalador-ps.log"
 
-REM Modo desatendido: si vienen los dos datos por linea de comandos, no se
+REM Modo desatendido: device id por argumento y token en el entorno. No se
 REM pide nada por teclado y no se espera una tecla al final (uso en CI).
 set "UNATTENDED=0"
-if not "%~1"=="" if not "%~2"=="" set "UNATTENDED=1"
+if not "%~1"=="" if defined SCS_INSTALL_TOKEN set UNATTENDED=1
 
 echo.
 echo ==========================================================
@@ -72,12 +78,13 @@ if not exist "%PS1%" goto :falta_script
 
 REM --- 3. Pedir los datos del dispositivo ------------------------------------
 set "DEVICE_ID=%~1"
-set "INGEST_TOKEN=%~2"
+REM El token nunca entra por argv: o viene del entorno (uso desatendido/CI) o se
+REM pide por teclado mas abajo.
+set "INGEST_TOKEN=%SCS_INSTALL_TOKEN%"
 REM cmd.exe parte los argumentos por comas y punto y coma, de modo que
 REM "2056,4739" llega como dos argumentos. Se recogen todos los argumentos a
-REM partir del tercero y se unen con comas.
+REM partir del segundo y se unen con comas.
 set "COLLECTOR_PORTS="
-shift
 shift
 :recoger_puertos
 if "%~1"=="" goto :puertos_listos
@@ -108,7 +115,10 @@ goto :salir_error
 :token_paso
 if defined INGEST_TOKEN goto :datos_ok
 echo.
-set /p "INGEST_TOKEN=       Pega el Token - empieza por sc_dev_: "
+echo       Pega el Token - empieza por sc_dev_ - y pulsa Enter.
+echo       Para que no se vea al escribirlo, usa el modo desatendido:
+echo         set SCS_INSTALL_TOKEN=sc_dev_...  ^&^&  instalar-sc-sentinel.bat dev_...
+set /p "INGEST_TOKEN=       Token: "
 if defined INGEST_TOKEN goto :datos_ok
 >> "%LOG%" echo [%date% %time%] ERROR: sin token
 echo.
@@ -117,7 +127,9 @@ echo.
 goto :salir_error
 
 :datos_ok
->> "%LOG%" echo [%date% %time%] paso-datos-ok device_id=%DEVICE_ID%
+set "TOKEN_ORIGEN=teclado"
+if defined SCS_INSTALL_TOKEN set "TOKEN_ORIGEN=entorno"
+>> "%LOG%" echo [%date% %time%] paso-datos-ok device_id=%DEVICE_ID% token_origen=%TOKEN_ORIGEN%
 
 REM --- 4. Instalar -----------------------------------------------------------
 echo.
@@ -136,6 +148,8 @@ if not defined SCS_INSTALL_PORTS set "SCS_INSTALL_PORTS=2055,4739"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "& $env:SCS_INSTALL_PS1 -DeviceId $env:SCS_INSTALL_DEVICE_ID -IngestToken $env:SCS_INSTALL_TOKEN -BinaryPath $env:SCS_INSTALL_BIN -CollectorPorts ($env:SCS_INSTALL_PORTS -split ',')" > "%PSOUT%" 2>&1
 set "RC=%ERRORLEVEL%"
 set "SCS_INSTALL_TOKEN="
+set "INGEST_TOKEN="
+set "TOKEN_ORIGEN="
 >> "%LOG%" echo [%date% %time%] paso-instalado rc=%RC%
 if not "%RC%"=="0" goto :error_instalacion
 

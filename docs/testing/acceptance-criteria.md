@@ -341,13 +341,15 @@ Hecha sobre el **ZIP descargado de la release v0.1.3**, no sobre el binario loca
 > El script ya está **versionado** en el repo: `scripts/verify-m5-cycle.ps1`
 > (10 etapas P0..P9, todo con los `.bat` de un clic del ZIP publicado). Antes
 > vivía solo en `%TEMP%\m4-chr\run\m5-verify2.ps1`; se trajo al repo para que
-> el procedimiento no dependa de un directorio temporal, con el token, el device
-> id y las rutas como parámetros. Se auto-eleva, así que basta con lanzarlo y
-> **aceptar el aviso de UAC**:
+> el procedimiento no dependa de un directorio temporal, con el device id y las
+> rutas como parámetros. Se auto-eleva, así que basta con lanzarlo y **aceptar el
+> aviso de UAC**; ya elevado pide el token con `Read-Host -AsSecureString` (o lo
+> toma de `SCS_INSTALL_TOKEN` y la borra). El token no viaja por argumentos ni
+> queda en el transcript:
 >
 > ```powershell
 > powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\verify-m5-cycle.ps1 `
->   -PackageDir <carpeta del ZIP extraido> -DeviceId <device> -IngestToken <token>
+>   -PackageDir <carpeta del ZIP extraido> -DeviceId <device>
 > ```
 >
 > Sin ejecutar nada, valida el paquete y muestra el plan:
