@@ -26,8 +26,6 @@ El enrollment del dashboard solo crea el device y devuelve su token: **no toca l
 
 Devuelve `0` solo si el backend aceptó una ventana. Un `1` con `401/403` en el log significa que el token no pertenece a ese `device_id`, está rotado o el device se eliminó. Los batches que quedaron retenidos en el spool se reasignan al device nuevo (`rebase_device_id`) y se drenan solos.
 
-Si el servicio se instaló con `--interface` (captura live), el script lo pasa a modo colector (`--config` + `--no-capture`), que es lo que exige `verify-agent.ps1` y la fuente exclusiva por segmento. Para conservar la captura live: `-KeepCapture`.
-
 ## 1. Instalación
 
 Hay dos vías equivalentes. La **1.1** es la recomendada para un equipo sin acceso al repo y para usuarios sin conocimientos de informática.

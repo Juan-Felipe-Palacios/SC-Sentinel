@@ -14,10 +14,6 @@
        service (HKLM\\SYSTEM\\CurrentControlSet\\Services\\<service>), como
        REG_MULTI_SZ y conservando el resto de variables (SC_GEOIP_DB, ...).
        El token no se imprime nunca: solo su longitud.
-    3b. Normaliza el binPath a modo colector (--config + --no-capture) si el
-       service se instaló con --interface. Un servicio con captura live y
-       colector a la vez usa dos fuentes sobre el mismo segmento; -KeepCapture
-       desactiva esta normalización.
     4. Arranca el service y espera a Running.
     5. Vigila agent.log: exige al menos una ventana confirmada por el backend
        (evento sync_confirmed, solo lo produce un 2xx) y ninguna señal de
@@ -46,12 +42,6 @@
   No vigila el log. Solo se usa para diagnóstico; el resultado NO acredita que
   el device publique.
 
-.PARAMETER KeepCapture
-  No toca el binPath: conserva la captura live (--interface) tal cual. Por
-  defecto el service queda en modo colector (--config + --no-capture), que es
-  lo que exige `scripts/verify-agent.ps1` y la fuente exclusiva por segmento
-  (docs/testing/pcap-vs-flow.md §7).
-
 .EXAMPLE
   # Consola de PowerShell ejecutada como administrador
   .\\scripts\\re-enroll-device.ps1 -DeviceId dev_m5svc -IngestToken 'sc_dev_...'
@@ -73,9 +63,7 @@ param(
 
     [int]$TimeoutSeconds = 100,
 
-    [switch]$SkipVerification,
-
-    [switch]$KeepCapture
+    [switch]$SkipVerification
 )
 
 Set-StrictMode -Version Latest
@@ -187,43 +175,6 @@ if (Test-Path $LogPath) {
         $script:LogOffset = (Get-Item -Path $LogPath).Length
     } catch {
         $script:LogOffset = 0
-    }
-}
-
-# --- 3b. Modo del service (colector) -------------------------------------
-# `verify-agent.ps1` exige `--config` + `--no-capture`. Un service instalado
-# con `--interface` captura en vivo y ademas escucha el colector: dos fuentes
-# sobre el mismo segmento (docs/testing/pcap-vs-flow.md §7). Se normaliza para
-# que el re-enrolamiento deje el service como lo espera el verificador.
-if (-not $KeepCapture) {
-    Write-Step 'Comprobando el modo del service (colector)'
-
-    $imagePath = $null
-    try { $imagePath = (Get-ItemProperty -Path $ServiceRegPath -Name 'ImagePath' -ErrorAction Stop).ImagePath } catch { $imagePath = $null }
-    $exe = $null
-    if ($imagePath -match '^\s*"?([^"]+?\.exe)"?(\s|$)') { $exe = $Matches[1] }
-
-    if ($exe) {
-        $configArg = $ConfigFile
-        if ($imagePath -match '--config\s+"([^"]+)"') { $configArg = $Matches[1] }
-        elseif ($imagePath -match '--config\s+(\S+)') { $configArg = $Matches[1] }
-
-        $desired = '"{0}" --config "{1}" --no-capture' -f $exe, $configArg
-        if ($imagePath.Trim() -ne $desired) {
-            New-ItemProperty -Path $ServiceRegPath -Name 'ImagePath' -Value $desired -PropertyType ExpandString -Force | Out-Null
-            $readBack = (Get-ItemProperty -Path $ServiceRegPath -Name 'ImagePath').ImagePath
-            if ($readBack.Trim() -ne $desired) {
-                Fail 'no se pudo normalizar el binPath del service.'
-            }
-            if ($imagePath -match '--interface') {
-                Write-Warn2 'se quitó --interface: captura live desactivada (fuente exclusiva: colector).'
-            }
-            Write-Ok ('binPath en modo colector: --config "{0}" --no-capture' -f $configArg)
-        } else {
-            Write-Ok 'binPath ya en modo colector (--config + --no-capture)'
-        }
-    } else {
-        Write-Warn2 'no se pudo leer el binPath del service; se deja como estaba.'
     }
 }
 

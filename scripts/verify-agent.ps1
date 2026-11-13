@@ -208,9 +208,16 @@ if ($Service) {
       "Acciones de recovery incompletas: $($qfail.Trim())"
 
     $binPath = (sc.exe qc 'SC-Sentinel-Agent' 2>&1 | Out-String)
-    Test-Expect ($binPath -match '--config' -and $binPath -match '--no-capture') `
-      'binPath con --config y --no-capture (modo colector)' `
-      'El binPath no lleva --config / --no-capture'
+    # Dos modos soportados: colector (`--no-capture`, el del instalador) y
+    # captura live (`--interface`, via scripts/enable-live-capture.ps1). Exigir
+    # solo `--no-capture` marcaba como fallo una instalacion live deliberada.
+    $hasConfig = [bool]($binPath -match '--config')
+    $hasNoCapture = [bool]($binPath -match '--no-capture')
+    $hasInterface = [bool]($binPath -match '--interface')
+    $modeText = if ($hasInterface) { 'binPath con --config y --interface (captura live)' } else { 'binPath con --config y --no-capture (modo colector)' }
+    Test-Expect ($hasConfig -and ($hasNoCapture -or $hasInterface)) `
+      $modeText `
+      'El binPath no lleva --config, ni --no-capture, ni --interface'
 
     # El Environment es una PROPIEDAD de la clave del servicio (REG_MULTI_SZ),
     # no una subclave.
