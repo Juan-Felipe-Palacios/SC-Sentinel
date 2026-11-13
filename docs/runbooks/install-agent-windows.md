@@ -15,6 +15,17 @@ Npcap **solo** si además se va a usar captura en vivo; el servicio arranca en m
 
 > El `device_id` y el token deben **corresponder**: si el `device.id` del payload no es el dueño del token, `/api/ingest` responde `403`.
 
+### 0.1 Re-enrolar un servicio ya instalado
+
+El enrollment del dashboard solo crea el device y devuelve su token: **no toca la máquina**. Para que un servicio ya instalado deje de responder `401/403` hay que sustituir el par `device_id` + token del `Environment` del servicio. Eso lo hace `scripts/re-enroll-device.ps1` (detiene con drenaje, escribe las dos claves conservando `SC_GEOIP_DB`, arranca y exige al menos un `sync_confirmed` en `agent.log`):
+
+```powershell
+# PowerShell como administrador, en la raíz del repo
+.\scripts\re-enroll-device.ps1 -DeviceId dev_… -IngestToken 'sc_dev_…'
+```
+
+Devuelve `0` solo si el backend aceptó una ventana. Un `1` con `401/403` en el log significa que el token no pertenece a ese `device_id`, está rotado o el device se eliminó. Los batches que quedaron retenidos en el spool se reasignan al device nuevo (`rebase_device_id`) y se drenan solos.
+
 ## 1. Instalación
 
 Hay dos vías equivalentes. La **1.1** es la recomendada para un equipo sin acceso al repo y para usuarios sin conocimientos de informática.
@@ -204,7 +215,7 @@ El manual equivale a: `sc.exe stop` + `sc.exe delete` + borrar key `HKLM\...\Ser
 | El servicio arranca y muere con exit 2 sin escribir log | el `binPath` no incluye `--no-capture` ni el agente no encuentra su config | el servicio usa `--config` explícito o, por defecto, `C:\ProgramData\SC-Sentinel\config\config.toml`; sin fuente de captura arranca en modo collector-only |
 | Log vacío | binario anterior sin soporte SCM o `log.file` sin permisos | `icacls` logs para SYSTEM + Administrators (control total) y actualizar binario |
 | `sync` siempre fallando: `401` | token no llegó al Environment del servicio | re-crear con el paso de token (0/§1) y `sc.exe stop/start` |
-| `sync` siempre fallando: `403` | el `device_id` no es el dueño del token | reenrolar el dispositivo y reinstalar con el par `device_id` + token correcto (§0) |
+| `sync` siempre fallando: `403` | el `device_id` no es el dueño del token | re-enrolar con el par correcto sin reinstalar: `scripts/re-enroll-device.ps1` (§0.1) |
 | El colector no recibe exportadores | firewall UDP 2055/4739 | regla inbound + revisar `[collector] enabled = true` en config |
 | En log: `source_overlap` | captura pcap vivo + colector a la vez en el mismo segmento | cf. docs/testing/pcap-vs-flow.md §7: elegir UNA fuente por segmento (`--no-capture` o `--no-collector`) |
 | El instalador dice «no se encuentra `sc-sentinel-agent.exe`» | se descomprimió solo una parte del ZIP | descomprimir el ZIP completo en una carpeta y volver a ejecutar |
