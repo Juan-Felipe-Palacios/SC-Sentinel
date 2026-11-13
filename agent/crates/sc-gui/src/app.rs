@@ -306,6 +306,22 @@ impl GuiApp {
                     theme::level_label(self.level),
                     theme::level_color(self.level),
                 );
+                // Con derecha-a-izquierda el chip queda pegado al borde y el
+                // uptime a su izquierda. Un agente antiguo no envía el campo:
+                // no se dibuja nada, ni un guion.
+                if let Some(uptime) = header_uptime_label(
+                    self.snapshot
+                        .as_ref()
+                        .and_then(|snapshot| snapshot.uptime_seconds),
+                ) {
+                    ui.add_space(theme::GAP_SMALL);
+                    ui.label(
+                        RichText::new(uptime)
+                            .color(theme::MUTED)
+                            .size(theme::SMALL_SIZE),
+                    )
+                    .on_hover_text("Desde el arranque del proceso");
+                }
             });
         });
         ui.add_space(theme::GAP_SMALL);
@@ -1187,6 +1203,11 @@ fn window_time(summary: &WindowSummary) -> String {
 }
 
 /// Duración legible para el uptime: «1 h 22 m», «12 min», «45 s».
+/// Texto corto del uptime para la cabecera; `None` si el agente no lo envía.
+fn header_uptime_label(seconds: Option<u64>) -> Option<String> {
+    seconds.map(|secs| format!("uptime {}", human_uptime(secs)))
+}
+
 /// Hora local de una ventana publicada por `/status` (RFC 3339).
 fn window_time_at(raw: Option<&str>) -> String {
     raw.and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
@@ -1302,10 +1323,23 @@ impl eframe::App for GuiApp {
 
 #[cfg(test)]
 mod tests {
-    use super::{balloon_fallback_for, human_uptime};
+    use super::{balloon_fallback_for, header_uptime_label, human_uptime};
 
     fn message() -> (String, String) {
         ("Título".to_string(), "Cuerpo".to_string())
+    }
+
+    #[test]
+    fn la_cabecera_solo_muestra_uptime_si_el_agente_lo_manda() {
+        assert_eq!(header_uptime_label(None), None);
+        assert_eq!(
+            header_uptime_label(Some(4920)),
+            Some("uptime 1 h 22 m".to_string())
+        );
+        assert_eq!(
+            header_uptime_label(Some(45)),
+            Some("uptime 45 s".to_string())
+        );
     }
 
     #[test]
