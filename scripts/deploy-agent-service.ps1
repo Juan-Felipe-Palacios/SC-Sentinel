@@ -85,11 +85,18 @@ function Wait-ServiceState([string]$want, [int]$seconds) {
     return "$state"
 }
 
-function Wait-SpoolDrained([int]$seconds) {
+function Wait-SpoolDrained([datetime]$sinceUtc, [int]$seconds) {
+    # Solo vale la linea escrita por ESTA parada: el log conserva las de paradas
+    # anteriores y aceptar una vieja daria el drenaje por bueno sin comprobarlo.
+    # Se recorre de la mas nueva a la mas vieja.
     $deadline = (Get-Date).AddSeconds($seconds)
     do {
-        foreach ($line in (Get-LogTail 40)) {
-            if ($line -match 'spool_flushed' -and $line -match 'pending=0') { return $line }
+        $lines = Get-LogTail 60
+        for ($i = $lines.Count - 1; $i -ge 0; $i--) {
+            $line = $lines[$i]
+            if ($line -notmatch 'spool_flushed' -or $line -notmatch 'pending=0') { continue }
+            $stamp = Get-LineStamp $line
+            if ($stamp -and $stamp -ge $sinceUtc) { return $line }
         }
         Start-Sleep -Milliseconds 500
     } while ((Get-Date) -lt $deadline)
@@ -248,7 +255,7 @@ if ($DryRun) {
             Write-Host "PASO 3 parada con drenaje (tope ${StopTimeoutSec}s)"
             Write-Host "  sc stop $Service; esperaria Stopped y 'spool_flushed pending=0'"
             Write-Host '  si falla -> ABORTA (15): el servicio no paro a tiempo'
-            Write-Host '  si falla -> ABORTA (16): el drenaje no confirmo pending=0'
+            Write-Host '  si falla -> ABORTA (16): el drenaje no confirmo pending=0 en ESTA parada (una linea vieja del log no cuenta)'
 
             Write-Host "PASO 4 copia, verificacion y arranque"
             Write-Host "  copiaria a $Target y exigiria sha=$shaSource"
@@ -282,7 +289,7 @@ if ($DryRun) {
                 Write-Host "PASO 3 parada con drenaje (tope ${StopTimeoutSec}s)"
                 Write-Host "  sc stop $Service; esperaria Stopped y 'spool_flushed pending=0'"
                 Write-Host '  si falla -> ABORTA (15): el servicio no paro a tiempo'
-                Write-Host '  si falla -> ABORTA (16): el drenaje no confirmo pending=0'
+                Write-Host '  si falla -> ABORTA (16): el drenaje no confirmo pending=0 en ESTA parada (una linea vieja del log no cuenta)'
 
                 Write-Host "PASO 4 restauracion, verificacion y arranque"
                 Write-Host "  copiaria el .bak a $Target y exigiria sha=$shaBak"
@@ -424,6 +431,7 @@ Write-Host "sha antes  : $shaInstalled ($bytesInstalled bytes)"
 Write-Host "sha destino: $shaTarget ($bytesTarget bytes)"
 
 # Paso 3: parada con drenaje.
+$stopUtc = (Get-Date).ToUniversalTime()
 sc.exe stop $Service | Out-Null
 $state = Wait-ServiceState 'Stopped' $StopTimeoutSec
 if ($state -ne 'Stopped') {
@@ -431,7 +439,7 @@ if ($state -ne 'Stopped') {
     Show-State
     exit 15
 }
-$drain = Wait-SpoolDrained 15
+$drain = Wait-SpoolDrained $stopUtc 15
 if (-not $drain) {
     Write-Host 'ABORTA (16): el drenaje no confirmo spool_flushed pending=0; no se copio nada'
     Show-State
