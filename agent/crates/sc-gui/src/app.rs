@@ -102,7 +102,8 @@ impl GuiApp {
                 .map(|window| window.packets_seen)
                 .collect()
         } else {
-            self.history.points()
+            // El acumulado de `/status` es monótono: se pinta el ritmo por sondeo.
+            self.history.deltas()
         }
     }
 
@@ -521,12 +522,12 @@ impl GuiApp {
             let points = self.sparkline_points();
             let from_spool = self.spool_windows.len() >= 2;
             let source = if from_spool {
-                "spool del agente"
+                "Vistos por ventana · spool del agente"
             } else {
-                "memoria (spool no legible)"
+                "Vistos entre sondeos · memoria (spool no legible)"
             };
             ui.label(
-                RichText::new(format!("Vistos por ventana · {source}"))
+                RichText::new(source)
                     .color(theme::MUTED)
                     .size(theme::LABEL_SIZE),
             );
@@ -976,6 +977,15 @@ fn sparkline(ui: &mut egui::Ui, values: &[u64]) {
         })
         .collect();
 
+    // Relleno bajo la línea, como en el diseño: da volumen sin ejes falsos.
+    let mut area = points.clone();
+    area.push(egui::pos2(inner.right(), inner.bottom()));
+    area.push(egui::pos2(inner.left(), inner.bottom()));
+    painter.add(egui::Shape::convex_polygon(
+        area,
+        theme::CYAN.gamma_multiply(theme::SPARKLINE_FILL_ALPHA),
+        egui::Stroke::NONE,
+    ));
     painter.add(egui::Shape::line(
         points,
         egui::Stroke::new(theme::SPARKLINE_LINE, theme::CYAN),
@@ -984,6 +994,13 @@ fn sparkline(ui: &mut egui::Ui, values: &[u64]) {
         egui::pos2(inner.left(), inner.top()),
         egui::Align2::LEFT_TOP,
         format!("máx {max:.0}"),
+        egui::FontId::proportional(theme::SPARKLINE_AXIS_SIZE),
+        theme::MUTED,
+    );
+    painter.text(
+        egui::pos2(inner.left(), inner.bottom() - 2.0),
+        egui::Align2::LEFT_BOTTOM,
+        "0".to_string(),
         egui::FontId::proportional(theme::SPARKLINE_AXIS_SIZE),
         theme::MUTED,
     );

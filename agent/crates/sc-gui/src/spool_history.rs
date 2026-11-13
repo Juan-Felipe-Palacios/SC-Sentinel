@@ -108,8 +108,28 @@ impl PacketHistory {
         self.points.push_back(packets_seen);
     }
 
+    /// Acumulados tal cual se guardaron; solo lo usan los tests.
+    #[cfg(test)]
     pub fn points(&self) -> Vec<u64> {
         self.points.iter().copied().collect()
+    }
+
+    /// Paquetes nuevos entre sondeos consecutivos.
+    ///
+    /// El ring-buffer guarda el acumulado de `/status`, que solo crece: pintarlo
+    /// tal cual sale como una línea plana pegada al techo. Los deltas sí
+    /// muestran el ritmo real entre sondeos, que es lo comparable con las
+    /// ventanas del spool.
+    pub fn deltas(&self) -> Vec<u64> {
+        let mut deltas = Vec::with_capacity(self.points.len().saturating_sub(1));
+        let mut previous: Option<u64> = None;
+        for value in &self.points {
+            if let Some(last) = previous {
+                deltas.push(value.saturating_sub(last));
+            }
+            previous = Some(*value);
+        }
+        deltas
     }
 }
 
@@ -120,6 +140,25 @@ mod tests {
     use flate2::Compression;
     use rusqlite::Connection;
     use std::io::Write;
+
+    #[test]
+    fn los_deltas_reflejan_el_ritmo_entre_sondeos() {
+        let mut history = PacketHistory::default();
+        for seen in [100, 140, 140, 260] {
+            history.push(seen);
+        }
+        // 140 repetido no añade punto: dos deltas, no tres.
+        assert_eq!(history.deltas(), vec![40, 120]);
+    }
+
+    #[test]
+    fn un_contador_que_se_reinicia_no_resta() {
+        let mut history = PacketHistory::default();
+        for seen in [500, 900, 30] {
+            history.push(seen);
+        }
+        assert_eq!(history.deltas(), vec![400, 0]);
+    }
 
     fn gzip(json: &str) -> Vec<u8> {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());

@@ -83,6 +83,8 @@ pub const SPARKLINE_RADIUS: f32 = 6.0;
 pub const SPARKLINE_LABEL_SIZE: f32 = 12.0;
 pub const SPARKLINE_PADDING: f32 = 8.0;
 pub const SPARKLINE_LINE: f32 = 1.5;
+/// Opacidad del relleno bajo la línea (0..1, multiplicada sobre el acento).
+pub const SPARKLINE_FILL_ALPHA: f32 = 0.16;
 pub const SPARKLINE_AXIS_SIZE: f32 = 10.0;
 
 const ITEM_SPACING_X: f32 = 8.0;
