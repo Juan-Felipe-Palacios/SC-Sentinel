@@ -32,6 +32,26 @@ fn apply_enroll_payload() -> Option<std::path::PathBuf> {
     None
 }
 
+/// `--balloon-test "Título" "Mensaje"`: dispara un globo al arrancar la GUI,
+/// sin tocar el servicio ni el enrolamiento.
+fn balloon_test_args() -> Option<(String, String)> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    parse_balloon_test(&args)
+}
+
+fn parse_balloon_test(args: &[String]) -> Option<(String, String)> {
+    let index = args.iter().position(|arg| arg == "--balloon-test")?;
+    let title = args
+        .get(index + 1)
+        .cloned()
+        .unwrap_or_else(|| "SC-Sentinel".to_string());
+    let body = args
+        .get(index + 2)
+        .cloned()
+        .unwrap_or_else(|| "Prueba de globo de la bandeja.".to_string());
+    Some((title, body))
+}
+
 /// La GUI no puede leer la consola del proceso elevado: deja el resultado al
 /// lado del payload para que la ventana (o un operador) lo consulte.
 fn write_enroll_result(payload: &std::path::Path, ok: bool, message: &str) {
@@ -56,9 +76,45 @@ fn main() -> eframe::Result<()> {
         ..Default::default()
     };
 
+    let balloon_test = balloon_test_args();
     eframe::run_native(
         "SC-Sentinel",
         options,
-        Box::new(|cc| Box::new(GuiApp::new(cc))),
+        Box::new(move |cc| Box::new(GuiApp::new(cc, balloon_test))),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_balloon_test;
+
+    #[test]
+    fn balloon_test_lee_titulo_y_mensaje() {
+        let args = vec![
+            "--balloon-test".to_string(),
+            "Título".to_string(),
+            "Mensaje".to_string(),
+        ];
+        assert_eq!(
+            parse_balloon_test(&args),
+            Some(("Título".to_string(), "Mensaje".to_string()))
+        );
+    }
+
+    #[test]
+    fn balloon_test_sin_texto_usa_defaults() {
+        let args = vec!["--balloon-test".to_string()];
+        assert_eq!(
+            parse_balloon_test(&args),
+            Some((
+                "SC-Sentinel".to_string(),
+                "Prueba de globo de la bandeja.".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn sin_el_flag_no_hay_prueba() {
+        assert_eq!(parse_balloon_test(&["--apply-enroll".to_string()]), None);
+    }
 }

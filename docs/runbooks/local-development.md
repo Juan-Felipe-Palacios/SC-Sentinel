@@ -195,3 +195,10 @@ de RUNTIME, no de sintaxis**, y la validación sintáctica da un falso "todo bie
    reporta `PossibleIncorrectComparisonWithNull` y similares, pero **no** este
    caso: sigue haciendo falta ejecutar).
 
+### 7.4 Un comando elevado largo falla con «never reported back»
+
+**Regla:** los comandos elevados largos (UAC, SCM, registro) van en un `.ps1`
+en disco y se lanzan con `Start-Process -Verb RunAs -Wait`; la salida se
+redirige a un log y el código de salida a un fichero. En línea, las comillas y
+redirecciones anidadas hacen que el wrapper no devuelva nunca el resultado.
+

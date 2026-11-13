@@ -48,10 +48,12 @@ pub struct GuiApp {
     /// Momento en que se pulsó «Aplicar»: el sync que cuenta debe ser posterior.
     enroll_applied: Option<chrono::DateTime<chrono::Utc>>,
     enroll_message: Option<String>,
+    /// Prueba de globo pedida con `--balloon-test`: (título, cuerpo, cuándo).
+    pending_balloon: Option<(String, String, Instant)>,
 }
 
 impl GuiApp {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, balloon_test: Option<(String, String)>) -> Self {
         theme::apply(&cc.egui_ctx);
         let tray = match Tray::new("SC-Sentinel") {
             Ok(tray) => Some(tray),
@@ -80,6 +82,8 @@ impl GuiApp {
             enroll_token_saved: false,
             enroll_applied: None,
             enroll_message: None,
+            pending_balloon: balloon_test
+                .map(|(title, body)| (title, body, Instant::now() + Duration::from_secs(2))),
         }
     }
 
@@ -94,6 +98,18 @@ impl GuiApp {
 
     /// Drena el poller, refresca el SCM y recalcula el semáforo.
     fn refresh(&mut self) {
+        // `--balloon-test`: se espera a que la ventana y la bandeja existan.
+        let balloon_due = self
+            .pending_balloon
+            .as_ref()
+            .map(|(_, _, at)| Instant::now() >= *at)
+            .unwrap_or(false);
+        if balloon_due {
+            if let Some((title, body, _)) = self.pending_balloon.take() {
+                tray_balloon::info(&title, &body);
+            }
+        }
+
         if let Some(result) = self.poller.try_latest() {
             if result.is_some() {
                 self.last_poll_ok = Some(Instant::now());
@@ -242,7 +258,34 @@ impl GuiApp {
             None => "Agente sin respuesta en /status".to_string(),
         };
         ui.label(RichText::new(agent).color(theme::MUTED).size(12.0));
+        if let Some((title, body)) = self.balloon_fallback() {
+            ui.add_space(6.0);
+            egui::Frame::none()
+                .fill(theme::PANEL)
+                .stroke(egui::Stroke::new(1.0_f32, theme::ORANGE))
+                .rounding(egui::Rounding::same(6.0))
+                .inner_margin(8.0)
+                .show(ui, |ui| {
+                    ui.label(
+                        RichText::new(title)
+                            .color(theme::ORANGE)
+                            .strong()
+                            .size(12.0),
+                    );
+                    ui.label(RichText::new(body).color(theme::TEXT).size(12.0));
+                });
+        }
         ui.add_space(6.0);
+    }
+
+    /// Banner de cabecera cuando el globo no es una vía fiable: Windows
+    /// rechazó `NIM_ADD` o el usuario desactivó las notificaciones.
+    fn balloon_fallback(&self) -> Option<(String, String)> {
+        balloon_fallback_for(
+            self.toast_enabled,
+            tray_balloon::last_add_failed(),
+            tray_balloon::last_message(),
+        )
     }
 
     fn status_panel(&self, ui: &mut egui::Ui) {
@@ -550,6 +593,24 @@ impl GuiApp {
     }
 }
 
+/// Decide si la cabecera debe mostrar el banner de respaldo. Es una función
+/// pura para poder probar los dos motivos sin tocar el registro ni la bandeja.
+fn balloon_fallback_for(
+    toast_enabled: Option<bool>,
+    add_failed: bool,
+    last: Option<(String, String)>,
+) -> Option<(String, String)> {
+    if toast_enabled != Some(false) && !add_failed {
+        return None;
+    }
+    Some(last.unwrap_or_else(|| {
+        (
+            "Avisos de Windows no disponibles".to_string(),
+            "Los avisos de la bandeja se muestran en esta cabecera.".to_string(),
+        )
+    }))
+}
+
 /// Sparkline sin dependencias extra: polilínea escalada al máximo del tramo.
 fn sparkline(ui: &mut egui::Ui, values: &[u64]) {
     let height = 90.0;
@@ -723,5 +784,42 @@ impl eframe::App for GuiApp {
 
         // La bandeja responde a 4 Hz y el poller es de 1 Hz: mismo repintado.
         ctx.request_repaint_after(Duration::from_millis(250));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::balloon_fallback_for;
+
+    fn message() -> (String, String) {
+        ("Título".to_string(), "Cuerpo".to_string())
+    }
+
+    #[test]
+    fn sin_fallo_ni_desactivacion_no_hay_banner() {
+        assert_eq!(
+            balloon_fallback_for(Some(true), false, Some(message())),
+            None
+        );
+        assert_eq!(balloon_fallback_for(None, false, None), None);
+    }
+
+    #[test]
+    fn banner_aparece_si_las_notificaciones_estan_desactivadas() {
+        let fallback = balloon_fallback_for(Some(false), false, Some(message())).unwrap();
+        assert_eq!(fallback, message());
+    }
+
+    #[test]
+    fn banner_aparece_si_nim_add_fallo() {
+        let fallback = balloon_fallback_for(Some(true), true, Some(message())).unwrap();
+        assert_eq!(fallback, message());
+    }
+
+    #[test]
+    fn banner_usa_el_mensaje_generico_sin_ultimo_aviso() {
+        let (title, body) = balloon_fallback_for(Some(false), false, None).unwrap();
+        assert!(title.contains("Avisos de Windows"));
+        assert!(body.contains("cabecera"));
     }
 }

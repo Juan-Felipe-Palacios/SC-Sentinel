@@ -12,6 +12,17 @@
 //! (identidad y `hWnd` privados), por eso el aviso usa un icono propio en vez
 //! de reutilizar el de la bandeja.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, OnceLock};
+
+/// Último aviso enviado (título, cuerpo). El banner de cabecera lo reutiliza
+/// cuando Windows no dibuja el globo.
+static LAST_MESSAGE: OnceLock<Mutex<Option<(String, String)>>> = OnceLock::new();
+
+/// `true` cuando el último `NIM_ADD` devolvió FALSE. El banner de cabecera lo
+/// consulta como fallback (el globo corre en otro hilo y puede fallar tarde).
+static LAST_ADD_FAILED: AtomicBool = AtomicBool::new(false);
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum BalloonKind {
     Info,
@@ -26,6 +37,19 @@ pub fn warning(title: &str, body: &str) {
     show(BalloonKind::Warning, title, body);
 }
 
+/// Último aviso enviado, aunque el globo se haya dibujado bien.
+pub fn last_message() -> Option<(String, String)> {
+    last_message_slot()
+        .lock()
+        .ok()
+        .and_then(|slot| slot.clone())
+}
+
+/// `true` si Windows rechazó el último globo (`Shell_NotifyIconW` = FALSE).
+pub fn last_add_failed() -> bool {
+    LAST_ADD_FAILED.load(Ordering::Relaxed)
+}
+
 /// `true`/`false` = `ToastEnabled` de Windows; `None` = valor ausente o
 /// ilegible. En Windows 11 la clave puede no existir aunque los avisos estén
 /// activos, así que `None` no se trata como desactivado.
@@ -33,9 +57,16 @@ pub fn windows_notifications_enabled() -> Option<bool> {
     platform::toast_enabled()
 }
 
+fn last_message_slot() -> &'static Mutex<Option<(String, String)>> {
+    LAST_MESSAGE.get_or_init(|| Mutex::new(None))
+}
+
 fn show(kind: BalloonKind, title: &str, body: &str) {
     let title = title.to_string();
     let body = body.to_string();
+    if let Ok(mut slot) = last_message_slot().lock() {
+        *slot = Some((title.clone(), body.clone()));
+    }
     // Best-effort: si no se puede crear el hilo, el estado sigue visible en la
     // ventana y en el tooltip del icono.
     let _ = std::thread::Builder::new()
@@ -206,9 +237,11 @@ mod platform {
             "event=Shell_NotifyIconW op=NIM_ADD ret={added} last_error={add_error}"
         ));
         if added == 0 {
+            super::LAST_ADD_FAILED.store(true, std::sync::atomic::Ordering::Relaxed);
             DestroyWindow(hwnd);
             return;
         }
+        super::LAST_ADD_FAILED.store(false, std::sync::atomic::Ordering::Relaxed);
 
         // Bomba de mensajes acotada: el shell entrega aquí los eventos del globo.
         let deadline = Instant::now() + BALLOON_LIFETIME;
