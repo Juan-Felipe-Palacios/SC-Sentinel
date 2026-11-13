@@ -449,12 +449,30 @@ impl GuiApp {
                     .size(13.0),
             );
         } else {
-            ui.add(
-                egui::TextEdit::singleline(&mut self.enroll_token)
-                    .hint_text("sc_dev_…")
-                    .password(true)
-                    .desired_width(420.0),
-            );
+            ui.horizontal(|ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.enroll_token)
+                        .hint_text("sc_dev_…")
+                        .password(true)
+                        .desired_width(340.0),
+                );
+                if ui
+                    .button("Pegar")
+                    .on_hover_text("Pega el token completo desde el portapapeles")
+                    .clicked()
+                {
+                    match arboard::Clipboard::new().and_then(|mut clipboard| clipboard.get_text()) {
+                        Ok(text) => {
+                            self.enroll_token = enroll::normalize_pasted_token(&text);
+                            self.enroll_message = None;
+                        }
+                        Err(error) => {
+                            self.enroll_message =
+                                Some(format!("No se pudo leer el portapapeles: {error}"));
+                        }
+                    }
+                }
+            });
             if let Some(error) = token_error.as_deref() {
                 ui.label(RichText::new(error).color(theme::RED).size(11.0));
             }

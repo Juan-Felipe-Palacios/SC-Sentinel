@@ -26,6 +26,8 @@ chrono = { workspace = true }
 # F4: lectura READ-ONLY del spool SQLite del agente + descompresión del payload.
 rusqlite = { version = "0.41", features = ["bundled"] }
 flate2 = "1.0"
+# F4: botón Pegar del wizard de enrolamiento (solo texto, sin imágenes).
+arboard = { version = "3.4", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 # Estado real del servicio por SCM (nunca parseando `sc.exe`).

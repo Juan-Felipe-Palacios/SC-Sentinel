@@ -51,6 +51,13 @@ pub fn validate_token(raw: &str) -> Result<String, String> {
     Ok(value.to_string())
 }
 
+/// Texto pegado del portapapeles: solo se recorta el espacio exterior. El
+/// contenido se conserva íntegro para que la validación decida; nunca se
+/// trunca ni se reescribe.
+pub fn normalize_pasted_token(raw: &str) -> String {
+    raw.trim().to_string()
+}
+
 /// `sc_dev_…4f21`: suficiente para reconocerlo sin exponerlo.
 pub fn mask_token(raw: &str) -> String {
     let value = raw.trim();
@@ -204,6 +211,23 @@ mod tests {
         assert!(masked.starts_with("sc_dev_"));
         assert!(masked.ends_with("15e7"));
         assert!(!masked.contains("00ff3a9c"));
+    }
+
+    #[test]
+    fn acepta_un_token_real_de_43_caracteres() {
+        let token = "sc_dev_b0204a0d-0937-49f2-b2d5-00f5a4805e0e";
+        assert_eq!(token.len(), 43);
+        assert_eq!(validate_token(token).unwrap(), token);
+    }
+
+    #[test]
+    fn el_pegado_no_trunca_un_token_valido() {
+        let token = "sc_dev_b0204a0d-0937-49f2-b2d5-00f5a4805e0e";
+        let pasted = format!("  {token}\r\n");
+        let normalized = normalize_pasted_token(&pasted);
+        assert_eq!(normalized, token);
+        assert_eq!(normalized.len(), 43);
+        assert_eq!(validate_token(&normalized).unwrap(), token);
     }
 
     #[test]

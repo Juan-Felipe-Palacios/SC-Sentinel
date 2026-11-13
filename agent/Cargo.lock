@@ -3435,6 +3435,7 @@ dependencies = [
 name = "sc-gui"
 version = "0.1.4"
 dependencies = [
+ "arboard",
  "chrono",
  "eframe",
  "egui",
