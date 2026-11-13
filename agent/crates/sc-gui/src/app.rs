@@ -94,17 +94,73 @@ impl GuiApp {
         }
     }
 
-    /// Puntos de la sparkline: spool si se pudo leer, ring-buffer si no.
-    fn sparkline_points(&self) -> Vec<u64> {
-        if self.spool_windows.len() >= 2 {
-            self.spool_windows
-                .iter()
-                .map(|window| window.packets_seen)
-                .collect()
-        } else {
-            // El acumulado de `/status` es monótono: se pinta el ritmo por sondeo.
-            self.history.deltas()
+    /// Serie del gráfico y su procedencia: ventanas de `/status` → spool →
+    /// ring-buffer. El último caso va marcado para avisar en pantalla.
+    fn chart_series(&self) -> (Vec<u64>, &'static str, bool) {
+        if let Some(snapshot) = self.snapshot.as_ref() {
+            if snapshot.windows.len() >= 2 {
+                return (
+                    snapshot
+                        .windows
+                        .iter()
+                        .map(|window| window.packets_seen)
+                        .collect(),
+                    "Vistos por ventana · ventanas del agente",
+                    false,
+                );
+            }
         }
+        if self.spool_windows.len() >= 2 {
+            return (
+                self.spool_windows
+                    .iter()
+                    .map(|window| window.packets_seen)
+                    .collect(),
+                "Vistos por ventana · spool del agente",
+                false,
+            );
+        }
+        (
+            // El acumulado de `/status` es monótono: se pinta el ritmo por sondeo.
+            self.history.deltas(),
+            "Vistos entre sondeos · memoria (sin ventanas del agente)",
+            true,
+        )
+    }
+
+    /// Filas de «Últimos resúmenes»: ventanas de `/status` o, si no hay, el spool.
+    fn summary_rows(&self) -> Vec<(String, u64, u64, u64)> {
+        if let Some(snapshot) = self.snapshot.as_ref() {
+            if !snapshot.windows.is_empty() {
+                return snapshot
+                    .windows
+                    .iter()
+                    .rev()
+                    .take(SUMMARY_ROWS)
+                    .map(|window| {
+                        (
+                            window_time_at(window.start_at.as_deref()),
+                            window.packets_seen,
+                            window.packets_dropped,
+                            window.parse_errors,
+                        )
+                    })
+                    .collect();
+            }
+        }
+        self.spool_windows
+            .iter()
+            .rev()
+            .take(SUMMARY_ROWS)
+            .map(|summary| {
+                (
+                    window_time(summary),
+                    summary.packets_seen,
+                    summary.packets_dropped,
+                    summary.parse_errors,
+                )
+            })
+            .collect()
     }
 
     /// Drena el poller, refresca el SCM y recalcula el semáforo.
@@ -540,25 +596,19 @@ impl GuiApp {
 
         ui.add_space(theme::GAP);
         theme::card(ui, "Paquetes por ventana", |ui| {
-            let points = self.sparkline_points();
-            let from_spool = self.spool_windows.len() >= 2;
-            let source = if from_spool {
-                "Vistos por ventana · spool del agente"
-            } else {
-                "Vistos entre sondeos · memoria (spool no legible)"
-            };
+            let (points, source, degraded) = self.chart_series();
             ui.label(
                 RichText::new(source)
                     .color(theme::MUTED)
                     .size(theme::LABEL_SIZE),
             );
             sparkline(ui, &points);
-            if !from_spool {
+            if degraded {
                 ui.add_space(theme::GAP_SMALL);
                 ui.label(
                     RichText::new(
-                        "El spool no es legible: la línea usa el ring-buffer de /status, \
-                         que solo conoce paquetes vistos.",
+                        "El agente no expone ventanas y el spool no es legible: la línea usa \
+                         el ring-buffer de /status, que solo conoce paquetes vistos.",
                     )
                     .color(theme::ORANGE)
                     .size(theme::SMALL_SIZE),
@@ -568,11 +618,12 @@ impl GuiApp {
 
         ui.add_space(theme::GAP);
         theme::card(ui, "Últimos resúmenes", |ui| {
-            if self.spool_windows.is_empty() {
+            let rows = self.summary_rows();
+            if rows.is_empty() {
                 ui.label(
                     RichText::new(
-                        "Sin resúmenes: no se pudo leer el spool del agente. \
-                         La tabla solo muestra datos reales de la base.",
+                        "Sin resúmenes: el agente aún no publicó ventanas y el spool no es \
+                         legible para este usuario.",
                     )
                     .color(theme::MUTED)
                     .size(theme::LABEL_SIZE),
@@ -593,20 +644,20 @@ impl GuiApp {
                         );
                     }
                     ui.end_row();
-                    for summary in self.spool_windows.iter().rev().take(SUMMARY_ROWS) {
+                    for (time, seen, dropped, errors) in rows {
                         ui.label(
-                            RichText::new(window_time(summary))
+                            RichText::new(time)
                                 .color(theme::TEXT)
                                 .size(theme::LABEL_SIZE),
                         );
                         ui.label(
-                            RichText::new(summary.packets_seen.to_string())
+                            RichText::new(seen.to_string())
                                 .color(theme::TEXT)
                                 .size(theme::LABEL_SIZE),
                         );
                         ui.label(
-                            RichText::new(summary.packets_dropped.to_string())
-                                .color(if summary.packets_dropped > 0 {
+                            RichText::new(dropped.to_string())
+                                .color(if dropped > 0 {
                                     theme::ORANGE
                                 } else {
                                     theme::TEXT
@@ -614,12 +665,8 @@ impl GuiApp {
                                 .size(theme::LABEL_SIZE),
                         );
                         ui.label(
-                            RichText::new(summary.parse_errors.to_string())
-                                .color(if summary.parse_errors > 0 {
-                                    theme::RED
-                                } else {
-                                    theme::TEXT
-                                })
+                            RichText::new(errors.to_string())
+                                .color(if errors > 0 { theme::RED } else { theme::TEXT })
                                 .size(theme::LABEL_SIZE),
                         );
                         ui.end_row();
@@ -1140,6 +1187,17 @@ fn window_time(summary: &WindowSummary) -> String {
 }
 
 /// Duración legible para el uptime: «1 h 22 m», «12 min», «45 s».
+/// Hora local de una ventana publicada por `/status` (RFC 3339).
+fn window_time_at(raw: Option<&str>) -> String {
+    raw.and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+        .map(|at| {
+            at.with_timezone(&chrono::Local)
+                .format("%H:%M:%S")
+                .to_string()
+        })
+        .unwrap_or_else(|| "—".to_string())
+}
+
 fn human_uptime(secs: u64) -> String {
     if secs < 60 {
         format!("{secs} s")

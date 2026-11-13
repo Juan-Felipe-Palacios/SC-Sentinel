@@ -16,7 +16,7 @@ use sc_sync::{
     build_envelope, rebase_device_id, Applied, DeviceInfo, IngestClient, Spool, SpoolConfig,
     SyncDecision, Syncer,
 };
-use sc_telemetry::status::{StatusConfig, StatusServer, StatusShared, STATUS_ADDR};
+use sc_telemetry::status::{StatusConfig, StatusServer, StatusShared, WindowStatus, STATUS_ADDR};
 use sc_telemetry::{logging, HealthRegistry};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
@@ -524,6 +524,38 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
         hostname: local_hostname(),
         boot_id: current_boot_id(),
     };
+    // F1: endpoint local para la GUI (127.0.0.1:8387). No lleva autenticación,
+    // así que solo se abre en loopback. Si el puerto está ocupado, el agente
+    // sigue funcionando y la GUI mostrará "Desconectado".
+    // Se crea antes del publicador de ventanas: este es quien alimenta el
+    // historial que `/status` expone a la GUI.
+    let status_shared = StatusShared::new(
+        health.clone(),
+        StatusConfig {
+            agent_version: env!("CARGO_PKG_VERSION").to_string(),
+            device_id: device.id.clone(),
+            mode: if service::is_service() {
+                "service".to_string()
+            } else {
+                "console".to_string()
+            },
+            capture_enabled: !args.no_capture,
+            collector_ports: if config.collector.enabled {
+                config
+                    .collector
+                    .listeners
+                    .iter()
+                    .map(|listener| listener.port)
+                    .collect()
+            } else {
+                Vec::new()
+            },
+            geo_loaded,
+            // La interfaz que el agente ya usa para capturar: no se relee del
+            // binPath del SCM, que puede estar editado a mano.
+            interface: args.interface.clone(),
+        },
+    );
     let client = match IngestClient::new(endpoint, api_key) {
         Ok(client) => client,
         Err(error) => {
@@ -535,6 +567,7 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
     // Process snapshots
     let spool_clone = spool.clone();
     let device_clone = device.clone();
+    let status_windows = status_shared.clone();
     let spooler_handle = tokio::spawn(async move {
         let seq_base = sequence_base();
         while let Some(frame) = snap_rx.recv().await {
@@ -563,6 +596,17 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
                 Err(_) => continue,
             };
             let window_id = format!("win_{:016x}", seq);
+            // Historial para `/status`: se registra al construir la ventana y no
+            // al enviarla, porque un 2xx borra la fila del spool (ADR-0008) y la
+            // GUI necesita el histórico reciente para su tabla y su gráfico.
+            status_windows.record_window(WindowStatus {
+                start_at: window
+                    .start
+                    .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+                packets_seen: snapshot.health.packets_seen,
+                packets_dropped: snapshot.health.packets_dropped,
+                parse_errors: snapshot.health.parse_errors,
+            });
             // Los extremos son los de la ventana real agregada (alineada a 30 s),
             // no el instante en que el spool la persiste.
             let env = build_envelope(
@@ -599,34 +643,6 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
     let spool_sync = spool.clone();
     // F1: endpoint local para la GUI (127.0.0.1:8387). No lleva autenticación,
     // así que solo se abre en loopback. Si el puerto está ocupado, el agente
-    // sigue funcionando y la GUI mostrará "Desconectado".
-    let status_shared = StatusShared::new(
-        health.clone(),
-        StatusConfig {
-            agent_version: env!("CARGO_PKG_VERSION").to_string(),
-            device_id: device.id.clone(),
-            mode: if service::is_service() {
-                "service".to_string()
-            } else {
-                "console".to_string()
-            },
-            capture_enabled: !args.no_capture,
-            collector_ports: if config.collector.enabled {
-                config
-                    .collector
-                    .listeners
-                    .iter()
-                    .map(|listener| listener.port)
-                    .collect()
-            } else {
-                Vec::new()
-            },
-            geo_loaded,
-            // La interfaz que el agente ya usa para capturar: no se relee del
-            // binPath del SCM, que puede estar editado a mano.
-            interface: args.interface.clone(),
-        },
-    );
     // Permite una segunda instancia (demo/temporal) sin chocar con el servicio,
     // que ya ocupa el puerto por defecto. Solo loopback: no es configurable la
     // interfaz, únicamente el puerto.

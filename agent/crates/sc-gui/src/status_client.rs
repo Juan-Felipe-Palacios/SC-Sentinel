@@ -66,6 +66,23 @@ pub struct StatusSnapshot {
     /// Interfaz de captura que el agente usa; `None` en modo colector.
     #[serde(default)]
     pub interface: Option<String>,
+    /// Últimas ventanas construidas por el agente (máx. 60). Vacío con un
+    /// agente anterior: la GUI cae al spool y luego al ring-buffer.
+    #[serde(default)]
+    pub windows: Vec<WindowStatus>,
+}
+
+/// Contadores de una ventana tal como los publica `/status`. Solo conteos.
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Deserialize)]
+pub struct WindowStatus {
+    #[serde(default)]
+    pub start_at: Option<String>,
+    #[serde(default)]
+    pub packets_seen: u64,
+    #[serde(default)]
+    pub packets_dropped: u64,
+    #[serde(default)]
+    pub parse_errors: u64,
 }
 
 impl StatusSnapshot {
@@ -163,6 +180,28 @@ mod tests {
         assert_eq!(snapshot.spool_bytes, 0);
         assert!(snapshot.last_sync_at.is_none());
         assert!(snapshot.collector_ports.is_empty());
+    }
+
+    #[test]
+    fn un_agente_antiguo_deja_los_campos_nuevos_vacios() {
+        let snapshot: StatusSnapshot = serde_json::from_str(FIXTURE).unwrap();
+        assert!(snapshot.uptime_seconds.is_none());
+        assert!(snapshot.interface.is_none());
+        assert!(snapshot.windows.is_empty());
+    }
+
+    #[test]
+    fn lee_uptime_interfaz_y_ventanas_cuando_el_agente_los_expone() {
+        let raw = r#"{"device_id":"dev_x","uptime_seconds":120,
+            "interface":"\\Device\\NPF_{G}",
+            "windows":[{"start_at":"2026-11-13T00:00:00.000Z","packets_seen":10,
+                        "packets_dropped":1,"parse_errors":0}]}"#;
+        let snapshot: StatusSnapshot = serde_json::from_str(raw).expect("json con campos nuevos");
+        assert_eq!(snapshot.uptime_seconds, Some(120));
+        assert_eq!(snapshot.interface.as_deref(), Some("\\Device\\NPF_{G}"));
+        assert_eq!(snapshot.windows.len(), 1);
+        assert_eq!(snapshot.windows[0].packets_seen, 10);
+        assert_eq!(snapshot.windows[0].parse_errors, 0);
     }
 
     #[test]

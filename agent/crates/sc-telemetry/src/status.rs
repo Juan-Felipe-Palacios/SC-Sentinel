@@ -19,6 +19,7 @@ use hyper::service::service_fn;
 use hyper::{Method, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
 use serde::Serialize;
+use std::collections::VecDeque;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicI64, Ordering};
@@ -31,6 +32,19 @@ use tokio::task::JoinHandle;
 pub const STATUS_ADDR: &str = "127.0.0.1:8387";
 
 const CONTENT_TYPE_JSON: &str = "application/json";
+
+/// Cuántas ventanas recientes expone `/status`. Tope duro: 60 × ~70 B ≈ 4 KB.
+pub const WINDOW_HISTORY: usize = 60;
+
+/// Contadores de una ventana ya construida, para la tabla y el gráfico de la GUI.
+/// Solo conteos y la marca de inicio: nada de IPs ni contenido de paquetes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct WindowStatus {
+    pub start_at: String,
+    pub packets_seen: u64,
+    pub packets_dropped: u64,
+    pub parse_errors: u64,
+}
 
 /// Fallos al publicar el endpoint.
 #[derive(Debug)]
@@ -102,6 +116,10 @@ pub struct AgentStatus {
     /// `None` en modo colector puro o con `--offline`/`--fixture`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interface: Option<String>,
+    /// Últimas ventanas construidas (máx. `WINDOW_HISTORY`), de más vieja a más
+    /// nueva. El spool no sirve para esto: un 2xx lo vacía (ADR-0008).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub windows: Vec<WindowStatus>,
 }
 
 /// Datos que no cambian mientras el agente corre.
@@ -127,6 +145,8 @@ pub struct StatusShared {
     last_sync_window: Mutex<Option<String>>,
     /// Segundos unix del arranque del proceso: base del uptime de `/status`.
     started_unix: i64,
+    /// Anillo de las últimas ventanas publicadas hacia `/status`.
+    windows: Mutex<VecDeque<WindowStatus>>,
 }
 
 impl StatusShared {
@@ -137,6 +157,7 @@ impl StatusShared {
             last_sync_unix: AtomicI64::new(0),
             last_sync_window: Mutex::new(None),
             started_unix: Utc::now().timestamp(),
+            windows: Mutex::new(VecDeque::with_capacity(WINDOW_HISTORY)),
         })
     }
 
@@ -172,7 +193,25 @@ impl StatusShared {
             mode: self.config.mode.clone(),
             uptime_seconds: Some(self.uptime_seconds()),
             interface: self.config.interface.clone(),
+            windows: self.window_history(),
         }
+    }
+
+    /// Registra una ventana recién construida. Descarta por delante al llenarse.
+    pub fn record_window(&self, window: WindowStatus) {
+        if let Ok(mut windows) = self.windows.lock() {
+            if windows.len() == WINDOW_HISTORY {
+                windows.pop_front();
+            }
+            windows.push_back(window);
+        }
+    }
+
+    fn window_history(&self) -> Vec<WindowStatus> {
+        self.windows
+            .lock()
+            .map(|windows| windows.iter().cloned().collect())
+            .unwrap_or_default()
     }
 
     /// Segundos desde el arranque del proceso (nunca negativo si el reloj salta).
@@ -351,6 +390,36 @@ mod tests {
         assert!(json.contains("\"collector_ports\":[2056,4739]"));
         assert!(json.contains("\"capture_status\":\"disabled\""));
         assert!(json.contains("\"last_sync_at\":\""));
+    }
+
+    #[test]
+    fn el_anillo_de_ventanas_respeta_el_tope_y_el_orden() {
+        let status = shared();
+        assert!(status.report().windows.is_empty());
+
+        for index in 0..(WINDOW_HISTORY + 5) {
+            status.record_window(WindowStatus {
+                start_at: format!("2026-11-13T00:00:{index:02}.000Z"),
+                packets_seen: index as u64,
+                packets_dropped: 0,
+                parse_errors: 0,
+            });
+        }
+
+        let windows = status.report().windows;
+        assert_eq!(windows.len(), WINDOW_HISTORY);
+        // El primero que sobrevive es el 6.º registrado: 5 fell off por delante.
+        assert_eq!(windows.first().unwrap().packets_seen, 5);
+        assert_eq!(
+            windows.last().unwrap().packets_seen,
+            (WINDOW_HISTORY + 4) as u64
+        );
+    }
+
+    #[test]
+    fn las_ventanas_se_omiten_si_no_hay_ninguna() {
+        let json = serde_json::to_string(&shared().report()).unwrap();
+        assert!(!json.contains("\"windows\""), "{json}");
     }
 
     #[test]
