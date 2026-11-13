@@ -202,3 +202,89 @@ en disco y se lanzan con `Start-Process -Verb RunAs -Wait`; la salida se
 redirige a un log y el código de salida a un fichero. En línea, las comillas y
 redirecciones anidadas hacen que el wrapper no devuelva nunca el resultado.
 
+## 8. Desplegar el agente con rollback
+
+Cada vez que reemplazas el `.exe` del servicio usa
+`scripts\deploy-agent-service.ps1` en lugar de copiar a mano: hace respaldo,
+para el servicio con drenaje verificado, comprueba el SHA de lo copiado y no
+dice «OK» hasta que el log muestra un `sync_confirmed` **posterior** al arranque.
+
+### 8.1 Comandos
+
+Desde una consola **elevada** (Administrador), con el `.ps1` en disco —los
+comandos elevados largos escritos en línea fallan con «never reported back»
+(§7.4):
+
+```powershell
+# 1. Compilar y desplegar
+cd agent; cargo build --release -p sc-agent --features sc-capture/live; cd ..
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\deploy-agent-service.ps1
+
+# 2. Volver al binario anterior (el .bak del ultimo Deploy)
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\deploy-agent-service.ps1 -Mode Rollback
+
+# 3. Volver adelante tras un rollback
+#    (el .new que guardo el Deploy, o el .new-<marca> que guarda el Rollback)
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\deploy-agent-service.ps1 `
+    -Mode Deploy -Source "$env:TEMP\sc-rollback-agent\sc-sentinel-agent.exe.new"
+
+# 4. Ver el plan sin tocar el servicio (no necesita elevacion)
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\deploy-agent-service.ps1 -DryRun
+```
+
+Parámetros: `-Source` (binario nuevo), `-Target` (instalado), `-Service`,
+`-BackupDir` (`%TEMP%\sc-rollback-agent`), `-LogPath` (`agent.log`) y los topes
+`-StopTimeoutSec` / `-StartTimeoutSec` / `-SyncTimeoutSec`.
+
+### 8.2 Qué esperar
+
+| Paso | Salida esperada |
+| --- | --- |
+| respaldo | `respaldo : …\sc-sentinel-agent.exe.bak (sha=…)` y su `.sha256` al lado |
+| parada | `sc stop` → `Stopped` antes de `-StopTimeoutSec` |
+| drenaje | línea del log `event="spool_flushed" pending=0` |
+| copia | SHA del archivo copiado igual al destino; si no, no se arranca |
+| arranque | `Running` antes de `-StartTimeoutSec` |
+| sync | `sync_confirmed` con marca de tiempo posterior al arranque |
+| cierre | `OK: Deploy completado` (o `Rollback`) |
+
+`Deploy` con el mismo SHA que el instalado **no hace nada**: avisa «nada que
+desplegar» y sale con código 0 sin parar el servicio.
+
+El respaldo se firma: cada `Deploy` deja `sc-sentinel-agent.exe.bak.sha256`
+junto al `.bak`, y `Rollback` compara ambos **antes de copiar**. Un `.bak` creado
+a mano (sin su `.sha256`) no se restaura: aborta con código 21. Un `.bak` que no
+coincide con su `.sha256` aborta con 22.
+
+`Rollback` guarda el binario que va a reemplazar como
+`sc-sentinel-agent.exe.new-<marca>` (nunca pisa el `.new` del último `Deploy`),
+así que la vuelta adelante es `-Mode Deploy -Source` apuntando a esa copia: el
+propio script imprime el comando exacto si no consigue arrancar.
+
+`-DryRun` imprime el inventario (SHA y tamaño del instalado, del origen y del
+respaldo, más si el log es legible), el plan paso a paso y **qué aborto se
+dispararía**, sin tocar el servicio. Sale con 0 si la ejecución real puede
+proceder y con 20 si abortaría antes de tocar nada.
+
+`-Source` no puede ser el propio `.bak` ni el `.new` de la carpeta de respaldo
+(aborta con 25): el `Deploy` los rota y usarlos como origen confunde respaldo
+con binario nuevo. Compila el `.exe` o apunta a una copia fuera de esa carpeta.
+
+Si el servicio no arranca después de copiar, el script **no reintenta solo**:
+imprime `binario nuevo instalado, servicio detenido`, el SHA que quedó y el
+comando exacto de rollback. Ejecútalo tú tras mirar el log.
+
+### 8.3 Verificar después
+
+```bash
+curl -s http://127.0.0.1:8387/status | head -c 400   # uptime_seconds, interface, windows
+# SHA del instalado == SHA del origen que compilaste
+powershell -NoProfile -Command "(Get-FileHash 'C:\Program Files\SC-Sentinel\sc-sentinel-agent.exe' -Algorithm SHA256).Hash"
+```
+
+Y en la GUI (`scripts\abrir-gui.bat`): Estado con Uptime e Interfaz, último sync
+reciente y spool en 0 B; Stats con las ventanas llegando.
+
+Rollback comprobado de ida y vuelta: el `.bak` restaura un agente que no manda
+`uptime_seconds`/`interface`/`windows` y la GUI los muestra como `—`.
+
