@@ -622,6 +622,9 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
                 Vec::new()
             },
             geo_loaded,
+            // La interfaz que el agente ya usa para capturar: no se relee del
+            // binPath del SCM, que puede estar editado a mano.
+            interface: args.interface.clone(),
         },
     );
     // Permite una segunda instancia (demo/temporal) sin chocar con el servicio,

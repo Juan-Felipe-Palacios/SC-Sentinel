@@ -94,6 +94,14 @@ pub struct AgentStatus {
     pub service_state: String,
     /// `service` (lanzado por el SCM) o `console` (CLI interactivo).
     pub mode: String,
+    /// Segundos desde el arranque **del proceso** (se reinicia con el servicio).
+    /// Opcional: un agente anterior no lo envía y la GUI muestra «—».
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uptime_seconds: Option<u64>,
+    /// Interfaz de captura que el agente tiene en memoria (`--interface`).
+    /// `None` en modo colector puro o con `--offline`/`--fixture`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interface: Option<String>,
 }
 
 /// Datos que no cambian mientras el agente corre.
@@ -105,6 +113,8 @@ pub struct StatusConfig {
     pub capture_enabled: bool,
     pub collector_ports: Vec<u16>,
     pub geo_loaded: bool,
+    /// Interfaz pasada por `--interface`; `None` si no hay captura live.
+    pub interface: Option<String>,
 }
 
 /// Estado compartido entre el agente y el endpoint.
@@ -115,6 +125,8 @@ pub struct StatusShared {
     /// Segundos unix del último 2xx; 0 = nunca sincronizó.
     last_sync_unix: AtomicI64,
     last_sync_window: Mutex<Option<String>>,
+    /// Segundos unix del arranque del proceso: base del uptime de `/status`.
+    started_unix: i64,
 }
 
 impl StatusShared {
@@ -124,6 +136,7 @@ impl StatusShared {
             config,
             last_sync_unix: AtomicI64::new(0),
             last_sync_window: Mutex::new(None),
+            started_unix: Utc::now().timestamp(),
         })
     }
 
@@ -157,7 +170,17 @@ impl StatusShared {
             last_sync_at: self.last_sync_at(),
             service_state: "running".to_string(),
             mode: self.config.mode.clone(),
+            uptime_seconds: Some(self.uptime_seconds()),
+            interface: self.config.interface.clone(),
         }
+    }
+
+    /// Segundos desde el arranque del proceso (nunca negativo si el reloj salta).
+    fn uptime_seconds(&self) -> u64 {
+        Utc::now()
+            .timestamp()
+            .saturating_sub(self.started_unix)
+            .max(0) as u64
     }
 
     fn last_sync_at(&self) -> Option<String> {
@@ -289,6 +312,7 @@ mod tests {
                 capture_enabled: false,
                 collector_ports: vec![2056, 4739],
                 geo_loaded: true,
+                interface: None,
             },
         )
     }
@@ -317,6 +341,7 @@ mod tests {
             "geo_loaded",
             "last_sync_at",
             "service_state",
+            "uptime_seconds",
         ] {
             assert!(json.contains(field), "falta {field} en {json}");
         }
@@ -326,6 +351,38 @@ mod tests {
         assert!(json.contains("\"collector_ports\":[2056,4739]"));
         assert!(json.contains("\"capture_status\":\"disabled\""));
         assert!(json.contains("\"last_sync_at\":\""));
+    }
+
+    #[test]
+    fn la_interfaz_se_omite_cuando_no_hay_captura_live() {
+        let json = serde_json::to_string(&shared().report()).unwrap();
+        assert!(
+            !json.contains("\"interface\""),
+            "sin interfaz no debe aparecer: {json}"
+        );
+    }
+
+    #[test]
+    fn la_interfaz_se_publica_si_el_agente_la_tiene_en_memoria() {
+        let config = StatusConfig {
+            agent_version: "0.1.5".to_string(),
+            device_id: "dev_x".to_string(),
+            mode: "service".to_string(),
+            capture_enabled: true,
+            collector_ports: Vec::new(),
+            geo_loaded: false,
+            interface: Some("\\\\Device\\\\NPF_{GUID}".to_string()),
+        };
+        let status = StatusShared::new(Arc::new(HealthRegistry::default()), config);
+        let json = serde_json::to_string(&status.report()).unwrap();
+        assert!(json.contains("NPF_{GUID}"), "{json}");
+
+        // Y con uptime: es un número, no un nulo.
+        let uptime = status.report().uptime_seconds.unwrap();
+        assert!(
+            uptime < 5,
+            "un agente recién arrancado no puede llevar {uptime} s"
+        );
     }
 
     #[test]

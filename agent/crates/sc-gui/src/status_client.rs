@@ -60,6 +60,12 @@ pub struct StatusSnapshot {
     /// `service` (SCM) o `console` (CLI interactivo).
     #[serde(default)]
     pub mode: String,
+    /// Segundos desde el arranque del proceso; `None` con un agente anterior.
+    #[serde(default)]
+    pub uptime_seconds: Option<u64>,
+    /// Interfaz de captura que el agente usa; `None` en modo colector.
+    #[serde(default)]
+    pub interface: Option<String>,
 }
 
 impl StatusSnapshot {

@@ -389,6 +389,27 @@ impl GuiApp {
                         },
                     );
                     row(ui, "Spool", human_bytes(snapshot.spool_bytes));
+                    // Etiquetado a propósito: con las failure actions del SCM un
+                    // reinicio del proceso pone el uptime a cero.
+                    row(
+                        ui,
+                        "Uptime",
+                        match snapshot.uptime_seconds {
+                            Some(secs) => {
+                                format!("{} (desde el arranque del proceso)", human_uptime(secs))
+                            }
+                            None => "—".to_string(),
+                        },
+                    );
+                    row(
+                        ui,
+                        "Interfaz monitoreada",
+                        snapshot
+                            .interface
+                            .clone()
+                            .filter(|name| !name.trim().is_empty())
+                            .unwrap_or_else(|| "—".to_string()),
+                    );
                 });
         });
 
@@ -1118,6 +1139,21 @@ fn window_time(summary: &WindowSummary) -> String {
     }
 }
 
+/// Duración legible para el uptime: «1 h 22 m», «12 min», «45 s».
+fn human_uptime(secs: u64) -> String {
+    if secs < 60 {
+        format!("{secs} s")
+    } else if secs < 3600 {
+        format!("{} min", secs / 60)
+    } else if secs < 86_400 {
+        let hours = secs / 3600;
+        let minutes = (secs % 3600) / 60;
+        format!("{hours} h {minutes} m")
+    } else {
+        format!("{} d {} h", secs / 86_400, (secs % 86_400) / 3600)
+    }
+}
+
 fn human_bytes(bytes: u64) -> String {
     const KB: f64 = 1024.0;
     const MB: f64 = KB * 1024.0;
@@ -1208,10 +1244,18 @@ impl eframe::App for GuiApp {
 
 #[cfg(test)]
 mod tests {
-    use super::balloon_fallback_for;
+    use super::{balloon_fallback_for, human_uptime};
 
     fn message() -> (String, String) {
         ("Título".to_string(), "Cuerpo".to_string())
+    }
+
+    #[test]
+    fn el_uptime_se_lee_en_unidades_humanas() {
+        assert_eq!(human_uptime(45), "45 s");
+        assert_eq!(human_uptime(600), "10 min");
+        assert_eq!(human_uptime(4920), "1 h 22 m");
+        assert_eq!(human_uptime(90_000), "1 d 1 h");
     }
 
     #[test]
