@@ -137,7 +137,7 @@ Alcance de cierre: backend seguro, RAG agregado de 24 h, streaming SSE, persiste
 - [x] Logs locales accesibles y sin datos sensibles (reglas §9.3).
 - [x] Config segura (permisos restrictivos a config y spool; token en env).
 - [x] Instalador documentado (runbook actualizado).
-- [x] GUI opcional separada del servicio (si aplica) → backlog documentado (fuera de M5, ver plan M5 §backlog).
+- [x] GUI opcional separada del servicio: **implementada** (`sc-gui`, eframe + bandeja) con vistas Estado, Stats, Enrolar y Ajustes; consume `/status` en loopback (ADR-0016) y no es dependencia del motor. Al cerrar M5 estaba en backlog; se entregó después (2026-11-13).
 - [x] Runbooks completos y verificados paso a paso contra una instalación real.
 
 > M5 (2026-11-10, actualizado): el binario integra el control del SCM (crate
@@ -202,6 +202,36 @@ Alcance de cierre: backend seguro, RAG agregado de 24 h, streaming SSE, persiste
 > - Nota operativa: las corridas elevadas solapadas se pisan entre sí (una
 >   instancia desinstala mientras otra consulta); el bucle de reintentos no debe
 >   dejarse en paralelo con la ejecución de la prueba.
+
+### M5 — Verificación en vivo del despliegue y el rollback (2026-11-13)
+
+Ciclo real sobre el servicio de producción de esta estación, con el script
+versionado `scripts/deploy-agent-service.ps1` (`bab98b7`) y su fix posterior
+(`7043941`):
+
+- [x] **Abortos seguros**: `Deploy` con `-Source` inexistente → código **10** y
+      `Rollback` con un `.bak.sha256` adulterado → código **22**; en ambos el
+      servicio siguió `Running` con el SHA intacto y la carpeta de respaldo
+      idéntica (nombre+tamaño+mtime de cada fichero).
+- [x] **Deploy real**: rotación del `.bak` anterior a `.bak-<marca>`, nuevo
+      `.bak` = `EE4141AB…D557DE` con su `.sha256`, `.new` anterior apartado,
+      parada con drenaje (`pending=0`), copia verificada por SHA y arranque con
+      `sync_confirmed` posterior; `/status` 200 sin `uptime_seconds`,
+      `interface` ni `windows` y GUI mostrando `—`.
+- [x] **Rollback real**: `.sha256` verificado, binario actual guardado como
+      `.new-<marca>`, restauración a `EE4141AB…D557DE`, `Running`,
+      `sync_confirmed` posterior y `/status` con los tres campos; GUI con
+      uptime e interfaz reales.
+- [x] **Bug real encontrado y corregido (`7043941`)**: el script aceptaba una
+      línea `spool_flushed pending=0` de una parada anterior (reportó una marca
+      8 minutos vieja). Ahora exige que la línea sea posterior al `sc stop`;
+      probado contra el log real: con `since=ahora` no acepta nada y con
+      `since=ahora−2h` devuelve la línea más reciente, no la vieja.
+
+No probado en vivo: abortos 13, 14, 15, 16 (estricto), 17, 18, 19, 20, 21, 23,
+24 y 25 de `deploy-agent-service.ps1` (requieren romper el servicio o el disco a
+propósito), el `install`/`uninstall` desde el ZIP publicado y el reinicio real
+del servidor.
 
 ## M5 — Auditoría de parabilidad del agente en Windows (2026-11-12)
 

@@ -30,7 +30,7 @@ Requisitos detallados y gates diarios: `docs/runbooks/local-development.md`.
 - **M3.5 (cerrado):** chatbot seguro con RAG, streaming SSE e historial. Contrato: `docs/contracts/chat-api.v1.md`; decisión: `docs/adr/0013-chatbot-mvp.md`.
 - **Ruta B v2 (entregada):** export CSV/XLSX con streaming y auditoría, AI Evals con coste/latencia/éxito y Trust Pages con rotación, revocación y access logs. Runbooks y métricas en `docs/`.
 - **M4 (cerrado):** colector pasivo NetFlow v5/v9 + IPFIX integrado en el agente (ADR-0014), con métricas del colector persistidas en `agent_health` y visibles en el dashboard; validado con MikroTik RouterOS CHR, fixtures reales y soak de 24 h.
-- **M5 (cerrado):** servicio Windows `SC-Sentinel-Agent` con recovery, logging a archivo, instalador/desinstalador y runbook verificados en una instalación real.
+- **M5 (cerrado en producto):** servicio Windows `SC-Sentinel-Agent` con recovery, logging a archivo, instalador/desinstalador y runbook verificados en una instalación real. Quedan dos evidencias operativas: el ciclo físico de 10 etapas con el instalador curado (`scripts/verify-m5-cycle.ps1`, requiere aceptar UAC) y el reinicio real del servidor para probar el auto-arranque.
 - **Release 0.1.0:** primer release funcional. Ver `docs/release/changelog.md`.
 - **Demo pública:** `/demo` entra como visitante de solo lectura, sin credenciales ni configuración previa.
 - Roadmap histórico M0–M5: `docs/superpowers/specs/SC-Sentinel-Spec-Completo-2026-11-03.md` §13.

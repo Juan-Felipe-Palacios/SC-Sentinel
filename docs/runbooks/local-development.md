@@ -288,3 +288,32 @@ reciente y spool en 0 B; Stats con las ventanas llegando.
 Rollback comprobado de ida y vuelta: el `.bak` restaura un agente que no manda
 `uptime_seconds`/`interface`/`windows` y la GUI los muestra como `—`.
 
+### 8.4 Bug corregido: drenaje aceptado por una línea vieja (2026-11-13)
+
+`Wait-SpoolDrained` cogía la **primera** línea `spool_flushed pending=0` de la
+ventana del log, que puede ser de una parada anterior: el drenaje se daba por
+bueno sin comprobarlo y el resumen citaba una marca vieja. En el ciclo real del
+2026-11-13 el `Rollback` reportó la línea de la parada del `Deploy`, ocho
+minutos antes. Ahora la línea debe ser **posterior al `sc stop`** y el log se
+recorre de la más nueva a la más vieja (`7043941`). Síntoma para reconocerlo: la
+marca que imprime `drenaje :` es anterior al reinicio que acabas de pedir.
+
+### 8.5 Ramas sin probar en vivo
+
+Probado sobre el servicio real: abortos **10** (origen inexistente) y **22**
+(`.bak` que no coincide con su `.sha256`), más `Deploy` y `Rollback` completos
+con respaldo, rotación, `.sha256`, drenaje y `sync_confirmed`. Sin ejercitar: 13
+(respaldo no verificable), 14 (copia `.new` fallida), 15 (el servicio no para),
+16 estricto (parada sin drenaje), 17 (copia no coincide), 18 (no arranca), 19
+(sin sync), 20 (falta el `.bak`), 21 (falta el `.sha256`), 23 (no se puede
+guardar el binario actual), 24 (instalado ilegible) y 25 (origen = artefacto de
+respaldo). Provocarlas exige romper el servicio o el disco a propósito.
+
+### 8.6 Pendiente: mover el respaldo fuera de `%TEMP%`
+
+`-BackupDir` está por defecto en `%TEMP%\sc-rollback-agent`, que un proceso no
+elevado del usuario puede escribir: el `.sha256` detecta corrupción, no
+manipulación deliberada (quien puede escribir el `.bak` puede escribir su hash).
+Lo correcto es `C:\ProgramData\SC-Sentinel\backup` con ACL solo SYSTEM +
+Administradores, como el resto de `DataDir`. Queda pendiente, en commit propio.
+

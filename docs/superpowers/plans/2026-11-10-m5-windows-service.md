@@ -5,7 +5,7 @@ Rama: `feat/m5-windows-service` → `main`. Spec: §19 "Daemon como Windows serv
 ## Alcance decidido
 
 - **Implementado:** control SCM en el binario, file-logging en servicio, instalador y desinstalador PowerShell, runbook reescrito, formularios de recovery (failure actions + auto-start + stop con drenaje).
-- **Backlog (GUI):** `sc-gui` es opcional por la spec → NO implementado en M5; queda como nota en acceptance-criteria y plan propio cuando se recupere.
+- **GUI (entregada después, 2026-11-13):** `sc-gui` era opcional por la spec y quedó en backlog al cerrar M5; hoy está implementada y en uso: binario eframe/tray con cuatro vistas (Estado, Stats, Enrolar, Ajustes), 10 módulos (`app`, `theme`, `status_client`, `spool_history`, `enroll`, `scm`, `actions`, `tray`, `tray_balloon`, `main`), 53 tests y consumidor del endpoint `/status` en loopback (ADR-0016). El backlog queda cerrado; no se toca el resto de M5.
 
 ## Fases
 
@@ -29,4 +29,4 @@ Rama: `feat/m5-windows-service` → `main`. Spec: §19 "Daemon como Windows serv
 
 ## Criterio de cierre
 
-Los 7 checkboxes M5 de acceptance-criteria al día (GUI ↔ backlog documentado) y puerta perfecta al ciclo de release (firma Authenticode/instalador MSI si se requiere más adelante).
+Los 7 checkboxes M5 de acceptance-criteria al día (GUI implementada, no en backlog) y puerta perfecta al ciclo de release (firma Authenticode/instalador MSI si se requiere más adelante). **Cerrado en producto**, con dos evidencias operativas pendientes: el ciclo físico de 10 etapas con el instalador curado (`scripts/verify-m5-cycle.ps1`, requiere aceptar UAC) y el reinicio real del servidor para probar el auto-arranque.

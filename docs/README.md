@@ -69,7 +69,7 @@ Módulos que sostienen estas rutas: `web/lib/export`, `web/lib/ai/metrics.ts` y 
 | how-to/ | ✅ 5 guías | operación |
 | explanation/ | ✅ 4 explicaciones | spec §3 |
 | governance/ | ✅ contribución + versionado | proceso |
-| runbooks/ | ✅ 11 escritos (a verificar contra instalación real en M5) | M1–M5 |
+| runbooks/ | ✅ 15 escritos (verificados contra instalación real; pendiente el ciclo físico con el instalador curado) | M1–M5 |
 | testing/ | ✅ 6 docs + fixtures binarios | M0–M5 |
 | ux/ | ✅ 6 (tokens de marca: valores definidos en la extracción M3) | M3, M3.5 |
 | legal/ | ✅ 5 (2 drafts pendientes de revisión legal antes de M3) | M3 |
