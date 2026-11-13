@@ -43,6 +43,8 @@ pub struct GuiApp {
     enroll_device: String,
     enroll_token: String,
     enroll_token_saved: bool,
+    /// Momento en que se pulsó «Aplicar»: el sync que cuenta debe ser posterior.
+    enroll_applied: Option<chrono::DateTime<chrono::Utc>>,
     enroll_message: Option<String>,
 }
 
@@ -73,6 +75,7 @@ impl GuiApp {
             enroll_device: String::new(),
             enroll_token: String::new(),
             enroll_token_saved: false,
+            enroll_applied: None,
             enroll_message: None,
         }
     }
@@ -114,14 +117,18 @@ impl GuiApp {
             }
         }
 
-        // Enrolamiento recién aplicado: confirmar cuando haya sync.
+        // Enrolamiento recién aplicado: solo vale un sync POSTERIOR a pulsar
+        // «Aplicar». Un sync viejo ya confirmaba antes de empezar y daba la
+        // falsa sensación de que el enrolamiento había funcionado.
         if self.enroll_token_saved {
-            let synced = self
+            let synced_after_apply = self
                 .snapshot
                 .as_ref()
-                .and_then(|snapshot| snapshot.last_sync_at.as_ref())
-                .is_some();
-            if synced
+                .and_then(|snapshot| snapshot.sync_instant())
+                .zip(self.enroll_applied)
+                .map(|(synced_at, applied_at)| synced_at > applied_at)
+                .unwrap_or(false);
+            if synced_after_apply
                 && self.service == ServiceState::Running
                 && self.enroll_message.as_deref() != Some(ENROLL_DONE)
             {
@@ -484,6 +491,7 @@ impl GuiApp {
         {
             Ok(()) => {
                 self.enroll_token_saved = true;
+                self.enroll_applied = Some(chrono::Utc::now());
                 self.enroll_message =
                     Some("Esperando a que el servicio vuelva a Running…".to_string());
                 tray_balloon::info(

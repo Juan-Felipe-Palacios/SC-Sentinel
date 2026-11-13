@@ -66,9 +66,16 @@ impl StatusSnapshot {
     /// Segundos desde el último sync confirmado; `None` si nunca sincronizó o
     /// si el timestamp no es RFC 3339.
     pub fn sync_age_secs(&self, now: DateTime<Utc>) -> Option<i64> {
+        Some((now - self.sync_instant()?).num_seconds().max(0))
+    }
+
+    /// Instante del último sync confirmado, `None` si nunca sincronizó o el
+    /// timestamp no es RFC 3339.
+    pub fn sync_instant(&self) -> Option<DateTime<Utc>> {
         let raw = self.last_sync_at.as_deref()?;
-        let when = DateTime::parse_from_rfc3339(raw).ok()?.with_timezone(&Utc);
-        Some((now - when).num_seconds().max(0))
+        DateTime::parse_from_rfc3339(raw)
+            .ok()
+            .map(|when| when.with_timezone(&Utc))
     }
 }
 
