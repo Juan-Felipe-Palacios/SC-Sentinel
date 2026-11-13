@@ -31,12 +31,12 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// Hosts con IP pública: GeoLite2 les asigna país, así el panel muestra el mapa.
 const CLIENTS: [[u8; 4]; 6] = [
-    [8, 8, 8, 8],        // US
-    [1, 1, 1, 1],        // AU
-    [151, 101, 1, 69],   // US
+    [8, 8, 8, 8],         // US
+    [1, 1, 1, 1],         // AU
+    [151, 101, 1, 69],    // US
     [185, 199, 108, 153], // US
-    [31, 13, 71, 36],    // IE
-    [91, 198, 174, 192], // NL
+    [31, 13, 71, 36],     // IE
+    [91, 198, 174, 192],  // NL
 ];
 
 /// Destinos sintéticos por puerto: 443, 80, 53 y 22.
@@ -88,13 +88,18 @@ fn main() {
     let mut args = std::env::args().skip(1);
     while let Some(flag) = args.next() {
         let result = match flag.as_str() {
-            "--netflow-target" => parse_flag(&mut args, "--netflow-target")
-                .map(|value| netflow_target = value),
+            "--netflow-target" => {
+                parse_flag(&mut args, "--netflow-target").map(|value| netflow_target = value)
+            }
             "--ipfix-target" => {
                 parse_flag(&mut args, "--ipfix-target").map(|value| ipfix_target = value)
             }
             "--interval-ms" => parse_flag(&mut args, "--interval-ms")
-                .and_then(|value| value.parse().map_err(|_| "--interval-ms inválido".to_string()))
+                .and_then(|value| {
+                    value
+                        .parse()
+                        .map_err(|_| "--interval-ms inválido".to_string())
+                })
                 .map(|value: u64| interval_ms = value),
             "--duration-secs" => parse_flag(&mut args, "--duration-secs")
                 .and_then(|value| {
@@ -169,7 +174,10 @@ fn main() {
         // IPFIX: mismo patrón de template + datos.
         let mut ipfix_sets = Vec::new();
         if tick % 10 == 0 {
-            ipfix_sets.push(ipfix_template_set(&[(IPFIX_FLOW_TEMPLATE_ID, ipfix_fields())]));
+            ipfix_sets.push(ipfix_template_set(&[(
+                IPFIX_FLOW_TEMPLATE_ID,
+                ipfix_fields(),
+            )]));
         }
         let mut ipfix_body = Vec::new();
         for index in 0..records {
