@@ -2,6 +2,32 @@
 
 Formato: Keep a Changelog 1.1 (semantic entries) publicado también en cada GitHub Release.
 
+## [0.1.5] — 2026-11-13
+
+El paquete de Windows pasa a incluir la GUI y sus sumas se calculan desde el
+binario compilado, no desde la copia temporal que se comprime.
+
+### Changed
+- (Ops) El token de ingesta ya no viaja por argumentos: el ciclo M5 se relanza
+  elevado sin él, pide el token con `Read-Host -AsSecureString` (o lo toma de
+  `SCS_INSTALL_TOKEN` y la borra) y se lo pasa al instalador por el entorno del
+  hijo. `instalar-sc-sentinel.bat` solo acepta device id y puertos por línea de
+  comandos y registra únicamente el origen del token. Así deja de aparecer en el
+  `argv` de los procesos y en la cabecera del transcript de `Start-Transcript`
+  (hallazgo de la auditoría de temporales del 2026-11-13).
+
+### Added
+- (Ops) El paquete de Windows incluye `sc-gui.exe` y `abrir-gui.bat`:
+  `install-agent.ps1` los copia a `C:\Program Files\SC-Sentinel\` (la GUI hereda
+  el `Usuarios: lectura y ejecución` de Program Files, no la ACL del servicio) y
+  `uninstall-agent.ps1` los borra antes del directorio, sin residuos.
+
+### Fixed
+- (Ops) `package-release.ps1` calcula `SHA256SUMS.txt` desde el origen
+  (`agent/target/release` y `scripts/`) y aborta si lo copiado al stage de
+  `%TEMP%` difiere: antes las sumas se tomaban de la copia temporal, así que una
+  sustitución entre la copia y el zip se publicaba como válida.
+
 ## [0.1.4] — 2026-11-12
 
 Cierra el último hueco de la entrega: la guía de instalación que viaja dentro

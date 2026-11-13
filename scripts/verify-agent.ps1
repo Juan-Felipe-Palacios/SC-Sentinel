@@ -29,7 +29,7 @@
 .EXAMPLE
   .\scripts\verify-agent.ps1
   .\scripts\verify-agent.ps1 -Service
-  .\scripts\verify-agent.ps1 -ZipPath C:\descargas\sc-sentinel-agent-v0.1.4-windows-x64.zip
+  .\scripts\verify-agent.ps1 -ZipPath C:\descargas\sc-sentinel-agent-v0.1.5-windows-x64.zip
 #>
 [CmdletBinding()]
 param(
@@ -92,6 +92,8 @@ if (-not $SkipPackage) {
         'uninstall-agent.ps1',
         'instalar-sc-sentinel.bat',
         'desinstalar-sc-sentinel.bat',
+        'abrir-gui.bat',
+        'sc-gui.exe',
         'LEEME-INSTALACION.txt',
         'SHA256SUMS.txt',
         'geolite2\GeoLite2-Country.mmdb'

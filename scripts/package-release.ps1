@@ -55,7 +55,15 @@ New-Item -ItemType Directory -Path $stage -Force | Out-Null
 
 Write-Host "==> Preparando paquete $Target (v$Version)"
 
+# Origen de cada fichero copiado. Las sumas se calculan desde el ORIGEN y se
+# comprueba que lo copiado al stage es identico: el stage vive en %TEMP%, que
+# cualquier proceso del usuario puede escribir, asi que si alguien lo sustituye
+# entre la copia y el zip esta comprobacion corta la release en vez de publicar
+# un binario que no es el compilado.
+$copied = [ordered]@{}
+
 Copy-Item $binaryPath (Join-Path $stage $binaryName) -Force
+$copied[$binaryName] = $binaryPath
 
 # Base GeoLite2 de países: el agente la resuelve en runtime (SC_GEOIP_DB o
 # <dir del binario>/geolite2/). Sin ella el agente arranca igual, pero los
@@ -65,14 +73,24 @@ if (Test-Path $geoDbSource) {
   $geoStage = Join-Path $stage 'geolite2'
   if (-not (Test-Path $geoStage)) { New-Item -ItemType Directory -Path $geoStage -Force | Out-Null }
   Copy-Item $geoDbSource (Join-Path $geoStage 'GeoLite2-Country.mmdb') -Force
+  $copied['geolite2/GeoLite2-Country.mmdb'] = $geoDbSource
 } else {
   Write-Warning "No se encontró ${geoDbSource}: el paquete saldrá sin base GeoLite2 (países vacíos)."
 }
 
 if ($esWindows) {
-  foreach ($f in @('install-agent.ps1', 'uninstall-agent.ps1', 'instalar-sc-sentinel.bat', 'desinstalar-sc-sentinel.bat', 'LEEME-INSTALACION.txt')) {
+  foreach ($f in @('install-agent.ps1', 'uninstall-agent.ps1', 'instalar-sc-sentinel.bat', 'desinstalar-sc-sentinel.bat', 'abrir-gui.bat', 'LEEME-INSTALACION.txt')) {
     Copy-Item (Join-Path $repo "scripts/$f") (Join-Path $stage $f) -Force
+    $copied[$f] = Join-Path $repo "scripts/$f"
   }
+  # La GUI viaja en el paquete: install-agent.ps1 la copia a Program Files y
+  # abrir-gui.bat la lanza. Sin ella el usuario solo tendria el servicio.
+  $guiSource = Join-Path $repo 'agent/target/release/sc-gui.exe'
+  if (-not (Test-Path $guiSource)) {
+    throw "No existe $guiSource. Compila antes: cargo build --release -p sc-gui"
+  }
+  Copy-Item $guiSource (Join-Path $stage 'sc-gui.exe') -Force
+  $copied['sc-gui.exe'] = $guiSource
 } else {
   # Linux no tiene instalador de un clic: el runbook documenta el paso a paso.
   # El runbook lleva la version de la release en una linea `VER=`. Se reescribe
@@ -114,21 +132,31 @@ if ($staleRefs) {
 }
 
 # SHA256 de todos los ficheros del paquete (verificacion tras descomprimir).
-# Se recorre en profundidad: la base GeoLite2 vive en el subdirectorio
-# `geolite2/`.
 # Se escribe sin BOM: `sha256sum -c` en Linux rechaza un fichero con BOM.
 $sumsInner = Join-Path $stage 'SHA256SUMS.txt'
 $stageFull = (Resolve-Path $stage).Path
-$innerLines = Get-ChildItem $stage -File -Recurse |
-  Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
-  Sort-Object FullName |
-  ForEach-Object {
-    $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-    # `sha256sum` usa separadores de dos espacios; las rutas van con `/` y
-    # son relativas a la raíz del paquete.
-    $relative = $_.FullName.Substring($stageFull.Length).TrimStart('\', '/').Replace('\', '/')
-    "$hash  $relative"
+
+# Todo lo que venga del repo se compara con su origen antes de sumarlo.
+foreach ($rel in $copied.Keys) {
+  if (-not (Test-Path (Join-Path $stage ($rel -replace '/', '\')))) {
+    throw "Falta en el paquete un fichero que deberia estar: $rel"
   }
+}
+
+$innerLines = @()
+foreach ($file in (Get-ChildItem $stage -File -Recurse | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | Sort-Object FullName)) {
+  # `sha256sum` usa separadores de dos espacios; las rutas van con `/` y son
+  # relativas a la raíz del paquete.
+  $relative = $file.FullName.Substring($stageFull.Length).TrimStart('\', '/').Replace('\', '/')
+  $hash = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($copied.Contains($relative)) {
+    $srcHash = (Get-FileHash $copied[$relative] -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($srcHash -ne $hash) {
+      throw "El fichero del paquete no coincide con su origen: $relative (origen $srcHash, paquete $hash)"
+    }
+  }
+  $innerLines += "$hash  $relative"
+}
 if (-not $innerLines) { throw 'El paquete ha quedado vacío' }
 Write-TextNoBom $sumsInner (($innerLines -join "`n") + "`n")
 

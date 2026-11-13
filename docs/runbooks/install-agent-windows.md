@@ -32,17 +32,18 @@ Hay dos vías equivalentes. La **1.1** es la recomendada para un equipo sin acce
 
 ### 1.1 Instalador de un clic (ZIP de la release)
 
-1. Descargar el paquete de la release: `https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/download/v0.1.4/sc-sentinel-agent-v0.1.4-windows-x64.zip` (la última versión siempre está en <https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/latest>).
+1. Descargar el paquete de la release: `https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/download/v0.1.5/sc-sentinel-agent-v0.1.5-windows-x64.zip` (la última versión siempre está en <https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/latest>).
 2. Verificar el hash del artefacto contra `SHA256SUMS.txt` (mismo directorio en la release):
 
    ```powershell
-   Get-FileHash .\sc-sentinel-agent-v0.1.4-windows-x64.zip -Algorithm SHA256
+   Get-FileHash .\sc-sentinel-agent-v0.1.5-windows-x64.zip -Algorithm SHA256
    ```
 
 3. Descomprimir **todo** el ZIP en una carpeta (no solo el `.exe`).
 4. Doble clic en **`instalar-sc-sentinel.bat`**. Windows pedirá permisos de administrador: pulsar «Sí».
 5. Pegar el `device_id` (`dev_…`) y el token (`sc_dev_…`) cuando los pida. El instalador valida que no falte ninguno y **no escribe el token en disco ni en el log**. El token se pide por teclado sin mostrarlo y **no viaja por la línea de comandos**: no aparece en la lista de procesos ni en la transcripción de nada.
 6. Al terminar, el servicio «SC Sentinel Network Agent» queda **En ejecución** y el instalador ofrece abrir la lista de servicios.
+7. Para ver el estado, abre **`abrir-gui.bat`** (o `C:\Program Files\SC-Sentinel\sc-gui.exe`): lee el agente por el endpoint loopback y el SCM, así que no pide permisos de administrador.
 
 Modo desatendido (equipos con automatización, p. ej. GPO o Intune):
 
@@ -60,6 +61,8 @@ Contenido del ZIP:
 | Fichero | Para qué sirve |
 |---|---|
 | `sc-sentinel-agent.exe` | El agente. |
+| `sc-gui.exe` | La interfaz gráfica (estado, estadísticas, ajustes, enrolamiento). Se instala en `C:\Program Files\SC-Sentinel\`. |
+| `abrir-gui.bat` | Lanzador de la GUI: la abre desde la instalación o desde el paquete. |
 | `geolite2/GeoLite2-Country.mmdb` | Base de geolocalización de países (MaxMind GeoLite2). Sin ella el agente arranca igual, pero los países de los snapshots salen vacíos. |
 | `instalar-sc-sentinel.bat` | Instalador de un clic (pide el token y device id, se auto-eleva). El token entra por teclado sin eco o por `SCS_INSTALL_TOKEN`, nunca por argumentos. |
 | `desinstalar-sc-sentinel.bat` | Desinstalador de un clic (pregunta si se borran los datos). |
@@ -100,7 +103,7 @@ Desinstalación simétrica: `.\scripts\uninstall-agent.ps1` (usa `-PurgeData` pa
 ## 2. Instalación manual (sin instalador)
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/download/v0.1.4/sc-sentinel-agent-v0.1.4-windows-x64.zip" -OutFile agent.zip
+Invoke-WebRequest -Uri "https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/download/v0.1.5/sc-sentinel-agent-v0.1.5-windows-x64.zip" -OutFile agent.zip
 Expand-Archive agent.zip -DestinationPath ".\sc-sentinel" -Force
 
 New-Item -ItemType Directory -Path "C:\ProgramData\SC-Sentinel\{config,spool,logs}" -Force

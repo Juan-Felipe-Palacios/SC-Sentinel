@@ -59,6 +59,14 @@ PASO 3 - COMPROBAR QUE FUNCIONA
   se reintenta luego.
 
 
+PASO 4 - VER EL ESTADO EN EL PROPIO EQUIPO (OPCIONAL)
+-----------------------------------------------------
+  1. Doble clic en  "abrir-gui.bat"  (o en
+     "C:\Program Files\SC-Sentinel\sc-gui.exe").
+  2. La ventana muestra si el servicio esta en marcha, el trafico recogido y
+     si el ultimo envio llego al panel web. No pide permisos de administrador.
+
+
 SI ALGO FALLA
 -------------
   - Revisa el registro:  C:\ProgramData\SC-Sentinel\logs\agent.log
@@ -74,6 +82,8 @@ ARCHIVOS DE ESTE PAQUETE
   instalar-sc-sentinel.bat      Instalador de un clic.
   desinstalar-sc-sentinel.bat   Desinstalador de un clic.
   sc-sentinel-agent.exe         El agente en si.
+  sc-gui.exe                    Ventana de estado del agente.
+  abrir-gui.bat                 Abre esa ventana con doble clic.
   install-agent.ps1             Logica de instalacion (la usa el instalador).
   uninstall-agent.ps1           Logica de desinstalacion.
   geolite2\                     Base de geolocalizacion (GeoLite2-Country.mmdb).

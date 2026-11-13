@@ -108,6 +108,19 @@ if ($waited -gt 0) {
 # Paso 3: Eliminar binario y directorio de instalación (con verificación)
 Write-Step "Eliminando binario..."
 $InstallDir = "C:\Program Files\SC-Sentinel"
+# La GUI y su lanzador no son parte del servicio: se borran explicitamente para
+# que no queden residuos aunque el borrado del directorio falle a medias.
+if (Test-Path $InstallDir) {
+ foreach ($f in @('sc-gui.exe', 'abrir-gui.bat')) {
+  $p = Join-Path $InstallDir $f
+  if (Test-Path $p) {
+   icacls $p /grant "*S-1-5-32-544:F" 2>&1 | Out-Null
+   Remove-Item $p -Force -ErrorAction SilentlyContinue
+   if (Test-Path $p) { Write-Host " ⚠ No se pudo eliminar $p" -ForegroundColor Yellow }
+   else { Write-Step "Eliminado $f" }
+  }
+ }
+}
 if (Test-Path $InstallDir) {
  if (Remove-ProtectedDir $InstallDir) {
   Write-Step "Directorio de instalación eliminado"

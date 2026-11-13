@@ -91,8 +91,8 @@ param(
     [string]$InstallDir = 'C:\Program Files\SC-Sentinel',
     [string]$DataDir = 'C:\ProgramData\SC-Sentinel',
     [string]$CollectorPorts = '2056,4739',
-    [string]$ExpectedVersion = '0.1.4',
-    [int]$MinSums = 7,
+    [string]$ExpectedVersion = '0.1.5',
+    [int]$MinSums = 9,
     [switch]$DryRun
 )
 
@@ -103,6 +103,8 @@ $sumsFile = Join-Path $PackageDir 'SHA256SUMS.txt'
 $geoPkg = Join-Path $PackageDir 'geolite2\GeoLite2-Country.mmdb'
 $installerBat = Join-Path $PackageDir 'instalar-sc-sentinel.bat'
 $uninstallerBat = Join-Path $PackageDir 'desinstalar-sc-sentinel.bat'
+$guiExe = Join-Path $PackageDir 'sc-gui.exe'
+$guiLauncher = Join-Path $PackageDir 'abrir-gui.bat'
 $logFile = Join-Path $DataDir 'logs\agent.log'
 $geoInstalled = Join-Path $InstallDir 'geolite2\GeoLite2-Country.mmdb'
 
@@ -115,6 +117,8 @@ if ($DryRun) {
     Write-Host "  geolite2    : $(if (Test-Path $geoPkg) { "$((Get-Item $geoPkg).Length) B" } else { 'FALTA' })"
     Write-Host "  instalador  : $(if (Test-Path $installerBat) { 'presente' } else { 'FALTA' })"
     Write-Host "  desinstalador: $(if (Test-Path $uninstallerBat) { 'presente' } else { 'FALTA' })"
+    Write-Host "  GUI         : $(if (Test-Path $guiExe) { "$((Get-Item $guiExe).Length) B" } else { 'FALTA' })"
+    Write-Host "  abrir-gui   : $(if (Test-Path $guiLauncher) { 'presente' } else { 'FALTA' })"
     $masked = if ($DeviceId.Length -gt 6) { $DeviceId.Substring(0, 6) + '...' } else { '...' }
     Write-Host "device id     : $masked (enmascarado)"
     Write-Host 'token         : se pide al ejecutar (Read-Host -AsSecureString) o via SCS_INSTALL_TOKEN'
@@ -135,7 +139,7 @@ if ($DryRun) {
     }
 
     $faltan = @()
-    foreach ($p in @($exe, $sumsFile, $geoPkg, $installerBat, $uninstallerBat)) {
+    foreach ($p in @($exe, $sumsFile, $geoPkg, $installerBat, $uninstallerBat, $guiExe, $guiLauncher)) {
         if (-not (Test-Path $p)) { $faltan += $p }
     }
     Write-Host ''
@@ -232,6 +236,8 @@ try {
     Check '--list-interfaces lista dispositivos (captura live compilada)' ($nIfaces -ge 2) "$nIfaces lineas"
     Check 'el binario no lleva la cadena de "captura live no compilada"' ($ifaces -notmatch 'captura live no compilada') ''
     Check 'la base GeoLite2 viene en el paquete' (Test-Path $geoPkg) $(if (Test-Path $geoPkg) { "$((Get-Item $geoPkg).Length) B" } else { 'falta' })
+    Check 'la GUI viene en el paquete' (Test-Path $guiExe) $(if (Test-Path $guiExe) { "$((Get-Item $guiExe).Length) B" } else { 'falta' })
+    Check 'el lanzador de la GUI viene en el paquete' (Test-Path $guiLauncher) ''
     $sums = Get-Content $sumsFile -ErrorAction SilentlyContinue
     $ok = 0; $bad = 0
     foreach ($line in $sums) {
@@ -275,6 +281,8 @@ try {
     Check 'la base se puede leer' ($null -ne (Get-Item $geoInstalled -ErrorAction SilentlyContinue)) ''
     $envReg = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\$Service" -Name Environment -ErrorAction SilentlyContinue).Environment
     Check 'SC_GEOIP_DB esta en el Environment del servicio' ($envReg -match 'SC_GEOIP_DB') (($envReg | Where-Object { $_ -match 'SC_GEOIP_DB' }) -join ' | ')
+    Check 'la GUI quedo instalada' (Test-Path (Join-Path $InstallDir 'sc-gui.exe')) ''
+    Check 'el lanzador quedo instalado' (Test-Path (Join-Path $InstallDir 'abrir-gui.bat')) ''
 
     Step 'P3 query / qc / qfailure'
     sc.exe query $Service | Write-Host
@@ -361,6 +369,7 @@ try {
     Check 'el servicio queda RUNNING' ($st -eq 'Running') "$st"
     sc.exe qfailure $Service | Write-Host
     Check 'la base GeoLite2 se reinstalo' (Test-Path $geoInstalled) ''
+    Check 'la GUI se reinstalo' (Test-Path (Join-Path $InstallDir 'sc-gui.exe')) ''
     Write-Host '--- log final ---'
     Get-Content $logFile -Tail 12 -ErrorAction SilentlyContinue | Write-Host
 

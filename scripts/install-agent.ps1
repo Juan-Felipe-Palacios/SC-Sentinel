@@ -184,6 +184,28 @@ Write-Step "Binario verificado (SHA256 $srcHash)"
 # Residuo de instalaciones antiguas que usaban otro nombre de binario
 Remove-Item "$InstallDir\sc-agent.exe" -Force -ErrorAction SilentlyContinue
 
+# Paso 4c: GUI y su lanzador, si vienen en el paquete.
+# La GUI la ejecuta el usuario interactivo, no el servicio: se copia sin tocar
+# la ACL para que herede el "Usuarios: lectura y ejecucion" de Program Files
+# (con la ACL del binario del agente solo la podria abrir un administrador).
+$GuiSource = Join-Path $PSScriptRoot 'sc-gui.exe'
+$GuiLauncherSource = Join-Path $PSScriptRoot 'abrir-gui.bat'
+if (Test-Path $GuiSource) {
+  $GuiPath = "$InstallDir\sc-gui.exe"
+  if (Test-Path $GuiPath) {
+    Ensure-FileWritable $GuiPath | Out-Null
+    Remove-Item $GuiPath -Force -ErrorAction SilentlyContinue
+  }
+  Copy-Item $GuiSource $GuiPath -Force
+  Write-Step "GUI instalada ($GuiPath)"
+} else {
+  Write-Host " ℹ El paquete no trae sc-gui.exe: se instala solo el servicio." -ForegroundColor Yellow
+}
+if (Test-Path $GuiLauncherSource) {
+  Copy-Item $GuiLauncherSource "$InstallDir\abrir-gui.bat" -Force
+  Write-Step 'Lanzador de la GUI instalado (abrir-gui.bat)'
+}
+
 # Paso 4b: Copiar la base GeoLite2 (geolocalizacion de los hosts).
 # El agente la resuelve en runtime: SC_GEOIP_DB o <dir del binario>/geolite2/.
 # Sin base el agente arranca igual, pero los paises de los snapshots salen vacios.
@@ -390,6 +412,9 @@ if ($service -and $service.Status -eq 'Running') {
 Write-Host "`n=== Instalación completada ===" -ForegroundColor Green
 Write-Host "Servicio: $ServiceName" -ForegroundColor Gray
 Write-Host "Binario: $BinPath" -ForegroundColor Gray
+if (Test-Path "$InstallDir\sc-gui.exe") {
+ Write-Host "GUI: $InstallDir\sc-gui.exe (abrir con abrir-gui.bat)" -ForegroundColor Gray
+}
 Write-Host "Config: $ConfigFile" -ForegroundColor Gray
 Write-Host "Log: $LogDir\agent.log" -ForegroundColor Gray
 Write-Host "Spool: $SpoolDir" -ForegroundColor Gray
