@@ -113,6 +113,15 @@ pub struct CountryStat {
     pub hosts: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AsnStat {
+    pub asn: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asn_org: Option<String>,
+    pub bytes: u64,
+    pub hosts: u64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AlertSeverity {
@@ -185,6 +194,8 @@ pub struct WindowSnapshot {
     pub top_hosts: Vec<HostStats>,
     pub top_ports: Vec<PortStat>,
     pub top_countries: Vec<CountryStat>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub top_asns: Vec<AsnStat>,
     pub alerts: Vec<Alert>,
     pub health: AgentHealth,
 }
@@ -274,6 +285,7 @@ mod tests {
                 bytes: 5_242_880,
                 hosts: 15,
             }],
+            top_asns: vec![],
             alerts: vec![],
             health: sample_health(),
         }

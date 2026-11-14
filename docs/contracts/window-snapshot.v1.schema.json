@@ -71,6 +71,21 @@
         }
       }
     },
+    "top_asns": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["asn", "bytes", "hosts"],
+        "properties": {
+          "asn": { "type": "integer", "minimum": 0 },
+          "asn_org": { "type": "string" },
+          "bytes": { "$ref": "#/$defs/counter" },
+          "hosts": { "$ref": "#/$defs/counter" }
+        }
+      }
+    },
     "alerts": {
       "type": "array",
       "maxItems": 50,

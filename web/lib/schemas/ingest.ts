@@ -30,6 +30,13 @@ export const CountryStatSchema = z.object({
   hosts: CounterSchema,
 });
 
+export const AsnStatSchema = z.object({
+  asn: z.number().int().min(0),
+  asn_org: z.string().optional(),
+  bytes: CounterSchema,
+  hosts: CounterSchema,
+});
+
 export const AlertSchema = z.object({
   rule_id: z.string().regex(/^[a-z0-9_]+$/).max(64),
   severity: z.enum(['info', 'low', 'medium', 'high', 'critical']),
@@ -70,6 +77,7 @@ export const WindowSnapshotSchema = z.object({
   top_hosts: z.array(HostStatsSchema).max(50),
   top_ports: z.array(PortStatSchema).max(50),
   top_countries: z.array(CountryStatSchema).max(30),
+  top_asns: z.array(AsnStatSchema).max(30).optional(),
   alerts: z.array(AlertSchema).max(50),
   health: AgentHealthSchema,
 });
@@ -101,6 +109,7 @@ export type WindowSnapshot = z.infer<typeof WindowSnapshotSchema>;
 export type HostStats = z.infer<typeof HostStatsSchema>;
 export type PortStat = z.infer<typeof PortStatSchema>;
 export type CountryStat = z.infer<typeof CountryStatSchema>;
+export type AsnStat = z.infer<typeof AsnStatSchema>;
 export type Alert = z.infer<typeof AlertSchema>;
 export type AgentHealth = z.infer<typeof AgentHealthSchema>;
 
