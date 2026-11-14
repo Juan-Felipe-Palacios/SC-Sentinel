@@ -108,6 +108,17 @@ if ($waited -gt 0) {
 # Paso 3: Eliminar binario y directorio de instalación (con verificación)
 Write-Step "Eliminando binario..."
 $InstallDir = "C:\Program Files\SC-Sentinel"
+# La GUI sigue viva tras detener el servicio (es un proceso de usuario, no del
+# SCM) y su exe bloqueado impide borrar el directorio: se cierra primero.
+foreach ($procName in @('sc-gui', 'sc-sentinel-agent')) {
+  Get-Process -Name $procName -ErrorAction SilentlyContinue | ForEach-Object {
+    Write-Step "Cerrando $($_.ProcessName) (PID $($_.Id))..."
+    Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+  }
+}
+if (Get-Process -Name 'sc-gui' -ErrorAction SilentlyContinue) {
+  Start-Sleep -Seconds 2
+}
 # La GUI y su lanzador no son parte del servicio: se borran explicitamente para
 # que no queden residuos aunque el borrado del directorio falle a medias.
 if (Test-Path $InstallDir) {

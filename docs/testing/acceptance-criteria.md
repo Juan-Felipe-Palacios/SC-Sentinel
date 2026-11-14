@@ -337,35 +337,37 @@ Hecha sobre el **ZIP descargado de la release v0.1.3**, no sobre el binario loca
       correcto en disco **y en HEAD**, `cargo clean -p <crates>` antes de depurar
       el código. Ver `docs/runbooks/local-development.md` §7.1.
 
-> Pendiente de cierre: la repetición del **ciclo físico de 9 etapas** con el
-> instalador ya curado del auto-bloqueo de ACLs (`.bat` completo, con UAC) que
-> deja el bache 1 de M5 con evidencia de servicio completo (drenaje, recovery y
-> reinstalación) sobre el binario de la release. Todo lo que **no** requiere
-> elevación ya está verificado arriba; lo que queda es el ciclo del SCM
-> (instalar/desinstalar/recovery), que necesita un token de administrador.
+> **Cerrado (2026-11-14):** la repetición del **ciclo físico de 10 etapas**
+> corrió completa con el UAC aceptado y terminó con **0 fallos**
+> (`%TEMP%\m5-cycle\m5-cycle-20261114-173428.log`, transcript de 17:34 a
+> 17:39 local). Paquete: ZIP de la release v0.1.6 extraído
+> (`sc-sentinel-agent.exe` sha256 `8883897C…33031`, sin cambios); los tres
+> `.ps1` del paquete se parcharon con los arreglos del mismo día y las sumas
+> del paquete se regeneraron (los binarios no se tocaron). Etapas P0..P9
+> verificadas sobre los `.bat` de un clic: artefacto y sumas, desinstalación
+> previa sin residuos (servicio 1060, sin Program Files ni ProgramData),
+> instalación un-clic, GeoLite2 Country+ASN instalada con ACL y variables
+> `SC_GEOIP_DB`/`SC_GEOIP_ASN_DB` en el Environment del servicio, query/qc/
+> qfailure (AUTO_START + tres reinicios 5/10/30 s), RUNNING con log, `.host-key`,
+> spool y puertos UDP 2056/4739, stop→drenaje→exit code 0, start→RUNNING,
+> `taskkill /F`→recovery en <60 s, desinstalación sin residuos y
+> reinstalación final RUNNING.
 >
-> El script ya está **versionado** en el repo: `scripts/verify-m5-cycle.ps1`
-> (10 etapas P0..P9, todo con los `.bat` de un clic del ZIP publicado). Antes
-> vivía solo en `%TEMP%\m4-chr\run\m5-verify2.ps1`; se trajo al repo para que
-> el procedimiento no dependa de un directorio temporal, con el device id y las
-> rutas como parámetros. Se auto-eleva, así que basta con lanzarlo y **aceptar el
-> aviso de UAC**; ya elevado pide el token con `Read-Host -AsSecureString` (o lo
-> toma de `SCS_INSTALL_TOKEN` y la borra). El token no viaja por argumentos ni
-> queda en el transcript:
+> **Defectos que el ciclo destapó y quedaron corregidos (2026-11-14):**
 >
-> ```powershell
-> powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\verify-m5-cycle.ps1 `
->   -PackageDir <carpeta del ZIP extraido> -DeviceId <device>
-> ```
+> 1. `uninstall-agent.ps1` no cerraba el proceso de la GUI (`sc-gui.exe`),
+>    que al ser un proceso de usuario (no del SCM) sobrevive al stop del
+>    servicio y su exe bloqueado dejaba `C:\Program Files\SC-Sentinel` sin
+>    borrar (P1b y P8). Ahora el desinstalador hace `Stop-Process` de
+>    `sc-gui` y de cualquier `sc-sentinel-agent` suelto antes de borrar.
+> 2. `install-agent.ps1` escribía `SC_GEOIP_ASN_DB` con doble barra
+>    (`geolite2\\GeoLite2-ASN.mmdb`); el agente lo toleraba, pero quedó
+>    corregido a la barra simple.
+> 3. `verify-m5-cycle.ps1` (P4) buscaba en el log el texto anterior a
+>    v0.1.6 (`GeoIP: base GeoLite2 cargada`); desde la 0.1.6 el agente
+>    loguea dos líneas (Country y ASN) y el patrón pasó a
+>    `GeoIP: base GeoLite2 (Country|ASN) cargada`.
 >
-> Sin ejecutar nada, valida el paquete y muestra el plan:
->
-> ```powershell
-> powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\verify-m5-cycle.ps1 `
->   -PackageDir <carpeta del ZIP extraido> -DeviceId <device> -DryRun
-> ```
->
-> El transcript va a `-RunDir` (por defecto `%TEMP%\m5-cycle`, un fichero
-> `m5-cycle-<marca>.log` por corrida). Hasta la fecha el aviso de UAC se ha
-> cancelado en los intentos automáticos (siete), por lo que el ciclo sigue
-> pendiente y queda a un solo clic de administrador.
+> Nota de alcance: el ZIP publicado de v0.1.6 contiene los instaladores
+> previos a estos arreglos; para la próxima release el empaquetado debe
+> salir de un árbol que ya los incluya.

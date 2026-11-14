@@ -241,7 +241,7 @@ $geoAsnCandidates = @(
 $GeoIpAsnInstalled = $null
 if ($geoAsnCandidates.Count -gt 0) {
   $geoAsnSource = @($geoAsnCandidates)[0]
-  $GeoIpAsnInstalled = "$GeoIpDir\\$GeoIpAsnName"
+  $GeoIpAsnInstalled = "$GeoIpDir\$GeoIpAsnName"
   Copy-Item $geoAsnSource $GeoIpAsnInstalled -Force
   $geoAsnSrcHash = (Get-FileHash $geoAsnSource -Algorithm SHA256).Hash
   $geoAsnDstHash = (Get-FileHash $GeoIpAsnInstalled -Algorithm SHA256).Hash

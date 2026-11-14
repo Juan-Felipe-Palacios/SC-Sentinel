@@ -307,7 +307,7 @@ try {
     Write-Host '--- log (tail) ---'
     Get-Content $logFile -Tail 30 -ErrorAction SilentlyContinue | Write-Host
     $logTxt = Get-Content $logFile -Raw -ErrorAction SilentlyContinue
-    Check 'el log dice que cargo la base GeoLite2' ($logTxt -match 'GeoIP: base GeoLite2 cargada') (($logTxt | Select-String -Pattern 'GeoIP:.*cargada' -AllMatches).Matches.Value -join ' ')
+    Check 'el log dice que cargo la base GeoLite2' ($logTxt -match 'GeoIP: base GeoLite2 (Country|ASN) cargada') (($logTxt | Select-String -Pattern 'GeoIP:.*cargada' -AllMatches).Matches.Value -join ' ')
 
     Step 'P5 stop -> drain -> Stopped (exit code esperado 0)'
     sc.exe stop $Service | Out-Null
