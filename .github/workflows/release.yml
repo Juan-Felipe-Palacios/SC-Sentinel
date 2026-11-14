@@ -108,6 +108,14 @@ jobs:
         working-directory: agent
         run: cargo build --release -p sc-agent --features sc-capture/live
 
+      # La GUI viaja en el paquete Windows (package-release.ps1 la copia junto
+      # al binario y install-agent.ps1 la lleva a Program Files). Sin este paso
+      # el empaquetador aborta por falta de sc-gui.exe.
+      - name: Compilar GUI (Windows)
+        if: matrix.target == 'windows-x64'
+        working-directory: agent
+        run: cargo build --release -p sc-gui
+
       # En Linux el agente se despliega en modo colector (`--no-capture`), tal
       # y como documenta docs/runbooks/install-agent-linux.md: "no hace falta
       # libpcap". Con la feature `live` el binario enlaza dinamicamente con
