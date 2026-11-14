@@ -49,8 +49,6 @@ __pycache__/
 .playwright-mcp/
 .kilo/
 *.zip
-*.rar
-0.26.0
 
 # Variables de entorno locales (nunca commitear)
 .env
