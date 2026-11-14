@@ -2,6 +2,16 @@
 
 Formato: Keep a Changelog 1.1 (semantic entries) publicado tambiÃ©n en cada GitHub Release.
 
+## [0.1.6] — 2026-11-14
+
+### Added
+- (Agent) Soporte opcional de GeoLite2-ASN: `top_asns` en el snapshot y flags
+  `geo_asn_loaded`/`geo_country_loaded` en `/status`. La base ASN se carga de
+  forma independiente; si falta, `top_asns` queda vacío sin impedir el arranque.
+
+### Changed
+- (Agent) `WindowSnapshot` y Zod/JSON Schema aceptan `top_asns` como campo opcional.
+
 ## [0.1.5] â€” 2026-11-13
 
 El paquete de Windows pasa a incluir la GUI y sus sumas se calculan desde el

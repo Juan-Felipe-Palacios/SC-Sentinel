@@ -29,7 +29,7 @@
 .EXAMPLE
   .\scripts\verify-agent.ps1
   .\scripts\verify-agent.ps1 -Service
-  .\scripts\verify-agent.ps1 -ZipPath C:\descargas\sc-sentinel-agent-v0.1.5-windows-x64.zip
+  .\scripts\verify-agent.ps1 -ZipPath C:\descargas\sc-sentinel-agent-v0.1.6-windows-x64.zip
 #>
 [CmdletBinding()]
 param(

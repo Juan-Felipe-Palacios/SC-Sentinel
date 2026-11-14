@@ -91,7 +91,7 @@ param(
     [string]$InstallDir = 'C:\Program Files\SC-Sentinel',
     [string]$DataDir = 'C:\ProgramData\SC-Sentinel',
     [string]$CollectorPorts = '2056,4739',
-    [string]$ExpectedVersion = '0.1.5',
+    [string]$ExpectedVersion = '0.1.6',
     [int]$MinSums = 9,
     [switch]$DryRun
 )
