@@ -549,16 +549,22 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
     // sigue funcionando y la GUI mostrará "Desconectado".
     // Se crea antes del publicador de ventanas: este es quien alimenta el
     // historial que `/status` expone a la GUI.
+    // En Windows el modo refleja si el proceso corre bajo el SCM; en Linux no
+    // hay servicio integrado, así que siempre es consola.
+    #[cfg(windows)]
+    let agent_mode = if service::is_service() {
+        "service".to_string()
+    } else {
+        "console".to_string()
+    };
+    #[cfg(not(windows))]
+    let agent_mode = "console".to_string();
     let status_shared = StatusShared::new(
         health.clone(),
         StatusConfig {
             agent_version: env!("CARGO_PKG_VERSION").to_string(),
             device_id: device.id.clone(),
-            mode: if service::is_service() {
-                "service".to_string()
-            } else {
-                "console".to_string()
-            },
+            mode: agent_mode,
             capture_enabled: !args.no_capture,
             collector_ports: if config.collector.enabled {
                 config
