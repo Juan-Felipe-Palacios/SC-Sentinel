@@ -98,6 +98,8 @@ El instalador (`scripts/install-agent.ps1`):
 
 > **Por qué `--no-capture`:** el servicio arranca en modo **collector-only**. La fuente de datos del daemon es el colector UDP (fuente exclusiva por segmento, ver `docs/testing/pcap-vs-flow.md` §7). Sin ese flag el agente exigiría una interfaz de captura y abortaría con código 2.
 
+> **Desviación de producción (2026-11-14, decisión del propietario):** el host de producción no tiene exportador NetFlow/IPFIX, así que el servicio se reconfiguró a **captura local** con Npcap (ya instalado): `ImagePath` con `--interface "<descripción NDIS del adaptador>"` en lugar de `--no-capture` (p. ej. `--interface "Intel(R) Wireless-AC 9560 160MHz"`). Dos notas operativas: (1) `--interface` matchea contra el **nombre de dispositivo pcap** (`\Device\Npcap_{GUID}`) o la **descripción**, no contra el nombre amistoso de Windows ("Wi-Fi" aborta con exit 1); (2) editar `ImagePath` directo en el registro (`HKLM\...\Services\SC-Sentinel-Agent`) es la vía fiable — `sc.exe config binPath=` falla con 1639 si PowerShell 5.1 manglea las comillas incrustadas. La descripción se obtiene con `Get-NetAdapter | Where-Object Status -eq 'Up'`. Si el host gana un exportador de flujos, volver a collector-only para respetar la fuente exclusiva por segmento (`source_overlap`).
+
 Desinstalación simétrica: `.\scripts\uninstall-agent.ps1` (usa `-PurgeData` para borrar además spool y `.host-key`).
 
 ## 2. Instalación manual (sin instalador)
