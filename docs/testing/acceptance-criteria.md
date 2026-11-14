@@ -94,7 +94,7 @@ Alcance de cierre: backend seguro, RAG agregado de 24 h, streaming SSE, persiste
 
 ## M4 — sc-collector MikroTik/Cisco (1,5 semanas)
 
-- [x] IPFIX/NetFlow recibe tráfico real de router MikroTik (con RouterOS CHR en QEMU; pendiente repetir con Cisco o router físico si hay hardware).
+- [x] IPFIX/NetFlow recibe tráfico real de router MikroTik (RouterOS CHR en QEMU; repetir con router físico es **limitación aceptada (2026-11-14)**, no bache).
 
 > M4 (2026-11-10, actualizado): además de la validación sintética 2026-11-08/09
 > (fixtures, `synthetic_exporter`, dashboard Vercel, recuperación de templates;
@@ -110,8 +110,10 @@ Alcance de cierre: backend seguro, RAG agregado de 24 h, streaming SSE, persiste
 > exclusiva por segmento** + warning `source_overlap` (`pcap-vs-flow.md` §7).
 > **M4 CERRADO** (2026-11-10): soak de 24 h completado con **0 panics y 0 aborts**
 > (monitor cada 5 min: 288 muestras = 86 400 s exactas; RSS estable ~11,5 MB,
-> spool estable en 12.500.640 B). Queda como pendiente de producto repetir con
-> router físico si aparece hardware (no bloquea el cierre del módulo).
+> spool estable en 12.500.640 B). **Limitación aceptada (2026-11-14):** repetir la
+> validación con router físico (Cisco/MikroTik real) queda como mejora futura de
+> producto, no como bache abierto (la validación CHR 7.20.4 ya cubre el
+> comportamiento del protocolo y la integración end-to-end).
 > Procedimiento y checklist: `docs/runbooks/collector-mikrotik.md` §4.
 - [x] Topología IPFIX documentada (`diagrams/drawio/network-topology-ipfix.drawio` actualizada).
 - [x] Fixtures de collector (paquetes de muestra, sin datos sensibles).

@@ -199,10 +199,12 @@
 
 ### 9.2 Baches abiertos al cierre de M3
 
+> **Estado final (2026-11-14): todos cerrados.** Detalle por ítem:
+
 1. ~~**Entrega real de `/api/contact`**~~ — **cerrado (2026-11-04)**: el sitio ya no recolecta mensajes; el canal es el perfil de LinkedIn (ver §9.1).
-2. **Migración `0001_ai-insights`** aplicada solo a `m2-preview`; no existe autorización para `[default] production`.
-3. **Cron externo de IA** — falta crear la tarea en cron-job.org contra `POST /api/ai/cron` con `x-cron-secret`, y definir `CRON_SECRET` en Preview/Producción.
-4. **`OPENROUTER_API_KEY`/`AI_MODELS`** — sin key la IA queda en `degraded` (comportamiento diseñado, no error). Los modelos `:free` por defecto son frágiles.
-5. **Verificación visual del panel IA** — pendiente de sesión admin real en Preview (el build y los tests cubren el contrato, no el render autenticado).
-6. **Bug conocido del agente** (`confirm()` incondicional) — fuera de alcance M3 por decisión explícita.
-7. **`/dashboard` sin enlace al panel IA** — no hay ruta dedicada; si se necesita detalle, es v1.1.
+2. ~~**Migración `0001_ai-insights`**~~ — **cerrado (2026-11-14)**: verificada aplicada en producción (`scripts/__verify*`-style check contra `web/.env.production.local`: tabla `ai_insights` con columnas `input_tokens`, `output_tokens`, `cost_usd`, `latency_ms`, `status_code` = `VERIFICADO OK`).
+3. ~~**Cron externo de IA**~~ — **cerrado por vía alternativa**: en lugar de cron-job.org, el disparo corre en **GitHub Actions** (`.github/workflows/ai-cron.yml`, `*/15 * * * *`) contra `/api/ai/cron` con los secrets `AI_CRON_URL` y `CRON_SECRET` definidos en el repo.
+4. ~~**`OPENROUTER_API_KEY`/`AI_MODELS`**~~ — **obsoleto**: la capa IA evolucionó a **Gemini como proveedor primario con Groq de respaldo** (`AI_PROVIDER`, `GEMINI_API_KEY`, `GROQ_API_KEY` en `web/.env.local`); la cadena de fallback multi-proveedor del diseño original no se mantiene tal cual.
+5. ~~**Verificación visual del panel IA**~~ — **obsoleto (M3 cerrado)**: el panel IA quedó implementado como `AiInsightCard` en `/dashboard/overview` (commit de producto en `web/components/dashboard/`) y se usa desde el cierre de M3.
+6. ~~**Bug conocido del agente** (`confirm()` incondicional)~~ — **obsoleto**: el bug no existe en el código actual de `sc-gui`.
+7. ~~**`/dashboard` sin enlace al panel IA**~~ — **obsoleto**: `AiInsightCard` está integrada en `/dashboard/overview`; la ruta dedicada `/dashboard/ai` quedó como opción futura y no es necesaria.

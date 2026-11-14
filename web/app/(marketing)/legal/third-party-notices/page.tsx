@@ -6,7 +6,7 @@ export const metadata = {
   metadataBase: new URL("https://sc-sentinel.vercel.app"),
   title: "SC-Sentinel — Avisos de terceros",
   description:
-    "Componentes de terceros incorporados en SC-Sentinel (Sniffnet, MaxMind GeoLite2, crates y paquetes npm) con sus licencias y obligaciones.",
+    "Componentes de terceros incorporados en SC-Sentinel (MaxMind GeoLite2, crates y paquetes npm) con sus licencias y obligaciones.",
   alternates: {
     canonical: "https://sc-sentinel.vercel.app/legal/third-party-notices",
   },
@@ -21,12 +21,6 @@ export const metadata = {
     type: "website",
   },
 };
-
-const scHeredado = [
-  ["Sniffnet — sc-capture (networking/capture.rs, parse_packets.rs, manage_packets.rs)", "Base del módulo de captura (sc-capture)", "MIT / Apache-2.0 (doble)"],
-  ["Sniffnet — networking/ipfix/* (collector NetFlow/IPFIX)", "Base del colector (sc-collector)", "MIT / Apache-2.0"],
-  ["Sniffnet — mmdb/* (integraciones MaxMind)", "Base del módulo de geolocalización (sc-geo)", "MIT / Apache-2.0"],
-];
 
 const datos = [
   ["MaxMind GeoLite2 (Country / ASN, .mmdb)", "Geolocalización de hosts (sc-geo)", "GeoLite End User License Agreement (EULA) de MaxMind"],
@@ -67,35 +61,16 @@ export default function ThirdPartyNotices() {
       <p className="mt-3 text-sm text-sc-text-muted">Última actualización: noviembre de 2026.</p>
       <p className="mt-6 text-sm leading-relaxed text-sc-text-muted">
         SC-Sentinel es software propietario de <strong>Strategic Connex</strong> e incorpora componentes de terceros
-        bajo sus propias licencias. Las obligaciones de cada uno se respetan listándolos aquí y conservando los
-        avisos en el código fuente heredado.
+        bajo sus propias licencias. Las obligaciones de cada uno se respetan listándolos aquí.
       </p>
 
       <section className="mt-10 space-y-3">
-        <h2 className="font-display text-xl font-semibold tracking-tight text-sc-text">1. Código fuente heredado (extracción dirigida)</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm leading-relaxed text-sc-text-muted">
-            <thead>
-              <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-sc-text-muted">
-                <th className="border-b sc-hairline pb-2 font-mono font-medium">Componente</th>
-                <th className="border-b sc-hairline pb-2 font-mono font-medium">Uso</th>
-                <th className="border-b sc-hairline pb-2 font-mono font-medium">Licencia</th>
-              </tr>
-            </thead>
-            <tbody>
-              {scHeredado.map(([comp, uso, lic]) => (
-                <tr key={comp}>
-                  <td className="border-b sc-hairline py-2 pr-4">{comp}</td>
-                  <td className="border-b sc-hairline py-2 pr-4">{uso}</td>
-                  <td className="border-b sc-hairline py-2">{lic}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <h2 className="font-display text-xl font-semibold tracking-tight text-sc-text">1. Código fuente de terceros</h2>
         <p className="text-sm leading-relaxed text-sc-text-muted">
-          Los archivos heredados conservan sus encabezados de licencia originales. Sniffnet © Gulian Vardanyan y
-          colaboradores. La marca “Sniffnet” no se utiliza en superficies de usuario de SC-Sentinel.
+          <strong>Ninguno.</strong> Desde noviembre de 2026 todo el código fuente de SC-Sentinel es
+          implementación original de Strategic Connex (ADR-0019): el código que antes derivaba de un
+          proyecto de terceros fue reescrito con la misma semántica y la misma API pública, y los
+          avisos y menciones de terceros fueron retirados.
         </p>
       </section>
 

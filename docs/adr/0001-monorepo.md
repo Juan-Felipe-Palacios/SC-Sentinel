@@ -21,7 +21,7 @@ Cada workspace CI propio (`.github/workflows/rust.yml`, `web.yml`, `contracts.ym
 ## Alternativas consideradas
 
 - **Dos repos** (`sc-sentinel-agent`, `sc-sentinel-web`): separa PRs que rompen ambos lados de un mismo contrato; duplica configuración de CI y issues. Descartado para v1 (equipo de 1 persona).
-- **Fork in place de Sniffnet**: acopla la historia git de un proyecto ajeno a un producto propietario con identidades distintas. Descartado (ver ADR-0006).
+- **Fork in place del código de terceros**: acopla la historia git de un proyecto ajeno a un producto propietario con identidades distintas. Descartado (ver ADR-0006).
 
 ## Consecuencias
 

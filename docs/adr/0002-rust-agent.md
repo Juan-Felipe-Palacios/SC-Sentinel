@@ -4,7 +4,7 @@
 
 ## Contexto
 
-El agente debe capturar tráfico con pcap (herencia de Sniffnet: etherparse, tablas de ~6000 servicios, MaxMind) y ejecutarse como daemon headless (Windows service / systemd). La lógica original de Sniffnet está acoplada a iced (GUI).
+El agente debe capturar tráfico con pcap (stack: etherparse, bases MaxMind GeoLite2) y ejecutarse como daemon headless (Windows service / systemd). El motor de captura de referencia de terceros (ADR-0006) estaba acoplado a su GUI (iced).
 
 ## Decisión
 
@@ -22,8 +22,8 @@ sc-agent (bin daemon) y sc-gui (bin iced, M5) consumen las anteriores
 
 ## Alternativas consideradas
 
-- **Port completo del monolito Sniffnet**: mantiene el acople iced; contradice el requisito de daemon headless. Descartado.
-- **Go/Python**: perdería reutilización directa (~90% de capture.rs, ~95% de ipfix/). Descartado.
+- **Port completo del motor de captura de terceros**: mantiene el acople a su GUI (iced); contradice el requisito de daemon headless. Descartado.
+- **Go/Python**: rompería la reutilización del ecosistema Rust ya adoptado (tokio, etherparse, maxminddb). Descartado.
 
 ## Consecuencias
 

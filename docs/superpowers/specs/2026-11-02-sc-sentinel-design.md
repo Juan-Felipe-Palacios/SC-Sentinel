@@ -33,7 +33,7 @@ SC-Sentinel es un sistema de monitoreo y detección de anomalías de red en dos 
 | Fuentes secundarias | MikroTik RouterOS v7 IPFIX y Cisco NetFlow v9 vía collector heredado (M4) |
 | Binarios | **Ambos**: `sc-sentinel` (GUI iced, híbrido posterior) + `sc-sentinel-agent` (daemon headless) |
 | Audiencia dashboard | Uso interno (single-device, no multi-tenant) |
-| Licencia | Propietaria Strategic Connex; módulos extraídos de Sniffnet quede MIT/Apache-2.0 headers + THIRDPARTY_NOTICES.md; sin marca "Sniffnet" en superficies de usuario |
+| Licencia | Propietaria Strategic Connex; código fuente 100 % propio desde 2026-11-14 (ADR-0019, antes derivado con headers MIT/Apache-2.0 según ADR-0006) |
 | Identidad visual | Design tokens extraídos de strategicconnex.com.ar |
 | DB | Neon Postgres free |
 | IA | Modelos free de OpenRouter (sufijo `:free`) con cadena de fallback; batch ≤1 llamada/~5 min |

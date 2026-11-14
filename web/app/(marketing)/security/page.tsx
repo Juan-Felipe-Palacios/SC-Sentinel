@@ -220,7 +220,7 @@ export default function Security() {
                 Avisos de terceros
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-sc-text-muted">
-                Los componentes incorporados (Sniffnet, MaxMind GeoLite2, crates y paquetes npm)
+                Los componentes incorporados (MaxMind GeoLite2, crates y paquetes npm)
                 se listan con licencia y obligación correspondiente.
               </p>
               <Link

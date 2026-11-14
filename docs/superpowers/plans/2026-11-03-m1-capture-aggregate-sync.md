@@ -4,28 +4,13 @@
 
 **Goal:** Captura de tráfico real desacoplada de GUI, agregación en ventanas de 30 s → `WindowSnapshot`, cliente de ingesta `/api/ingest` con spool SQLite (offline, cota 500 MB/7 días FIFO, dead_letter, backoff), gzip y mock server end-to-end. Todo compilando y testeando en Windows y Linux.
 
-**Architecture:** Pipeline `sc-capture → (tokio mpsc bounded 10_000, backpressure §8.2) → sc-aggregate → (WindowSnapshot) → sc-sync → POST /api/ingest`. `sc-geo` enriquece hosts con país (GeoLite2 local). `sc-agent` (bin) cablea el pipeline. `sc-detect` queda esqueleto (sin reglas en M1; `alerts: []`). La captura live va detrás de una feature cargo `live` (dependencia `pcap`, ligada a libpcap/Npcap) para que CI compile en ambos OS sin privilegios ni SDKs; la extracción de Sniffnet se limita a los archivos verificados del tag **v1.5.1** (ver Nota 1).
+**Architecture:** Pipeline `sc-capture → (tokio mpsc bounded 10_000, backpressure §8.2) → sc-aggregate → (WindowSnapshot) → sc-sync → POST /api/ingest`. `sc-geo` enriquece hosts con país (GeoLite2 local). `sc-agent` (bin) cablea el pipeline. `sc-detect` queda esqueleto (sin reglas en M1; `alerts: []`). La captura live va detrás de una feature cargo `live` (dependencia `pcap`, ligada a libpcap/Npcap) para que CI compile en ambos OS sin privilegios ni SDKs; la captura y el parseo son implementación propia (la derivación histórica de ADR-0006 fue reescrita como código propio en ADR-0019).
 
-**Tech Stack:** tokio, serde/serde_json, etherparse, pcap-file (fixture puro, dev/test), pcap (feature `live`), maxminddb + GeoLite2 (recursos de Sniffnet v1.5.1), rusqlite (bundled), flate2 (gzip) + zstd (flag opcional), reqwest (rustls + json), backoff, tracing/tracing-subscriber, ulid, sha2+hmac (host_key), config (TOML), insta (golden), thiserror/anyhow.
+**Tech Stack:** tokio, serde/serde_json, etherparse, pcap-file (fixture puro, dev/test), pcap (feature `live`), maxminddb + GeoLite2 (bases de MaxMind), rusqlite (bundled), flate2 (gzip) + zstd (flag opcional), reqwest (rustls + json), backoff, tracing/tracing-subscriber, ulid, sha2+hmac (host_key), config (TOML), insta (golden), thiserror/anyhow.
 
 **Fuente de verdad:** spec v2.1 `docs/superpowers/specs/SC-Sentinel-Spec-Completo-2026-11-03.md` §4.1 (interfaces), §5.1 + `docs/contracts/*.schema.json` (contratos normativos), §8.1–8.3 (resiliencia/backpressure/compresión), §9.3 (logging), §10 (observabilidad), §14.1/14.3 (testing y criterios M1), §16.2 (librerías), ADR-0002 (jerarquía), ADR-0006 (extracción), ADR-0008 (idempotencia), ADR-0009 (compresión).
 
-**Fuente verificada (contexto Sniffnet):** árbol del tag v1.5.1 consultado el 2026-11-03 — https://github.com/GyulyVGC/sniffnet/tree/v1.5.1/src/networking
-
----
-
-## Nota 1 — Realidad de Sniffnet v1.5.1 (contrastar con ADR-0006)
-
-ADR-0006 afirma que v1.5.1 aporta `networking/{capture,parse_packets,manage_packets}.rs` e `ipfix/`. La verificación del árbol real del tag muestra:
-
-- ✅ Existen en v1.5.1: `src/networking/parse_packets.rs`, `src/networking/manage_packets.rs`, `src/networking/types/`, `src/mmdb/` (`asn.rs`, `country.rs`, `types/mmdb_reader.rs`) y `resources/DB/*.mmdb` (GeoLite2 embebido).
-- ❌ NO existen en v1.5.1: `src/networking/capture.rs` ni `src/networking/ipfix/` — están solo en `main` (post-v1.5.1, sin tag publicado). `Cargo.toml` v1.5.1: `pcap = "2.4.0"`, `etherparse = "0.20.3"`, `maxminddb = "0.30.0"`.
-
-Consecuencias adoptadas en este plan:
-
-1. `sc-capture` implementa con lógica propia el puente hilo-bloqueante → tokio mpsc (esa parte nunca estuvo en un tag) y se apoya en `parse_packets.rs`/`manage_packets.rs` de v1.5.1 para el parseo y la decisión de dirección (adaptación con headers MIT/Apache preservados).
-2. La extracción de `ipfix/` para `sc-collector` **queda diferida a M4**, con pin explícito al commit de `main` que se fije en el plan de M4 (hoy `main` sigue sin tag). `sc-collector` permanece esqueleto en M1.
-3. `sc-geo` hereda `src/mmdb/` y copia los `.mmdb` de `resources/DB/` (CC BY-SA, ya normado en `docs/legal/maxmind-notice.md`: "las versiones incluidas en Sniffnet (resource files) sirven a v1").
+**Nota histórica (derivación de terceros):** el plan original de M1 partía de módulos de un proyecto de terceros verificados el 2026-11-03 (ver ADR-0006). El colector IPFIX se implementó propio en M4 (ADR-0014) y, desde el 2026-11-14, todo el código derivado fue reescrito como implementación original (ADR-0019): los detalles de esa verificación ya no aplican.
 
 ## Nota 2 — Corrección de sc-core respecto del M0 (contratos normativos)
 
@@ -43,15 +28,8 @@ Los tipos de `sc-core` (M0) se escribieron según el ejemplo del spec §5.1, per
 
 ## Global Constraints (heredados de M0 + propios de M1)
 
-- Licencia: PROPIETARIA Strategic Connex. Archivos fuente propios llevan como primera línea el header `// Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.`
-- Los archivos **heredados/adaptados** de Sniffnet v1.5.1 conservan el header dual MIT/Apache-2.0 original y agregan la atribución y el aviso de modificación (requisito de la licencia MIT). Formato de encabezado:
-  ```rust
-  // Derived from Sniffnet v1.5.1 (original path: src/networking/parse_packets.rs),
-  // Copyright (c) Guilherme ("Guly") Vardanyan and Sniffnet contributors, dual-licensed MIT OR Apache-2.0.
-  // Adaptations and modifications for SC-Sentinel are proprietary:
-  // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
-  ```
-- Prohibido usar la marca "Sniffnet" en nombres, UI o copy propio (ADR-0006); en comentarios técnicos de código heredado sí está permitida la citación de la fuente (THIRD_PARTY_NOTICES §1).
+- Licencia: PROPIETARIA Strategic Connex. Archivos fuente llevan como primera línea el header `// Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.` (en M1 existían headers MIT/Apache en archivos derivados; retirados el 2026-11-14 con la reescritura de ADR-0019).
+- Sin marcas de terceros en nombres, UI o copy propio (ADR-0006).
 - Español internacional profesional en comentarios/docs/UI; identificadores de código en inglés.
 - Jerarquía de dependencias (ADR-0002, DAG estricto): `sc-capture` y `sc-geo` son fuentes consumibles por `sc-aggregate`; `sc-detect` es esqueleto sin reglas; `sc-sync` consume `WindowSnapshot`; `sc-config`/`sc-telemetry` son transversales (consumibles por cualquiera); `sc-core` raíz. Toda dependencia nueva entre crates debe respetar el DAG y quedar declarada en `agent/README.md` (Task 9 actualiza el mapa).
 - Nunca silenciar pérdida de datos: todo drop/pérdida se refleja en métricas (regla crítica §8.1; backpressure §8.2).
@@ -142,7 +120,7 @@ pub struct AgentHealth {
 
 **Files:**
 - Create: `agent/crates/sc-capture/src/flow.rs` (FlowUpdate + Direction + LocalIpSet)
-- Create: `agent/crates/sc-capture/src/parser.rs` (adaptación de `manage_packets.rs`; header de derivación Sniffnet)
+- Create: `agent/crates/sc-capture/src/parser.rs` (implementación propia del parseo; hoy es código original, ADR-0019)
 - Create: `agent/crates/sc-capture/src/fixtures.rs` (escritura de pcap sintético determinista)
 - Create: `agent/fixtures/loopback-trace.pcap` (generado por test helper y comiteado; IPs sintéticas RFC 1918)
 - Test: `agent/crates/sc-capture/tests/parser_fixture.rs`
@@ -252,7 +230,7 @@ Tests: (1) canal de capacidad 1 lleno: `try_push` → `Err(Full)` e incrementa `
   impl CountryLookup for NoLookup { /* siempre None */ }
   impl CountryLookup for GeoLite2Country { ... }      // devuelve None para IPs privadas/absentes; assert formato ^[A-Z]{2}$
   ```
-- Licencia: incluir los `.mmdb` es redistribución de datos CC BY-SA 4.0 con atribución — ya normado en `docs/legal/maxmind-notice.md` (las versiones incluidas en Sniffnet "sirven a v1"). `cargo deny` solo audita licencias de crates Rust; los recursos de datos no entran en su alcance (no hay conflicto).
+- Licencia: incluir los `.mmdb` es redistribución de datos GeoLite2 bajo el EULA de MaxMind con atribución — normado en `docs/legal/maxmind-notice.md`. `cargo deny` solo audita licencias de crates Rust; los recursos de datos no entran en su alcance (no hay conflicto).
 
 - [ ] **Step 1: Descargar el tarball del tag v1.5.1 y copiar SOLO los dos `.mmdb` a `agent/resources/geolite2/`** (sin historial de terceros; se fija en README la versión y el SHA-256 de cada recurso).
 - [ ] **Step 2: Implementar el lookup** (basado en `mmdb/country.rs` de v1.5.1): lookup de ISO alpha-2; IPs no encontradas → `None` (no error); el resultado debe matchear `^[A-Z]{2}$` (si no, `Err(GeoError::Format)`).
@@ -260,8 +238,8 @@ Tests: (1) canal de capacidad 1 lleno: `try_push` → `Err(Full)` e incrementa `
   1. `NoLookup::country(ip) == None` siempre.
   2. Apertura válida/inválida del recurso → Ok/Err(GeoError::Open).
   3. Buscar una **IP privada RFC 1918** (`10.0.0.1`) → `None` (estable para cualquier build del recurso).
-  4. Firma de integridad: SHA-256 de cada `.mmdb` == hash fijado en el README de resources (si MaxMind/Sniffnet actualiza el recurso, el test falla y el desarrollador re-fija el hash con una nota — nunca se actualiza el recurso silenciosamente).
-- [ ] **Step 4: Commit** `feat(sc-geo): port mmdb (Sniffnet v1.5.1) + GeoLite2 country embebido con firma de integridad`.
+  4. Firma de integridad: SHA-256 de cada `.mmdb` == hash fijado en el README de resources (si MaxMind actualiza el recurso, el test falla y el desarrollador re-fija el hash con una nota — nunca se actualiza el recurso silenciosamente).
+- [ ] **Step 4: Commit** `feat(sc-geo): port mmdb + GeoLite2 country embebido con firma de integridad`.
 
 ---
 
@@ -440,7 +418,7 @@ Tests: (1) canal de capacidad 1 lleno: `try_push` → `Err(Full)` e incrementa `
 - Create: `agent/config/sc-agent.toml.sample` (ejemplo committeado; NUNCA un config real con token)
 - Modify: `agent/README.md` (mapa de crates y estado M1)
 - Modify: `docs/legal/THIRD_PARTY_NOTICES.md` (rutas reales heredadas: `networking/parse_packets.rs`, `networking/manage_packets.rs`, `mmdb/`; nota de que `ipfix/` se hace en M4 desde `main@<sha>`; corregir nombre del autor: Guilherme "Guly" Vardanyan)
-- Modify: `docs/adr/0006-sniffnet-extraction.md` — añadir abajo una nota aclaratoria (no retroeditar la decisión): verificación 2026-11-03 del tag: `capture.rs` e `ipfix/` existen solo en `main` sin tag; la extracción de sc-collector se realizará en M4 con pin a un `main@<sha>` a definir.
+- Modify: `docs/adr/0006-extraccion-codigo-terceros.md` — añadir abajo una nota aclaratoria (no retroeditar la decisión): la verificación del árbol de terceros del 2026-11-03 documentó qué módulos existían y cuáles no; la extracción de sc-collector se realizó en M4 con implementación propia (ADR-0014).
 - Modify: `.github/workflows/rust.yml` (agregar `cargo check --features zstd` como gate; ver Step 5)
 - Create: `agent/scripts/smoke-offline.md` (instrucciones del smoke local offline con el binario, no tracker/integration en CI)
 

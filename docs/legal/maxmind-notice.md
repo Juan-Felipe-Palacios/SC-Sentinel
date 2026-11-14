@@ -1,6 +1,6 @@
 # Nota legal — MaxMind GeoLite2 (Country / ASN)
 
-**Uso:** geolocalización de hosts por país/ASN en `sc-geo` (heredado de Sniffnet `mmdb/`).
+**Uso:** geolocalización de hosts por país/ASN en `sc-geo` (implementación propia sobre `maxminddb`, ADR-0019).
 **Formato:** bases .mmdb que el agente **resuelve en runtime** (ADR-0015): se empaquetan en el subdirectorio `geolite2/` junto al binario y se instalan en `C:\Program Files\SC-Sentinel\geolite2\GeoLite2-Country.mmdb`. El ejecutable puede apuntar a otra copia con la variable de entorno `SC_GEOIP_DB`. Sin base, el agente arranca igual y los países salen vacíos.
 
 ## Obligaciones del EULA GeoLite2 aplicables
@@ -13,7 +13,7 @@
 
 ## Fuentes de actualización
 
-- Las versiones GeoLite2 Country/ASN incluidas en Sniffnet (resource files) sirven a v1.
+- Las bases GeoLite2 Country/ASN incluidas en el paquete se descargan directamente de MaxMind (Country 2026-11-10, ASN 2026-11-12); su origen y hashes están fijados en `agent/resources/geolite2/README.md`.
 - Registrar en el changelog cuando se actualiza un .mmdb (va incluido en el release del agente, en `geolite2/`).
 - Las actualizaciones posteriores requieren licencia propia de MaxMind a cargo del propietario.
 - Actualizar la base no exige recompilar el agente: se sustituye el fichero en `geolite2/` (o se apunta `SC_GEOIP_DB` a otra ruta) y se reinicia el servicio (ADR-0015).

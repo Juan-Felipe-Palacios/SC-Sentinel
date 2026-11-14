@@ -79,7 +79,7 @@ Strategic Connex Anomaly Shield (SC-Sentinel) es un sistema de monitoreo y detec
 | Fuentes secundarias | MikroTik RouterOS v7 IPFIX y Cisco NetFlow v9 vía collector heredado (M4) |
 | Binarios | Ambos: `sc-sentinel` (GUI iced, híbrido posterior) + `sc-sentinel-agent` (daemon headless) |
 | Audiencia dashboard | Uso interno (single-device, no multi-tenant) |
-| Licencia | Propietaria Strategic Connex; módulos extraídos de Sniffnet quedan con headers MIT/Apache-2.0 + `THIRD_PARTY_NOTICES.md`; sin marca "Sniffnet" en superficies de usuario |
+| Licencia | Propietaria Strategic Connex; código fuente 100 % propio desde 2026-11-14 (ADR-0019, antes derivado con headers MIT/Apache-2.0 según ADR-0006) |
 | Identidad visual | Design tokens extraídos de strategicconnex.com.ar |
 | DB | Neon Postgres free |
 | IA | Modelos free de Gemini, OpenRouter (`:free`) y Groq con cadena de fallback multi-proveedor; batch ≤1 llamada/15 min |
@@ -93,7 +93,7 @@ Strategic Connex Anomaly Shield (SC-Sentinel) es un sistema de monitoreo y detec
 | Dominio | Oficial `sc-sentinel.vercel.app` (ADR-0012) |
 | Styling web | Tailwind v4 CSS-first (`@theme` en `globals.css`, tokens como CSS variables; sin `tailwind.config.js`) |
 
-Detalle de ADRs en `docs/adr/` (se crean en M0): 0001-monorepo, 0002-rust-agent, 0003-neon-postgres-free, 0004-swr-instead-of-websockets, 0005-ai-batch-only, 0006-sniffnet-extraction, 0007-single-device-v1, 0008-idempotency, 0009-compresion-gzip-zstd, 0010-enrollment-dashboard-manual, 0011-rate-limit-drain, 0012-dominio-oficial.
+Detalle de ADRs en `docs/adr/` (se crean en M0): 0001-monorepo, 0002-rust-agent, 0003-neon-postgres-free, 0004-swr-instead-of-websockets, 0005-ai-batch-only, 0006-extraccion-codigo-terceros, 0007-single-device-v1, 0008-idempotency, 0009-compresion-gzip-zstd, 0010-enrollment-dashboard-manual, 0011-rate-limit-drain, 0012-dominio-oficial.
 
 ---
 

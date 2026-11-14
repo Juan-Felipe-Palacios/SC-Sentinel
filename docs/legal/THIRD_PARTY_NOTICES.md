@@ -2,15 +2,9 @@
 
 Este producto es software propietario de **Strategic Connex** e incorpora componentes de terceros bajo sus propias licencias. Las obligaciones de cada uno se respetan listados aquí y conservando los avisos en el código fuente heredado. Módulo: se regenera/completa con `cargo deny` + build de `pnpm` antes de cada release (release-checklist).
 
-## 1. Código fuente heredado (extracción dirigida)
+## 1. Código fuente de terceros
 
-| Componente | Uso en SC-Sentinel | Licencia original |
-|---|---|---|
-| Sniffnet (https://github.com/GyulyVGC/sniffnet) − `networking/capture.rs`, `networking/parse_packets.rs`, `networking/manage_packets.rs` | base de `sc-capture` | MIT / Apache-2.0 (doble) |
-| Sniffnet − `networking/ipfix/*` (collector NetFlow/IPFIX) | base de `sc-collector` | MIT / Apache-2.0 |
-| Sniffnet − `mmdb/` (integraciones MaxMind) | base de `sc-geo` | MIT / Apache-2.0 |
-
-Los archivos heredados conservan sus headers de licencia originales. Sniffnet © Gulian Vardanyan y colaboradores. **No se usa la marca "Sniffnet" en superficies de usuario de SC-Sentinel** (ADR-0006).
+**Ninguno.** Desde el 2026-11-14 (ADR-0019) todo el código fuente de SC-Sentinel es implementación original de Strategic Connex: el código que antes derivaba de un proyecto de terceros fue reescrito (misma semántica, misma API pública, tests verdes) y las menciones y headers de terceros fueron retirados (ADR-0006 registra la historia). Los avisos de esta sección se limitan a dependencias y datos.
 
 ## 2. Bases de datos embebidas / dependencias de datos
 

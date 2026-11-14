@@ -4,7 +4,7 @@
 
 **Goal:** Repo completo con estructura del spec §4 (workspace Rust `agent/` de 11 crates esqueleto + Next.js 15 en `web/` + CI workflows verdes) que compila en Windows y Linux.
 
-**Architecture:** Monorepo (ADR-0001): `agent/` workspace Cargo con crates por responsabilidad, `web/` Next.js 15 + Tailwind v4 CSS-first, `docs/` ya existente. M0 solo crea esqueletos que compilan y testean trivialmente — la lógica real (extracción de Sniffnet TCP) es M1.
+**Architecture:** Monorepo (ADR-0001): `agent/` workspace Cargo con crates por responsabilidad, `web/` Next.js 15 + Tailwind v4 CSS-first, `docs/` ya existente. M0 solo crea esqueletos que compilan y testean trivialmente — la lógica real (captura y parseo TCP) es M1.
 
 **Tech Stack:** Rust stable (tokio stub), Next.js 15 + TypeScript + Tailwind v4 + pnpm, GitHub Actions (`dtolnay/rust-toolchain`, `pnpm/action-setup@v4`), Node scripts para validación de contratos.
 
@@ -12,8 +12,8 @@
 
 ## Global Constraints
 
-- Licencia: PROPIETARIA Strategic Connex. Archivos fuente llevan como primera línea el header `// Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.` (los headers MIT/Apache se agregan en M1 solo a archivos heredados de Sniffnet).
-- Prohibido usar la marca "Sniffnet" en nombres, UI o copy propio.
+- Licencia: PROPIETARIA Strategic Connex. Archivos fuente llevan como primera línea el header `// Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.` (código 100 % propio desde 2026-11-14, ADR-0019).
+- Sin marcas de terceros en nombres, UI o copy propio.
 - Español internacional profesional (rioplatense neutro) en comentarios/docs/UI; identificadores de código en inglés.
 - Rust workspace con `[workspace.package]` compartido: `version = "0.1.0"`, `edition = "2021"`, `rust-version = "1.75"`; crates nombrados `sc-*`.
 - `sc-core` NO depende de ningún otro crate interno (jerarquía ADR-0002); la jerarquía entre crates es un DAG estricto, sin ciclos, declarado mediante dependencias explícitas en Cargo.toml.
@@ -929,5 +929,5 @@ git push
 
 ## Fuera de alcance de este plan (hitos siguientes)
 
-- M1: extracción real de módulos Sniffnet (sc-capture, sc-collector, sc-geo), FlowUpdate mpsc, ventanas golden, spool SQLite, gzip/zstd, mock server end-to-end. → plan `2026-XX-XX-m1-capture-aggregate-sync.md` a escribir con writing-plans al cierre de M0.
+- M1: captura real (sc-capture, sc-collector, sc-geo), FlowUpdate mpsc, ventanas golden, spool SQLite, gzip/zstd, mock server end-to-end. → plan `2026-XX-XX-m1-capture-aggregate-sync.md` a escribir con writing-plans al cierre de M0.
 - M2-M5: API + Neon + dashboard, landing + IA, collector IPFIX, servicio + GUI.

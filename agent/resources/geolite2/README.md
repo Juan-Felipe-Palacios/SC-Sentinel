@@ -1,9 +1,8 @@
 # GeoLite2 Resources
 
-Estos archivos provienen de Sniffnet v1.5.1 (tag v1.5.1):
-- Fuente: https://github.com/GyulyVGC/sniffnet/tree/v1.5.1/resources/DB
-- GeoLite2-Country.mmdb
-- GeoLite2-ASN.mmdb
+Archivos descargados directamente de MaxMind (GeoLite2 Free Download):
+- GeoLite2-Country.mmdb (versión 2026-11-10)
+- GeoLite2-ASN.mmdb (versión 2026-11-12)
 
 Licencia vigente: GeoLite End User License Agreement (MaxMind), no CC BY-SA 4.0
 (CC BY-SA 4.0 corresponde a versiones anteriores a dic-2019).
@@ -25,4 +24,4 @@ Obligaciones citadas del EULA vigente:
 
 Véase: `docs/legal/maxmind-notice.md`
 
-Las versiones incluidas en Sniffnet sirven para v1 según la notificación legal.
+Registrar cada actualización de base en el changelog del release que la incluya (ver `docs/legal/maxmind-notice.md`).
