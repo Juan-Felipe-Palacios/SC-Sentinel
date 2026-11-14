@@ -11,15 +11,17 @@ EULA: https://www.maxmind.com/en/geolite/eula
 
 Obligaciones citadas del EULA vigente:
 - Atribucion: "This product includes GeoLite Data created by MaxMind, available
-  from maxmind.com."
+  from https://www.maxmind.com."
 - Mantener datos actualizados: "you agree to promptly use the updated version
   of the GeoLite Databases".
 - Destruir versiones antiguas: "cease use of and destroy (i) any old versions
   of the Services within thirty (30) days following the release of the updated
   GeoLite Databases; and (ii) all Services immediately upon termination of the
   license under this Agreement."
-- Si se comparte con terceros: mantenerlos sujetos a requisitos iguales o
-  sustancialmente similares, incluyendo la obligacion de destruir bases antiguas.
+- Si se comparte con terceros: no divulgar las bases sin notificar a MaxMind y
+  obtener su consentimiento previo por escrito; si se divulgan, imponer a terceros
+  los mismos deberes contractuales (o sustancialmente similares), incluyendo
+  atribucion, actualizacion y destruccion de versiones antiguas.
 
 Véase: `docs/legal/maxmind-notice.md`
 

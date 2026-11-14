@@ -7,9 +7,9 @@
 
 1. **Atribución:** incluir el reconocimiento a MaxMind en páginas/locales donde se muestre o se derive data GeoLite2 (landing `/legal/third-party-notices` y footer legal de M3):
    - "This product includes GeoLite2 data created by MaxMind, available from https://www.maxmind.com."
-2. **No redistribución descontrolada:** las bases GeoLite2 y sus actualizaciones no se redistribuyen como recurso independiente a terceros; se entregan dentro del paquete de instalación del agente, que es de uso interno del propietario.
-3. **Comparación de precisión:** el EULA prohíbe presentar GeoLite2 como "más preciso" que otros servicios de mapeo similares; se evita también hacer comparativos en copy (ver `ux/copywriting.md`).
-4. **Uso del nombre:** no usar "Google", "Apple" ni otros como referencia de código ISO derivada de la base.
+2. **Divulgación a terceros:** no se divulgan las bases GeoLite2 a terceros sin notificar a MaxMind y obtener su consentimiento previo por escrito. Si se divulgan, se imponen a terceros los mismos (o sustancialmente similares) deberes contractuales, incluyendo atribución, actualización y destrucción de versiones antiguas. El paquete de instalación del agente es de uso interno del propietario; no se entrega la base como recurso independiente.
+3. **Precisión esperada:** el EULA indica que GeoLite2 no identifica de forma fiable ningún nivel geográfico más preciso que el código postal asociado a una IP, y no debe usarse para identificar o localizar un hogar, individuo o dirección postal específicos.
+4. **Usos prohibidos:** no usar GeoLite2 para fines FCRA (crédito, seguros, empleo, licencias/beneficios gubernamentales) ni para identificar o localizar un hogar, individuo o dirección postal específicos. No eliminar ni ocultar los avisos de copyright.
 
 ## Fuentes de actualización
 
