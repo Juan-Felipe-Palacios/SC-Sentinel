@@ -5,6 +5,7 @@ import Logo from "./Logo";
 
 const producto = [
   { href: "/funcionalidades", label: "Funcionalidades" },
+  { href: "/novedades", label: "Novedades" },
   { href: "/security", label: "Seguridad" },
   { href: "/contacto", label: "Contacto" },
 ];

@@ -26,7 +26,7 @@ const CARDS_INFO = [
     border: "border-sky-500/20",
     bg: "bg-sky-500/5",
     description:
-      "Panel de control unificado que consolida el estado del agente (Rust daemon), latencia de sincronización SWR (5s), curva de ancho de banda entrante/saliente y las anomalías de mayor criticidad.",
+      "Panel de control unificado que consolida el estado del agente (Rust daemon), refresco SWR cada 5 s, curva de ancho de banda entrante/saliente y las anomalías de mayor criticidad.",
     details: [
       "Throughput de red (bytes in/out) renderizado en SVG sin delay.",
       "Monitor de ciclo de vida del spool local en caso de desconexión.",
@@ -44,7 +44,7 @@ const CARDS_INFO = [
     description:
       "Tabla analítica de alto rendimiento con filtrado dinámico. Rastrea cada host, geolocalización por país de destino, volumen de paquetes y clasificación de amenaza según umbrales de heurística local.",
     details: [
-      "Modo de anonimización: las direcciones IP reales se ofuscan con SHA-256 local.",
+      "Anonimización opcional HMAC-SHA-256: por defecto el panel puede mostrar la IP real.",
       "Métricas desglosadas por volumen de entrada, salida y conteo de paquetes.",
       "Ordenamiento instantáneo por nivel de riesgo (Crítico, Alto, Medio, Bajo).",
     ],
@@ -52,15 +52,15 @@ const CARDS_INFO = [
   {
     id: "alerts",
     title: "Motor de Alertas con Evidencia",
-    subtitle: "Cero falsos positivos sin respaldo empírico",
+    subtitle: "Reglas deterministas con evidencia",
     icon: ShieldAlert,
     accent: "text-red-400",
     border: "border-red-500/20",
     bg: "bg-red-500/5",
     description:
-      "Las alertas en SC-Sentinel nunca son 'opiniones'. Cada incidente incluye un payload criptográfico inmutable con la ventana temporal, el umbral violado y los bytes exactos que dispararon la regla.",
+      "Las alertas en SC-Sentinel no son opiniones de la IA. Cada incidente incluye la regla, la ventana temporal, el umbral violado y los hechos que dispararon la detección.",
     details: [
-      "Auditoría con reglas deterministas probadas (exfiltración, flood DNS, port scans).",
+      "Reglas v1: volume_anomaly, dns_tunneling, port_scan e inbound_port_scan, entre otras.",
       "Ciclo de vida operacional: Abierta → Aceptada → Resuelta con trazabilidad.",
       "Filtros por severidad para priorizar la respuesta del equipo de seguridad.",
     ],
@@ -68,13 +68,13 @@ const CARDS_INFO = [
   {
     id: "ai",
     title: "Copiloto IA & Análisis RAG",
-    subtitle: "Modelos cognitivos Gemini 2.0 / Groq",
+    subtitle: "Gemini 3.6 Flash / OpenRouter / Groq",
     icon: Cpu,
     accent: "text-amber-400",
     border: "border-amber-500/20",
     bg: "bg-amber-500/5",
     description:
-      "El modelo de IA no reemplaza al motor de red: actúa como analista senior sintetizando correlaciones entre lotes de 24 horas y emitiendo órdenes de remediación concretas.",
+      "El modelo de IA no reemplaza al motor de red: resume hechos de hasta 24 horas y sugiere pasos de mitigación para que el operador los valide.",
     details: [
       "Procesamiento exclusivo sobre señales agregadas: la IA jamás ve paquetes crudos.",
       "Degradación elegante: si el servicio de IA se suspende, las defensas siguen activas.",
@@ -98,19 +98,35 @@ const CARDS_INFO = [
     ],
   },
   {
+    id: "evals",
+    title: "Evals de IA",
+    subtitle: "Coste, latencia y éxito por modelo",
+    icon: Cpu,
+    accent: "text-amber-400",
+    border: "border-amber-500/20",
+    bg: "bg-amber-500/5",
+    description:
+      "Observabilidad de la cadena de IA: llamadas por modelo, latencia p50/p95, tasa de éxito y coste diario. Los modelos free se muestran con coste cero.",
+    details: [
+      "Trazabilidad por modelo y por día.",
+      "Coste calculado desde tokens y pricing configurado.",
+      "Permite comparar Gemini, OpenRouter y Groq sin mezclar métricas.",
+    ],
+  },
+  {
     id: "settings",
     title: "Gobernanza y Privacidad",
-    subtitle: "Control criptográfico del propietario",
+    subtitle: "Control operativo del propietario",
     icon: Sliders,
     accent: "text-sky-300",
     border: "border-sky-400/20",
     bg: "bg-sky-400/5",
     description:
-      "Administración total del perímetro: rotación de tokens de dispositivo en 2 pasos, políticas de retención con borrado cron definitivo y auditoría de sincronización TLS 1.3.",
+      "Administración del perímetro: rotación de tokens de dispositivo, retención con limpieza diaria, anonimización configurable y acceso de invitado de solo lectura.",
     details: [
-      "Token de dispositivo con hash SHA-256 determinista en el servidor.",
-      "Interruptor de anonimización local sincronizado directamente con el daemon.",
-      "Cumplimiento GDPR estricto: retención de 30 días con depuración irrevocable.",
+      "Token de dispositivo guardado como hash SHA-256 en el servidor.",
+      "Anonimización HMAC-SHA-256 opcional, derivada en el equipo.",
+      "Retención de 7/15/30 días según el tipo de dato, con limpieza diaria.",
     ],
   },
 ];
@@ -168,7 +184,7 @@ export default function DashboardSection() {
               </h3>
             </div>
             <span className="font-mono text-xs text-slate-500 hidden sm:inline">
-              6 Vistas Sincronizadas
+              7 vistas sincronizadas
             </span>
           </div>
 

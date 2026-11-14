@@ -20,9 +20,12 @@ import {
   Zap,
   RefreshCw,
   Search,
+  Network,
+  BarChart3,
 } from "lucide-react";
+import { PRODUCT, PRODUCT_VERSION_LABEL } from "@/lib/product-facts";
 
-type TabId = "overview" | "hosts" | "alerts" | "ai" | "settings";
+type TabId = "overview" | "hosts" | "connections" | "alerts" | "ai" | "evals" | "settings";
 
 interface TabMeta {
   id: TabId;
@@ -34,10 +37,12 @@ interface TabMeta {
 
 const TABS: TabMeta[] = [
   { id: "overview", label: "Overview", icon: Activity, desc: "Telemetría global, estado del agente y throughput en tiempo real" },
-  { id: "hosts", label: "Hosts Monitoreados", badge: "142", icon: Server, desc: "Inventario de endpoints analizados con scoring de riesgo" },
-  { id: "alerts", label: "Alertas y Anomalías", badge: "3", icon: ShieldAlert, desc: "Detecciones heurísticas con evidencia criptográfica adjunta" },
-  { id: "ai", label: "Copiloto IA RAG", badge: "Gemini 2.0", icon: Cpu, desc: "Síntesis cognitiva, razonamiento contextual y mitigaciones" },
-  { id: "settings", label: "Ajustes & Token", icon: Sliders, desc: "Gobernanza de secretos, anonimización hash y políticas de sync" },
+  { id: "hosts", label: "Hosts", badge: "142", icon: Server, desc: "Inventario de endpoints analizados con scoring de riesgo" },
+  { id: "connections", label: "Conexiones", icon: Network, desc: "Puertos, protocolos y distribución geográfica del tráfico" },
+  { id: "alerts", label: "Alertas", badge: "3", icon: ShieldAlert, desc: "Reglas deterministas con evidencia estructurada" },
+  { id: "ai", label: "Copiloto IA", badge: "3.6 Flash", icon: Cpu, desc: "Interpretación de hechos agregados y recomendaciones" },
+  { id: "evals", label: "Evals de IA", icon: BarChart3, desc: "Coste, latencia y tasa de éxito por modelo" },
+  { id: "settings", label: "Configuración", icon: Sliders, desc: "Gobernanza de secretos, anonimización y retención" },
 ];
 
 export default function DashboardPreview() {
@@ -143,11 +148,15 @@ export default function DashboardPreview() {
             <div className="space-y-1 font-mono text-[11px] text-slate-500">
               <div className="flex justify-between">
                 <span>Versión:</span>
-                <span className="text-slate-300">v0.4.2 (Rust)</span>
+                <span className="text-slate-300">{PRODUCT_VERSION_LABEL} (Rust)</span>
               </div>
               <div className="flex justify-between">
                 <span>Modo:</span>
-                <span className="text-slate-300">PCAP Promiscuo</span>
+                <span className="text-slate-300">PCAP + NetFlow/IPFIX</span>
+              </div>
+              <div className="flex justify-between">
+                <span>ASN:</span>
+                <span className="text-emerald-400 font-medium">GeoLite2 OK</span>
               </div>
               <div className="flex justify-between">
                 <span>Buffer Spool:</span>
@@ -306,7 +315,7 @@ export default function DashboardPreview() {
                     <span className="font-display text-sm font-semibold text-slate-200">
                       Top Endpoints de Mayor Consumo
                     </span>
-                    <span className="font-mono text-[11px] text-slate-400">Hash SHA-256</span>
+                    <span className="font-mono text-[11px] text-slate-400">Host marks</span>
                   </div>
                   <div className="space-y-2 font-mono text-xs">
                     {[
@@ -348,9 +357,9 @@ export default function DashboardPreview() {
                   </div>
                   <div className="space-y-2">
                     {[
-                      { title: "Exfiltración de Ancho de Banda", host: "h_e1194ac2", time: "hace 3 min", sev: "critical" },
-                      { title: "Ráfaga de Consultas DNS Anómala", host: "h_d892e441", time: "hace 18 min", sev: "medium" },
-                      { title: "Escaneo de Puertos TCP Inusual", host: "h_3c17a90f", time: "hace 42 min", sev: "low" },
+                      { title: "Volumen anómalo", rule: "volume_anomaly", host: "h_e1194ac2", time: "hace 3 min", sev: "critical" },
+                      { title: "DNS compatible con túnel", rule: "dns_tunneling", host: "h_d892e441", time: "hace 18 min", sev: "medium" },
+                      { title: "Escaneo de puertos", rule: "port_scan", host: "h_3c17a90f", time: "hace 42 min", sev: "low" },
                     ].map((alert, idx) => (
                       <div key={idx} className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 flex items-start justify-between gap-3">
                         <div>
@@ -366,7 +375,7 @@ export default function DashboardPreview() {
                             Target: <span className="text-sky-300">{alert.host}</span> · {alert.time}
                           </div>
                         </div>
-                        <span className="font-mono text-[10px] text-slate-500 shrink-0">Regla M1-04</span>
+                        <span className="font-mono text-[10px] text-slate-500 shrink-0">{alert.rule}</span>
                       </div>
                     ))}
                   </div>
@@ -441,36 +450,36 @@ export default function DashboardPreview() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="rounded bg-red-500/20 text-red-300 px-2 py-0.5 font-mono text-[10px] font-bold uppercase border border-red-500/30">
-                          CRITICAL · REGLA #VOL-EXFIL
+                          CRITICAL · volume_anomaly
                         </span>
                         <span className="font-mono text-xs text-slate-400">Disparado hace 3 minutos</span>
                       </div>
                       <h4 className="font-display text-base font-bold text-slate-100 mt-1">
-                        Pico anómalo de transferencia de salida hacia ASN no clasificado
+                        Volumen anómalo hacia un peer remoto
                       </h4>
                       <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                        El endpoint <code className="bg-slate-900 px-1 py-0.5 rounded text-sky-300 font-mono">h_e1194ac27b99</code> transmitió 1.2 GB en ráfagas de 30 segundos continuas hacia destinos externos sin registro DNS inverso conocido.
+                        El peer <code className="bg-slate-900 px-1 py-0.5 rounded text-sky-300 font-mono">h_e1194ac27b99</code> superó los 100 MB agregados en la ventana de 30 segundos. La alerta la emitió el motor local; la IA solo la contextualiza.
                       </p>
                     </div>
                   </div>
                   <button className="shrink-0 rounded-lg bg-red-500 px-3 py-1.5 font-display text-xs font-semibold text-white hover:bg-red-400 transition-colors">
-                    Marcar Mitigado
+                    Marcar revisada
                   </button>
                 </div>
 
                 <div className="mt-3 rounded-lg bg-slate-950/80 p-3 border border-red-500/20 font-mono text-xs text-slate-300">
                   <div className="text-slate-400 mb-1 font-semibold flex items-center gap-1.5">
                     <Terminal className="h-3.5 w-3.5 text-sky-400" />
-                    Evidencia criptográfica e inmutable capturada:
+                    Evidencia estructurada de la ventana:
                   </div>
                   <pre className="text-[11px] text-sky-300 overflow-x-auto whitespace-pre">
 {`{
-  "rule_id": "rule_exfil_high_vol",
-  "snapshot_window": "2026-11-08T17:02:30Z",
-  "bytes_out_spike": 1288490188,
-  "threshold_limit": 209715200,
-  "flow_entropy": 0.892,
-  "signature_sha256": "9f833bc4e92e01bbf847291a..."
+  "rule_id": "volume_anomaly",
+  "window_start": "2026-11-14T17:02:00Z",
+  "host_mark": "h_e1194ac27b99",
+  "bytes_out": 1288490188,
+  "threshold_limit": 104857600,
+  "severity": "critical"
 }`}
                   </pre>
                 </div>
@@ -483,15 +492,15 @@ export default function DashboardPreview() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="rounded bg-amber-500/20 text-amber-300 px-2 py-0.5 font-mono text-[10px] font-bold uppercase border border-amber-500/30">
-                          MEDIUM · REGLA #DNS-FLOOD
+                          HIGH · dns_tunneling
                         </span>
                         <span className="font-mono text-xs text-slate-400">Disparado hace 18 minutos</span>
                       </div>
                       <h4 className="font-display text-base font-bold text-slate-100 mt-1">
-                        Cadencia anormal de solicitudes DNS sobre puerto 53 UDP
+                        Volumen DNS compatible con túnel
                       </h4>
                       <p className="text-xs text-slate-300 mt-1">
-                        4,800 consultas/minuto superando el umbral base configurado de 1,000 req/min.
+                        La ventana superó 100 consultas, 64 KB y 100 bytes de media por consulta. Es una regla determinista, no una inferencia de la IA.
                       </p>
                     </div>
                   </div>
@@ -511,7 +520,7 @@ export default function DashboardPreview() {
                   <div className="flex items-center gap-2">
                     <Zap className="h-4 w-4 text-sky-400 animate-pulse" />
                     <span className="font-display text-sm font-bold text-slate-100">
-                      Análisis Cognitivo Autónomo (Gemini 2.0 Flash)
+                      Análisis con {PRODUCT.models.label}
                     </span>
                   </div>
                   <span className="font-mono text-xs text-sky-400 font-semibold bg-sky-500/20 px-2 py-0.5 rounded border border-sky-500/30">
@@ -521,33 +530,165 @@ export default function DashboardPreview() {
 
                 <div className="mt-3 text-xs sm:text-sm text-slate-200 leading-relaxed space-y-2">
                   <p>
-                    <strong>Diagnóstico General:</strong> La red exhibe estabilidad nominal en el 98.4% de los endpoints evaluados. Sin embargo, se confirma una discrepancia severa de exfiltración en el host anonimizado <code className="text-sky-300 font-mono">h_e1194ac27b99</code>.
+                    <strong>Diagnóstico general:</strong> El motor determinista marcó una ventana con volumen alto y consultas DNS elevadas. La IA resume los hechos y propone pasos; no confirma malware ni reemplaza la revisión del operador.
                   </p>
                   <p className="text-slate-300">
-                    <strong>Correlación de Hechos:</strong> El pico de tráfico de 1.2 GB coincide exactamente con un incremento previo en consultas de puertos no estándar. No se observó inyección de malware gracias a la segmentación local.
+                    <strong>Correlación de hechos:</strong> El pico de 1.2 GB y las consultas DNS comparten la misma ventana. El host mark <code className="text-sky-300 font-mono">h_e1194ac27b99</code> aparece en ambas señales.
                   </p>
                 </div>
 
                 <div className="mt-4 rounded-lg bg-slate-950/70 p-3 border border-sky-500/20">
                   <div className="text-xs font-mono uppercase tracking-wider text-sky-400 font-bold mb-2">
-                    Recomendaciones Automatizadas de Defensa
+                    Recomendaciones sugeridas
                   </div>
                   <ul className="space-y-1.5 text-xs text-slate-300 font-mono">
                     <li className="flex items-start gap-2">
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                      <span>Aislar inmediatamente el adaptador Ethernet del host h_e1194ac27b99.</span>
+                      <span>Revisar el host h_e1194ac27b99 y confirmar si el volumen es esperado.</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                      <span>Limitar egress en router para tráfico UDP 53 a resolvers corporativos.</span>
+                      <span>Validar las consultas DNS contra los resolvers corporativos.</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                      <span>Auditar la lista blanca de puertos en la configuración del agente local.</span>
+                      <span>Ajustar el umbral solo si el patrón es tráfico legítimo documentado.</span>
                     </li>
                   </ul>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* 3. CONNECTIONS VIEW */}
+          {activeTab === "connections" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-display text-sm font-semibold text-slate-200">Puertos dominantes</span>
+                    <span className="font-mono text-[11px] text-slate-400">Ventana 30 s</span>
+                  </div>
+                  <div className="space-y-2">
+                    {[
+                      { port: "443", label: "TLS", pct: 62, color: "bg-sky-400" },
+                      { port: "53", label: "DNS", pct: 21, color: "bg-amber-400" },
+                      { port: "80", label: "HTTP", pct: 9, color: "bg-purple-400" },
+                      { port: "2055", label: "NetFlow", pct: 5, color: "bg-emerald-400" },
+                      { port: "4739", label: "IPFIX", pct: 3, color: "bg-cyan-400" },
+                    ].map((item) => (
+                      <div key={item.port} className="space-y-1">
+                        <div className="flex items-center justify-between font-mono text-[11px] text-slate-400">
+                          <span>{item.port} · {item.label}</span>
+                          <span>{item.pct}%</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-slate-950 border border-slate-800 overflow-hidden">
+                          <div className={`h-full ${item.color}`} style={{ width: `${item.pct}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-display text-sm font-semibold text-slate-200">País / ASN</span>
+                    <span className="font-mono text-[11px] text-slate-400">GeoLite2 local</span>
+                  </div>
+                  <div className="space-y-2 font-mono text-xs">
+                    {[
+                      { label: "🇦🇷 AR · AS7303", value: "42%" },
+                      { label: "🇺🇸 US · AS15169", value: "28%" },
+                      { label: "🇩🇪 DE · AS3320", value: "12%" },
+                      { label: "LAN · sin ASN", value: "10%" },
+                      { label: "Sin geolocalizar", value: "8%" },
+                    ].map((row) => (
+                      <div key={row.label} className="flex items-center justify-between p-2 rounded-lg bg-slate-950/60 border border-slate-800">
+                        <span className="text-slate-300">{row.label}</span>
+                        <span className="text-sky-400 font-semibold">{row.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
+                    Country y ASN se resuelven con las bases .mmdb del equipo; no hay consultas online.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden font-mono text-xs">
+                <div className="grid grid-cols-12 bg-slate-950/80 p-3 text-slate-400 uppercase tracking-wider text-[11px] border-b border-slate-800 font-semibold">
+                  <div className="col-span-4">Host mark</div>
+                  <div className="col-span-3">País / ASN</div>
+                  <div className="col-span-3">Puerto principal</div>
+                  <div className="col-span-2 text-right">Riesgo</div>
+                </div>
+                <div className="divide-y divide-slate-800">
+                  {[
+                    { host: "h_e1194ac27b99", geo: "RU · AS64500", port: "443/TCP", risk: "CRITICAL", color: "text-red-400" },
+                    { host: "h_d892e441aa21", geo: "BR · AS28573", port: "53/UDP", risk: "HIGH", color: "text-orange-400" },
+                    { host: "h_3c17a90f110c", geo: "US · AS15169", port: "443/TCP", risk: "MEDIUM", color: "text-amber-400" },
+                  ].map((row) => (
+                    <div key={row.host} className="grid grid-cols-12 p-3 items-center hover:bg-slate-800/50 transition-colors">
+                      <div className="col-span-4 text-slate-200 font-semibold">{row.host}</div>
+                      <div className="col-span-3 text-slate-300">{row.geo}</div>
+                      <div className="col-span-3 text-slate-300">{row.port}</div>
+                      <div className={`col-span-2 text-right font-bold ${row.color}`}>{row.risk}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 4. EVALS VIEW */}
+          {activeTab === "evals" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                  <span className="font-mono text-[11px] uppercase tracking-wider text-slate-400">Coste hoy</span>
+                  <div className="mt-1 font-display text-2xl font-bold text-emerald-400">USD 0.00</div>
+                  <span className="font-mono text-[10px] text-slate-500">Modelos free</span>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                  <span className="font-mono text-[11px] uppercase tracking-wider text-slate-400">Latencia p95</span>
+                  <div className="mt-1 font-display text-2xl font-bold text-sky-400">14.8 s</div>
+                  <span className="font-mono text-[10px] text-slate-500">Por llamada</span>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                  <span className="font-mono text-[11px] uppercase tracking-wider text-slate-400">Tasa de éxito</span>
+                  <div className="mt-1 font-display text-2xl font-bold text-emerald-400">91.2%</div>
+                  <span className="font-mono text-[10px] text-slate-500">Con fallback</span>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden font-mono text-xs">
+                <div className="grid grid-cols-12 bg-slate-950/80 p-3 text-slate-400 uppercase tracking-wider text-[11px] border-b border-slate-800 font-semibold">
+                  <div className="col-span-5">Modelo</div>
+                  <div className="col-span-2">Llamadas</div>
+                  <div className="col-span-2">Latencia p95</div>
+                  <div className="col-span-2">Éxito</div>
+                  <div className="col-span-1 text-right">Coste</div>
+                </div>
+                <div className="divide-y divide-slate-800">
+                  {[
+                    { model: PRODUCT.models.primary, calls: "148", latency: "12.4 s", ok: "94%", cost: "USD 0" },
+                    { model: PRODUCT.models.secondary, calls: "32", latency: "15.1 s", ok: "91%", cost: "USD 0" },
+                    { model: "openrouter/free", calls: "18", latency: "22.6 s", ok: "87%", cost: "USD 0" },
+                    { model: "openai/gpt-oss-120b", calls: "7", latency: "9.8 s", ok: "100%", cost: "USD 0" },
+                  ].map((row) => (
+                    <div key={row.model} className="grid grid-cols-12 p-3 items-center hover:bg-slate-800/50 transition-colors">
+                      <div className="col-span-5 text-slate-200 font-semibold truncate">{row.model}</div>
+                      <div className="col-span-2 text-slate-300">{row.calls}</div>
+                      <div className="col-span-2 text-slate-300">{row.latency}</div>
+                      <div className="col-span-2 text-emerald-400">{row.ok}</div>
+                      <div className="col-span-1 text-right text-slate-300">{row.cost}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <p className="text-[11px] leading-relaxed text-slate-500">
+                Evals mide coste, latencia y éxito por modelo. La tabla usa datos de demostración.
+              </p>
             </div>
           )}
 
@@ -563,30 +704,30 @@ export default function DashboardPreview() {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg bg-slate-950 border border-slate-800">
                     <div>
                       <div className="font-semibold text-slate-200">Token de Ingesta Autorizado</div>
-                      <div className="text-slate-500 text-[11px]">Rotable con confirmación en dos pasos</div>
+                      <div className="text-slate-500 text-[11px]">Rotación desde el panel; el token anterior deja de autenticar</div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-slate-400 bg-slate-900 px-2 py-1 rounded">sc_live_••••••••••••8f2a</span>
+                      <span className="text-slate-400 bg-slate-900 px-2 py-1 rounded">sc_dev_••••••••••••8f2a</span>
                       <button className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200">Rotar</button>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-800">
                     <div>
-                      <div className="font-semibold text-slate-200">Anonimización Estricta de Hosts</div>
-                      <div className="text-slate-500 text-[11px]">Convierte IPs en hash criptográfico local antes de reportar</div>
+                      <div className="font-semibold text-slate-200">Anonimización HMAC-SHA-256</div>
+                      <div className="text-slate-500 text-[11px]">Opcional: reemplaza identificadores antes de reportar</div>
                     </div>
-                    <span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold border border-emerald-500/30">
-                      HABILITADO
+                    <span className="bg-sky-500/20 text-sky-400 px-2 py-0.5 rounded font-bold border border-sky-500/30">
+                      CONFIGURABLE
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-800">
                     <div>
-                      <div className="font-semibold text-slate-200">Retención de Datos en la Nube</div>
-                      <div className="text-slate-500 text-[11px]">Limpieza cron automática irreversible</div>
+                      <div className="font-semibold text-slate-200">Retención por tipo de dato</div>
+                      <div className="text-slate-500 text-[11]">Limpieza diaria según la política de cada tabla</div>
                     </div>
-                    <span className="text-slate-300">30 Días (GDPR Friendly)</span>
+                    <span className="text-slate-300">7 / 15 / 30 días</span>
                   </div>
                 </div>
               </div>

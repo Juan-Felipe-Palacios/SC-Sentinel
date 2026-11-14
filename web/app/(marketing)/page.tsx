@@ -14,24 +14,29 @@ import {
   Layers,
   CheckCircle2,
   Database,
+  Server,
+  Network,
+  Globe2,
+  LayoutDashboard,
 } from "lucide-react";
 import ArchitectureDiagram from "@/components/marketing/ArchitectureDiagram";
 import DashboardSection from "@/components/marketing/DashboardSection";
 import AIBenefitsSection from "@/components/marketing/AIBenefitsSection";
 import { ChatWidget } from "@/components/chat/ChatWidget";
+import { PRODUCT, PRODUCT_VERSION_LABEL } from "@/lib/product-facts";
 
 export const metadata = {
   metadataBase: new URL("https://sc-sentinel.vercel.app"),
   title: "SC-Sentinel — Detección Determinista de Anomalías de Red e IA",
   description:
-    "Monitoreo de red con motor determinista en Rust local e inteligencia artificial Gemini 2.0. Las señales agregadas llegan a tu dashboard; tus paquetes crudos jamás salen de tu red.",
+    "Monitoreo de red con motor determinista en Rust local, captura PCAP y colector NetFlow/IPFIX. Las señales agregadas llegan a tu dashboard; tus paquetes crudos jamás salen de tu red.",
   alternates: {
     canonical: "https://sc-sentinel.vercel.app/",
   },
   openGraph: {
     title: "SC-Sentinel — Observabilidad de Red Privada e IA",
     description:
-      "Motor local en Rust + Señales criptográficas a la nube. Diagnóstico con IA sin filtrar paquetes crudos.",
+      "Motor local en Rust + señales agregadas a la nube. Diagnóstico con IA sin filtrar paquetes crudos.",
     url: "https://sc-sentinel.vercel.app/",
     siteName: "SC-Sentinel",
     locale: "es_AR",
@@ -43,65 +48,92 @@ export const metadata = {
 const FEATURE_GRID = [
   {
     icon: Terminal,
-    title: "Motor Local en Rust sin Cajas Negras",
-    badge: "Velocidad Nativa",
+    title: "Motor determinista local",
+    badge: "9 reglas v1",
     color: "text-sky-400",
     border: "border-sky-500/20",
     bg: "bg-sky-500/5",
-    body: "Compilado en código nativo para procesar gigabits por segundo sin pausas de garbage collection. Reconoce protocolos estándar y clasifica tráfico a velocidad de hardware.",
+    body: "Reglas explícitas para blacklist, escaneo de puertos, DNS anómalo, volumen y salud del enlace. Cada alerta puede explicar qué umbral se superó y con qué hechos.",
   },
   {
     icon: Lock,
-    title: "Anonimización Criptográfica SHA-256",
-    badge: "Privacidad Radical",
+    title: "Anonimización opcional HMAC-SHA-256",
+    badge: "Configurable",
     color: "text-emerald-400",
     border: "border-emerald-500/20",
     bg: "bg-emerald-500/5",
-    body: "Las direcciones IP de tus dispositivos se hashean localmente con una sal rotativa. La nube y la IA solo ven identificadores anónimos y conteos agregados.",
+    body: "Con anonymize_hosts activo, los identificadores se derivan localmente con HMAC-SHA-256. La clave vive en tu equipo; la nube recibe host marks y conteos.",
   },
   {
     icon: ShieldCheck,
-    title: "Alertas Respaldadas con Evidencia",
-    badge: "Cero Falsos Positivos",
+    title: "Alertas con evidencia estructurada",
+    badge: "Explicables",
     color: "text-red-400",
     border: "border-red-500/20",
     bg: "bg-red-500/5",
-    body: "Olvídate de advertencias sin fundamento. Cada incidente incluye una firma criptográfica con la ventana de tiempo, los bytes involucrados y la regla violada.",
+    body: "Cada incidente incluye regla, severidad, ventana, hosts y métricas que dispararon la detección. Es evidencia auditable, no una caja negra.",
   },
   {
     icon: Cpu,
-    title: "Copiloto IA Gemini 2.0 con RAG",
-    badge: "Análisis Cognitivo",
+    title: `${PRODUCT.models.label} como copiloto`,
+    badge: "Con fallback",
     color: "text-purple-400",
     border: "border-purple-500/20",
     bg: "bg-purple-500/5",
-    body: "Sintetiza lotes de 24 horas para descubrir pautas de exfiltración sigilosa ('low-and-slow'). Genera de inmediato pasos de remediación listos para mitigar.",
+    body: "La IA interpreta hechos agregados y sugiere pasos; no crea alertas ni decide. Si el proveedor falla, la cadena cae a OpenRouter o Groq y el motor sigue funcionando.",
   },
   {
     icon: Database,
-    title: "Spool Local Resiliente a Caídas",
-    badge: "Offline-First",
+    title: "Colector NetFlow / IPFIX",
+    badge: "M4 cerrado",
     color: "text-amber-400",
     border: "border-amber-500/20",
     bg: "bg-amber-500/5",
-    body: "Si la conectividad a Internet se interrumpe, el agente almacena los snapshots en una base SQLite local protegida y los transmite ordenadamente al reconectar.",
+    body: "Además de PCAP, el agente recibe NetFlow v5/v9 e IPFIX de routers y switches, normaliza los flujos y los suma a las mismas ventanas de 30 segundos.",
   },
   {
     icon: Zap,
-    title: "Arquitectura Serverless Zero-Cost",
-    badge: "Vercel + Neon",
+    title: "Servicio Windows + GUI opcional",
+    badge: "M5 cerrado",
     color: "text-cyan-400",
     border: "border-cyan-500/20",
     bg: "bg-cyan-500/5",
-    body: "Desplegado en infraestructura de borde sobre Next.js 15 y Postgres Serverless en Neon. Escalabilidad inmediata con costos operativos casi nulos.",
+    body: "SC-Sentinel-Agent corre como servicio con auto-start, recovery y stop con drenaje. sc-gui muestra estado, stats y enrolamiento desde la bandeja.",
   },
 ];
 
 const METRICS_STRIP = [
-  { value: "0", label: "Paquetes Crudos Filtrados", sub: "100% Criptográficamente Seguro" },
-  { value: "30s", label: "Ventana de Agregación", sub: "Muestreo Determinista Local" },
-  { value: "< 5s", label: "Latencia de Sincronización", sub: "SWR Realtime en Dashboard" },
-  { value: "100%", label: "Soberanía de Datos", sub: "Tus Redes, Tus Llaves" },
+  { value: `${PRODUCT.windowSeconds}s`, label: "Ventana de agregación", sub: "PCAP + NetFlow/IPFIX" },
+  { value: `${PRODUCT.swrSeconds}s`, label: "Refresco del dashboard", sub: "SWR sobre señales agregadas" },
+  { value: String(PRODUCT.detectionRules.length), label: "Reglas deterministas", sub: "Evaluadas antes del spool" },
+  { value: "2", label: "Modos de observación", sub: "Captura local y colector" },
+];
+
+const NEWS_STRIP = [
+  {
+    icon: Globe2,
+    badge: "0.1.6",
+    title: "GeoLite2 ASN",
+    body: "top_asns en cada ventana y estado de carga independiente para Country y ASN. Si la base falta, el agente sigue capturando.",
+  },
+  {
+    icon: Server,
+    badge: "M5",
+    title: "Servicio Windows",
+    body: "Auto-start, recovery 5/10/30 s, stop con drenaje, log a archivo e instalador idempotente con verificación SHA256.",
+  },
+  {
+    icon: LayoutDashboard,
+    badge: "Opcional",
+    title: "GUI de escritorio",
+    body: "sc-gui consume /status por loopback y ofrece Estado, Stats, Enrolar y Ajustes desde la bandeja del sistema.",
+  },
+  {
+    icon: Network,
+    badge: "M4",
+    title: "Colector NetFlow/IPFIX",
+    body: "NetFlow v5/v9 e IPFIX de routers y switches, normalizados a las mismas ventanas que la captura local.",
+  },
 ];
 
 export default function MarketingHome() {
@@ -121,7 +153,7 @@ export default function MarketingHome() {
               {/* Badge de versión */}
               <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500/10 px-3.5 py-1 text-xs font-mono text-sky-300 backdrop-blur-md">
                 <span className="sc-pulse-dot h-2 w-2 rounded-full bg-emerald-400" />
-                <span className="font-semibold uppercase tracking-wider">SC-Sentinel v0.4</span>
+                <span className="font-semibold uppercase tracking-wider">SC-Sentinel {PRODUCT_VERSION_LABEL}</span>
                 <span className="text-slate-500">|</span>
                 <span>Strategic Connex Anomaly Shield</span>
               </div>
@@ -170,13 +202,16 @@ export default function MarketingHome() {
               {/* Features pills directas */}
               <div className="pt-4 flex flex-wrap items-center justify-center lg:justify-start gap-y-2 gap-x-5 text-xs font-mono text-slate-400">
                 <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400" /> 100% Rust Daemon
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" /> Servicio Windows
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400" /> Hash SHA-256 Nativo
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" /> PCAP + NetFlow/IPFIX
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400" /> Copiloto Gemini 2.0
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" /> GeoLite2 ASN local
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" /> IA con fallback
                 </span>
               </div>
             </div>
@@ -201,8 +236,8 @@ export default function MarketingHome() {
                 {/* Contenido en vivo simulado */}
                 <div className="space-y-3 font-mono text-xs">
                   <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900/80 border border-slate-800/80">
-                    <span className="text-slate-400">Interface Monitoreada:</span>
-                    <span className="text-sky-300 font-semibold">eth0 (promiscuous)</span>
+                    <span className="text-slate-400">Fuentes activas:</span>
+                    <span className="text-sky-300 font-semibold">eth0 + NetFlow/IPFIX</span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
@@ -224,12 +259,12 @@ export default function MarketingHome() {
                       <span className="text-slate-200">hace 2s (Ventana #4812)</span>
                     </div>
                     <div className="flex justify-between text-slate-400">
-                      <span>Hosts Identificados:</span>
-                      <span className="text-sky-400 font-semibold">142 (Anonimizados)</span>
+                      <span>Hosts identificados:</span>
+                      <span className="text-sky-400 font-semibold">142 (HMAC opcional)</span>
                     </div>
                     <div className="flex justify-between text-slate-400">
-                      <span>Geolocalización:</span>
-                      <span className="text-slate-200">🇦🇷 AR 42% · 🇺🇸 US 28% · 🇩🇪 DE 12%</span>
+                      <span>Geo + ASN:</span>
+                      <span className="text-slate-200">🇦🇷 AR 42% · 🇺🇸 US 28% · AS15169 12%</span>
                     </div>
                   </div>
 
@@ -241,7 +276,7 @@ export default function MarketingHome() {
                         Anomalía detectada por el motor local:
                       </div>
                       <div className="text-[11px] text-amber-200/80 mt-0.5">
-                        Pico inusual en puerto 53 UDP desde host anonimizado <code className="text-sky-300 bg-slate-950 px-1 py-0.5 rounded">h_e1194ac</code>. Hechos listos para el dashboard.
+                        Regla <code className="text-sky-300 bg-slate-950 px-1 py-0.5 rounded">dns_tunneling</code> sobre <code className="text-sky-300 bg-slate-950 px-1 py-0.5 rounded">h_e1194ac</code>: 100+ consultas y 64 KB en la ventana. Hechos listos para el dashboard.
                       </div>
                     </div>
                   </div>
@@ -280,6 +315,49 @@ export default function MarketingHome() {
         </div>
       </section>
 
+      {/* ===================== NOVEDADES 0.1.6 ===================== */}
+      <section aria-labelledby="novedades-016" className="border-b border-slate-800/80 bg-[#080e1b] py-16 sm:py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-10">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500/10 px-3.5 py-1 text-xs font-mono uppercase tracking-[0.2em] text-sky-300">
+                <Zap className="h-3.5 w-3.5" />
+                Nuevo en {PRODUCT.version}
+              </div>
+              <h2 id="novedades-016" className="mt-4 font-display text-2xl sm:text-3xl font-bold tracking-tight text-slate-100">
+                Lo último del agente, sin cambiar la promesa central.
+              </h2>
+            </div>
+            <Link
+              href={PRODUCT.releaseNotesHref}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-sky-400 hover:text-sky-300 transition-colors"
+            >
+              Ver todas las novedades <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {NEWS_STRIP.map((item) => {
+              const Icon = item.icon;
+              return (
+                <article key={item.title} className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-6">
+                  <div className="flex items-center justify-between gap-3 mb-4">
+                    <div className="p-2.5 rounded-xl border border-sky-500/20 bg-sky-500/5 text-sky-400">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-slate-400 bg-slate-950/80 px-2 py-0.5 rounded border border-slate-800">
+                      {item.badge}
+                    </span>
+                  </div>
+                  <h3 className="font-display text-lg font-bold text-slate-100">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-400">{item.body}</p>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* ===================== DASHBOARD INTERACTIVO Y EXPLICACIÓN DE CARDS ===================== */}
       <DashboardSection />
 
@@ -298,7 +376,7 @@ export default function MarketingHome() {
               Arquitectura Segregada: <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-purple-400">Zero-Raw-Packet Cloud</span>.
             </h2>
             <p className="mt-4 text-base sm:text-lg text-slate-400 leading-relaxed">
-              Descubre paso a paso por qué es matemáticamente imposible que tus contraseñas, documentos o conversaciones privadas viajen a servidores externos.
+              Descubre paso a paso qué sale de tu red, qué se queda en el equipo y por qué la nube no recibe paquetes crudos.
             </p>
           </div>
 
@@ -354,7 +432,7 @@ export default function MarketingHome() {
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 text-center relative z-10">
           <div className="rounded-3xl border border-sky-500/30 bg-slate-900/50 p-8 sm:p-14 shadow-[0_0_80px_rgba(56,189,248,0.15)] backdrop-blur-xl">
             <span className="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500/10 px-3.5 py-1 text-xs font-mono text-sky-300 uppercase tracking-widest mb-6">
-              Despliegue Inmediato
+              Operación continua
             </span>
 
             <h2 className="font-display text-3xl sm:text-5xl font-extrabold text-slate-100 tracking-tight max-w-2xl mx-auto leading-tight">
@@ -362,7 +440,7 @@ export default function MarketingHome() {
             </h2>
 
             <p className="mt-4 text-base sm:text-lg text-slate-400 max-w-xl mx-auto leading-relaxed">
-              Explora la demo interactiva en tiempo real o ingresa al panel de administración para gestionar tus tokens.
+              Explorá la demo interactiva, revisá las novedades de la release o escribinos para coordinar un despliegue.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
@@ -373,17 +451,21 @@ export default function MarketingHome() {
                 Abrir Demo Pública en Vivo <ArrowRight className="h-5 w-5" />
               </Link>
               <Link
-                href="/contacto"
+                href="/novedades"
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/80 px-8 py-4 font-display text-base font-semibold text-slate-200 hover:border-slate-600 hover:bg-slate-700 transition-all"
               >
-                Hablar con un Especialista
+                Ver novedades 0.1.6
               </Link>
             </div>
 
+            <p className="mt-4 text-sm text-slate-400">
+              ¿Necesitás coordinar un despliegue? <Link href="/contacto" className="font-semibold text-sky-400 hover:text-sky-300">Hablemos por LinkedIn</Link>.
+            </p>
+
             <div className="mt-8 pt-6 border-t border-slate-800/80 flex flex-wrap items-center justify-center gap-6 text-xs font-mono text-slate-400">
-              <span>✓ Sin tarjeta de crédito requerida</span>
-              <span>✓ Código 100% auditable</span>
-              <span>✓ Compatible con Linux, macOS & Windows</span>
+              <span>✓ Windows con servicio</span>
+              <span>✓ Linux como colector</span>
+              <span>✓ Paquetes crudos nunca en la nube</span>
             </div>
           </div>
         </div>

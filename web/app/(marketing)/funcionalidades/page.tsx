@@ -122,6 +122,65 @@ const deepDives = [
       "Limpieza programada de datos por retención",
     ],
   },
+  {
+    n: "09",
+    kicker: "Servicio Windows",
+    title: "Instalá una vez. El agente vuelve solo.",
+    body: "SC-Sentinel-Agent corre como servicio de Windows con arranque automático, recovery ante caídas y parada con drenaje: la ventana en curso se persiste antes de detener el proceso. El paquete incluye instalador, desinstalador y verificación SHA256.",
+    bullets: [
+      "Auto-start y recovery 5/10/30 s con reset diario",
+      "Stop con drenaje de ventana, sync y flush del spool",
+      "Log a archivo en ProgramData, sin tokens ni payloads",
+      "Instalación idempotente y desinstalación sin residuos",
+      "Upgrade y rollback con conservación del spool",
+    ],
+  },
+  {
+    n: "10",
+    kicker: "GeoLite2 Country + ASN",
+    title: "Geolocalización local, actualizable sin recompilar.",
+    body: "El agente resuelve las bases GeoLite2 en runtime. Country alimenta países; ASN agrega los sistemas autónomos dominantes en top_asns. Si una base falta, el agente sigue funcionando y lo informa en /status.",
+    bullets: [
+      "Bases Country y ASN empaquetadas en geolite2/",
+      "SC_GEOIP_DB para apuntar a otra copia",
+      "top_asns y flags geo_asn_loaded/geo_country_loaded",
+      "Sin consultas online: la base se lee en el nodo local",
+      "Licencia GeoLite2 EULA y atribución a MaxMind",
+    ],
+  },
+  {
+    n: "11",
+    kicker: "GUI de escritorio opcional",
+    title: "El estado del agente, sin abrir una consola.",
+    body: "sc-gui es un consumidor separado del motor. Muestra estado, estadísticas, enrolamiento y ajustes desde una ventana con bandeja, y consulta /status por loopback. Si la GUI se cierra, el servicio sigue capturando.",
+    bullets: [
+      "Vistas Estado, Stats, Enrolar y Ajustes",
+      "Uptime, interfaz y estado de sincronización",
+      "Enrolamiento guiado y acciones sobre el servicio",
+      "Consumo de /status por loopback",
+      "No es dependencia del agente ni del dashboard",
+    ],
+  },
+];
+
+const RULES = [
+  ["blacklist_hit", "Peer remoto en la blacklist local", "Critical"],
+  ["port_scan", "≥20 puertos destino y ≥20 conexiones salientes", "Medium–Critical"],
+  ["inbound_port_scan", "≥20 puertos locales tocados desde un peer", "Medium–Critical"],
+  ["dns_tunneling", "≥100 consultas, ≥64 KB y ≥100 B de media", "High"],
+  ["volume_anomaly", "≥100 MB agregados por peer en la ventana", "Medium–High"],
+  ["capture_error", "La captura entra en estado Error", "Critical"],
+  ["capture_degraded", "La captura entra en estado Degraded", "High"],
+  ["packet_drops", "≥100 drops y ≥5% de ratio", "High"],
+  ["parse_errors", "≥10 errores de parseo en la ventana", "Medium"],
+];
+
+const OPERATING_STEPS = [
+  ["01", "Instalar", "Servicio Windows o binario de Linux; el paquete incluye sumas SHA256 y guía de instalación."],
+  ["02", "Enrolar", "El panel entrega device id y token una sola vez; el token viaja por entorno, nunca por argumentos."],
+  ["03", "Observar", "Captura PCAP, colector NetFlow/IPFIX o ambos. El motor evalúa reglas antes de persistir la ventana."],
+  ["04", "Actualizar", "Reemplazo verificado del binario con rollback y conservación del spool local."],
+  ["05", "Desinstalar", "Baja limpia del servicio; los datos se conservan o se purgan según la opción elegida."],
 ];
 
 const cards = [
@@ -220,6 +279,58 @@ export default function Funcionalidades() {
           </div>
         </section>
       ))}
+
+      {/* ===== REGLAS DETERMINISTAS ===== */}
+      <section aria-labelledby="fn-reglas" className="border-b sc-hairline bg-sc-panel/40">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-sc-accent">Motor determinista</p>
+          <h2 id="fn-reglas" className="mt-4 max-w-3xl font-display text-2xl font-semibold leading-snug tracking-tight text-sc-text sm:text-3xl">
+            Nueve reglas v1, con umbrales que podés leer.
+          </h2>
+          <p className="mt-4 max-w-3xl text-base leading-relaxed text-sc-text-muted">
+            Las reglas se evalúan antes de persistir la ventana. La IA nunca crea una alerta primaria; solo interpreta lo que el motor ya marcó.
+          </p>
+          <div className="mt-8 overflow-x-auto">
+            <table className="w-full text-sm leading-relaxed text-sc-text-muted">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-sc-text-muted">
+                  <th className="border-b sc-hairline pb-2 font-mono font-medium">rule_id</th>
+                  <th className="border-b sc-hairline pb-2 font-mono font-medium">Condición</th>
+                  <th className="border-b sc-hairline pb-2 font-mono font-medium">Severidad</th>
+                </tr>
+              </thead>
+              <tbody>
+                {RULES.map(([id, condition, severity]) => (
+                  <tr key={id}>
+                    <td className="border-b sc-hairline py-2 pr-4 font-mono text-xs text-sc-accent">{id}</td>
+                    <td className="border-b sc-hairline py-2 pr-4">{condition}</td>
+                    <td className="border-b sc-hairline py-2">{severity}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== CICLO OPERATIVO ===== */}
+      <section aria-labelledby="fn-ciclo" className="border-b sc-hairline">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-sc-accent">Ciclo operativo</p>
+          <h2 id="fn-ciclo" className="mt-4 max-w-3xl font-display text-2xl font-semibold leading-snug tracking-tight text-sc-text sm:text-3xl">
+            De la instalación a la baja, sin pasos ocultos.
+          </h2>
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {OPERATING_STEPS.map(([n, title, body]) => (
+              <article key={n} className="rounded-lg border sc-hairline bg-sc-bg/50 p-5">
+                <span className="font-mono text-xs text-sc-accent">{n}</span>
+                <h3 className="mt-2 font-display text-lg font-semibold tracking-tight text-sc-text">{title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-sc-text-muted">{body}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* ===== PIPELINE EXTENDIDO ===== */}
       <section aria-labelledby="fn-pipeline" className="border-b sc-hairline">

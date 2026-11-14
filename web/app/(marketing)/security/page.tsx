@@ -42,7 +42,7 @@ const medidas = [
   {
     kicker: "Infraestructura",
     title: "Secretos, solo del lado del servidor",
-    body: "Las credenciales (OPENROUTER_API_KEY, CRON_SECRET, clave de sesión) viven en variables de entorno del servidor. El navegador nunca las recibe ni las conoce.",
+    body: "Las credenciales (GEMINI_API_KEY, OPENROUTER_API_KEY, GROQ_API_KEY, CRON_SECRET y la clave de sesión) viven en variables de entorno del servidor. El navegador nunca las recibe ni las conoce.",
   },
   {
     kicker: "Retención",
@@ -53,6 +53,26 @@ const medidas = [
     kicker: "Observabilidad",
     title: "Logs sin paquetes ni secretos",
     body: "Los eventos estructurados registran tipo de operación, resultado y conteos. Nunca incluyen paquetes, payloads, secretos ni direcciones sin anonimizar.",
+  },
+  {
+    kicker: "Geolocalización",
+    title: "GeoLite2 se consulta en el equipo",
+    body: "Las bases Country y ASN se leen localmente; no hay consultas de IP a MaxMind ni a un servicio externo. Si una base falta, el agente sigue operando y lo reporta en /status.",
+  },
+  {
+    kicker: "Servicio Windows",
+    title: "Permisos acotados y token fuera de argv",
+    body: "El servicio corre con su cuenta, la configuración y el spool quedan bajo ACLs restrictivas, y el token de ingesta viaja por entorno del servicio, no por argumentos del proceso.",
+  },
+  {
+    kicker: "Cadena de entrega",
+    title: "Artefactos verificables con SHA256",
+    body: "El paquete incluye SHA256SUMS.txt y el instalador verifica el hash antes de reemplazar el binario. La GUI y el servicio se instalan por separado, sin residuos al desinstalar.",
+  },
+  {
+    kicker: "Demo pública",
+    title: "Solo lectura y con vencimiento",
+    body: "La sesión de invitado dura una hora, muestra datos agregados de un device de demostración y bloquea configuración, tokens y acciones de escritura.",
   },
 ];
 
@@ -209,7 +229,6 @@ export default function Security() {
               >
                 Ver avisos de terceros →
               </Link>
-              <p className="mt-2 text-xs text-sc-text-muted">En preparación: publicación tras revisión legal.</p>
             </article>
             <article className="rounded-lg border sc-hairline bg-sc-bg/50 p-6">
               <h3 className="font-display text-lg font-semibold tracking-tight text-sc-text">
@@ -225,7 +244,6 @@ export default function Security() {
               >
                 Leer la política de privacidad →
               </Link>
-              <p className="mt-2 text-xs text-sc-text-muted">En preparación: publicación tras revisión legal.</p>
             </article>
           </div>
           <p className="mt-8 max-w-3xl text-sm leading-relaxed text-sc-text-muted">

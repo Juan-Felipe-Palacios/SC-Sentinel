@@ -24,12 +24,14 @@
 
 | Card | Encabezado | Cuerpo |
 |---|---|---|
-| Motor determinista | "Reglas concretas, no cajas negras" | Miles de servicios reconocidos, geo por país, blacklist y umbrales — todo corre localmente y puede explicar exactamente por qué dispara |
-| Señales agregadas | "Tu IP real nunca sale de tu red" | Modo de anonimización integrado: la nube ve claves hasheadas y conteos; no paquetes ni flujos individuales |
-| Alertas con evidencia | "Cada alerta trae sus hechos" | Verás los datos que dispararon la alerta (volumen, consultas, picos) y podrás marcarlas como revisadas |
-| IA asistente | "IA que ayuda, no que decide" | El análisis de IA resume tendencias y sugiere pasos; funciona por lotes y degrada elegantemente si no está disponible |
+| Motor determinista | "Reglas concretas, no cajas negras" | Servicios well-known, geo por país/ASN, blacklist y umbrales — todo corre localmente y puede explicar exactamente por qué dispara |
+| Señales agregadas | "Anonimización opcional, no obligatoria" | Con anonymize_hosts activo, la nube ve host marks HMAC-SHA-256 y conteos; por defecto el panel puede mostrar la IP |
+| Alertas con evidencia | "Cada alerta trae sus hechos" | Verás la regla, la severidad, la ventana y las métricas que dispararon la alerta; podrás marcarla como revisada |
+| IA asistente | "IA que ayuda, no que decide" | El análisis de IA interpreta hechos agregados y sugiere pasos; no crea alertas primarias ni bloquea tráfico |
 | Offline-friendly | "Tus datos no se pierden" | Si la conexión cae, el agente guarda todo en un spool local hasta reconectar |
-| Infraestructura liviana | "En Vercel + Neon free" | Dashboard propio sin servidores que mantener: deploy único y costo casi cero |
+| Servicio Windows | "Instalá una vez. El agente vuelve solo" | Auto-start, recovery, stop con drenaje y GUI opcional de bandeja |
+| Colector NetFlow/IPFIX | "También observa lo que no pasa por tu PC" | NetFlow v5/v9 e IPFIX normalizados a las mismas ventanas de 30 s |
+| GeoLite2 ASN | "País y ASN, resueltos en el equipo" | Bases .mmdb locales, top_asns opcional y actualización sin recompilar |
 
 ## Privacidad (sección)
 
@@ -43,9 +45,17 @@
 
 ## CTAs
 
-- Formulario de contacto: nombre, email, mensaje — respondemos en ≤ 1 día hábil.
-- Botones del producto: "Contactar", "Ver funcionalidades", "Analizar ahora" (panel IA).
+- Contacto: canal único por LinkedIn (`linkedin.com/in/juanfpalacios`); el sitio no tiene formulario ni `POST /api/contact`.
+- Botones del producto: "Contactar", "Ver funcionalidades", "Ver novedades", "Abrir demo", "Analizar ahora" (panel IA).
 - Prohibido: promesas exageradas ("impenetrable", "100% seguro"), fear-marketing.
+
+## Actualización 0.1.6 (2026-11-14)
+
+- Versión pública: 0.1.6. Plataformas: Windows con servicio y Linux como colector; macOS no está soportado.
+- Modelos: `gemini-3.6-flash` / `gemini-3.5-flash`, con fallback OpenRouter y Groq.
+- Nuevas superficies: `/novedades` con historial 0.1.0–0.1.6, servicio Windows, GUI `sc-gui`, GeoLite2 Country/ASN y colector NetFlow/IPFIX.
+- No publicar: firma criptográfica de alertas, “RAG local”, “cero falsos positivos”, “zero-cost”, anonimización obligatoria, detección primaria por IA ni scripts de remediación automáticos.
+- Descarga: no enlazar un ZIP 0.1.6 hasta que exista tag/release público; usar el canal de contacto.
 
 ## Copy de estados del dashboard
 

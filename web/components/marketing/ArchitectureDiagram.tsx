@@ -23,7 +23,7 @@ export default function ArchitectureDiagram() {
       >
         <title id="arch-title">Arquitectura de SC-Sentinel</title>
         <desc id="arch-desc">
-          El agente local analiza tráfico en la PC o router, aplica motor determinista en Rust, envía solo hashes a la nube, y el dashboard procesa con IA Gemini.
+          El agente local analiza tráfico PCAP o flujos NetFlow/IPFIX, aplica el motor determinista en Rust, envía solo señales agregadas a la nube y el dashboard las interpreta con IA.
         </desc>
 
         <defs>
@@ -86,7 +86,7 @@ export default function ArchitectureDiagram() {
           <text x="20" y="95" fill="#94a3b8" fontSize="11" fontFamily="var(--font-mono)">• Evaluación umbrales</text>
           <rect x="15" y="105" width="125" height="20" rx="4" fill="#38bdf8" fillOpacity="0.15" />
           <text x="77" y="119" textAnchor="middle" fill="#38bdf8" fontSize="10" fontWeight="600" fontFamily="var(--font-mono)">
-            Evidencia Cripto
+            9 reglas v1
           </text>
         </g>
 
@@ -98,9 +98,9 @@ export default function ArchitectureDiagram() {
           <rect width="120" height="135" rx="12" fill="#090f1d" stroke="#10b981" strokeWidth="1.5" strokeOpacity="0.6" />
           <circle cx="20" cy="24" r="5" fill="#10b981" />
           <text x="32" y="28" fill="#f8fafc" fontSize="12" fontWeight="700" fontFamily="var(--font-display)">
-            Sanitizador
+Privacidad
           </text>
-          <text x="14" y="55" fill="#94a3b8" fontSize="10" fontFamily="var(--font-mono)">• Hash SHA-256</text>
+          <text x="14" y="55" fill="#94a3b8" fontSize="10" fontFamily="var(--font-mono)">• HMAC opcional</text>
           <text x="14" y="75" fill="#94a3b8" fontSize="10" fontFamily="var(--font-mono)">• Agrupación IP</text>
           <text x="14" y="95" fill="#94a3b8" fontSize="10" fontFamily="var(--font-mono)">• Comprime Gzip</text>
           <rect x="10" y="105" width="100" height="20" rx="4" fill="#10b981" fillOpacity="0.2" />
@@ -143,11 +143,11 @@ export default function ArchitectureDiagram() {
           <rect width="105" height="135" rx="12" fill="#090f1d" stroke="#c084fc" strokeWidth="1.5" />
           <circle cx="20" cy="24" r="5" fill="#c084fc" />
           <text x="32" y="28" fill="#f8fafc" fontSize="11" fontWeight="700" fontFamily="var(--font-display)">
-            Gemini 2.0
+            Gemini 3.6
           </text>
-          <text x="12" y="55" fill="#94a3b8" fontSize="10" fontFamily="var(--font-mono)">• RAG 24h</text>
-          <text x="12" y="75" fill="#94a3b8" fontSize="10" fontFamily="var(--font-mono)">• Síntesis Lote</text>
-          <text x="12" y="95" fill="#94a3b8" fontSize="10" fontFamily="var(--font-mono)">• Remedios</text>
+          <text x="12" y="55" fill="#94a3b8" fontSize="10" fontFamily="var(--font-mono)">• Contexto 24h</text>
+          <text x="12" y="75" fill="#94a3b8" fontSize="10" fontFamily="var(--font-mono)">• Interpreta hechos</text>
+          <text x="12" y="95" fill="#94a3b8" fontSize="10" fontFamily="var(--font-mono)">• Recomienda</text>
           <rect x="8" y="105" width="89" height="20" rx="4" fill="#c084fc" fillOpacity="0.2" />
           <text x="52" y="119" textAnchor="middle" fill="#e9d5ff" fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
             Copiloto SOC
@@ -160,18 +160,18 @@ export default function ArchitectureDiagram() {
           ✓ LO QUE VIAJA:
         </text>
         <text x="170" y="262" fill="#94a3b8" fontSize="11" fontFamily="var(--font-mono)">
-          Conteo de bytes por protocolo, geolocalización agregada (países) y hashes SHA-256 de hosts.
+          Conteo de bytes, países/ASN agregados y host marks HMAC opcionales.
         </text>
 
         <text x="640" y="262" fill="#ef4444" fontSize="12" fontWeight="700" fontFamily="var(--font-mono)">
           ✗ NUNCA SALE:
         </text>
         <text x="750" y="262" fill="#fca5a5" fontSize="11" fontFamily="var(--font-mono)">
-          Paquetes crudos ni IPs reales.
+          Paquetes crudos ni payloads.
         </text>
       </svg>
       <figcaption className="mt-4 text-center font-mono text-[11px] text-slate-500 uppercase tracking-widest">
-        Figura 1.0 — Pipeline de Datos Criptográfico y Segregación de Responsabilidades
+        Figura 1.0 — Pipeline de datos: captura local, señales agregadas y análisis en la nube
       </figcaption>
     </figure>
   );

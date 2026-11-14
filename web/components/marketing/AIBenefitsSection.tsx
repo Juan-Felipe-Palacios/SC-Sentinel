@@ -16,64 +16,64 @@ import Link from "next/link";
 const AI_PILLARS = [
   {
     icon: Brain,
-    title: "Correlación Contextual Histórica",
-    tag: "Gemini 2.0 Flash / Groq",
-    desc: "A diferencia de las reglas estáticas puntuales, los modelos IA analizan ventanas agregadas de 24 horas para descubrir pautas de exfiltración lenta ('low-and-slow') que evaden IDS tradicionales.",
-    benefit: "Detecta ataques distribuidos que consumen poco ancho de banda por ventana.",
+    title: "Correlación sobre hechos agregados",
+    tag: "Gemini 3.6 Flash / OpenRouter / Groq",
+    desc: "La IA recibe ventanas agregadas de hasta 24 horas para contextualizar lo que el motor ya marcó. No descubre paquetes ni genera alertas primarias: explica patrones y ayuda a priorizar.",
+    benefit: "Convierte señales dispersas en un diagnóstico legible para el operador.",
   },
   {
     icon: Database,
-    title: "RAG Local con Datos Sanitizados",
-    tag: "100% Sin Paquetes Crudos",
-    desc: "La arquitectura RAG (Retrieval-Augmented Generation) alimenta al modelo solo con hashes anonimizados, métricas de entropía y estadísticas por puerto. Cero filtración de credenciales o payloads.",
-    benefit: "Cumplimiento estricto de privacidad empresarial sin riesgos de fuga en el prompt.",
+    title: "RAG en la nube con datos sanitizados",
+    tag: "Solo señales agregadas",
+    desc: "El contexto RAG se arma con hosts, puertos, países/ASN, alertas y salud del agente. No incluye paquetes crudos ni payloads; si la anonimización está activa, la nube trabaja con host marks.",
+    benefit: "Menos superficie de exposición sin perder contexto operativo.",
   },
   {
     icon: TrendingDown,
-    title: "Drástica Reducción de Fatiga de Alertas",
-    tag: "Priorización Cognitiva",
-    desc: "Un equipo SOC no puede revisar 10,000 logs diarios. La IA agrupa anomalías conexas, descarta ruido operacional legítimo y produce un diagnóstico unificado con severidad calibrada.",
-    benefit: "Ahorra hasta el 80% del tiempo de triaje de incidentes para los analistas.",
+    title: "Menos fatiga de alertas",
+    tag: "Priorización asistida",
+    desc: "La IA agrupa hallazgos relacionados y redacta un resumen con severidad. El operador sigue viendo las reglas, los umbrales y la evidencia que disparó cada alerta.",
+    benefit: "Ayuda a ordenar el triaje sin ocultar la fuente determinista.",
   },
   {
     icon: TerminalSquare,
-    title: "Prescripción de Remediación Inmediata",
-    tag: "Actionable Defense",
-    desc: "No solo te informa 'hubo un problema'; genera scripts de bloqueo para iptables/Mikrotik, reglas Snort y pasos de aislamiento de host listos para ser validados por el administrador.",
-    benefit: "Convierte una detección pasiva en una respuesta a incidentes en segundos.",
+    title: "Recomendaciones accionables",
+    tag: "Sugerencias, no ejecución",
+    desc: "El análisis devuelve pasos de mitigación en texto para que el administrador los valide. No ejecuta bloqueos, no modifica routers y no reemplaza el juicio humano.",
+    benefit: "Acelera la respuesta sin automatizar decisiones de red.",
   },
 ];
 
 const COMPARATIVE_MATRIX = [
   {
-    feature: "Captura & Análisis de Tráfico",
-    deterministic: "Motor Rust local a velocidad de cable (PCAP / promiscuous)",
+    feature: "Captura y análisis de tráfico",
+    deterministic: "Motor Rust local con PCAP y colector NetFlow/IPFIX",
     ai: "No toca la red física; procesa únicamente señales agregadas",
-    verdict: "Sin impacto en la CPU ni latencia de red",
+    verdict: "La captura y la decisión viven en el agente",
   },
   {
-    feature: "Generación de Alertas Primarias",
-    deterministic: "Reglas matemáticas y umbrales deterministas estrictos",
-    ai: "No inventa alertas; interpreta y correlaciona eventos existentes",
-    verdict: "Cero alucinaciones como fuente de verdad",
+    feature: "Generación de alertas primarias",
+    deterministic: "Nueve reglas con umbrales explícitos y evidencia estructurada",
+    ai: "No crea alertas; interpreta y correlaciona hechos existentes",
+    verdict: "La IA no es la fuente de verdad",
   },
   {
-    feature: "Resiliencia ante Caídas",
-    deterministic: "100% Offline-First (continúa protegiendo sin internet)",
-    ai: "Degrada elegantemente sin interrumpir las alertas del motor",
-    verdict: "Disponibilidad crítica ininterrumpida",
+    feature: "Resiliencia ante caídas",
+    deterministic: "Spool SQLite local y reintento cuando vuelve la conexión",
+    ai: "Modo degradado sin interrumpir las alertas del motor",
+    verdict: "El motor determinista sigue operando sin IA",
   },
   {
-    feature: "Privacidad de la Información",
-    deterministic: "Ofuscación SHA-256 local en el host del cliente",
-    ai: "Recibe únicamente hashes y números enteros agregados",
-    verdict: "Imposible reconstruir el contenido de tus paquetes",
+    feature: "Privacidad de la información",
+    deterministic: "Anonimización HMAC-SHA-256 opcional, derivada en el equipo",
+    ai: "Recibe hosts, conteos y metadatos agregados; nunca payloads",
+    verdict: "Sin paquetes crudos en el contexto de la IA",
   },
   {
-    feature: "Cadencia de Ejecución",
-    deterministic: "Micro-ventanas de 30 segundos continuas",
-    ai: "Lotes cognitivos inteligentes cada 15 min / bajo demanda",
-    verdict: "Eficiencia de costos en la nube (Vercel Serverless)",
+    feature: "Cadencia de ejecución",
+    deterministic: "Ventanas de 30 segundos continuas",
+    ai: "Hasta un análisis nuevo cada 15 minutos y bajo demanda",
+    verdict: "Cadencia acotada para no gastar cuota de forma descontrolada",
   },
 ];
 
@@ -92,7 +92,7 @@ export default function AIBenefitsSection() {
             Vulnerability AI Engine
           </div>
           <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-100">
-            Inteligencia Artificial para <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-300 to-sky-400">descubrir lo que las reglas no ven</span>.
+            Inteligencia Artificial para <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-300 to-sky-400">interpretar lo que el motor ya marcó</span>.
           </h2>
           <p className="mt-4 text-base sm:text-lg text-slate-400 leading-relaxed">
             Combinamos la precisión matemática del software en Rust con la capacidad de síntesis de modelos LLM de última generación. Una simbiosis perfecta entre velocidad local y razonamiento en la nube.
@@ -157,7 +157,7 @@ export default function AIBenefitsSection() {
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px]">
                   <th className="py-3 px-4 font-semibold">Criterio Operacional</th>
-                  <th className="py-3 px-4 font-semibold text-sky-400">1. Motor Rust Local (PCAP)</th>
+                  <th className="py-3 px-4 font-semibold text-sky-400">1. Motor Rust Local (PCAP + flows)</th>
                   <th className="py-3 px-4 font-semibold text-purple-400">2. Copiloto IA (Cloud RAG)</th>
                   <th className="py-3 px-4 font-semibold text-emerald-400">Garantía Arquitectónica</th>
                 </tr>
@@ -186,7 +186,7 @@ export default function AIBenefitsSection() {
           <div className="mt-8 flex flex-wrap items-center justify-between gap-4 pt-6 border-t border-slate-800">
             <div className="flex items-center gap-2 text-xs text-slate-400">
               <Lock className="h-4 w-4 text-emerald-400" />
-              <span>Garantía Contractual: Nunca compartimos tus datos con modelos públicos de entrenamiento.</span>
+              <span>El contexto enviado se limita a señales agregadas; no se envían paquetes crudos.</span>
             </div>
             <Link
               href="/demo"

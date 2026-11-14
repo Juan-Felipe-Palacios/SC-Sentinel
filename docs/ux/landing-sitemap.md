@@ -8,7 +8,8 @@ Fuente: spec §18.1. Framework: Next.js 15 App Router, grupo `(marketing)` públ
 |---|---|---|---|---|
 | `/` | (marketing) | SSG | M3 | Home principal |
 | `/funcionalidades` | (marketing) | SSG | M3 | Features detalladas |
-| `/contacto` | (marketing) | SSG + form | M3 | Formulario con React Hook Form + Zod |
+| `/contacto` | (marketing) | SSG | M3 | Canal único por LinkedIn; sin formulario |
+| `/novedades` | (marketing) | SSG | 0.1.6 | Historial público de releases y capacidades nuevas |
 | `/legal/privacy` | (marketing) | MDX | M3 | `legal/privacy-policy-draft.md` pulido |
 | `/legal/terms` | (marketing) | MDX | M3 | `legal/terms-draft.md` pulido |
 | `/legal/third-party-notices` | (marketing) | MDX | M3 | Generado de `legal/THIRD_PARTY_NOTICES.md` |
@@ -25,7 +26,8 @@ Fuente: spec §18.1. Framework: Next.js 15 App Router, grupo `(marketing)` públ
 5. **Arquitectura resumida** — diagrama simple (derivado de `diagrams/mermaid/system-context.mmd` simplificado).
 6. **Privacidad** — "La nube recibe señales agregadas, no paquetes crudos" (réquiem de frontend: viene del mensaje clave de arriba).
 7. **CTA secundario** — contacto / demo interna.
-8. **Footer** — links legales + dominio corporativo.
+8. **Novedades 0.1.6** — franja con ASN, servicio Windows, GUI y colector; enlace a `/novedades`.
+9. **Footer** — links legales + dominio corporativo.
 
 ## Mensaje clave (regla editorial)
 
