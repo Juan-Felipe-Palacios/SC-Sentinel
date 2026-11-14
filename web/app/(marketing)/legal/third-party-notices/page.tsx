@@ -29,7 +29,7 @@ const scHeredado = [
 ];
 
 const datos = [
-  ["MaxMind GeoLite2 (Country / ASN, .mmdb)", "Geolocalización de hosts (sc-geo)", "CC BY-SA 4.0 + condiciones del EULA de MaxMind"],
+  ["MaxMind GeoLite2 (Country / ASN, .mmdb)", "Geolocalización de hosts (sc-geo)", "GeoLite End User License Agreement (EULA) de MaxMind"],
 ];
 
 const runtimeNpm = [
@@ -121,6 +121,21 @@ export default function ThirdPartyNotices() {
             </tbody>
           </table>
         </div>
+        <p className="text-sm leading-relaxed text-sc-text-muted">
+          This product includes GeoLite Data created by MaxMind, available from{" "}
+          <a
+            className="text-sc-accent hover:text-[#7dd3fc]"
+            href="https://www.maxmind.com"
+            target="_blank"
+            rel="noreferrer"
+          >
+            maxmind.com
+          </a>.
+        </p>
+        <p className="text-sm leading-relaxed text-sc-text-muted">
+          La licencia vigente es el EULA de GeoLite2. CC BY-SA 4.0 corresponde a versiones anteriores a diciembre de
+          2019 y no aplica a las bases incluidas en esta release.
+        </p>
       </section>
 
       <section className="mt-10 space-y-3">
