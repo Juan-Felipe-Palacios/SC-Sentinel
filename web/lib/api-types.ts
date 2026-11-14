@@ -74,6 +74,15 @@ export interface OverviewTopPort {
   connections: number;
 }
 
+/** Distribución de tráfico por ASN (agregada por ventana; no identifica hosts). */
+export interface OverviewTopAsn {
+  asn: number;
+  /** Última organización observada (null si GeoLite2-ASN no estaba cargada). */
+  asn_org: string | null;
+  bytes_total: number;
+  hosts: number;
+}
+
 export interface OverviewProtocolShare {
   protocol: string;
   bytes: number;
@@ -87,6 +96,7 @@ export interface OverviewResponse {
   series: OverviewSeriesPoint[];
   top_hosts: OverviewTopHost[];
   top_countries: OverviewTopCountry[];
+  top_asns: OverviewTopAsn[];
   top_ports: OverviewTopPort[];
   protocols: OverviewProtocolShare[];
   risk: OverviewRisk;

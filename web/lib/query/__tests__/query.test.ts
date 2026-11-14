@@ -69,6 +69,7 @@ describe('queryOverview', () => {
         },
       ],
       [{ country: 'AR', bytes_total: '1500', hosts_count: '3' }],
+      [{ asn: '15169', asn_org: 'Google LLC', bytes_total: '900', hosts: '2' }],
       [{ alerts_count: '4' }],
       [
         { severity: 'critical', count: '1' },
@@ -115,6 +116,7 @@ describe('queryOverview', () => {
       },
     ]);
     expect(result.top_countries).toEqual([{ country: 'AR', bytes_total: 1500, hosts_count: 3 }]);
+    expect(result.top_asns).toEqual([{ asn: 15169, asn_org: 'Google LLC', bytes_total: 900, hosts: 2 }]);
     expect(result.top_ports).toEqual([
       { port: 443, protocol: 'tcp', bytes: 1200, connections: 8 },
       { port: 53, protocol: 'udp', bytes: 300, connections: 2 },
@@ -137,6 +139,7 @@ describe('queryOverview', () => {
     const db = fakeDb([
       [{ windows_count: '1' }],
       [{ bytes_in: '0', bytes_out: '0', packets: '0', hosts_count: '2', countries_count: '0' }],
+      [],
       [],
       [],
       [],

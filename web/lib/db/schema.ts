@@ -52,6 +52,20 @@ export const hostStats = pgTable('host_stats', {
   windowIdx: index('host_stats_window_idx').on(table.windowId),
 }));
 
+export const asnStats = pgTable('asn_stats', {
+  id: text('id').primaryKey(),
+  windowId: text('window_id').notNull(),
+  // Número de sistema autónomo (0 = "sin ASN" cuando GeoLite2-ASN no está cargada).
+  asn: bigint('asn', { mode: 'number' }).notNull(),
+  // Organización del ASN según GeoLite2-ASN (null si la base no está cargada).
+  asnOrg: text('asn_org'),
+  bytes: bigint('bytes', { mode: 'number' }).default(0).notNull(),
+  hosts: integer('hosts').default(0).notNull(),
+}, (table) => ({
+  windowIdx: index('asn_stats_window_idx').on(table.windowId),
+  windowAsnIdx: index('asn_stats_window_asn_idx').on(table.windowId, table.asn),
+}));
+
 export const operators = pgTable('operators', {
   id: text('id').primaryKey(),
   email: text('email').notNull().unique(),

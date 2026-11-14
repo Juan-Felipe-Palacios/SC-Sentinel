@@ -168,6 +168,13 @@ export async function POST(request: NextRequest) {
           // Score del agente si existe; si no, el de la ventana (heurística).
           riskScore: resolveHostRiskScore(h.risk_score, cloudRisk.score),
         })),
+        // Top ASNs de la ventana (presente solo si el agente cargó GeoLite2-ASN).
+        asnStats: (envelope.snapshot.top_asns ?? []).map((a) => ({
+          asn: a.asn,
+          asnOrg: a.asn_org ?? null,
+          bytes: a.bytes,
+          hosts: a.hosts,
+        })),
         alerts: alertRows.map((a) => ({
           ruleId: a.rule_id,
           severity: a.severity,

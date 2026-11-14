@@ -53,6 +53,13 @@ export interface AgentHealthInput {
   lastError: string | null;
 }
 
+export interface AsnStatInput {
+  asn: number;
+  asnOrg: string | null;
+  bytes: number;
+  hosts: number;
+}
+
 export interface PersistInput {
   deviceId: string;
   windowId: string;
@@ -62,6 +69,8 @@ export interface PersistInput {
   sequence: number;
   snapshot: unknown;
   hostStats: HostStatInput[];
+  /** Top ASNs de la ventana (opcional: agente sin GeoLite2-ASN lo omite). */
+  asnStats?: AsnStatInput[];
   alerts: AlertInput[];
   health: AgentHealthInput;
   /** Solo se envía cuando el device acaba de enrolarse (ADR-0010). */
@@ -109,6 +118,17 @@ export function buildPersistStatements(sql: SqlTag, input: PersistInput): unknow
       VALUES (${stableId('hst', input.windowId, host.hostKey, host.ipDisplay ?? '')},
               ${input.windowId}, ${host.hostKey}, ${host.ipDisplay}, ${host.bytesIn}, ${host.bytesOut},
               ${host.packets}, ${host.country}, ${String(host.riskScore)})
+      ON CONFLICT DO NOTHING`);
+  }
+
+  // Top ASNs de la ventana: mismas garantías de idempotencia que host_stats
+  // (id estable por ventana+ASN; el campo es opcional, p. ej. agente sin
+  // GeoLite2-ASN cargada).
+  for (const asn of input.asnStats ?? []) {
+    statements.push(sql`
+      INSERT INTO asn_stats (id, window_id, asn, asn_org, bytes, hosts)
+      VALUES (${stableId('asn', input.windowId, asn.asn)},
+              ${input.windowId}, ${asn.asn}, ${asn.asnOrg}, ${asn.bytes}, ${asn.hosts})
       ON CONFLICT DO NOTHING`);
   }
 

@@ -14,6 +14,7 @@ import type { QueryRange } from '@/lib/schemas/query';
 export const TOP_HOSTS_LIMIT = 10;
 export const TOP_PORTS_LIMIT = 10;
 export const TOP_COUNTRIES_LIMIT = 5;
+export const TOP_ASNS_LIMIT = 10;
 
 export interface AlertSeverityCounts {
   critical: number;
@@ -47,6 +48,19 @@ export interface OverviewRisk {
   avg_score: number | null;
 }
 
+/**
+ * Distribución de tráfico por sistema autónomo. `asn_org` es el nombre de
+ * organización agregado por ventana (no identifica hosts); `hosts` es el
+ * máximo de hosts del ASN en una ventana del período (sumarlo entre ventanas
+ * contaría al mismo host varias veces).
+ */
+export interface OverviewTopAsn {
+  asn: number;
+  asn_org: string | null;
+  bytes_total: number;
+  hosts: number;
+}
+
 export interface OverviewResult {
   range: QueryRange;
   period: { start: string; end: string };
@@ -64,6 +78,7 @@ export interface OverviewResult {
   series: Array<{ timestamp: string; bytes_in: number; bytes_out: number }>;
   top_hosts: OverviewTopHost[];
   top_countries: Array<{ country: string; bytes_total: number; hosts_count: number }>;
+  top_asns: OverviewTopAsn[];
   top_ports: Array<{ port: number; protocol: string; bytes: number; connections: number }>;
   protocols: Array<{ protocol: string; bytes: number; connections: number }>;
   risk: OverviewRisk;
@@ -127,6 +142,13 @@ interface PortRow {
   connections: number | string | null;
 }
 
+interface TopAsnRow {
+  asn: number | string | null;
+  asn_org: string | null;
+  bytes_total: number | string | null;
+  hosts: number | string | null;
+}
+
 function emptySeverityCounts(): AlertSeverityCounts {
   return { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
 }
@@ -174,6 +196,7 @@ function emptyOverview(
     series: [],
     top_hosts: [],
     top_countries: [],
+    top_asns: [],
     top_ports: [],
     protocols: [],
     risk: emptyRisk(),
@@ -184,7 +207,9 @@ function emptyOverview(
  * Totales single-device v1 derivados de host_stats (top hosts observados).
  * El agente no emite contadores globales de ventana; no hay migración de schema en esta tarea.
  * `top_ports` se agrega desde el `snapshot_json` de cada ventana; `top_countries`
- * sale de `host_stats` (el snapshot histórico no siempre trae la clave).
+ * sale de `host_stats` (el snapshot histórico no siempre trae la clave) y
+ * `top_asns` de la tabla `asn_stats` (persistida desde `top_asns` del envelope;
+ * requiere agente 0.1.6+ con GeoLite2-ASN cargada).
  */
 export async function queryOverview(
   range: QueryRange = '1h',
@@ -207,6 +232,7 @@ export async function queryOverview(
     seriesRows,
     topHostRows,
     topCountryRows,
+    topAsnRows,
     alertCountRows,
     alertSeverityRows,
     portRows,
@@ -284,6 +310,23 @@ export async function queryOverview(
           GROUP BY hs.country
           ORDER BY bytes_total DESC
           LIMIT ${TOP_COUNTRIES_LIMIT}`
+    ),
+    // Organización del ASN: la última vista en el período (los nombres pueden
+    // cambiar entre ventanas de MaxMind; se muestra la más reciente).
+    queryRows<TopAsnRow>(
+      database,
+      sql`SELECT a.asn,
+                 (array_agg(a.asn_org ORDER BY fw.start_at DESC) FILTER (WHERE a.asn_org IS NOT NULL))[1] AS asn_org,
+                 COALESCE(SUM(a.bytes), 0)::bigint AS bytes_total,
+                 COALESCE(MAX(a.hosts), 0)::int AS hosts
+          FROM asn_stats a
+          INNER JOIN flow_windows fw ON fw.window_id = a.window_id
+          WHERE fw.device_id = ${deviceId}
+            AND fw.start_at >= ${startIso}::timestamptz
+            AND fw.start_at < ${endIso}::timestamptz
+          GROUP BY a.asn
+          ORDER BY SUM(a.bytes) DESC
+          LIMIT ${TOP_ASNS_LIMIT}`
     ),
     queryRows<AlertCountRow>(
       database,
@@ -395,6 +438,14 @@ export async function queryOverview(
       bytes_total: bigintToNumber(row.bytes_total),
       hosts_count: bigintToNumber(row.hosts_count),
     })),
+    top_asns: topAsnRows
+      .filter((row) => row.asn !== null)
+      .map((row) => ({
+        asn: Number(row.asn),
+        asn_org: row.asn_org ?? null,
+        bytes_total: bigintToNumber(row.bytes_total),
+        hosts: bigintToNumber(row.hosts),
+      })),
     top_ports: portRows
       .filter((row) => row.port !== null)
       .slice(0, TOP_PORTS_LIMIT)

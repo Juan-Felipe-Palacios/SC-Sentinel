@@ -25,6 +25,7 @@ import { HostDrillDown } from './HostDrillDown';
 import { formatZoomLabel, formatZoomSpan, zoomParams, type ZoomRange } from '@/lib/zoom';
 import { TopHostsTable } from './TopHostsTable';
 import { TopPortsTable } from './TopPortsTable';
+import { AsnDistribution } from './AsnDistribution';
 import { GeoDistribution } from './GeoDistribution';
 import { RiskSummary } from './RiskSummary';
 import { RecentAlerts } from './RecentAlerts';
@@ -128,6 +129,7 @@ export function OverviewView({ range }: { range: QueryRange }) {
     top_hosts: topHosts,
     top_ports: topPorts,
     top_countries: topCountries,
+    top_asns: topAsns,
     protocols,
     risk,
     period,
@@ -230,6 +232,9 @@ export function OverviewView({ range }: { range: QueryRange }) {
           <RiskSummary risk={risk} hostsCount={totals.hosts_count} />
         </div>
       </div>
+
+      {/* Sistemas autónomos (ASN): agregado por ventana, sin desglose por host */}
+      <AsnDistribution asns={topAsns} />
 
       {/* Alertas recientes */}
       <RecentAlerts alerts={alerts.data?.alerts ?? []} />
