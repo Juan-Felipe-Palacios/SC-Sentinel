@@ -96,7 +96,8 @@ if (-not $SkipPackage) {
         'sc-gui.exe',
         'LEEME-INSTALACION.txt',
         'SHA256SUMS.txt',
-        'geolite2\GeoLite2-Country.mmdb'
+        'geolite2\GeoLite2-Country.mmdb',
+        'geolite2\GeoLite2-ASN.mmdb'
       )
       $missing = @()
       foreach ($r in $required) {
@@ -153,10 +154,15 @@ if (-not $SkipPackage) {
       if (Test-Path $exe) {
         $bytes = [System.IO.File]::ReadAllBytes($exe)
         $ascii = [System.Text.Encoding]::ASCII.GetString($bytes)
+        $leaks = @()
         foreach ($pattern in @('captura live no compilada', 'CARGO_MANIFEST_DIR', 'D:\ProyectosWeb', 'crates\sc-geo', '.cargo\registry')) {
-          if ($ascii.Contains($pattern)) { Write-Fail "El binario filtra '$pattern'" }
+          if ($ascii.Contains($pattern)) { $leaks += $pattern }
         }
-        Write-Ok 'Higiene del binario: sin rutas de compilacion'
+        if ($leaks.Count -eq 0) {
+          Write-Ok 'Higiene del binario: sin rutas de compilacion'
+        } else {
+          Write-Fail "El binario filtra: $($leaks -join ', ')"
+        }
       }
 
       # --- Arranque real con GeoLite2 ---
@@ -173,9 +179,12 @@ if (-not $SkipPackage) {
         if (-not $finished) { try { $proc.Kill() } catch { } }
         $boot = ((Get-Content $outFile -Raw -ErrorAction SilentlyContinue) + "`n" + (Get-Content $errFile -Raw -ErrorAction SilentlyContinue))
 
-        Test-Expect ($boot -match 'GeoIP: base GeoLite2 cargada') `
-          'Base GeoLite2 cargada en el arranque' `
-          'El arranque no cargo la base GeoLite2 (los paises saldran vacios)'
+        Test-Expect ($boot -match 'GeoIP: base GeoLite2 Country cargada') `
+          'Base GeoLite2 Country cargada en el arranque' `
+          'El arranque no cargo la base GeoLite2 Country (los paises saldran vacios)'
+        Test-Expect ($boot -match 'GeoIP: base GeoLite2 ASN cargada') `
+          'Base GeoLite2 ASN cargada en el arranque' `
+          'El arranque no cargo la base GeoLite2 ASN (los ASN saldran vacios)'
         Test-Expect ($boot -notmatch 'falta la variable de entorno SC_INGEST_TOKEN') `
           'Arranque completado con las variables de entorno' `
           'El agente no arranco (faltan variables de entorno)'

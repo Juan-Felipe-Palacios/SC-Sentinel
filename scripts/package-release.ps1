@@ -23,12 +23,21 @@ param(
   [ValidateSet('windows-x64', 'linux-x64')]
   [string]$Target,
 
-  [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot),
+  [string]$RepoRoot = '',
 
-  [string]$OutDir = (Join-Path (Split-Path -Parent $PSScriptRoot) 'dist')
+  [string]$OutDir = ''
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Windows PowerShell 5.1 no evalua $PSScriptRoot durante el binding del param;
+# se resuelve aqui para que `powershell.exe -File` funcione igual que `pwsh`.
+$scriptRoot = $PSScriptRoot
+if (-not $scriptRoot) {
+  $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
+if (-not $RepoRoot) { $RepoRoot = Split-Path -Parent $scriptRoot }
+if (-not $OutDir) { $OutDir = Join-Path (Split-Path -Parent $scriptRoot) 'dist' }
 
 # Escribe texto en UTF-8 sin BOM. `Set-Content -Encoding utf8` en Windows
 # PowerShell 5.1 anade BOM, y un SHA256SUMS.txt con BOM rompe la verificacion
