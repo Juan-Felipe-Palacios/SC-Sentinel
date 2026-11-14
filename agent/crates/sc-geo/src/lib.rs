@@ -3,8 +3,8 @@
 pub mod geolite2;
 pub mod lookup;
 
-pub use geolite2::{GeoError, GeoLite2Country, GEOIP_DB_ENV};
-pub use lookup::{CountryLookup, NoLookup};
+pub use geolite2::{GeoError, GeoLite2Asn, GeoLite2Country, GEOIP_ASN_DB_ENV, GEOIP_DB_ENV};
+pub use lookup::{AsnInfo, AsnLookup, CountryLookup, NoLookup};
 
 use std::net::{Ipv4Addr, Ipv6Addr};
 

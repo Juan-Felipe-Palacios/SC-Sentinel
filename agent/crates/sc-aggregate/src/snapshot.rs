@@ -29,6 +29,7 @@ pub fn build_snapshot(
         top_hosts,
         top_ports,
         top_countries: accumulator.build_countries(cfg.top_countries),
+        top_asns: accumulator.build_asns(cfg.top_asns),
         alerts: Vec::new(),
         health: health_snap,
     };

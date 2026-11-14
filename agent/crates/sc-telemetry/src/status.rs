@@ -101,6 +101,10 @@ pub struct AgentStatus {
     pub last_error: Option<String>,
     pub collector_ports: Vec<u16>,
     pub geo_loaded: bool,
+    #[serde(default)]
+    pub geo_country_loaded: bool,
+    #[serde(default)]
+    pub geo_asn_loaded: bool,
     pub last_sync_at: Option<String>,
     /// `running` mientras el endpoint responda; el estado real del SCM lo
     /// consulta la GUI con `QueryServiceStatus` (F3), porque si el servicio
@@ -131,6 +135,8 @@ pub struct StatusConfig {
     pub capture_enabled: bool,
     pub collector_ports: Vec<u16>,
     pub geo_loaded: bool,
+    pub geo_country_loaded: bool,
+    pub geo_asn_loaded: bool,
     /// Interfaz pasada por `--interface`; `None` si no hay captura live.
     pub interface: Option<String>,
 }
@@ -188,6 +194,8 @@ impl StatusShared {
             last_error: health.last_error,
             collector_ports: self.config.collector_ports.clone(),
             geo_loaded: self.config.geo_loaded,
+            geo_country_loaded: self.config.geo_country_loaded,
+            geo_asn_loaded: self.config.geo_asn_loaded,
             last_sync_at: self.last_sync_at(),
             service_state: "running".to_string(),
             mode: self.config.mode.clone(),
@@ -351,6 +359,8 @@ mod tests {
                 capture_enabled: false,
                 collector_ports: vec![2056, 4739],
                 geo_loaded: true,
+                geo_country_loaded: true,
+                geo_asn_loaded: true,
                 interface: None,
             },
         )
@@ -440,6 +450,8 @@ mod tests {
             capture_enabled: true,
             collector_ports: Vec::new(),
             geo_loaded: false,
+            geo_country_loaded: false,
+            geo_asn_loaded: false,
             interface: Some("\\\\Device\\\\NPF_{GUID}".to_string()),
         };
         let status = StatusShared::new(Arc::new(HealthRegistry::default()), config);

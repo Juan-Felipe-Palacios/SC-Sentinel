@@ -11,7 +11,7 @@ use sc_collector::{
 };
 use sc_config::{AgentConfig, CollectorSection};
 use sc_detect::{Blacklist, DetectorConfig};
-use sc_geo::{GeoLite2Country, NoLookup};
+use sc_geo::{GeoLite2Asn, GeoLite2Country, NoLookup};
 use sc_sync::{
     build_envelope, rebase_device_id, Applied, DeviceInfo, IngestClient, Spool, SpoolConfig,
     SyncDecision, Syncer,
@@ -276,23 +276,42 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
     // <dir del binario>/geolite2/), nunca con una ruta compilada.
     // `geo_loaded` se publica en /status para que la GUI pueda mostrar si la
     // base GeoLite2 se cargó (sin ella los países salen vacíos).
-    let (geo, geo_loaded): (Arc<dyn sc_geo::CountryLookup>, bool) =
+    let (country_geo, geo_country_loaded): (Arc<dyn sc_geo::CountryLookup>, bool) =
         match GeoLite2Country::discover() {
             Ok(g) => {
                 tracing::info!(
                     path = %g.path().display(),
-                    "GeoIP: base GeoLite2 cargada"
+                    "GeoIP: base GeoLite2 Country cargada"
                 );
                 (Arc::new(g), true)
             }
             Err(error) => {
                 tracing::warn!(
                     %error,
-                    "GeoIP no disponible: se usa NoLookup (los países quedan vacíos)"
+                    "GeoIP Country no disponible: se usa NoLookup (los países quedan vacíos)"
                 );
                 (Arc::new(NoLookup), false)
             }
         };
+    let (asn_geo, geo_asn_loaded): (Arc<dyn sc_geo::AsnLookup>, bool) =
+        match GeoLite2Asn::discover() {
+            Ok(g) => {
+                tracing::info!(
+                    path = %g.path().display(),
+                    "GeoIP: base GeoLite2 ASN cargada"
+                );
+                (Arc::new(g), true)
+            }
+            Err(error) => {
+                tracing::warn!(
+                    %error,
+                    "GeoIP ASN no disponible: se usa NoLookup (los ASN quedan vacíos)"
+                );
+                (Arc::new(NoLookup), false)
+            }
+        };
+    let geo = country_geo;
+    let geo_loaded = geo_country_loaded;
 
     // Aggregator config
     let agg_cfg = AggregatorConfig {
@@ -303,6 +322,7 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
         top_hosts: 50,
         top_ports: 50,
         top_countries: 30,
+        top_asns: 30,
         max_alerts: 50,
     };
 
@@ -462,7 +482,7 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
     // Sin este drop el canal quedaría abierto y el aggregator nunca drenaría.
     drop(merged_producer);
 
-    let aggregator = WindowAggregator::new(agg_cfg, geo.clone(), health.clone())
+    let aggregator = WindowAggregator::new(agg_cfg, geo.clone(), asn_geo.clone(), health.clone())
         .with_capture_counters(capture_counters);
     let mut aggregator_handle = tokio::spawn(async move {
         aggregator.run(merged_channel.rx, snap_tx).await;
@@ -551,6 +571,8 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
                 Vec::new()
             },
             geo_loaded,
+            geo_country_loaded,
+            geo_asn_loaded,
             // La interfaz que el agente ya usa para capturar: no se relee del
             // binPath del SCM, que puede estar editado a mano.
             interface: args.interface.clone(),

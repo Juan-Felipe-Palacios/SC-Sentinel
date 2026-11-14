@@ -896,6 +896,7 @@ mod tests {
             }],
             top_ports: Vec::new(),
             top_countries: Vec::new(),
+            top_asns: Vec::new(),
             alerts: Vec::new(),
             health: health(),
         };

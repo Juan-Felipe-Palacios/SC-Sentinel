@@ -14,8 +14,15 @@ use thiserror::Error;
 /// Tiene prioridad sobre cualquier ruta deduceida del sistema de ficheros.
 pub const GEOIP_DB_ENV: &str = "SC_GEOIP_DB";
 
+/// Variable de entorno que fija la ruta de la base GeoLite2 de ASN.
+/// Tiene prioridad sobre cualquier ruta deduceida del sistema de ficheros.
+pub const GEOIP_ASN_DB_ENV: &str = "SC_GEOIP_ASN_DB";
+
 /// Nombre del fichero de la base GeoLite2 de países.
 const COUNTRY_DB_FILE: &str = "GeoLite2-Country.mmdb";
+
+/// Nombre del fichero de la base GeoLite2 de ASN.
+const ASN_DB_FILE: &str = "GeoLite2-ASN.mmdb";
 
 /// Cuántos niveles hacia arriba se barren en busca de `resources/`.
 /// Cubre `target/release/`, `target/debug/deps/` y las instalaciones que
@@ -174,6 +181,149 @@ impl GeoLite2Country {
     }
 }
 
+pub struct GeoLite2Asn {
+    reader: Reader<Vec<u8>>,
+    path: PathBuf,
+}
+
+impl GeoLite2Asn {
+    pub fn from_path(path: &Path) -> Result<Self, GeoError> {
+        let reader = Reader::open_readfile(path).map_err(|e| GeoError::Open(e.to_string()))?;
+        Ok(Self {
+            reader,
+            path: path.to_path_buf(),
+        })
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn discover() -> Result<Self, GeoError> {
+        if let Some(raw) = std::env::var_os(GEOIP_ASN_DB_ENV) {
+            let path = PathBuf::from(raw);
+            return Self::from_path(&path).map_err(|error| {
+                GeoError::Open(format!(
+                    "{GEOIP_ASN_DB_ENV}={} no se pudo abrir: {error}",
+                    path.display()
+                ))
+            });
+        }
+
+        for path in Self::candidate_paths() {
+            if path.is_file() {
+                return Self::from_path(&path);
+            }
+        }
+
+        Err(GeoError::Open(format!(
+            "no se encontró {ASN_DB_FILE}; define {GEOIP_ASN_DB_ENV} o instala la base \
+             en <dir del binario>/geolite2/"
+        )))
+    }
+
+    pub fn discover_path() -> Option<PathBuf> {
+        let env_value = std::env::var_os(GEOIP_ASN_DB_ENV);
+        Self::resolve_path(env_value.as_deref(), &Self::candidate_paths())
+    }
+
+    fn resolve_path(
+        env_value: Option<&std::ffi::OsStr>,
+        candidates: &[PathBuf],
+    ) -> Option<PathBuf> {
+        match env_value {
+            Some(raw) => {
+                let path = PathBuf::from(raw);
+                path.is_file().then_some(path)
+            }
+            None => candidates.iter().find(|path| path.is_file()).cloned(),
+        }
+    }
+
+    pub fn candidate_paths() -> Vec<PathBuf> {
+        let mut candidates: Vec<PathBuf> = Vec::new();
+        let mut push = |path: PathBuf| {
+            if !candidates.contains(&path) {
+                candidates.push(path);
+            }
+        };
+
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(dir) = exe.parent() {
+                push(dir.join("geolite2").join(ASN_DB_FILE));
+                push(dir.join("resources").join("geolite2").join(ASN_DB_FILE));
+                push(
+                    dir.parent()
+                        .map(|parent| parent.join("geolite2").join(ASN_DB_FILE))
+                        .unwrap_or_default(),
+                );
+                push(
+                    dir.parent()
+                        .map(|parent| parent.join("resources").join("geolite2").join(ASN_DB_FILE))
+                        .unwrap_or_default(),
+                );
+
+                for level in 1..=MAX_ANCESTOR_LEVELS {
+                    let Some(ancestor) = dir.ancestors().nth(level) else {
+                        break;
+                    };
+                    push(
+                        ancestor
+                            .join("resources")
+                            .join("geolite2")
+                            .join(ASN_DB_FILE),
+                    );
+                    push(ancestor.join("geolite2").join(ASN_DB_FILE));
+                }
+            }
+        }
+
+        if let Ok(cwd) = std::env::current_dir() {
+            push(cwd.join("resources").join("geolite2").join(ASN_DB_FILE));
+            push(cwd.join("geolite2").join(ASN_DB_FILE));
+            if let Some(parent) = cwd.parent() {
+                push(parent.join("resources").join("geolite2").join(ASN_DB_FILE));
+            }
+        }
+
+        candidates.retain(|path| !path.as_os_str().is_empty());
+        candidates
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct AsnResp {
+    autonomous_system_number: Option<u32>,
+    autonomous_system_organization: Option<String>,
+}
+
+impl crate::lookup::AsnLookup for GeoLite2Asn {
+    fn asn(&self, ip: u128) -> Option<crate::lookup::AsnInfo> {
+        let ip_addr: std::net::IpAddr = if ip <= u32::MAX as u128 {
+            let v4 = (ip as u32).to_be_bytes();
+            std::net::IpAddr::V4(std::net::Ipv4Addr::new(v4[0], v4[1], v4[2], v4[3]))
+        } else {
+            let bytes = ip.to_be_bytes();
+            std::net::IpAddr::V6(std::net::Ipv6Addr::from(bytes))
+        };
+
+        match self.reader.lookup(ip_addr) {
+            Ok(result) => {
+                if let Ok(Some(resp)) = result.decode::<AsnResp>() {
+                    if let Some(number) = resp.autonomous_system_number {
+                        return Some(crate::lookup::AsnInfo {
+                            number,
+                            organization: resp.autonomous_system_organization,
+                        });
+                    }
+                }
+                None
+            }
+            Err(_) => None,
+        }
+    }
+}
+
 #[derive(serde::Deserialize)]
 struct CountryResp {
     country: Option<CountryCode>,
@@ -216,6 +366,7 @@ impl CountryLookup for GeoLite2Country {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lookup::AsnLookup;
 
     /// Ruta de la base dentro del árbol del repo (solo para tests).
     fn repo_database() -> PathBuf {
@@ -297,5 +448,54 @@ mod tests {
         // Sin variable de entorno gana el primer candidato que exista.
         let sin_entorno = GeoLite2Country::resolve_path(None, &candidatos);
         assert!(sin_entorno.is_some_and(|path| path.is_file()));
+    }
+
+    fn repo_asn_database() -> PathBuf {
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("..");
+        path.push("..");
+        path.push("resources");
+        path.push("geolite2");
+        path.push(ASN_DB_FILE);
+        path
+    }
+
+    fn v4_u128(a: u8, b: u8, c: u8, d: u8) -> u128 {
+        u32::from(std::net::Ipv4Addr::new(a, b, c, d)) as u128
+    }
+
+    #[test]
+    fn geoip_country_resuelve_8_8_8_8_a_us() {
+        let path = repo_database();
+        if !path.exists() {
+            eprintln!("omitido: no existe {}", path.display());
+            return;
+        }
+        let lookup = GeoLite2Country::from_path(&path).expect("base GeoLite2 Country");
+        assert_eq!(lookup.country(v4_u128(8, 8, 8, 8)), Some("US".to_string()));
+    }
+
+    #[test]
+    fn geoip_asn_resuelve_8_8_8_8_a_15169() {
+        let path = repo_asn_database();
+        if !path.exists() {
+            eprintln!("omitido: no existe {}", path.display());
+            return;
+        }
+        let lookup = GeoLite2Asn::from_path(&path).expect("base GeoLite2 ASN");
+        let info = lookup.asn(v4_u128(8, 8, 8, 8)).expect("ASN para 8.8.8.8");
+        assert_eq!(info.number, 15169);
+    }
+
+    #[test]
+    fn geoip_asn_resuelve_1_1_1_1_a_13335() {
+        let path = repo_asn_database();
+        if !path.exists() {
+            eprintln!("omitido: no existe {}", path.display());
+            return;
+        }
+        let lookup = GeoLite2Asn::from_path(&path).expect("base GeoLite2 ASN");
+        let info = lookup.asn(v4_u128(1, 1, 1, 1)).expect("ASN para 1.1.1.1");
+        assert_eq!(info.number, 13335);
     }
 }

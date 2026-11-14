@@ -4,7 +4,7 @@ use crate::accumulator::Accumulator;
 use crate::snapshot::build_snapshot;
 use sc_capture::FlowUpdate;
 use sc_core::{DetectionInput, Window, WindowSnapshot};
-use sc_geo::CountryLookup;
+use sc_geo::{AsnLookup, CountryLookup};
 use sc_telemetry::HealthRegistry;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -61,6 +61,7 @@ pub struct AggregatorConfig {
     pub top_hosts: usize,
     pub top_ports: usize,
     pub top_countries: usize,
+    pub top_asns: usize,
     pub max_alerts: usize,
 }
 
@@ -96,6 +97,7 @@ impl Default for AggregatorConfig {
             top_hosts: 50,
             top_ports: 50,
             top_countries: 30,
+            top_asns: 30,
             max_alerts: 50,
         }
     }
@@ -104,6 +106,7 @@ impl Default for AggregatorConfig {
 pub struct WindowAggregator {
     cfg: AggregatorConfig,
     country: Arc<dyn CountryLookup>,
+    asn: Arc<dyn AsnLookup>,
     health: Arc<HealthRegistry>,
     clock: Arc<dyn Clock>,
     counters: CaptureCounters,
@@ -113,11 +116,13 @@ impl WindowAggregator {
     pub fn new(
         cfg: AggregatorConfig,
         country: Arc<dyn CountryLookup>,
+        asn: Arc<dyn AsnLookup>,
         health: Arc<HealthRegistry>,
     ) -> Self {
         Self {
             cfg,
             country,
+            asn,
             health,
             clock: Arc::new(SystemClock),
             counters: CaptureCounters::default(),
@@ -176,6 +181,7 @@ impl WindowAggregator {
             self.cfg.hmac_key.clone(),
             self.cfg.anonymize_hosts,
             self.country.clone(),
+            self.asn.clone(),
         );
         // Último total de drops ya registrado, para loguear solo el delta de la ventana.
         let mut last_dropped: u64 = 0;
@@ -207,7 +213,12 @@ impl WindowAggregator {
                                 // Start new window
                                 bounds.start = (now / window_seconds) * window_seconds;
                                 bounds.end = bounds.start + window_seconds;
-                                accumulator = Accumulator::new(self.cfg.hmac_key.clone(), self.cfg.anonymize_hosts, self.country.clone());
+                                accumulator = Accumulator::new(
+                                    self.cfg.hmac_key.clone(),
+                                    self.cfg.anonymize_hosts,
+                                    self.country.clone(),
+                                    self.asn.clone(),
+                                );
                             }
                             accumulator.add_flow(&update);
                         }
@@ -231,7 +242,12 @@ impl WindowAggregator {
                         bounds.id_counter += 1;
                         bounds.start = (now / window_seconds) * window_seconds;
                         bounds.end = bounds.start + window_seconds;
-                        accumulator = Accumulator::new(self.cfg.hmac_key.clone(), self.cfg.anonymize_hosts, self.country.clone());
+                        accumulator = Accumulator::new(
+                            self.cfg.hmac_key.clone(),
+                            self.cfg.anonymize_hosts,
+                            self.country.clone(),
+                            self.asn.clone(),
+                        );
                     }
                 }
             }
@@ -342,6 +358,7 @@ mod tests {
                 ..AggregatorConfig::default()
             },
             Arc::new(sc_geo::NoLookup),
+            Arc::new(sc_geo::NoLookup),
             HealthRegistry::new(),
         )
         .with_clock(Arc::new(StepClock(clock.clone())));
@@ -402,6 +419,7 @@ mod tests {
                 anonymize_hosts: false,
                 ..AggregatorConfig::default()
             },
+            Arc::new(sc_geo::NoLookup),
             Arc::new(sc_geo::NoLookup),
             HealthRegistry::new(),
         )

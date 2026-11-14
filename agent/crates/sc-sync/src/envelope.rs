@@ -90,6 +90,7 @@ mod tests {
             top_hosts: vec![],
             top_ports: vec![],
             top_countries: vec![],
+            top_asns: vec![],
             alerts: vec![],
             health: AgentHealth {
                 capture_status: CaptureStatus::Ok,

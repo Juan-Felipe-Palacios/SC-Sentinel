@@ -59,3 +59,6 @@ env.local
 
 .vercel
 .env*
+
+# GeoLite2 City no se versiona (tamaño/licencia)
+agent/resources/geolite2/GeoLite2-City.mmdb

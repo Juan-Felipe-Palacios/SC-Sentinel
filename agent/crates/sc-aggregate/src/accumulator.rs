@@ -2,8 +2,9 @@
 
 use crate::host_mark::host_key;
 use sc_capture::{Direction, FlowUpdate};
+use sc_core::AsnStat;
 use sc_core::{CountryStat, HostSignal, HostStats, PortStat, Protocol};
-use sc_geo::CountryLookup;
+use sc_geo::{AsnLookup, CountryLookup};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -55,10 +56,12 @@ pub struct Accumulator {
     hmac_key: Vec<u8>,
     anonymize_hosts: bool,
     country_lookup: Arc<dyn CountryLookup>,
+    asn_lookup: Arc<dyn AsnLookup>,
     hosts: HashMap<String, HostAccum>,
     local_hosts: HashMap<String, HostAccum>,
     ports: HashMap<(u16, Protocol), PortAccum>,
     countries: HashMap<String, (u64, HashSet<String>)>, // country -> (bytes, hosts_set)
+    asns: HashMap<u32, (Option<String>, u64, HashSet<String>)>, // asn -> (org, bytes, hosts_set)
 }
 
 impl Accumulator {
@@ -66,15 +69,18 @@ impl Accumulator {
         hmac_key: Vec<u8>,
         anonymize_hosts: bool,
         country_lookup: Arc<dyn CountryLookup>,
+        asn_lookup: Arc<dyn AsnLookup>,
     ) -> Self {
         Self {
             hmac_key,
             anonymize_hosts,
             country_lookup,
+            asn_lookup,
             hosts: HashMap::new(),
             local_hosts: HashMap::new(),
             ports: HashMap::new(),
             countries: HashMap::new(),
+            asns: HashMap::new(),
         }
     }
 
@@ -85,6 +91,14 @@ impl Accumulator {
             Some("LAN".to_string())
         } else {
             self.country_lookup.country(ip)
+        }
+    }
+
+    fn asn_for(&self, ip: u128) -> Option<sc_geo::AsnInfo> {
+        if sc_geo::is_non_public_ip(ip) {
+            None
+        } else {
+            self.asn_lookup.asn(ip)
         }
     }
 
@@ -192,7 +206,20 @@ impl Accumulator {
                 .entry(cc.clone())
                 .or_insert_with(|| (0, HashSet::new()));
             centry.0 += bytes;
-            centry.1.insert(host_key_str);
+            centry.1.insert(host_key_str.clone());
+        }
+
+        // ASN stats
+        if let Some(info) = self.asn_for(host_ip) {
+            let centry = self
+                .asns
+                .entry(info.number)
+                .or_insert_with(|| (info.organization.clone(), 0, HashSet::new()));
+            if centry.0.is_none() {
+                centry.0 = info.organization;
+            }
+            centry.1 += bytes;
+            centry.2.insert(host_key_str);
         }
     }
 
@@ -319,6 +346,25 @@ impl Accumulator {
             })
             .collect()
     }
+
+    pub fn build_asns(&self, top_n: usize) -> Vec<AsnStat> {
+        let mut asns_vec: Vec<(u32, Option<String>, u64, usize)> = self
+            .asns
+            .iter()
+            .map(|(asn, (org, bytes, hosts))| (*asn, org.clone(), *bytes, hosts.len()))
+            .collect();
+        asns_vec.sort_by(|a, b| b.2.cmp(&a.2).then(a.0.cmp(&b.0)));
+        asns_vec.truncate(top_n);
+        asns_vec
+            .into_iter()
+            .map(|(asn, asn_org, bytes, hosts)| AsnStat {
+                asn,
+                asn_org,
+                bytes,
+                hosts: hosts as u64,
+            })
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -362,7 +408,12 @@ mod tests {
 
     #[test]
     fn country_for_marca_las_ips_locales_como_lan() {
-        let accumulator = Accumulator::new(b"test-key".to_vec(), true, Arc::new(NoLookup));
+        let accumulator = Accumulator::new(
+            b"test-key".to_vec(),
+            true,
+            Arc::new(NoLookup),
+            Arc::new(NoLookup),
+        );
 
         assert_eq!(
             accumulator.country_for(u32::from(std::net::Ipv4Addr::new(192, 168, 0, 10)) as u128),
@@ -376,7 +427,12 @@ mod tests {
 
     #[test]
     fn senales_locales_cuentan_puertos_destinos_y_dns() {
-        let mut accumulator = Accumulator::new(b"test-key".to_vec(), false, Arc::new(NoLookup));
+        let mut accumulator = Accumulator::new(
+            b"test-key".to_vec(),
+            false,
+            Arc::new(NoLookup),
+            Arc::new(NoLookup),
+        );
         for port in [80, 443, 8080] {
             accumulator.add_flow(&outbound(port, Protocol::Tcp, 100));
         }
@@ -406,7 +462,12 @@ mod tests {
 
     #[test]
     fn senales_remotas_cuentan_puertos_entrantes() {
-        let mut accumulator = Accumulator::new(b"test-key".to_vec(), false, Arc::new(NoLookup));
+        let mut accumulator = Accumulator::new(
+            b"test-key".to_vec(),
+            false,
+            Arc::new(NoLookup),
+            Arc::new(NoLookup),
+        );
         for port in 1_000..1_025 {
             accumulator.add_flow(&inbound(port, 100));
         }
@@ -427,5 +488,29 @@ mod tests {
             .find(|signal| signal.is_local)
             .expect("señal del extremo local");
         assert_eq!(local.inbound_connections, 0);
+    }
+
+    #[test]
+    fn sin_asn_top_asns_vacio() {
+        let mut accumulator = Accumulator::new(
+            b"test-key".to_vec(),
+            false,
+            Arc::new(NoLookup),
+            Arc::new(NoLookup),
+        );
+        accumulator.add_flow(&outbound(443, Protocol::Tcp, 100));
+        assert!(accumulator.build_asns(30).is_empty());
+    }
+
+    #[test]
+    fn sin_country_top_countries_vacio() {
+        let mut accumulator = Accumulator::new(
+            b"test-key".to_vec(),
+            false,
+            Arc::new(NoLookup),
+            Arc::new(NoLookup),
+        );
+        accumulator.add_flow(&outbound(443, Protocol::Tcp, 100));
+        assert!(accumulator.build_countries(30).is_empty());
     }
 }

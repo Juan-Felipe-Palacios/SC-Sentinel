@@ -69,8 +69,10 @@ async fn un_escaneo_saliente_llega_como_alerta_al_snapshot() {
             top_hosts: 50,
             top_ports: 50,
             top_countries: 30,
+            top_asns: 30,
             max_alerts: 50,
         },
+        Arc::new(NoLookup),
         Arc::new(NoLookup),
         HealthRegistry::new(),
     )
@@ -152,8 +154,10 @@ async fn un_escaneo_entrante_llega_como_alerta_al_snapshot() {
             top_hosts: 50,
             top_ports: 50,
             top_countries: 30,
+            top_asns: 30,
             max_alerts: 50,
         },
+        Arc::new(NoLookup),
         Arc::new(NoLookup),
         HealthRegistry::new(),
     )
