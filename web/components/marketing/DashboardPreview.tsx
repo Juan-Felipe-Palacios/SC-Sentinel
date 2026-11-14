@@ -103,6 +103,11 @@ export default function DashboardPreview() {
             <div className="px-3 py-2 text-[11px] font-mono uppercase tracking-[0.2em] text-slate-500">
               Vistas Principales
             </div>
+            {/* Transparencia: todo lo que muestra esta maqueta son datos de
+                ejemplo, no mediciones reales de un equipo instalado. */}
+            <div className="mx-3 mb-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 font-mono text-[10px] font-medium uppercase tracking-wider text-amber-400">
+              Datos de ejemplo
+            </div>
             {TABS.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;

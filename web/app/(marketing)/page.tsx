@@ -234,6 +234,11 @@ export default function MarketingHome() {
                 </div>
 
                 {/* Contenido en vivo simulado */}
+                <div className="flex items-center justify-end">
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
+                    Datos de ejemplo
+                  </span>
+                </div>
                 <div className="space-y-3 font-mono text-xs">
                   <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900/80 border border-slate-800/80">
                     <span className="text-slate-400">Fuentes activas:</span>
