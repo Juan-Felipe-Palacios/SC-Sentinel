@@ -229,6 +229,28 @@ if ($geoCandidates.Count -gt 0) {
 } else {
  Write-Host " ⚠ No se encontró ${GeoIpDbName}: el agente funcionará sin geolocalización (países vacíos)." -ForegroundColor Yellow
  Write-Host "   Descárgala de https://dev.maxmind.com/geoip/geolite2-free-geolocation-data" -ForegroundColor Yellow
+# Base GeoLite2 ASN (opcional): ASN de los hosts.
+$GeoIpAsnName = "GeoLite2-ASN.mmdb"
+$geoAsnCandidates = @(
+  (Join-Path $PSScriptRoot "geolite2\$GeoIpAsnName"),
+  (Join-Path $PSScriptRoot "..\agent\resources\geolite2\$GeoIpAsnName"),
+  (Join-Path $PSScriptRoot "..\..\agent\resources\geolite2\$GeoIpAsnName")
+) | Where-Object { $_ -and (Test-Path $_) }
+$GeoIpAsnInstalled = $null
+if ($geoAsnCandidates.Count -gt 0) {
+  $geoAsnSource = @($geoAsnCandidates)[0]
+  $GeoIpAsnInstalled = "$GeoIpDir\\$GeoIpAsnName"
+  Copy-Item $geoAsnSource $GeoIpAsnInstalled -Force
+  $geoAsnSrcHash = (Get-FileHash $geoAsnSource -Algorithm SHA256).Hash
+  $geoAsnDstHash = (Get-FileHash $GeoIpAsnInstalled -Algorithm SHA256).Hash
+  if ($geoAsnSrcHash -ne $geoAsnDstHash) {
+    Write-Error-Exit "La base GeoLite2 ASN copiada no coincide con la de origen`n  origen: $geoAsnSrcHash`n  copiado: $geoAsnDstHash"
+  }
+  Write-Step "Base GeoLite2 ASN instalada (SHA256 $geoAsnSrcHash)"
+} else {
+  Write-Host "  No se encontro GeoLite2-ASN.mmdb: el agente funcionara sin ASN." -ForegroundColor Yellow
+}
+
 }
 
 # Paso 5: Generar config.toml
@@ -307,7 +329,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # Base GeoLite2: lectura para SYSTEM y Administradores (no se modifica).
-if (Test-Path $GeoIpDbInstalled) {
+if (Test-Path $GeoIpDir) {
  icacls $GeoIpDir /inheritance:r /grant "*${SystemSid}:(OI)(CI)(RX)" /grant "*${AdminsSid}:(OI)(CI)(RX)" | Out-Null
  if ($LASTEXITCODE -ne 0) {
   Write-Error-Exit "icacls base GeoLite2 falló"
@@ -323,8 +345,11 @@ $envValue = @(
  "SC_INGEST_TOKEN=$IngestToken",
  "SC_SENTINEL_DEVICE_ID=$DeviceId"
 )
-if (Test-Path $GeoIpDbInstalled) {
- $envValue += "SC_GEOIP_DB=$GeoIpDbInstalled"
+if (Test-Path "$GeoIpDir\GeoLite2-Country.mmdb") {
+ $envValue += "SC_GEOIP_DB=$GeoIpDir\GeoLite2-Country.mmdb"
+}
+if ($GeoIpAsnInstalled) {
+ $envValue += "SC_GEOIP_ASN_DB=$GeoIpAsnInstalled"
 }
 
 # Paso 8: Crear servicio
@@ -419,7 +444,7 @@ Write-Host "Config: $ConfigFile" -ForegroundColor Gray
 Write-Host "Log: $LogDir\agent.log" -ForegroundColor Gray
 Write-Host "Spool: $SpoolDir" -ForegroundColor Gray
 if (Test-Path $GeoIpDbInstalled) {
- Write-Host "GeoLite2: $GeoIpDbInstalled" -ForegroundColor Gray
+ Write-Host "GeoLite2: $GeoIpDir" -ForegroundColor Gray
 }
 Write-Host ""
 Write-Host "Comandos útiles:" -ForegroundColor Cyan

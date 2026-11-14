@@ -101,12 +101,14 @@ $ErrorActionPreference = 'Continue'
 $exe = Join-Path $PackageDir 'sc-sentinel-agent.exe'
 $sumsFile = Join-Path $PackageDir 'SHA256SUMS.txt'
 $geoPkg = Join-Path $PackageDir 'geolite2\GeoLite2-Country.mmdb'
+$geoAsnPkg = Join-Path $PackageDir 'geolite2\GeoLite2-ASN.mmdb'
 $installerBat = Join-Path $PackageDir 'instalar-sc-sentinel.bat'
 $uninstallerBat = Join-Path $PackageDir 'desinstalar-sc-sentinel.bat'
 $guiExe = Join-Path $PackageDir 'sc-gui.exe'
 $guiLauncher = Join-Path $PackageDir 'abrir-gui.bat'
 $logFile = Join-Path $DataDir 'logs\agent.log'
 $geoInstalled = Join-Path $InstallDir 'geolite2\GeoLite2-Country.mmdb'
+$geoAsnInstalled = Join-Path $InstallDir 'geolite2\GeoLite2-ASN.mmdb'
 
 # --------------------------------------------------------------- modo simulacion
 if ($DryRun) {
@@ -235,7 +237,8 @@ try {
     $nIfaces = ($ifaces -split "`n" | Where-Object { $_ -match '\S' }).Count
     Check '--list-interfaces lista dispositivos (captura live compilada)' ($nIfaces -ge 2) "$nIfaces lineas"
     Check 'el binario no lleva la cadena de "captura live no compilada"' ($ifaces -notmatch 'captura live no compilada') ''
-    Check 'la base GeoLite2 viene en el paquete' (Test-Path $geoPkg) $(if (Test-Path $geoPkg) { "$((Get-Item $geoPkg).Length) B" } else { 'falta' })
+    Check 'la base GeoLite2 Country viene en el paquete' (Test-Path $geoPkg) $(if (Test-Path $geoPkg) { "$((Get-Item $geoPkg).Length) B" } else { 'falta' })
+    Check 'la base GeoLite2 ASN viene en el paquete' (Test-Path $geoAsnPkg) $(if (Test-Path $geoAsnPkg) { "$((Get-Item $geoAsnPkg).Length) B" } else { 'falta' })
     Check 'la GUI viene en el paquete' (Test-Path $guiExe) $(if (Test-Path $guiExe) { "$((Get-Item $guiExe).Length) B" } else { 'falta' })
     Check 'el lanzador de la GUI viene en el paquete' (Test-Path $guiLauncher) ''
     $sums = Get-Content $sumsFile -ErrorAction SilentlyContinue
@@ -275,12 +278,14 @@ try {
     Check 'el instalador de un clic devuelve 0' ($rcInstall -eq 0) "rc=$rcInstall"
 
     Step 'P2b GeoLite2 instalada, ACLs y SC_GEOIP_DB en el servicio'
-    Check 'la base GeoLite2 esta en Program Files' (Test-Path $geoInstalled) $(if (Test-Path $geoInstalled) { "$((Get-Item $geoInstalled).Length) B" } else { 'falta' })
+    Check 'la base GeoLite2 Country esta en Program Files' (Test-Path $geoInstalled) $(if (Test-Path $geoInstalled) { "$((Get-Item $geoInstalled).Length) B" } else { 'falta' })
+    Check 'la base GeoLite2 ASN esta en Program Files' (Test-Path $geoAsnInstalled) $(if (Test-Path $geoAsnInstalled) { "$((Get-Item $geoAsnInstalled).Length) B" } else { 'falta' })
     $acl = icacls $geoInstalled 2>&1 | Out-String
     Write-Host "  ACL de la base:"; Write-Host $acl
     Check 'la base se puede leer' ($null -ne (Get-Item $geoInstalled -ErrorAction SilentlyContinue)) ''
     $envReg = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\$Service" -Name Environment -ErrorAction SilentlyContinue).Environment
     Check 'SC_GEOIP_DB esta en el Environment del servicio' ($envReg -match 'SC_GEOIP_DB') (($envReg | Where-Object { $_ -match 'SC_GEOIP_DB' }) -join ' | ')
+    Check 'SC_GEOIP_ASN_DB esta en el Environment del servicio' ($envReg -match 'SC_GEOIP_ASN_DB') (($envReg | Where-Object { $_ -match 'SC_GEOIP_ASN_DB' }) -join ' | ')
     Check 'la GUI quedo instalada' (Test-Path (Join-Path $InstallDir 'sc-gui.exe')) ''
     Check 'el lanzador quedo instalado' (Test-Path (Join-Path $InstallDir 'abrir-gui.bat')) ''
 
