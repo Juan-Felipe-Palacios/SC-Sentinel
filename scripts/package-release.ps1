@@ -65,17 +65,19 @@ $copied = [ordered]@{}
 Copy-Item $binaryPath (Join-Path $stage $binaryName) -Force
 $copied[$binaryName] = $binaryPath
 
-# Base GeoLite2 de países: el agente la resuelve en runtime (SC_GEOIP_DB o
-# <dir del binario>/geolite2/). Sin ella el agente arranca igual, pero los
-# países de los snapshots salen vacíos.
-$geoDbSource = Join-Path $repo 'agent/resources/geolite2/GeoLite2-Country.mmdb'
-if (Test-Path $geoDbSource) {
-  $geoStage = Join-Path $stage 'geolite2'
-  if (-not (Test-Path $geoStage)) { New-Item -ItemType Directory -Path $geoStage -Force | Out-Null }
-  Copy-Item $geoDbSource (Join-Path $geoStage 'GeoLite2-Country.mmdb') -Force
-  $copied['geolite2/GeoLite2-Country.mmdb'] = $geoDbSource
-} else {
-  Write-Warning "No se encontró ${geoDbSource}: el paquete saldrá sin base GeoLite2 (países vacíos)."
+# Bases GeoLite2 de países y ASN: el agente las resuelve en runtime
+# (SC_GEOIP_DB/SC_GEOIP_ASN_DB o <dir del binario>/geolite2/). Sin ellas el
+# agente arranca igual, pero los países/ASN de los snapshots salen vacíos.
+$geoStage = Join-Path $stage 'geolite2'
+if (-not (Test-Path $geoStage)) { New-Item -ItemType Directory -Path $geoStage -Force | Out-Null }
+foreach ($geoName in @('GeoLite2-Country.mmdb', 'GeoLite2-ASN.mmdb')) {
+  $geoDbSource = Join-Path $repo "agent/resources/geolite2/$geoName"
+  if (Test-Path $geoDbSource) {
+    Copy-Item $geoDbSource (Join-Path $geoStage $geoName) -Force
+    $copied["geolite2/$geoName"] = $geoDbSource
+  } else {
+    Write-Warning "No se encontró ${geoDbSource}: el paquete saldrá sin esa base GeoLite2."
+  }
 }
 
 if ($esWindows) {
