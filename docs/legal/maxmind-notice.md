@@ -21,3 +21,23 @@
 ## Si cambia el proveedor de geo-datos
 
 - Actualizar ADR y `THIRD_PARTY_NOTICES.md` con la licencia nueva; el geo no es crítico para el motor (las alertas dependen del motor, no del país), por lo que la sustitución es sencilla.
+
+## Licencia vigente (EULA de GeoLite2)
+
+La licencia vigente es el **GeoLite End User License Agreement** de MaxMind, no
+CC BY-SA 4.0 (que corresponde a versiones anteriores a dic-2019):
+
+- EULA: https://www.maxmind.com/en/geolite/eula
+
+Citado del EULA vigente:
+
+- Atribucion: "This product includes GeoLite Data created by MaxMind, available
+  from maxmind.com."
+- Mantener datos actualizados: "you agree to promptly use the updated version of
+  the GeoLite Databases".
+- Destruir versiones antiguas: "cease use of and destroy (i) any old versions of
+  the Services within thirty (30) days following the release of the updated
+  GeoLite Databases; and (ii) all Services immediately upon termination of the
+  license under this Agreement."
+- Si se comparte con terceros: mantenerlos sujetos a requisitos iguales o
+  sustancialmente similares, incluyendo la obligacion de destruir bases antiguas.
