@@ -229,6 +229,8 @@ if ($geoCandidates.Count -gt 0) {
 } else {
  Write-Host " ⚠ No se encontró ${GeoIpDbName}: el agente funcionará sin geolocalización (países vacíos)." -ForegroundColor Yellow
  Write-Host "   Descárgala de https://dev.maxmind.com/geoip/geolite2-free-geolocation-data" -ForegroundColor Yellow
+}
+
 # Base GeoLite2 ASN (opcional): ASN de los hosts.
 $GeoIpAsnName = "GeoLite2-ASN.mmdb"
 $geoAsnCandidates = @(
@@ -249,8 +251,6 @@ if ($geoAsnCandidates.Count -gt 0) {
   Write-Step "Base GeoLite2 ASN instalada (SHA256 $geoAsnSrcHash)"
 } else {
   Write-Host "  No se encontro GeoLite2-ASN.mmdb: el agente funcionara sin ASN." -ForegroundColor Yellow
-}
-
 }
 
 # Paso 5: Generar config.toml
