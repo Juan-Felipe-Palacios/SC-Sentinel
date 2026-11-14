@@ -1,6 +1,6 @@
 # THIRD_PARTY_NOTICES — SC-Sentinel (Strategic Connex Anomaly Shield)
 
-Este producto es software propietario de **Strategic Connex** e incorpora componentes de terceros bajo sus propias licencias. Las obligaciones de cada uno se respetan listados aquí y conservando los avisos en el código fuente heredado. Módulo: se regenera/completa con `cargo deny` + build de `pnpm` antes de cada release (release-checklist).
+Este producto es software propietario de **Strategic Connex** e incorpora componentes de terceros bajo sus propias licencias. Las obligaciones de cada uno se respetan listados aquí (el código fuente del producto no incorpora código de terceros; ver sección 1). Módulo: se regenera/completa con `cargo deny` + build de `pnpm` antes de cada release (release-checklist).
 
 ## 1. Código fuente de terceros
 
@@ -66,5 +66,5 @@ La corrida de `pnpm licenses list` de cada pre-release es la fuente auditable; e
 
 1. Regenerar el inventario antes de cada release (checklist de `testing/release-checklist.md`).
 2. Publicar esta página (o su render MDX) en `/legal/third-party-notices` (hito M3 — **publicada**, ver feat(legal)).
-3. No eliminar headers de licencia en código heredado; agregar archivo nuevo = agregar aviso aquí.
+3. El código fuente del producto no incorpora código de terceros (sección 1): no hay headers de licencia de terceros que conservar. Si en el futuro se incorpora código de terceros, agregar su aviso aquí antes del merge.
 4. Cualquier componente con licencia no descrita en este archivo requiere revisión antes de merge (cargo-deny y licensías npm en CI fallan antes, normalmente).

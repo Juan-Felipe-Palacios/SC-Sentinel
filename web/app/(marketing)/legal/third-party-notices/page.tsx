@@ -171,7 +171,7 @@ export default function ThirdPartyNotices() {
         <ol className="list-decimal space-y-1 pl-6 text-sm leading-relaxed text-sc-text-muted">
           <li>El inventario se regenera antes de cada release (checklist de <code>testing/release-checklist.md</code>).</li>
           <li>Esta página se actualiza junto con cada cambio de dependencias que incorpore nuevo componente o cambie licencia.</li>
-          <li>Los encabezados de licencia de los archivos heredados nunca se eliminan; agregar un archivo nuevo implica agregar su aviso aquí.</li>
+          <li>El código fuente del producto no incorpora código de terceros (ver sección 1): no hay encabezados de licencia de terceros que conservar. Si en el futuro se incorpora código de terceros, su aviso se agrega aquí antes del merge.</li>
           <li>Los componentes no descritos en esta página requieren revisión previa al merge (cargo-deny y las licencias npm fallan en CI antes, normalmente).</li>
         </ol>
         <p className="mt-6 text-xs leading-relaxed text-sc-text-muted">

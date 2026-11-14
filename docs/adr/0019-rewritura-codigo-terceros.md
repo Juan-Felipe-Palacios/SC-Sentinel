@@ -20,6 +20,10 @@ Desde el inicio (ADR-0006) el agente mantenía módulos derivados del código de
 - **Mantener derivación con headers** (status quo de ADR-0006): conserva una obligación legal y una identidad ajena para un cuerpo de código que ya es minoritario y estable. Descartado por decisión del propietario (2026-11-14).
 - **Reescribir con ingeniería inversa ciega (clean-room estricto)**: costo alto sin beneficio adicional para este caso. Descartado.
 
+## Nota de alcance de la reescritura (2026-11-14, decisión del propietario)
+
+La reimplementación se hizo por **compatibilidad**: se conservó la semántica observable y la API pública exacta, partiendo del comportamiento del código previo, **no bajo protocolo clean-room** (el autor de la reescritura había tenido acceso al código original). Las licencias aplicables (MIT / Apache-2.0) permiten el uso propietario conservando avisos en "porciones sustanciales"; la lectura del propietario, registrada aquí por decisión explícita (2026-11-14), es que el resultado es una implementación original y no conserva porciones sustanciales. Si esa lectura cambiara, la vía cumplidora es restaurar los headers de licencia y la entrada correspondiente en `THIRD_PARTY_NOTICES.md` (el historial de git conserva el código y los avisos previos).
+
 ## Consecuencias
 
 - El código fuente del producto es **100 % propio**: `THIRD_PARTY_NOTICES.md` pasa a listar solo dependencias (crates Rust, npm, datos MaxMind, entorno).
