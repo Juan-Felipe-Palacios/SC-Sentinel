@@ -2,15 +2,29 @@
 
 Formato: Keep a Changelog 1.1 (semantic entries) publicado también en cada GitHub Release.
 
-## [0.1.6] � 2026-11-14
+## [0.1.6] � 2026-11-14
 
 ### Added
 - (Agent) Soporte opcional de GeoLite2-ASN: `top_asns` en el snapshot y flags
   `geo_asn_loaded`/`geo_country_loaded` en `/status`. La base ASN se carga de
-  forma independiente; si falta, `top_asns` queda vac�o sin impedir el arranque.
+  forma independiente; si falta, `top_asns` queda vac�o sin impedir el arranque.
 
 ### Changed
 - (Agent) `WindowSnapshot` y Zod/JSON Schema aceptan `top_asns` como campo opcional.
+
+### Fixed
+- (Ops) Tres defectos del paquete Windows que destapó el ciclo físico M5 del
+  2026-11-14 (verificado con `scripts/verify-m5-cycle.ps1`, 10 etapas, 0 fallos):
+  `uninstall-agent.ps1` no cerraba `sc-gui.exe` (proceso de usuario que
+  sobrevive al stop del servicio y bloqueaba el borrado de
+  `C:\Program Files\SC-Sentinel`); `install-agent.ps1` escribía
+  `SC_GEOIP_ASN_DB` con doble barra; `verify-m5-cycle.ps1` buscaba en el log el
+  texto de carga GeoLite2 anterior a la 0.1.6 (ahora el patrón acepta las líneas
+  de Country y ASN por separado). El ZIP se reempaquetó desde el árbol ya
+  corregido; los binarios de la release no cambian.
+- (Agent) El código derivado de terceros (parser, tipos de flujo y
+  geolocalización MaxMind) fue reescrito como implementación original con la
+  misma semántica y API pública (ADR-0019); sin cambio de comportamiento.
 
 ## [0.1.5] — 2026-11-13
 

@@ -368,6 +368,9 @@ Hecha sobre el **ZIP descargado de la release v0.1.3**, no sobre el binario loca
 >    loguea dos líneas (Country y ASN) y el patrón pasó a
 >    `GeoIP: base GeoLite2 (Country|ASN) cargada`.
 >
-> Nota de alcance: el ZIP publicado de v0.1.6 contiene los instaladores
-> previos a estos arreglos; para la próxima release el empaquetado debe
-> salir de un árbol que ya los incluya.
+> Nota de alcance: el ZIP de v0.1.6 se **reempaquetó el 2026-11-14** desde el
+> árbol ya corregido (`scripts/package-release.ps1 -Version 0.1.6`, binarios
+> idénticos a la release, verificado con `scripts/verify-agent.ps1`: TODO
+> CORRECTO) y la release v0.1.6 se publica desde el tag `v0.1.6` (CI compila y
+> empaqueta con `release.yml`), de modo que el artefacto publicado ya no lleva
+> los instaladores previos a estos arreglos.
