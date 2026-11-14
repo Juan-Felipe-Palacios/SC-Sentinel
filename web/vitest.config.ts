@@ -10,5 +10,9 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['lib/**/*.test.ts', 'app/**/*.test.ts'],
+    // PGlite (WASM) tarda en arrancar; con 52 workers en paralelo los hooks
+    // beforeAll superan el timeout de 30 s. Cuatro workers mantienen la suite
+    // estable sin cambiar ninguna aserción.
+    maxWorkers: 4,
   },
 });
