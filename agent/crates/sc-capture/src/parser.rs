@@ -1,11 +1,12 @@
-//! Parseo de paquetes → FlowUpdate (parseo manual para fixture sintético)
+//! Parser de tramas Ethernet → IPv4 → TCP/UDP hacia `FlowUpdate`.
+//!
+//! Implementación propia y minimalista: solo interpreta lo que el modelo de
+//! flujos de SC-Sentinel necesita (IPv4, TCP y UDP no fragmentados con al
+//! menos un extremo local). Todo lo demás (ARP, ICMP, ESP, GRE, IPv6,
+//! fragmentos) se descarta en silencio como `Ok(None)`, sin contar error.
 //!
 //! Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
-//!
-//! Derivado parcialmente de https://github.com/GyulyVGC/sniffnet (tag v1.5.1)
-//! bajo licencia MIT OR Apache-2.0. Véase `docs/legal/THIRD_PARTY_NOTICES.md`.
 
-#[allow(unused_imports)]
 use crate::flow::{Direction, FlowUpdate, LocalIpSet};
 use sc_core::{FlowKey, Protocol};
 use thiserror::Error;
@@ -20,33 +21,70 @@ pub enum ParseError {
     TransportMalformed,
 }
 
+/// Encabezado IPv4 ya validado.
+struct Ipv4Header {
+    src: u128,
+    dst: u128,
+    /// Código de protocolo IP (6 = TCP, 17 = UDP).
+    protocol: u8,
+    /// Desplazamiento del transporte desde el inicio de la trama.
+    transport_start: usize,
+    /// `true` para datagramas fragmentados: sin estado no se pueden
+    /// reensamblar, así que se ignoran.
+    fragment: bool,
+}
+
+/// Convierte una dirección IPv4 codificada como `u128` (32 bits bajos).
 fn ip_to_u128_v4(ip: [u8; 4]) -> u128 {
     u32::from_be_bytes(ip) as u128
 }
 
+/// Punto de entrada: interpreta una trama Ethernet y devuelve el flujo que
+/// representa, `None` si el paquete es válido pero no modelable, o un error
+/// si está malformado.
 pub fn parse_packet(
     local: &LocalIpSet,
     packet: &[u8],
     ts: i64,
 ) -> Result<Option<FlowUpdate>, ParseError> {
-    if packet.len() < 14 {
-        return Err(ParseError::LinkUnsupported);
-    }
+    let header = match read_ipv4(packet)? {
+        Some(header) => header,
+        None => return Ok(None),
+    };
 
-    // Ethernet header
-    let ether_type = ((packet[12] as u16) << 8) | (packet[13] as u16);
-    if ether_type != 0x0800 {
-        // ARP (0x0806) u otros - retornar Ok(None)
-        if ether_type == 0x0806 {
-            return Ok(None);
-        }
+    if header.fragment {
         return Ok(None);
     }
 
-    // IPv4
+    // En modo promiscuo se ven flujos de otros hosts de la red: no son
+    // malformados, simplemente no pertenecen a este nodo.
+    if !local.contains(header.src) && !local.contains(header.dst) {
+        return Ok(None);
+    }
+
+    match header.protocol {
+        6 => flow_tcp(local, header, packet, ts),
+        17 => flow_udp(local, header, packet, ts),
+        // ICMP, ESP, GRE…: válidos pero fuera del modelo de flujos.
+        _ => Ok(None),
+    }
+}
+
+/// Lee y valida el encabezado Ethernet + IPv4. Devuelve `None` para tramas
+/// válidas que no son IPv4 (ARP, IPv6, …).
+fn read_ipv4(packet: &[u8]) -> Result<Option<Ipv4Header>, ParseError> {
+    const ETHERTYPE_IPV4: u16 = 0x0800;
+
+    if packet.len() < 14 {
+        return Err(ParseError::LinkUnsupported);
+    }
+    if u16::from_be_bytes([packet[12], packet[13]]) != ETHERTYPE_IPV4 {
+        return Ok(None);
+    }
     if packet.len() < 34 {
         return Err(ParseError::IpMalformed);
     }
+
     let ip_start = 14;
     let version_ihl = packet[ip_start];
     if (version_ihl >> 4) != 4 {
@@ -57,141 +95,109 @@ pub fn parse_packet(
         return Err(ParseError::IpMalformed);
     }
 
-    let protocol = packet[ip_start + 9];
-    let src_ip = ip_to_u128_v4([
-        packet[ip_start + 12],
-        packet[ip_start + 13],
-        packet[ip_start + 14],
-        packet[ip_start + 15],
-    ]);
-    let dst_ip = ip_to_u128_v4([
-        packet[ip_start + 16],
-        packet[ip_start + 17],
-        packet[ip_start + 18],
-        packet[ip_start + 19],
-    ]);
+    let flags_frag = u16::from_be_bytes([packet[ip_start + 6], packet[ip_start + 7]]);
+    let fragment = (flags_frag & 0x2000) != 0 || (flags_frag & 0x1fff) != 0;
 
-    // Fragmentos
-    let flags_frag = ((packet[ip_start + 6] as u16) << 8) | (packet[ip_start + 7] as u16);
-    let frag_offset = flags_frag & 0x1fff;
-    let more_fragments = (flags_frag & 0x2000) != 0;
-    if frag_offset != 0 || more_fragments {
-        // Válido pero no reensamblable sin estado: se ignora, no es un parse error.
-        return Ok(None);
+    Ok(Some(Ipv4Header {
+        src: ip_to_u128_v4([
+            packet[ip_start + 12],
+            packet[ip_start + 13],
+            packet[ip_start + 14],
+            packet[ip_start + 15],
+        ]),
+        dst: ip_to_u128_v4([
+            packet[ip_start + 16],
+            packet[ip_start + 17],
+            packet[ip_start + 18],
+            packet[ip_start + 19],
+        ]),
+        protocol: packet[ip_start + 9],
+        transport_start: ip_start + ihl,
+        fragment,
+    }))
+}
+
+/// Dirección del flujo: hacia fuera solo cuando el emisor es local y el
+/// receptor no lo es; el resto se contabiliza como entrada.
+fn direction_of(local: &LocalIpSet, header: &Ipv4Header) -> Direction {
+    if local.contains(header.src) && !local.contains(header.dst) {
+        Direction::Out
+    } else {
+        Direction::In
+    }
+}
+
+fn flow_tcp(
+    local: &LocalIpSet,
+    header: Ipv4Header,
+    packet: &[u8],
+    ts: i64,
+) -> Result<Option<FlowUpdate>, ParseError> {
+    const TCP_HEADER_MIN: usize = 20;
+
+    let start = header.transport_start;
+    if packet.len() < start + TCP_HEADER_MIN {
+        return Err(ParseError::TransportMalformed);
     }
 
-    let src_local = local.contains(src_ip);
-    let dst_local = local.contains(dst_ip);
-    // En modo promiscuo se ven flujos de otros hosts de la red: no son malformados.
-    if !src_local && !dst_local {
-        return Ok(None);
+    let data_offset = ((packet[start + 12] >> 4) as usize) * 4;
+    if data_offset < TCP_HEADER_MIN {
+        return Err(ParseError::TransportMalformed);
     }
 
-    let transport_start = ip_start + ihl;
-    match protocol {
-        6 => {
-            // TCP
-            if packet.len() < transport_start + 20 {
-                return Err(ParseError::TransportMalformed);
-            }
-            let data_offset = ((packet[transport_start + 12] >> 4) as usize) * 4;
-            if data_offset < 20 {
-                return Err(ParseError::TransportMalformed);
-            }
-            let src_port =
-                ((packet[transport_start] as u16) << 8) | (packet[transport_start + 1] as u16);
-            let dst_port =
-                ((packet[transport_start + 2] as u16) << 8) | (packet[transport_start + 3] as u16);
-            let payload_len = if packet.len() >= transport_start + data_offset {
-                packet.len() - transport_start - data_offset
-            } else {
-                0
-            };
+    // Si la captura trunca el paquete tras el encabezado, el payload visible
+    // es 0 (pasa igual con capturas cortas); no es un error.
+    let payload_len = if packet.len() >= start + data_offset {
+        packet.len() - start - data_offset
+    } else {
+        0
+    };
 
-            let (flow, direction) = if src_local && !dst_local {
-                (
-                    FlowKey {
-                        src_ip,
-                        dst_ip,
-                        src_port,
-                        dst_port,
-                        protocol: Protocol::Tcp,
-                    },
-                    Direction::Out,
-                )
-            } else {
-                (
-                    FlowKey {
-                        src_ip,
-                        dst_ip,
-                        src_port,
-                        dst_port,
-                        protocol: Protocol::Tcp,
-                    },
-                    Direction::In,
-                )
-            };
+    Ok(Some(FlowUpdate {
+        ts,
+        flow: FlowKey {
+            src_ip: header.src,
+            dst_ip: header.dst,
+            src_port: u16::from_be_bytes([packet[start], packet[start + 1]]),
+            dst_port: u16::from_be_bytes([packet[start + 2], packet[start + 3]]),
+            protocol: Protocol::Tcp,
+        },
+        bytes: payload_len as u64,
+        packets: 1,
+        direction: direction_of(local, &header),
+    }))
+}
 
-            Ok(Some(FlowUpdate {
-                ts,
-                flow,
-                bytes: payload_len as u64,
-                packets: 1,
-                direction,
-            }))
-        }
-        17 => {
-            // UDP
-            if packet.len() < transport_start + 8 {
-                return Err(ParseError::TransportMalformed);
-            }
-            let src_port =
-                ((packet[transport_start] as u16) << 8) | (packet[transport_start + 1] as u16);
-            let dst_port =
-                ((packet[transport_start + 2] as u16) << 8) | (packet[transport_start + 3] as u16);
-            let udp_len =
-                ((packet[transport_start + 4] as u16) << 8) | (packet[transport_start + 5] as u16);
-            let payload_len = if udp_len >= 8 {
-                (udp_len as usize) - 8
-            } else {
-                0
-            };
+fn flow_udp(
+    local: &LocalIpSet,
+    header: Ipv4Header,
+    packet: &[u8],
+    ts: i64,
+) -> Result<Option<FlowUpdate>, ParseError> {
+    const UDP_HEADER_LEN: usize = 8;
 
-            let (flow, direction) = if src_local && !dst_local {
-                (
-                    FlowKey {
-                        src_ip,
-                        dst_ip,
-                        src_port,
-                        dst_port,
-                        protocol: Protocol::Udp,
-                    },
-                    Direction::Out,
-                )
-            } else {
-                (
-                    FlowKey {
-                        src_ip,
-                        dst_ip,
-                        src_port,
-                        dst_port,
-                        protocol: Protocol::Udp,
-                    },
-                    Direction::In,
-                )
-            };
-
-            Ok(Some(FlowUpdate {
-                ts,
-                flow,
-                bytes: payload_len as u64,
-                packets: 1,
-                direction,
-            }))
-        }
-        // ICMP, ESP, GRE…: válidos pero fuera del modelo de flujos, se ignoran.
-        _ => Ok(None),
+    let start = header.transport_start;
+    if packet.len() < start + UDP_HEADER_LEN {
+        return Err(ParseError::TransportMalformed);
     }
+
+    let datagram_len = u16::from_be_bytes([packet[start + 4], packet[start + 5]]);
+    // La longitud del datagrama incluye los 8 bytes del encabezado UDP.
+    let payload_len = (datagram_len as usize).saturating_sub(UDP_HEADER_LEN);
+
+    Ok(Some(FlowUpdate {
+        ts,
+        flow: FlowKey {
+            src_ip: header.src,
+            dst_ip: header.dst,
+            src_port: u16::from_be_bytes([packet[start], packet[start + 1]]),
+            dst_port: u16::from_be_bytes([packet[start + 2], packet[start + 3]]),
+            protocol: Protocol::Udp,
+        },
+        bytes: payload_len as u64,
+        packets: 1,
+        direction: direction_of(local, &header),
+    }))
 }
 
 #[cfg(test)]

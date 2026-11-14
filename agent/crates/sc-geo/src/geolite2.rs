@@ -1,21 +1,22 @@
-// Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
-// Derived from Sniffnet v1.5.1 (src/mmdb/country.rs), Copyright (c) Guilherme ("Guly") Vardanyan and Sniffnet contributors, dual-licensed MIT OR Apache-2.0.
-// Adaptations and modifications for SC-Sentinel are proprietary:
-// Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
+//! Carga en runtime de las bases GeoLite2 de MaxMind (país y ASN) e
+//! implementación de los traits `CountryLookup`/`AsnLookup` sobre ellas.
+//!
+//! Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
 
-use crate::lookup::CountryLookup;
+use crate::lookup::{AsnInfo, AsnLookup, CountryLookup};
 use maxminddb::Reader;
 use sc_core::Alpha2;
-use std::net::IpAddr;
+use std::ffi::OsStr;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 /// Variable de entorno que fija la ruta de la base GeoLite2 de países.
-/// Tiene prioridad sobre cualquier ruta deduceida del sistema de ficheros.
+/// Tiene prioridad sobre cualquier ruta deducida del sistema de ficheros.
 pub const GEOIP_DB_ENV: &str = "SC_GEOIP_DB";
 
 /// Variable de entorno que fija la ruta de la base GeoLite2 de ASN.
-/// Tiene prioridad sobre cualquier ruta deduceida del sistema de ficheros.
+/// Tiene prioridad sobre cualquier ruta deducida del sistema de ficheros.
 pub const GEOIP_ASN_DB_ENV: &str = "SC_GEOIP_ASN_DB";
 
 /// Nombre del fichero de la base GeoLite2 de países.
@@ -37,257 +38,200 @@ pub enum GeoError {
     Format(String),
 }
 
-pub struct GeoLite2Country {
+/// Lector de una base `.mmdb` ya abierta, junto con la ruta de la que
+/// procede (útil para telemetría y diagnóstico).
+struct Mmdb {
     reader: Reader<Vec<u8>>,
     path: PathBuf,
 }
 
-impl GeoLite2Country {
-    pub fn from_path(path: &Path) -> Result<Self, GeoError> {
+impl Mmdb {
+    fn open(path: &Path) -> Result<Self, GeoError> {
         let reader = Reader::open_readfile(path).map_err(|e| GeoError::Open(e.to_string()))?;
         Ok(Self {
             reader,
             path: path.to_path_buf(),
         })
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Abre la base resolviendo la ruta en runtime (nunca hay rutas absolutas
+    /// compiladas en el binario, de modo que el mismo `.exe` funciona desde
+    /// `Program Files`, desde una carpeta extraída por el usuario o desde el
+    /// árbol de desarrollo).
+    ///
+    /// Orden de resolución:
+    /// 1. `env_var`: ruta explícita. Si se define y no se puede abrir, es
+    ///    un error (no se cae al siguiente candidato en silencio).
+    /// 2. Candidatos relativos al directorio del ejecutable y a sus ancestros
+    ///    (`geolite2/` y `resources/geolite2/`).
+    /// 3. Candidatos relativos al directorio de trabajo.
+    fn discover(env_var: &str, file_name: &str) -> Result<Self, GeoError> {
+        let resolved = Self::discover_path(env_var, file_name).ok_or_else(|| {
+            GeoError::Open(format!(
+                "no se encontró {file_name}; define {env_var} o instala la base \
+                 en <dir del binario>/geolite2/"
+            ))
+        })?;
+        Self::open(&resolved)
+    }
+
+    /// Ruta que usaría [`Mmdb::discover`]. `None` si no hay base disponible.
+    fn discover_path(env_var: &str, file_name: &str) -> Option<PathBuf> {
+        let env_value = std::env::var_os(env_var);
+        let candidates = candidate_paths(file_name);
+        resolve_path(env_value.as_deref(), &candidates)
+    }
+}
+
+/// Selección pura de la ruta: la variable de entorno manda y, si no está
+/// definida, gana el primer candidato existente en disco.
+fn resolve_path(env_value: Option<&OsStr>, candidates: &[PathBuf]) -> Option<PathBuf> {
+    match env_value {
+        Some(raw) => {
+            let path = PathBuf::from(raw);
+            path.is_file().then_some(path)
+        }
+        None => candidates.iter().find(|path| path.is_file()).cloned(),
+    }
+}
+
+/// Candidatos de ruta para una base, en orden de prioridad, sin comprobar el
+/// disco. Se deducen del directorio del ejecutable y del directorio de
+/// trabajo, y se deduplican para que el diagnóstico no repita la misma ruta
+/// cuando el directorio de trabajo coincide con un ancestro del ejecutable.
+fn candidate_paths(file_name: &str) -> Vec<PathBuf> {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    let mut push = |path: PathBuf| {
+        if !candidates.contains(&path) {
+            candidates.push(path);
+        }
+    };
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            push(dir.join("geolite2").join(file_name));
+            push(dir.join("resources").join("geolite2").join(file_name));
+            push(
+                dir.parent()
+                    .map(|parent| parent.join("geolite2").join(file_name))
+                    .unwrap_or_default(),
+            );
+            push(
+                dir.parent()
+                    .map(|parent| parent.join("resources").join("geolite2").join(file_name))
+                    .unwrap_or_default(),
+            );
+
+            // Desarrollo: `agent/target/release/sc-sentinel-agent.exe` y
+            // `agent/target/debug/deps/<test>.exe` apuntan al mismo árbol.
+            for level in 1..=MAX_ANCESTOR_LEVELS {
+                let Some(ancestor) = dir.ancestors().nth(level) else {
+                    break;
+                };
+                push(ancestor.join("resources").join("geolite2").join(file_name));
+                push(ancestor.join("geolite2").join(file_name));
+            }
+        }
+    }
+
+    if let Ok(cwd) = std::env::current_dir() {
+        push(cwd.join("resources").join("geolite2").join(file_name));
+        push(cwd.join("geolite2").join(file_name));
+        if let Some(parent) = cwd.parent() {
+            push(parent.join("resources").join("geolite2").join(file_name));
+        }
+    }
+
+    candidates.retain(|path| !path.as_os_str().is_empty());
+    candidates
+}
+
+/// Convierte una IP codificada como `u128` (IPv4 en los 32 bits bajos) a
+/// `IpAddr` para consultar el lector mmdb.
+fn ip_from_u128(ip: u128) -> IpAddr {
+    if ip <= u32::MAX as u128 {
+        let v4 = (ip as u32).to_be_bytes();
+        IpAddr::V4(Ipv4Addr::new(v4[0], v4[1], v4[2], v4[3]))
+    } else {
+        IpAddr::V6(Ipv6Addr::from(ip.to_be_bytes()))
+    }
+}
+
+/// Base GeoLite2 de países.
+pub struct GeoLite2Country(Mmdb);
+
+impl GeoLite2Country {
+    pub fn from_path(path: &Path) -> Result<Self, GeoError> {
+        Mmdb::open(path).map(Self)
     }
 
     /// Ruta de la base desde la que se cargó el lector.
     pub fn path(&self) -> &Path {
-        &self.path
+        self.0.path()
     }
 
     /// Abre la base GeoLite2 de países usando la primera ruta disponible.
-    ///
-    /// La ruta se resuelve **en runtime**: el binario no lleva ninguna ruta
-    /// absoluta compilada, de modo que el mismo `.exe` funciona desde
-    /// `Program Files`, desde una carpeta extraída por el usuario o desde el
-    /// árbol de desarrollo.
-    ///
-    /// Orden de resolución:
-    /// 1. `SC_GEOIP_DB`: ruta explícita. Si se define y no se puede abrir, es
-    ///    un error (no se cae al siguiente candidato en silencio).
-    /// 2. Rutas relativas al directorio del ejecutable y a sus ancestros
-    ///    (`geolite2/` y `resources/geolite2/`).
-    /// 3. Rutas relativas al directorio de trabajo.
+    /// Ver [`Mmdb::discover`] para el orden de resolución.
     pub fn discover() -> Result<Self, GeoError> {
-        if let Some(raw) = std::env::var_os(GEOIP_DB_ENV) {
-            let path = PathBuf::from(raw);
-            return Self::from_path(&path).map_err(|error| {
-                GeoError::Open(format!(
-                    "{GEOIP_DB_ENV}={} no se pudo abrir: {error}",
-                    path.display()
-                ))
-            });
-        }
-
-        for path in Self::candidate_paths() {
-            if path.is_file() {
-                return Self::from_path(&path);
-            }
-        }
-
-        Err(GeoError::Open(format!(
-            "no se encontró {COUNTRY_DB_FILE}; define {GEOIP_DB_ENV} o instala la base \
-             en <dir del binario>/geolite2/"
-        )))
+        Mmdb::discover(GEOIP_DB_ENV, COUNTRY_DB_FILE).map(Self)
     }
 
-    /// Ruta que usaría [`GeoLite2Country::discover`] para abrir la base.
-    /// `None` si no hay ninguna base disponible.
+    /// Ruta que usaría [`GeoLite2Country::discover`]. `None` si no hay
+    /// ninguna base disponible.
     pub fn discover_path() -> Option<PathBuf> {
-        let env_value = std::env::var_os(GEOIP_DB_ENV);
-        Self::resolve_path(env_value.as_deref(), &Self::candidate_paths())
+        Mmdb::discover_path(GEOIP_DB_ENV, COUNTRY_DB_FILE)
     }
 
     /// Selección pura de la ruta: la variable de entorno manda y, si no está
     /// definida, gana el primer candidato existente en disco.
-    fn resolve_path(
-        env_value: Option<&std::ffi::OsStr>,
-        candidates: &[PathBuf],
-    ) -> Option<PathBuf> {
-        match env_value {
-            Some(raw) => {
-                let path = PathBuf::from(raw);
-                path.is_file().then_some(path)
-            }
-            None => candidates.iter().find(|path| path.is_file()).cloned(),
-        }
+    pub fn resolve_path(env_value: Option<&OsStr>, candidates: &[PathBuf]) -> Option<PathBuf> {
+        resolve_path(env_value, candidates)
     }
 
     /// Candidatos de ruta, en orden de prioridad, sin comprobar el disco.
-    ///
-    /// Se deduplican para que el diagnóstico no repita la misma ruta cuando el
-    /// directorio de trabajo coincide con un ancestro del ejecutable.
     pub fn candidate_paths() -> Vec<PathBuf> {
-        let mut candidates: Vec<PathBuf> = Vec::new();
-        let mut push = |path: PathBuf| {
-            if !candidates.contains(&path) {
-                candidates.push(path);
-            }
-        };
-
-        if let Ok(exe) = std::env::current_exe() {
-            if let Some(dir) = exe.parent() {
-                push(dir.join("geolite2").join(COUNTRY_DB_FILE));
-                push(dir.join("resources").join("geolite2").join(COUNTRY_DB_FILE));
-                push(
-                    dir.parent()
-                        .map(|parent| parent.join("geolite2").join(COUNTRY_DB_FILE))
-                        .unwrap_or_default(),
-                );
-                push(
-                    dir.parent()
-                        .map(|parent| {
-                            parent
-                                .join("resources")
-                                .join("geolite2")
-                                .join(COUNTRY_DB_FILE)
-                        })
-                        .unwrap_or_default(),
-                );
-
-                // Desarrollo: `agent/target/release/sc-sentinel-agent.exe` y
-                // `agent/target/debug/deps/<test>.exe` apuntan al mismo árbol.
-                for level in 1..=MAX_ANCESTOR_LEVELS {
-                    let Some(ancestor) = dir.ancestors().nth(level) else {
-                        break;
-                    };
-                    push(
-                        ancestor
-                            .join("resources")
-                            .join("geolite2")
-                            .join(COUNTRY_DB_FILE),
-                    );
-                    push(ancestor.join("geolite2").join(COUNTRY_DB_FILE));
-                }
-            }
-        }
-
-        if let Ok(cwd) = std::env::current_dir() {
-            push(cwd.join("resources").join("geolite2").join(COUNTRY_DB_FILE));
-            push(cwd.join("geolite2").join(COUNTRY_DB_FILE));
-            if let Some(parent) = cwd.parent() {
-                push(
-                    parent
-                        .join("resources")
-                        .join("geolite2")
-                        .join(COUNTRY_DB_FILE),
-                );
-            }
-        }
-
-        candidates.retain(|path| !path.as_os_str().is_empty());
-        candidates
+        candidate_paths(COUNTRY_DB_FILE)
     }
 }
 
-pub struct GeoLite2Asn {
-    reader: Reader<Vec<u8>>,
-    path: PathBuf,
-}
+/// Base GeoLite2 de sistemas autónomos (ASN).
+pub struct GeoLite2Asn(Mmdb);
 
 impl GeoLite2Asn {
     pub fn from_path(path: &Path) -> Result<Self, GeoError> {
-        let reader = Reader::open_readfile(path).map_err(|e| GeoError::Open(e.to_string()))?;
-        Ok(Self {
-            reader,
-            path: path.to_path_buf(),
-        })
+        Mmdb::open(path).map(Self)
     }
 
+    /// Ruta de la base desde la que se cargó el lector.
     pub fn path(&self) -> &Path {
-        &self.path
+        self.0.path()
     }
 
+    /// Abre la base GeoLite2 de ASN usando la primera ruta disponible.
+    /// Ver [`Mmdb::discover`] para el orden de resolución.
     pub fn discover() -> Result<Self, GeoError> {
-        if let Some(raw) = std::env::var_os(GEOIP_ASN_DB_ENV) {
-            let path = PathBuf::from(raw);
-            return Self::from_path(&path).map_err(|error| {
-                GeoError::Open(format!(
-                    "{GEOIP_ASN_DB_ENV}={} no se pudo abrir: {error}",
-                    path.display()
-                ))
-            });
-        }
-
-        for path in Self::candidate_paths() {
-            if path.is_file() {
-                return Self::from_path(&path);
-            }
-        }
-
-        Err(GeoError::Open(format!(
-            "no se encontró {ASN_DB_FILE}; define {GEOIP_ASN_DB_ENV} o instala la base \
-             en <dir del binario>/geolite2/"
-        )))
+        Mmdb::discover(GEOIP_ASN_DB_ENV, ASN_DB_FILE).map(Self)
     }
 
+    /// Ruta que usaría [`GeoLite2Asn::discover`]. `None` si no hay ninguna
+    /// base disponible.
     pub fn discover_path() -> Option<PathBuf> {
-        let env_value = std::env::var_os(GEOIP_ASN_DB_ENV);
-        Self::resolve_path(env_value.as_deref(), &Self::candidate_paths())
+        Mmdb::discover_path(GEOIP_ASN_DB_ENV, ASN_DB_FILE)
     }
 
-    fn resolve_path(
-        env_value: Option<&std::ffi::OsStr>,
-        candidates: &[PathBuf],
-    ) -> Option<PathBuf> {
-        match env_value {
-            Some(raw) => {
-                let path = PathBuf::from(raw);
-                path.is_file().then_some(path)
-            }
-            None => candidates.iter().find(|path| path.is_file()).cloned(),
-        }
+    /// Selección pura de la ruta: la variable de entorno manda y, si no está
+    /// definida, gana el primer candidato existente en disco.
+    pub fn resolve_path(env_value: Option<&OsStr>, candidates: &[PathBuf]) -> Option<PathBuf> {
+        resolve_path(env_value, candidates)
     }
 
+    /// Candidatos de ruta, en orden de prioridad, sin comprobar el disco.
     pub fn candidate_paths() -> Vec<PathBuf> {
-        let mut candidates: Vec<PathBuf> = Vec::new();
-        let mut push = |path: PathBuf| {
-            if !candidates.contains(&path) {
-                candidates.push(path);
-            }
-        };
-
-        if let Ok(exe) = std::env::current_exe() {
-            if let Some(dir) = exe.parent() {
-                push(dir.join("geolite2").join(ASN_DB_FILE));
-                push(dir.join("resources").join("geolite2").join(ASN_DB_FILE));
-                push(
-                    dir.parent()
-                        .map(|parent| parent.join("geolite2").join(ASN_DB_FILE))
-                        .unwrap_or_default(),
-                );
-                push(
-                    dir.parent()
-                        .map(|parent| parent.join("resources").join("geolite2").join(ASN_DB_FILE))
-                        .unwrap_or_default(),
-                );
-
-                for level in 1..=MAX_ANCESTOR_LEVELS {
-                    let Some(ancestor) = dir.ancestors().nth(level) else {
-                        break;
-                    };
-                    push(
-                        ancestor
-                            .join("resources")
-                            .join("geolite2")
-                            .join(ASN_DB_FILE),
-                    );
-                    push(ancestor.join("geolite2").join(ASN_DB_FILE));
-                }
-            }
-        }
-
-        if let Ok(cwd) = std::env::current_dir() {
-            push(cwd.join("resources").join("geolite2").join(ASN_DB_FILE));
-            push(cwd.join("geolite2").join(ASN_DB_FILE));
-            if let Some(parent) = cwd.parent() {
-                push(parent.join("resources").join("geolite2").join(ASN_DB_FILE));
-            }
-        }
-
-        candidates.retain(|path| !path.as_os_str().is_empty());
-        candidates
+        candidate_paths(ASN_DB_FILE)
     }
 }
 
@@ -297,21 +241,13 @@ struct AsnResp {
     autonomous_system_organization: Option<String>,
 }
 
-impl crate::lookup::AsnLookup for GeoLite2Asn {
-    fn asn(&self, ip: u128) -> Option<crate::lookup::AsnInfo> {
-        let ip_addr: std::net::IpAddr = if ip <= u32::MAX as u128 {
-            let v4 = (ip as u32).to_be_bytes();
-            std::net::IpAddr::V4(std::net::Ipv4Addr::new(v4[0], v4[1], v4[2], v4[3]))
-        } else {
-            let bytes = ip.to_be_bytes();
-            std::net::IpAddr::V6(std::net::Ipv6Addr::from(bytes))
-        };
-
-        match self.reader.lookup(ip_addr) {
+impl AsnLookup for GeoLite2Asn {
+    fn asn(&self, ip: u128) -> Option<AsnInfo> {
+        match self.0.reader.lookup(ip_from_u128(ip)) {
             Ok(result) => {
                 if let Ok(Some(resp)) = result.decode::<AsnResp>() {
                     if let Some(number) = resp.autonomous_system_number {
-                        return Some(crate::lookup::AsnInfo {
+                        return Some(AsnInfo {
                             number,
                             organization: resp.autonomous_system_organization,
                         });
@@ -336,20 +272,12 @@ struct CountryCode {
 
 impl CountryLookup for GeoLite2Country {
     fn country(&self, ip: u128) -> Option<Alpha2> {
-        // Try to construct IpAddr
-        let ip_addr: IpAddr = if ip <= u32::MAX as u128 {
-            let v4 = (ip as u32).to_be_bytes();
-            std::net::IpAddr::V4(std::net::Ipv4Addr::new(v4[0], v4[1], v4[2], v4[3]))
-        } else {
-            let bytes = ip.to_be_bytes();
-            std::net::IpAddr::V6(std::net::Ipv6Addr::from(bytes))
-        };
-
-        match self.reader.lookup(ip_addr) {
+        match self.0.reader.lookup(ip_from_u128(ip)) {
             Ok(result) => {
                 if let Ok(Some(resp)) = result.decode::<CountryResp>() {
                     if let Some(country) = resp.country {
                         if let Some(code) = country.iso_code {
+                            // Solo aceptamos códigos ISO alpha-2 bien formados.
                             if code.len() == 2 && code.chars().all(|c| c.is_ascii_uppercase()) {
                                 return Some(code);
                             }
@@ -418,9 +346,7 @@ mod tests {
     fn todas_las_rutas_candidatas_son_derivadas_del_ejecutable_o_del_cwd() {
         // Invariante: los candidatos se deducen **en runtime** del directorio
         // del ejecutable y del directorio de trabajo, nunca de una constante
-        // incrustada al compilar. El defecto original incrustaba con
-        // `env!("CARGO_MANIFEST_DIR")` la ruta
-        // `<repo>/agent/crates/sc-geo/../../resources/geolite2/...`.
+        // incrustada al compilar.
         let exe = std::env::current_exe().expect("current_exe");
         let cwd = std::env::current_dir().expect("current_dir");
         let roots: Vec<PathBuf> = exe

@@ -1,14 +1,13 @@
-//! Tipos FlowUpdate/Direction/LocalIpSet — derivados de Sniffnet v1.5.1
+//! Tipos compartidos del canal de captura: `FlowUpdate`, `Direction` y
+//! `LocalIpSet`.
 //!
 //! Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
-//!
-//! Derivado parcialmente de https://github.com/GyulyVGC/sniffnet (tag v1.5.1)
-//! bajo licencia MIT OR Apache-2.0. Véase `docs/legal/THIRD_PARTY_NOTICES.md`.
 
 use sc_core::FlowKey;
 use std::collections::HashSet;
 use std::net::IpAddr;
 
+/// Lado del flujo desde el punto de vista del nodo monitorizado.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     /// Hacia el nodo
@@ -17,6 +16,8 @@ pub enum Direction {
     Out,
 }
 
+/// Un cambio observable en un flujo: cada paquete interpretado produce un
+/// `FlowUpdate` que el agregador acumula dentro de su ventana.
 #[derive(Debug, Clone)]
 pub struct FlowUpdate {
     pub ts: i64,
@@ -26,10 +27,14 @@ pub struct FlowUpdate {
     pub direction: Direction,
 }
 
+/// Conjunto de IPs locales del nodo, codificadas como `u128`
+/// (IPv4 ocupa los 32 bits bajos, IPv6 sus 16 octetos completos).
 #[derive(Debug, Clone, Default)]
 pub struct LocalIpSet(pub HashSet<u128>);
 
 impl LocalIpSet {
+    /// Construye el conjunto a partir de la lista de IPs de la configuración
+    /// o de las interfaces detectadas.
     pub fn from_config(list: &[IpAddr]) -> Self {
         let mut set = HashSet::new();
         for ip in list {
