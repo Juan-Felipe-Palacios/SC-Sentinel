@@ -8,6 +8,7 @@ describe('lib/cleanup/retention', () => {
     expect(RETENTION_DAYS).toEqual({
       flowWindows: 7,
       hostStats: 7,
+      asnStats: 7,
       alerts: 30,
       alertAudit: 90,
       agentHealth: 7,
@@ -26,5 +27,9 @@ describe('lib/cleanup/retention', () => {
     const now = new Date('2026-11-04T03:00:00.000Z');
     const cutoff = retentionCutoff(30, now);
     expect(cutoff.toISOString()).toBe('2026-10-05T03:00:00.000Z');
+  });
+
+  it('asn_stats comparte plazo con host_stats (deriva del mismo snapshot)', () => {
+    expect(RETENTION_DAYS.asnStats).toBe(RETENTION_DAYS.hostStats);
   });
 });

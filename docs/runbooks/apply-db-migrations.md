@@ -42,6 +42,30 @@ INSERT INTO sc_schema_migrations (name) VALUES
 ON CONFLICT DO NOTHING;
 ```
 
+## Reversión
+
+Las migraciones del repo son aditivas (nunca destructivas sin plan de rollback,
+ver `docs/governance/versioning.md`). Para una migración **aditiva** (una
+`CREATE TABLE` con sus índices, como `0016_asn-stats.sql`), la reversión es
+devolver la base al estado anterior de la migración y sacarla del ledger:
+
+```sql
+-- Reversión de 0016_asn-stats.sql (aplicada 2026-11-14):
+-- 1. Borrar la tabla (los índices caen con ella; son de la propia tabla).
+DROP TABLE IF EXISTS asn_stats;
+-- 2. Sacarla del ledger para que el runner vuelva a considerarla pendiente
+--    (si se reaplica, crea la tabla de nuevo; los datos no se recuperan).
+DELETE FROM sc_schema_migrations WHERE name = '0016_asn-stats.sql';
+```
+
+Reglas: la tabla es derivada del snapshot (`snapshot_json->'top_asns'`), así
+que los datos perdidos se reconstruyen con los reintentos del agente solo si el
+spool local aún los tiene; si ya se sincronizaron, se pierden. Una reversión de
+una migración **destructiva** (columnas que el código ya usa) requiere plan
+escrito previo: primero revertir el código, después la base. Backup: Neon
+retiene el historial de restore point-in-time; antes de una migración grande se
+puede crear una rama de Neon como snapshot puntual.
+
 ## Verificación posterior
 
 ```sql

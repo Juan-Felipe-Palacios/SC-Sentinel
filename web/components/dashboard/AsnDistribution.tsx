@@ -33,8 +33,7 @@ export function AsnDistribution({ asns }: { asns: OverviewResponse['top_asns'] }
         </div>
       ) : (
         <ol className="flex-1 divide-y divide-slate-800/60">
-          {asns.map((item) => {
-            const share = total > 0 ? (item.bytes_total / total) * 100 : 0;
+          {asns.map((item) => {            const share = total > 0 ? (item.bytes_total / total) * 100 : 0;
             const label =
               item.asn === 0
                 ? 'Sin ASN'
@@ -47,7 +46,7 @@ export function AsnDistribution({ asns }: { asns: OverviewResponse['top_asns'] }
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-display text-[13px] font-medium text-slate-100">{label}</p>
                     <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">
-                      {share.toFixed(1)}% del tráfico
+                      {share.toFixed(1)}% del tráfico · máx. {item.hosts} {item.hosts === 1 ? 'host' : 'hosts'} por ventana
                     </p>
                   </div>
                   <p className="shrink-0 text-right font-display text-[13px] font-semibold tabular-nums text-slate-100">
@@ -65,6 +64,11 @@ export function AsnDistribution({ asns }: { asns: OverviewResponse['top_asns'] }
           })}
         </ol>
       )}
+      <footer className="border-t border-slate-800/60 px-5 py-2.5">
+        <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400/60">
+          hosts = máximo observado en una ventana del período (no hosts únicos)
+        </p>
+      </footer>
     </section>
   );
 }

@@ -135,6 +135,31 @@ describe('queryOverview', () => {
     });
   });
 
+  it('mapea top_asns con tipos SQL (bigint como string, org nula) y orden preservado', async () => {
+    const db = fakeDb([
+      [{ windows_count: '2' }],
+      [{ bytes_in: '0', bytes_out: '0', packets: '0', hosts_count: '1', countries_count: '0' }],
+      [],
+      [],
+      [],
+      [
+        { asn: '15169', asn_org: 'Google LLC', bytes_total: '900', hosts: '2' },
+        { asn: '12345', asn_org: null, bytes_total: '42', hosts: '1' },
+      ],
+      [{ alerts_count: '0' }],
+      [],
+      [],
+      [{ scored_hosts: '0', high_hosts: '0', medium_hosts: '0', low_hosts: '0', avg_score: null }],
+    ]);
+
+    const result = await queryOverview('1h', 'dev_123', db, fixedNow);
+
+    expect(result.top_asns).toEqual([
+      { asn: 15169, asn_org: 'Google LLC', bytes_total: 900, hosts: 2 },
+      { asn: 12345, asn_org: null, bytes_total: 42, hosts: 1 },
+    ]);
+  });
+
   it('reports empty risk when no host has a score', async () => {
     const db = fakeDb([
       [{ windows_count: '1' }],

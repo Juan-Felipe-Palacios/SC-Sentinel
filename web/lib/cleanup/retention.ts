@@ -8,6 +8,7 @@ import { db } from '@/lib/db';
  *
  * - flow_windows: 7 días
  * - host_stats:   7 días
+ * - asn_stats:    7 días (misma vida que host_stats: deriva del mismo snapshot de ventana)
  * - alerts:       30 días (se atan a flow_windows.start_at — alerts no tiene timestamp propio)
  * - alert_audit_log: 90 días (sobrevive al borrado de la alerta y se poda aparte)
  * - agent_health: 7 días
@@ -21,6 +22,7 @@ import { db } from '@/lib/db';
 export const RETENTION_DAYS = {
   flowWindows: 7,
   hostStats: 7,
+  asnStats: 7,
   alerts: 30,
   alertAudit: 90,
   agentHealth: 7,
@@ -55,6 +57,7 @@ export async function runRetentionCleanup(now: Date = new Date()): Promise<Clean
   const cutoffs = {
     flowWindows: retentionCutoff(RETENTION_DAYS.flowWindows, now),
     hostStats: retentionCutoff(RETENTION_DAYS.hostStats, now),
+    asnStats: retentionCutoff(RETENTION_DAYS.asnStats, now),
     alerts: retentionCutoff(RETENTION_DAYS.alerts, now),
     alertAudit: retentionCutoff(RETENTION_DAYS.alertAudit, now),
     agentHealth: retentionCutoff(RETENTION_DAYS.agentHealth, now),
@@ -85,6 +88,15 @@ export async function runRetentionCleanup(now: Date = new Date()): Promise<Clean
     WHERE host_stats.window_id = flow_windows.window_id
       AND flow_windows.start_at < ${cutoffs.hostStats}
     RETURNING host_stats.id
+  `);
+
+  // 3b. Estadísticas de ASN: misma vida que host_stats (derivada del mismo snapshot).
+  const asnStatsResult = await db.execute(sql`
+    DELETE FROM asn_stats
+    USING flow_windows
+    WHERE asn_stats.window_id = flow_windows.window_id
+      AND flow_windows.start_at < ${cutoffs.asnStats}
+    RETURNING asn_stats.id
   `);
 
   // 4. Ventanas viejas sin alertas vivas. Las que aún tengan alertas se conservan.
@@ -145,6 +157,7 @@ export async function runRetentionCleanup(now: Date = new Date()): Promise<Clean
     deleted: {
       flowWindows: flowResult.rows.length,
       hostStats: hostStatsResult.rows.length,
+      asnStats: asnStatsResult.rows.length,
       alerts: alertsResult.rows.length,
       alertAudit: alertAuditResult.rows.length,
       agentHealth: healthResult.rows.length,

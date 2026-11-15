@@ -122,4 +122,37 @@ describe('buildPersistStatements', () => {
     expect(alertInsert?.values).toContain(new Date('2026-11-13T00:00:00.000Z').toISOString());
     expect(alertInsert?.text).toContain('ON CONFLICT DO NOTHING');
   });
+
+  it('incluye asn_stats con id estable por ventana+ASN y replay idempotente', () => {
+    const { sql, captured } = fakeSql();
+    const asnStats = [
+      { asn: 15169, asnOrg: 'Google LLC', bytes: 900, hosts: 2 },
+      { asn: 0, asnOrg: null, bytes: 10, hosts: 1 },
+    ];
+    const input = baseInput({ asnStats });
+    buildPersistStatements(sql, input);
+
+    const asnInserts = captured.filter((s) => s.text.includes('INSERT INTO asn_stats'));
+    expect(asnInserts).toHaveLength(2);
+    expect(asnInserts[0].values[0]).toBe(stableId('asn', 'win_1', 15169));
+    expect(asnInserts[0].values[1]).toBe('win_1');
+    expect(asnInserts[0].values[2]).toBe(15169);
+    expect(asnInserts[0].values[3]).toBe('Google LLC');
+    expect(asnInserts[0].text).toContain('ON CONFLICT DO NOTHING');
+    // ASN 0 (sin base cargada) se persiste igual: distingue tráfico LAN.
+    expect(asnInserts[1].values[2]).toBe(0);
+    expect(asnInserts[1].values[3]).toBeNull();
+
+    // El replay de la misma ventana emite EXACTAMENTE las mismas sentencias.
+    const replay = fakeSql();
+    buildPersistStatements(replay.sql, input);
+    expect(replay.captured.map((s) => s.text)).toEqual(captured.map((s) => s.text));
+    expect(replay.captured.map((s) => s.values)).toEqual(captured.map((s) => s.values));
+  });
+
+  it('no emite asn_stats cuando el agente no envía top_asns (opcional)', () => {
+    const { sql, captured } = fakeSql();
+    buildPersistStatements(sql, baseInput());
+    expect(captured.some((s) => s.text.includes('INSERT INTO asn_stats'))).toBe(false);
+  });
 });
