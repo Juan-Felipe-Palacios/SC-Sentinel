@@ -7,6 +7,28 @@ interrupciones cuando se rotan varios secretos en una misma ventana.
 No ejecutar durante una ventana de mantenimiento no anunciada. Nunca pegar valores
 de secretos en tickets, chat, logs ni commits.
 
+## Higiene al inspeccionar `.env*`
+
+Ningún comando de diagnóstico puede imprimir el valor de una variable. Está prohibido
+`cat`, `Get-Content`, `grep -RIn` con el patrón completo, `Select-String` sobre la línea
+completa, `printenv` o cualquier variante que muestre texto después del `=`.
+
+Usar solo nombres, conteos o archivos:
+
+```bash
+# Nombres, sin valores
+grep -hoE '^[A-Za-z_][A-Za-z0-9_]*=' web/.env.local web/.env.production.local | tr -d '='
+
+# Archivos que contienen una variable, sin mostrar la línea
+grep -lE '^(DATABASE_URL|ADMIN_SECRET|SC_SESSION_SECRET|CRON_SECRET)=' web/.env*
+
+# Conteo por archivo
+grep -cE '^(DATABASE_URL|ADMIN_SECRET|SC_SESSION_SECRET|CRON_SECRET)=' web/.env*
+```
+
+Si una salida llegara a incluir un valor, no repetirlo: tratarlo como expuesto y
+rotarlo en la misma ventana.
+
 ## Principios
 
 - El token del agente se guarda solo como hash SHA-256 en la base; el texto en claro
@@ -77,12 +99,12 @@ Objetivo: **un solo redeploy** de Vercel para aplicar todos los cambios de entor
 | Orden | Acción | Efecto |
 |---|---|---|
 | 1 | Generar nuevos `ADMIN_SECRET`, `SC_SESSION_SECRET`, `CRON_SECRET` y la credencial nueva de Neon | Sin efecto todavía |
-| 2 | Actualizar las cuatro variables en Vercel (Production; Preview si corresponde) | Solo aplican al próximo deployment |
+| 2 | Actualizar `ADMIN_SECRET`, `SC_SESSION_SECRET` y `CRON_SECRET` en Vercel (Production, Preview y Development) | Solo aplican al próximo deployment |
 | 3 | Actualizar `CRON_SECRET` en GitHub Actions | El cron de IA deja de fallar antes del deploy |
-| 4 | Rotar la credencial de Neon | La vieja deja de servir |
+| 4 | Crear rol/rama nueva de Neon y cargar su `DATABASE_URL` | La credencial vieja sigue sirviendo hasta el paso 7 |
 | 5 | Un solo `vercel --prod` | Aplica todo; única interrupción de la app |
 | 6 | Verificar login, DB y ambos crons | Criterio de cierre |
-| 7 | Revocar la credencial vieja de Neon | Cierra la ventana |
+| 7 | Revocar/resetear la credencial vieja de Neon | Cierra la ventana |
 
 Si se usa un **rol nuevo de Neon** (recomendado), el paso 4 no invalida el rol viejo
 hasta el paso 7; el rollback de Vercel sigue siendo viable durante la verificación.
@@ -125,15 +147,34 @@ hasta el paso 7; el rollback de Vercel sigue siendo viable durante la verificaci
 
 ### 3.4 Neon / `DATABASE_URL`
 
-**Preferido: rol nuevo (sin downtime y rollback viable).**
+**Preferido: rol nuevo y rama de Neon (sin downtime y rollback viable).**
 
 1. Crear un rol nuevo en Neon con los mismos privilegios que el runtime (sin DDL).
-2. Copiar su cadena **pooled** (`...-pooler...`) y actualizar `DATABASE_URL` en
-   Vercel.
-3. Desplegar y verificar la app.
-4. Recién entonces revocar/deshabilitar el rol viejo.
-5. Si el deploy falla, el deployment anterior sigue usando el rol viejo y el
-   rollback funciona.
+   No usar `DROP ROLE` si el rol actual es `neondb_owner`: posee la base. Al final,
+   resetear su contraseña y dejarlo solo para administración.
+2. Crear una rama de Neon desde la base principal. Aplicar primero las migraciones
+   en esa rama, con la URL **directa** (sin `-pooler`) y permisos de DDL:
+   ```powershell
+   node scripts/apply-migrations.mjs --dry-run --env-file C:\Neon\sc-admin-branch.env
+   node scripts/apply-migrations.mjs --env-file C:\Neon\sc-admin-branch.env
+   ```
+3. Apuntar `web/.env.local` de desarrollo a la cadena **pooled** de esa rama, no a
+   producción. Probar el dashboard local contra la rama antes de tocar `main`.
+4. Cargar la cadena pooled del runtime en Vercel para **Production, Preview y
+   Development**. Preview y Development deben usar una rama/base de staging, no la
+   base de producción:
+   ```powershell
+   vercel env add DATABASE_URL production
+   vercel env add DATABASE_URL preview
+   vercel env add DATABASE_URL development
+   ```
+   Pegar el valor en el prompt interactivo. Marcar la variable como **Sensitive**
+   en Vercel (Project Settings → Environment Variables) para que no se pueda leer
+   desde el dashboard ni desde `vercel env pull`.
+5. Desplegar y verificar la app. Mantener el rol viejo activo hasta cerrar la
+   verificación; así el deployment anterior sigue sirviendo para rollback.
+6. Recién entonces resetear la contraseña del rol viejo y guardarla en el gestor.
+   No borrar el rol si es el dueño de la base.
 
 **Alternativa: resetear la contraseña del mismo rol.**
 
@@ -145,14 +186,32 @@ hasta el paso 7; el rollback de Vercel sigue siendo viable durante la verificaci
 - El deployment anterior queda con la contraseña vieja: **no sirve para rollback**
   después del reset.
 
-### 3.5 Un solo redeploy
+### 3.4.1 `ADMIN_SECRET`, `SC_SESSION_SECRET`, `CRON_SECRET` y claves de IA
 
-```bash
-# desde la raíz del repo (Root Directory de Vercel = web)
+Rotar en la misma ventana, aunque la incidencia haya mostrado solo `DATABASE_URL`:
+
+- `ADMIN_SECRET`: Production y Preview; Development si se prueba login local.
+- `SC_SESSION_SECRET`: Production y Preview; invalida todas las sesiones admin.
+- `CRON_SECRET`: Vercel y GitHub Actions (`gh secret set CRON_SECRET --repo ...`).
+- Claves de IA (`GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`): solo si
+  aparecieron en la salida del incidente o si ya estaban en la ventana. En esta
+  incidencia no aparecieron; no se rotan por este motivo.
+
+### 3.5 Un solo redeploy desde `origin/main` limpio
+
+Nunca desplegar desde el árbol local con commits sin empujar. Crear un worktree
+limpio de `origin/main` y desplegar desde ahí:
+
+```powershell
+git fetch origin
+git worktree add --detach C:\Temp\sc-sentinel-deploy origin/main
+cd C:\Temp\sc-sentinel-deploy
+git status --porcelain
 vercel --prod
 ```
 
-No redeplegar una vez por secreto: un solo deployment aplica las cuatro variables.
+`git status --porcelain` debe salir vacío. No redeplegar una vez por secreto: un
+solo deployment aplica todas las variables de la ventana.
 
 ### 3.6 Verificación
 
