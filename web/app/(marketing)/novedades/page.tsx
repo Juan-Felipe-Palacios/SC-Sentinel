@@ -17,7 +17,7 @@ export const metadata = {
   openGraph: {
     title: "SC-Sentinel — Novedades",
     description:
-      "Qué cambió en cada release de SC-Sentinel, desde la base operativa 0.1.0 hasta GeoLite2 ASN en 0.1.6.",
+      "Qué cambió en cada release de SC-Sentinel, desde la base operativa 0.1.0 hasta los avisos de terceros en 0.1.7.",
     url: "https://sc-sentinel.vercel.app/novedades",
     siteName: "SC-Sentinel",
     locale: "es_AR",
@@ -81,7 +81,7 @@ export default function Novedades() {
             id="novedades-lista"
             className="mt-4 max-w-3xl font-display text-2xl font-semibold leading-snug tracking-tight text-sc-text sm:text-3xl"
           >
-            De 0.1.0 a 0.1.6, sin promesas de roadmap.
+            De 0.1.0 a 0.1.7, sin promesas de roadmap.
           </h2>
           <p className="mt-4 max-w-3xl text-base leading-relaxed text-sc-text-muted">
             Solo se listan capacidades implementadas. El paquete de Windows y Linux se entrega desde el canal de

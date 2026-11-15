@@ -112,9 +112,9 @@ const METRICS_STRIP = [
 const NEWS_STRIP = [
   {
     icon: Globe2,
-    badge: "0.1.6",
-    title: "GeoLite2 ASN",
-    body: "top_asns en cada ventana y estado de carga independiente para Country y ASN. Si la base falta, el agente sigue capturando.",
+    badge: "0.1.7",
+    title: "Avisos de terceros",
+    body: "El ZIP incorpora THIRD_PARTY_NOTICES.md y las licencias MIT/Apache-2.0 de Sniffnet v1.5.1, con la atribución completa.",
   },
   {
     icon: Server,
@@ -459,7 +459,7 @@ export default function MarketingHome() {
                 href="/novedades"
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/80 px-8 py-4 font-display text-base font-semibold text-slate-200 hover:border-slate-600 hover:bg-slate-700 transition-all"
               >
-                Ver novedades 0.1.6
+                Ver novedades 0.1.7
               </Link>
             </div>
 

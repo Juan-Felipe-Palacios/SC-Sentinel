@@ -20,6 +20,28 @@ export interface ReleaseNote {
 
 export const RELEASES: ReleaseNote[] = [
   {
+    version: "0.1.7",
+    date: "15 nov 2026",
+    title: "Avisos de terceros y licencias completas",
+    summary:
+      "El paquete incorpora los avisos y las licencias de Sniffnet v1.5.1, y el código restaura la atribución de los módulos derivados.",
+    highlight: "THIRD_PARTY_NOTICES.md y las licencias MIT/Apache-2.0 viajan dentro del ZIP.",
+    groups: {
+      added: [
+        "Anexo A con los textos completos de MIT y Apache-2.0 de Sniffnet v1.5.1 en la página legal y en los avisos.",
+        "El ZIP de Windows incluye THIRD_PARTY_NOTICES.md y licenses/ con ambos textos.",
+      ],
+      changed: [
+        "Headers de copyright restaurados en parser.rs, flow.rs y geolite2.rs con el titular correcto.",
+        "La página legal y THIRD_PARTY_NOTICES.md atribuyen Sniffnet y ya no afirman que no hay código de terceros.",
+      ],
+      fixed: [
+        "verify-agent.ps1 valida los 14 ficheros del paquete, incluidas las licencias.",
+        "El binario se publica sin rutas de compilación y con la captura live verificada.",
+      ],
+    },
+  },
+  {
     version: "0.1.6",
     date: "14 nov 2026",
     title: "GeoLite2 ASN y lectura de país más completa",
