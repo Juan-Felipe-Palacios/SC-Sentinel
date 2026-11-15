@@ -27,4 +27,23 @@ function Get-AgentBinPath {
  return "`"$BinPath`" --config `"$ConfigFile`" --no-capture"
 }
 
-Export-ModuleMember -Function Get-AgentBinPath
+function Set-AgentImagePath {
+ param(
+  [Parameter(Mandatory=$true)]
+  [string]$ServiceKey,
+
+  [Parameter(Mandatory=$true)]
+  [string]$BinPath,
+
+  [Parameter(Mandatory=$true)]
+  [string]$ConfigFile,
+
+  [string]$CaptureInterface
+ )
+
+ $newPath = Get-AgentBinPath -BinPath $BinPath -ConfigFile $ConfigFile -CaptureInterface $CaptureInterface
+ Set-ItemProperty -Path $ServiceKey -Name ImagePath -Value $newPath
+ return $newPath
+}
+
+Export-ModuleMember -Function Get-AgentBinPath, Set-AgentImagePath

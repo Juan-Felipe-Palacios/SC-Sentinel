@@ -102,6 +102,8 @@ El instalador (`scripts/install-agent.ps1`):
 
 > **`-CaptureInterface` en el instalador (2026-11-14):** `scripts/install-agent.ps1` acepta `-CaptureInterface "<descripción NDIS | nombre pcap>"` y crea el servicio con `--interface` (captura local) en vez de `--no-capture` (collector-only, el default). La construcción del binPath vive en `scripts/lib/agent-binpath.psm1` y se verifica con `pwsh -File scripts/test-install-agent-binpath.ps1` (exit 0; cubre default, captura local y comillas con espacios). El parámetro NO matchea el nombre amigable ("Wi-Fi"): el agente matchea contra el nombre de dispositivo pcap o la descripción NDIS (ver nota de desviación arriba). Desplegar en producción requiere reinstalación explícita del servicio (aún pendiente de decisión).
 
+> **`-NoRestart` (2026-11-15):** `scripts/enable-live-capture.ps1 -NoRestart` reescribe el `ImagePath` y sale **sin** detener ni arrancar el servicio. Se usa antes de `deploy-agent-service.ps1` para que el deploy haga la única parada y el arranque ya tome el `--interface`. La ruta se arma con `Get-AgentBinPath`/`Set-AgentImagePath` del módulo, sin concatenar comillas a mano. Pruebas: `pwsh -File scripts/test-enable-live-capture.ps1` (clave temporal HKCU, no toca el servicio). No usar `-NoRestart` solo: el cambio no surte efecto hasta el próximo arranque.
+
 Desinstalación simétrica: `.\scripts\uninstall-agent.ps1` (usa `-PurgeData` para borrar además spool y `.host-key`).
 
 ## 2. Instalación manual (sin instalador)

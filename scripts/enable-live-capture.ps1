@@ -2,21 +2,24 @@
 #
 # El agente decide la captura por CLI (no hay sección [capture] en config.toml):
 # el instalador arrancó el servicio con `--no-capture` (modo collector-only).
-# Este script reescribe ImagePath sin ese flag y con `--interface` explícita,
-# reinicia el servicio y verifica /status.
+# Este script reescribe ImagePath sin ese flag y con `--interface` explícita.
+# Por defecto reinicia el servicio y verifica /status; con -NoRestart solo
+# actualiza el ImagePath y sale, para que el reinicio lo haga el deploy.
 #
 # Requiere consola elevada.
 #
 # Uso:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\enable-live-capture.ps1
 #   ... -Interface "\Device\NPF_{5ED97C9D-...}"   # por defecto, la del config guardado
+#   ... -NoRestart                               # solo ImagePath, sin tocar el servicio
 
 param(
     [string]$Service = "SC-Sentinel-Agent",
     [string]$Exe = "C:\Program Files\SC-Sentinel\sc-sentinel-agent.exe",
     [string]$Config = "C:\ProgramData\SC-Sentinel\config\config.toml",
     [string]$Interface = "\Device\NPF_{5ED97C9D-575C-401F-A3C9-1397C3BD738A}",
-    [string]$StatusUrl = "http://127.0.0.1:8387/status"
+    [string]$StatusUrl = "http://127.0.0.1:8387/status",
+    [switch]$NoRestart
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,6 +27,8 @@ $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     throw "Ejecuta este script en una consola elevada (Administrador)."
 }
+
+Import-Module (Join-Path $PSScriptRoot "lib\agent-binpath.psm1") -Force
 
 $key = "HKLM:\SYSTEM\CurrentControlSet\Services\$Service"
 $current = (Get-ItemProperty -Path $key -Name ImagePath).ImagePath
@@ -33,9 +38,15 @@ Write-Host "ImagePath actual : $current"
 $configArg = $Config
 if ($current -match '--config\s+"([^"]+)"') { $configArg = $Matches[1] }
 
-$newPath = '"' + $Exe + '" --config "' + $configArg + '" --interface "' + $Interface + '"'
+$newPath = Set-AgentImagePath -ServiceKey $key -BinPath $Exe `
+    -ConfigFile $configArg -CaptureInterface $Interface
 Write-Host "ImagePath nuevo  : $newPath"
-Set-ItemProperty -Path $key -Name ImagePath -Value $newPath
+
+if ($NoRestart) {
+    Write-Host "Modo -NoRestart  : ImagePath actualizado; el servicio no se detuvo."
+    exit 0
+}
+
 # Reinicia para que el SCM relance con la línea nueva.
 sc.exe stop $Service | Out-Null
 try { (Get-Service -Name $Service).WaitForStatus('Stopped', [TimeSpan]::FromSeconds(20)) } catch { throw "no llegó a Stopped: $($_.Exception.Message)" }
