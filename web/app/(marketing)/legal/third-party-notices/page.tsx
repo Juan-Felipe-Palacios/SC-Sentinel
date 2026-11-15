@@ -67,10 +67,16 @@ export default function ThirdPartyNotices() {
       <section className="mt-10 space-y-3">
         <h2 className="font-display text-xl font-semibold tracking-tight text-sc-text">1. Código fuente de terceros</h2>
         <p className="text-sm leading-relaxed text-sc-text-muted">
-          <strong>Ninguno.</strong> Desde noviembre de 2026 todo el código fuente de SC-Sentinel es
-          implementación original de Strategic Connex (ADR-0019): el código que antes derivaba de un
-          proyecto de terceros fue reescrito con la misma semántica y la misma API pública, y los
-          avisos y menciones de terceros fueron retirados.
+          <strong>Ningún fragmento copiado de un proyecto externo.</strong> El módulo se reescribió desde cero
+          para garantizar compatibilidad con el runtime y la API pública del sistema, conservando la
+          semántica y los contratos observables. El código fuente original permanece disponible en su
+          repositorio público bajo su licencia original (ADR-0019). La reescritura no fue clean-room: se
+          tuvo acceso al código fuente original, pero no se copió literalmente.
+        </p>
+        <p className="text-xs leading-relaxed text-sc-text-muted">
+          Nota de restauración: si el autor original solicita explícitamente la atribución en una forma
+          distinta, se restaurarán los headers y este aviso con los textos de licencia originales en la
+          siguiente release.
         </p>
       </section>
 

@@ -4,7 +4,11 @@ Este producto es software propietario de **Strategic Connex** e incorpora compon
 
 ## 1. Código fuente de terceros
 
-**Ninguno.** Desde el 2026-11-14 (ADR-0019) todo el código fuente de SC-Sentinel es implementación original de Strategic Connex: el código que antes derivaba de un proyecto de terceros fue reescrito (misma semántica, misma API pública, tests verdes) y las menciones y headers de terceros fueron retirados (ADR-0006 registra la historia). Los avisos de esta sección se limitan a dependencias y datos.
+**Ningún fragmento copiado de un proyecto externo.** El módulo se reescribió desde cero para garantizar compatibilidad con el runtime y la API pública del sistema, conservando la semántica y los contratos observables. El código fuente original permanece disponible en su repositorio público bajo su licencia original (ADR-0019). La reescritura no fue clean-room: se tuvo acceso al código fuente original, pero no se copió literalmente.
+
+Notas:
+- Cláusula de restauración: si en algún momento el autor original solicita explícitamente la atribución en una forma distinta, se restaurarán los headers y el archivo `THIRD_PARTY_NOTICES` con los textos de licencia originales en la siguiente release.
+- Aclaración técnica: la reescritura no fue clean-room (se tuvo acceso al código fuente), pero no se copió literalmente, para evitar ambigüedad legal.
 
 ## 2. Bases de datos embebidas / dependencias de datos
 
