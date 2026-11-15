@@ -43,6 +43,9 @@ param(
  [Parameter(Mandatory=$false, HelpMessage="Puertos UDP del colector (default 2055,4739)")]
  [int[]]$CollectorPorts = @(2055, 4739),
 
+ [Parameter(Mandatory=$false, HelpMessage="Interfaz de captura local (descripcion NDIS del adaptador o nombre de dispositivo pcap). Si se indica, el servicio arranca con captura local en vez del modo collector-only --no-capture.")]
+ [string]$CaptureInterface,
+
  [Parameter(Mandatory=$false, HelpMessage="Eliminar datos existentes")]
  [switch]$PurgeData
 )
@@ -354,11 +357,12 @@ if ($GeoIpAsnInstalled) {
 
 # Paso 8: Crear servicio
 Write-Step "Creando servicio Windows..."
-# El servicio arranca en modo collector-only (`--no-capture`): la fuente
-# de datos del daemon es el colector UDP (fuente exclusiva, ver
-# docs/testing/pcap-vs-flow.md). Sin este flag el agente exigiría una
-# interfaz de captura y abortaría con código 2.
-$binPathQuoted = "`"$BinPath`" --config `"$ConfigFile`" --no-capture"
+# Modo de datos del servicio: collector-only (`--no-capture`) por defecto; con
+# -CaptureInterface el agente arranca con captura local de la interfaz indicada.
+# Fuente exclusiva por segmento: nunca captura Y colector a la vez
+# (docs/testing/pcap-vs-flow.md §7, warning `source_overlap`).
+Import-Module (Join-Path $PSScriptRoot "lib\agent-binpath.psm1")
+$binPathQuoted = Get-AgentBinPath -BinPath $BinPath -ConfigFile $ConfigFile -CaptureInterface $CaptureInterface
 
 # Esperar a que un servicio previo (incluido "marked for delete") desaparezca
 # por completo del SCM; si no, la creacion falla con ERROR_SERVICE_MARKED_FOR_DELETE 1072.
