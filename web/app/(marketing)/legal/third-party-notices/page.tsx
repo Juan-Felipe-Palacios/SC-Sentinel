@@ -1,6 +1,7 @@
 // SC-Sentinel — Avisos de terceros (M3 Task 6, publicada con sign-off del equipo, nov 2026).
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
 import Link from "next/link";
+import { SniffnetLicenseAppendix } from "@/components/legal/SniffnetLicenseAppendix";
 
 export const metadata = {
   metadataBase: new URL("https://sc-sentinel.vercel.app"),
@@ -67,16 +68,13 @@ export default function ThirdPartyNotices() {
       <section className="mt-10 space-y-3">
         <h2 className="font-display text-xl font-semibold tracking-tight text-sc-text">1. Código fuente de terceros</h2>
         <p className="text-sm leading-relaxed text-sc-text-muted">
-          <strong>Ningún fragmento copiado de un proyecto externo.</strong> El módulo se reescribió desde cero
-          para garantizar compatibilidad con el runtime y la API pública del sistema, conservando la
-          semántica y los contratos observables. El código fuente original permanece disponible en su
-          repositorio público bajo su licencia original (ADR-0019). La reescritura no fue clean-room: se
-          tuvo acceso al código fuente original, pero no se copió literalmente.
-        </p>
-        <p className="text-xs leading-relaxed text-sc-text-muted">
-          Nota de restauración: si el autor original solicita explícitamente la atribución en una forma
-          distinta, se restaurarán los headers y este aviso con los textos de licencia originales en la
-          siguiente release.
+          SC-Sentinel incluye módulos derivados de <strong>Sniffnet v1.5.1</strong> (commit{" "}
+          <code>1575c1d71ea720058aca36e8b460d7b8dc3c8d1c</code>), Copyright (c) 2022{" "}
+          <strong>Giuliano Bellini y colaboradores</strong>, bajo licencia dual <strong>MIT OR Apache-2.0</strong>.
+          Los módulos afectados son <code>sc-capture</code> (parser y tipos de flujo) y <code>sc-geo</code>{" "}
+          (integración MaxMind). Fueron adaptados y posteriormente reescritos conservando su semántica y API
+          pública; la reescritura no fue clean-room. Strategic Connex atribuye a Sniffnet las porciones
+          derivadas que subsistan y conserva el aviso y los textos completos de ambas licencias en el Anexo A.
         </p>
       </section>
 
@@ -177,13 +175,15 @@ export default function ThirdPartyNotices() {
         <ol className="list-decimal space-y-1 pl-6 text-sm leading-relaxed text-sc-text-muted">
           <li>El inventario se regenera antes de cada release (checklist de <code>testing/release-checklist.md</code>).</li>
           <li>Esta página se actualiza junto con cada cambio de dependencias que incorpore nuevo componente o cambie licencia.</li>
-          <li>El código fuente del producto no incorpora código de terceros (ver sección 1): no hay encabezados de licencia de terceros que conservar. Si en el futuro se incorpora código de terceros, su aviso se agrega aquí antes del merge.</li>
+          <li>Este producto incluye módulos derivados de Sniffnet v1.5.1, Copyright (c) 2022 Giuliano Bellini y colaboradores, bajo licencia dual MIT OR Apache-2.0. El aviso y los textos de ambas licencias se conservan en la sección 1 y en el Anexo A. Las reescrituras posteriores no eliminan esta atribución.</li>
           <li>Los componentes no descritos en esta página requieren revisión previa al merge (cargo-deny y las licencias npm fallan en CI antes, normalmente).</li>
         </ol>
         <p className="mt-6 text-xs leading-relaxed text-sc-text-muted">
           Texto fuente: <code>docs/legal/THIRD_PARTY_NOTICES.md</code>. Preguntas: <Link className="text-sc-accent hover:text-[#7dd3fc]" href="/contacto">/contacto</Link>.
         </p>
       </section>
+
+      <SniffnetLicenseAppendix />
     </article>
   );
 }

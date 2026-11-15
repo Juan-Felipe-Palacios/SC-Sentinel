@@ -1,3 +1,8 @@
+// Derived from Sniffnet v1.5.1 (src/networking/parse_packets.rs),
+// Copyright (c) 2022 Giuliano Bellini and contributors, dual-licensed MIT OR Apache-2.0.
+// Modifications Copyright (c) 2026 Strategic Connex. All rights reserved.
+// See THIRD_PARTY_NOTICES.md (Anexo A) for the full license texts.
+//!
 //! Parser de tramas Ethernet → IPv4 → TCP/UDP hacia `FlowUpdate`.
 //!
 //! Implementación propia y minimalista: solo interpreta lo que el modelo de
