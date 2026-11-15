@@ -161,7 +161,7 @@ export function OverviewView({ range }: { range: QueryRange }) {
       ) : null}
 
       {/* KPIs consolidados */}
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <div className="grid auto-rows-fr grid-cols-2 gap-4 xl:grid-cols-4">
         <StatCard
           icon={ArrowDownUp}
           label="Bytes totales"

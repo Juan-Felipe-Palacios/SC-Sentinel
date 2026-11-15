@@ -57,7 +57,7 @@ export default function ArchitectureDiagram() {
 
         {/* 1. Agente Capturador */}
         <g transform="translate(30, 75)">
-          <rect width="150" height="135" rx="12" fill="#090f1d" stroke="#38bdf8" strokeWidth="1.5" strokeOpacity="0.4" />
+          <rect width="162" height="135" rx="12" fill="#090f1d" stroke="#38bdf8" strokeWidth="1.5" strokeOpacity="0.4" />
           <circle cx="24" cy="24" r="6" fill="#10b981" />
           <text x="38" y="28" fill="#f8fafc" fontSize="13" fontWeight="700" fontFamily="var(--font-display)">
             Agente Rust
@@ -65,18 +65,18 @@ export default function ArchitectureDiagram() {
           <text x="20" y="55" fill="#94a3b8" fontSize="11" fontFamily="var(--font-mono)">• PCAP Promiscuo</text>
           <text x="20" y="75" fill="#94a3b8" fontSize="11" fontFamily="var(--font-mono)">• NetFlow / IPFIX</text>
           <text x="20" y="95" fill="#94a3b8" fontSize="11" fontFamily="var(--font-mono)">• Spool SQLite local</text>
-          <rect x="15" y="105" width="120" height="20" rx="4" fill="#10b981" fillOpacity="0.15" />
-          <text x="75" y="119" textAnchor="middle" fill="#34d399" fontSize="10" fontWeight="600" fontFamily="var(--font-mono)">
+          <rect x="15" y="105" width="132" height="20" rx="4" fill="#10b981" fillOpacity="0.15" />
+          <text x="81" y="119" textAnchor="middle" fill="#34d399" fontSize="10" fontWeight="600" fontFamily="var(--font-mono)">
             Zero Raw Leak
           </text>
         </g>
 
         {/* Flecha animada 1 -> 2 */}
-        <line x1="180" y1="142" x2="225" y2="142" stroke="#38bdf8" strokeWidth="2" strokeDasharray="4 4" className="sc-animate-dash" markerEnd="url(#arrow-sky)" />
+        <line x1="192" y1="142" x2="225" y2="142" stroke="#38bdf8" strokeWidth="2" strokeDasharray="4 4" className="sc-animate-dash" markerEnd="url(#arrow-sky)" />
 
         {/* 2. Motor Determinista */}
         <g transform="translate(230, 75)">
-          <rect width="155" height="135" rx="12" fill="#090f1d" stroke="#38bdf8" strokeWidth="1.5" strokeOpacity="0.4" />
+          <rect width="165" height="135" rx="12" fill="#090f1d" stroke="#38bdf8" strokeWidth="1.5" strokeOpacity="0.4" />
           <circle cx="24" cy="24" r="6" fill="#38bdf8" />
           <text x="38" y="28" fill="#f8fafc" fontSize="13" fontWeight="700" fontFamily="var(--font-display)">
             Motor Determinista
@@ -84,18 +84,18 @@ export default function ArchitectureDiagram() {
           <text x="20" y="55" fill="#94a3b8" fontSize="11" fontFamily="var(--font-mono)">• Ventana de 30s</text>
           <text x="20" y="75" fill="#94a3b8" fontSize="11" fontFamily="var(--font-mono)">• Detección heurística</text>
           <text x="20" y="95" fill="#94a3b8" fontSize="11" fontFamily="var(--font-mono)">• Evaluación umbrales</text>
-          <rect x="15" y="105" width="125" height="20" rx="4" fill="#38bdf8" fillOpacity="0.15" />
-          <text x="77" y="119" textAnchor="middle" fill="#38bdf8" fontSize="10" fontWeight="600" fontFamily="var(--font-mono)">
+          <rect x="15" y="105" width="140" height="20" rx="4" fill="#38bdf8" fillOpacity="0.15" />
+          <text x="85" y="119" textAnchor="middle" fill="#38bdf8" fontSize="10" fontWeight="600" fontFamily="var(--font-mono)">
             9 reglas v1
           </text>
         </g>
 
         {/* Flecha animada 2 -> 3 */}
-        <line x1="385" y1="142" x2="425" y2="142" stroke="#38bdf8" strokeWidth="2" strokeDasharray="4 4" className="sc-animate-dash" markerEnd="url(#arrow-sky)" />
+        <line x1="395" y1="142" x2="425" y2="142" stroke="#38bdf8" strokeWidth="2" strokeDasharray="4 4" className="sc-animate-dash" markerEnd="url(#arrow-sky)" />
 
         {/* 3. Sanitizador y Cifrador */}
         <g transform="translate(430, 75)">
-          <rect width="120" height="135" rx="12" fill="#090f1d" stroke="#10b981" strokeWidth="1.5" strokeOpacity="0.6" />
+          <rect width="125" height="135" rx="12" fill="#090f1d" stroke="#10b981" strokeWidth="1.5" strokeOpacity="0.6" />
           <circle cx="20" cy="24" r="5" fill="#10b981" />
           <text x="32" y="28" fill="#f8fafc" fontSize="12" fontWeight="700" fontFamily="var(--font-display)">
 Privacidad
@@ -103,8 +103,8 @@ Privacidad
           <text x="14" y="55" fill="#94a3b8" fontSize="10" fontFamily="var(--font-mono)">• HMAC opcional</text>
           <text x="14" y="75" fill="#94a3b8" fontSize="10" fontFamily="var(--font-mono)">• Agrupación IP</text>
           <text x="14" y="95" fill="#94a3b8" fontSize="10" fontFamily="var(--font-mono)">• Comprime Gzip</text>
-          <rect x="10" y="105" width="100" height="20" rx="4" fill="#10b981" fillOpacity="0.2" />
-          <text x="60" y="119" textAnchor="middle" fill="#34d399" fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
+          <rect x="10" y="105" width="105" height="20" rx="4" fill="#10b981" fillOpacity="0.2" />
+          <text x="62" y="119" textAnchor="middle" fill="#34d399" fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
             TLS 1.3 Out
           </text>
         </g>
@@ -122,52 +122,52 @@ Privacidad
 
         {/* 4. Dashboard Web & API Ingest */}
         <g transform="translate(630, 75)">
-          <rect width="125" height="135" rx="12" fill="#090f1d" stroke="#818cf8" strokeWidth="1.5" strokeOpacity="0.5" />
+          <rect width="135" height="135" rx="12" fill="#090f1d" stroke="#818cf8" strokeWidth="1.5" strokeOpacity="0.5" />
           <text x="16" y="28" fill="#f8fafc" fontSize="12" fontWeight="700" fontFamily="var(--font-display)">
             Next.js App
           </text>
-          <text x="14" y="55" fill="#94a3b8" fontSize="10" fontFamily="var(--font-mono)">• /api/ingest</text>
-          <text x="14" y="75" fill="#94a3b8" fontSize="10" fontFamily="var(--font-mono)">• Rate Limit (60/m)</text>
-          <text x="14" y="95" fill="#94a3b8" fontSize="10" fontFamily="var(--font-mono)">• Neon DB Postgres</text>
-          <rect x="10" y="105" width="105" height="20" rx="4" fill="#818cf8" fillOpacity="0.15" />
-          <text x="62" y="119" textAnchor="middle" fill="#a5b4fc" fontSize="9" fontWeight="600" fontFamily="var(--font-mono)">
+          <text x="14" y="55" fill="#94a3b8" fontSize="9.5" fontFamily="var(--font-mono)">• /api/ingest</text>
+          <text x="14" y="75" fill="#94a3b8" fontSize="9.5" fontFamily="var(--font-mono)">• Rate Limit (60/m)</text>
+          <text x="14" y="95" fill="#94a3b8" fontSize="9.5" fontFamily="var(--font-mono)">• Neon DB Postgres</text>
+          <rect x="10" y="105" width="115" height="20" rx="4" fill="#818cf8" fillOpacity="0.15" />
+          <text x="67" y="119" textAnchor="middle" fill="#a5b4fc" fontSize="9" fontWeight="600" fontFamily="var(--font-mono)">
             Dashboard SWR
           </text>
         </g>
 
         {/* Flecha conectora Ingest -> IA */}
-        <line x1="755" y1="142" x2="785" y2="142" stroke="#c084fc" strokeWidth="2" strokeDasharray="4 4" className="sc-animate-dash" markerEnd="url(#arrow-purple)" />
+        <line x1="765" y1="142" x2="780" y2="142" stroke="#c084fc" strokeWidth="2" strokeDasharray="4 4" className="sc-animate-dash" markerEnd="url(#arrow-purple)" />
 
         {/* 5. Copiloto IA Gemini RAG */}
-        <g transform="translate(790, 75)">
-          <rect width="105" height="135" rx="12" fill="#090f1d" stroke="#c084fc" strokeWidth="1.5" />
+        <g transform="translate(785, 75)">
+          <rect width="122" height="135" rx="12" fill="#090f1d" stroke="#c084fc" strokeWidth="1.5" />
           <circle cx="20" cy="24" r="5" fill="#c084fc" />
           <text x="32" y="28" fill="#f8fafc" fontSize="11" fontWeight="700" fontFamily="var(--font-display)">
             Gemini 3.6
           </text>
-          <text x="12" y="55" fill="#94a3b8" fontSize="10" fontFamily="var(--font-mono)">• Contexto 24h</text>
-          <text x="12" y="75" fill="#94a3b8" fontSize="10" fontFamily="var(--font-mono)">• Interpreta hechos</text>
-          <text x="12" y="95" fill="#94a3b8" fontSize="10" fontFamily="var(--font-mono)">• Recomienda</text>
-          <rect x="8" y="105" width="89" height="20" rx="4" fill="#c084fc" fillOpacity="0.2" />
-          <text x="52" y="119" textAnchor="middle" fill="#e9d5ff" fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
+          <text x="8" y="55" fill="#94a3b8" fontSize="9.5" fontFamily="var(--font-mono)">• Contexto 24h</text>
+          <text x="8" y="75" fill="#94a3b8" fontSize="9.5" fontFamily="var(--font-mono)">• Interpreta hechos</text>
+          <text x="8" y="95" fill="#94a3b8" fontSize="9.5" fontFamily="var(--font-mono)">• Recomienda</text>
+          <rect x="8" y="105" width="106" height="20" rx="4" fill="#c084fc" fillOpacity="0.2" />
+          <text x="61" y="119" textAnchor="middle" fill="#e9d5ff" fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
             Copiloto SOC
           </text>
         </g>
 
-        {/* Banner inferior: lo que se transporta */}
-        <rect x="30" y="235" width="860" height="45" rx="8" fill="#020617" stroke="#1e293b" />
-        <text x="50" y="262" fill="#10b981" fontSize="12" fontWeight="700" fontFamily="var(--font-mono)">
+        {/* Banner inferior: lo que viaja y lo que nunca sale, en dos líneas */}
+        <rect x="30" y="225" width="860" height="62" rx="8" fill="#020617" stroke="#1e293b" />
+        <text x="50" y="246" fill="#10b981" fontSize="12" fontWeight="700" fontFamily="var(--font-mono)">
           ✓ LO QUE VIAJA:
         </text>
-        <text x="170" y="262" fill="#94a3b8" fontSize="11" fontFamily="var(--font-mono)">
-          Conteo de bytes, países/ASN agregados y host marks HMAC opcionales.
+        <text x="190" y="246" fill="#94a3b8" fontSize="11" fontFamily="var(--font-mono)">
+          Conteos de bytes, países/ASN y hashes HMAC.
         </text>
 
-        <text x="640" y="262" fill="#ef4444" fontSize="12" fontWeight="700" fontFamily="var(--font-mono)">
+        <text x="50" y="274" fill="#ef4444" fontSize="12" fontWeight="700" fontFamily="var(--font-mono)">
           ✗ NUNCA SALE:
         </text>
-        <text x="750" y="262" fill="#fca5a5" fontSize="11" fontFamily="var(--font-mono)">
-          Paquetes crudos ni payloads.
+        <text x="190" y="274" fill="#fca5a5" fontSize="11" fontFamily="var(--font-mono)">
+          Paquetes crudos, payloads ni IPs reales.
         </text>
       </svg>
       <figcaption className="mt-4 text-center font-mono text-[11px] text-slate-500 uppercase tracking-widest">

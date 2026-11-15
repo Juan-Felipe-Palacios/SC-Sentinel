@@ -42,7 +42,7 @@ export function StatCard({ icon: Icon, label, value, sub, children, accent = 'ne
   const styles = ACCENT_STYLES[accent];
 
   return (
-    <div className={`rounded-xl border p-3.5 transition-colors sm:p-4 ${styles.shell}`}>
+    <div className={`h-full rounded-xl border p-3.5 transition-colors sm:p-4 ${styles.shell}`}>
       <div className="flex items-center justify-between gap-3">
         <p className="font-mono text-[11px] uppercase tracking-wider text-slate-400">{label}</p>
         <span className={`grid size-7 shrink-0 place-items-center rounded-lg border ${styles.icon}`}>
