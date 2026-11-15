@@ -89,6 +89,21 @@ foreach ($geoName in @('GeoLite2-Country.mmdb', 'GeoLite2-ASN.mmdb')) {
   }
 }
 
+# Avisos legales y licencias del código derivado: viajan en el paquete para
+# que la atribución exigida por MIT/Apache-2.0 acompañe a los binarios.
+$noticesSource = Join-Path $repo 'docs/legal/THIRD_PARTY_NOTICES.md'
+if (-not (Test-Path $noticesSource)) { throw "No existe $noticesSource" }
+Copy-Item $noticesSource (Join-Path $stage 'THIRD_PARTY_NOTICES.md') -Force
+$copied['THIRD_PARTY_NOTICES.md'] = $noticesSource
+$licensesStage = Join-Path $stage 'licenses'
+if (-not (Test-Path $licensesStage)) { New-Item -ItemType Directory -Path $licensesStage -Force | Out-Null }
+foreach ($licenseName in @('sniffnet-LICENSE-MIT.txt', 'sniffnet-LICENSE-APACHE.txt')) {
+  $licenseSource = Join-Path $repo "docs/legal/licenses/$licenseName"
+  if (-not (Test-Path $licenseSource)) { throw "No existe $licenseSource" }
+  Copy-Item $licenseSource (Join-Path $licensesStage $licenseName) -Force
+  $copied["licenses/$licenseName"] = $licenseSource
+}
+
 if ($esWindows) {
   foreach ($f in @('install-agent.ps1', 'uninstall-agent.ps1', 'instalar-sc-sentinel.bat', 'desinstalar-sc-sentinel.bat', 'abrir-gui.bat', 'LEEME-INSTALACION.txt')) {
     Copy-Item (Join-Path $repo "scripts/$f") (Join-Path $stage $f) -Force
@@ -129,7 +144,10 @@ if ($esWindows) {
 # binario roto (o ya retirado).
 $textExt = @('.md', '.txt', '.ps1', '.bat', '.sh', '.toml', '.json')
 $staleRefs = @()
-Get-ChildItem $stage -File -Recurse | Where-Object { $textExt -contains $_.Extension.ToLowerInvariant() } | ForEach-Object {
+Get-ChildItem $stage -File -Recurse | Where-Object {
+  $textExt -contains $_.Extension.ToLowerInvariant() -and
+  $_.Name -ne 'THIRD_PARTY_NOTICES.md'  # contiene la version del tercero (v1.5.1), no la de la release
+} | ForEach-Object {
   $file = $_
   $content = [System.IO.File]::ReadAllText($file.FullName)
   [regex]::Matches($content, 'v\d+\.\d+\.\d+') | ForEach-Object {

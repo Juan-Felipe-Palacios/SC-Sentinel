@@ -2,6 +2,19 @@
 
 Formato: Keep a Changelog 1.1 (semantic entries) publicado también en cada GitHub Release.
 
+## [0.1.7] — 2026-11-15
+
+### Added
+- (Legal) Anexo A con los textos completos de MIT y Apache-2.0 de Sniffnet
+  v1.5.1, en la página pública y en `docs/legal/THIRD_PARTY_NOTICES.md`.
+- (Release) El ZIP incluye `THIRD_PARTY_NOTICES.md` y `licenses/` con ambas
+  licencias; `verify-agent.ps1` valida los 14 ficheros esperados.
+
+### Changed
+- (Legal) Headers de copyright restaurados en `parser.rs`, `flow.rs` y
+  `geolite2.rs`, con el titular correcto (Giuliano Bellini y colaboradores).
+  ADR-0019 y los avisos dejan de afirmar que no hay código de terceros.
+
 ## [0.1.6] � 2026-11-14
 
 ### Added

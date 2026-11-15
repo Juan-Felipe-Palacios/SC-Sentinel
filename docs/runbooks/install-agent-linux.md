@@ -9,7 +9,7 @@
 ```bash
 # La línea VER= la reescribe el empaquetador con la versión real del
 # artefacto, así que el paquete nunca apunta a una release antigua.
-VER=0.1.6
+VER=0.1.7
 REPO=https://github.com/Juan-Felipe-Palacios/SC-Sentinel
 
 curl -LO "$REPO/releases/download/v${VER}/sc-sentinel-agent-v${VER}-linux-x64.tar.gz"
