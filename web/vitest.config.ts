@@ -12,6 +12,9 @@ export default defineConfig({
     },
   },
   test: {
+    // Conserva el nombre de cada test en la salida (local y CI) para
+    // diagnosticar fallos sin perder el contexto.
+    reporters: ['verbose'],
     environment: 'node',
     include: ['lib/**/*.test.ts', 'app/**/*.test.ts', 'components/**/*.test.ts'],
     // PGlite (WASM) tarda en arrancar; con 52 workers en paralelo los hooks
