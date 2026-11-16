@@ -6,10 +6,13 @@ export interface SecurityHeader {
   value: string;
 }
 
-export function buildContentSecurityPolicy(isDev: boolean): string {
+export function buildContentSecurityPolicy(nonce: string, isDev: boolean): string {
+  if (!nonce || /['"\s]/.test(nonce)) {
+    throw new Error('nonce inválido para CSP');
+  }
   return [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
@@ -25,8 +28,9 @@ export function buildContentSecurityPolicy(isDev: boolean): string {
 }
 
 export function buildGlobalSecurityHeaders(isDev: boolean): SecurityHeader[] {
+  // La CSP con nonce se emite por request desde middleware; aquí solo van
+  // las cabeceras estáticas globales.
   return [
-    { key: "Content-Security-Policy", value: buildContentSecurityPolicy(isDev) },
     { key: "X-Content-Type-Options", value: "nosniff" },
     { key: "X-Frame-Options", value: "DENY" },
     { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },

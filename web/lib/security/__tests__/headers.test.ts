@@ -13,7 +13,7 @@ function headerValue(headers: { key: string; value: string }[], key: string): st
 
 describe('cabeceras de seguridad', () => {
   it('la CSP de producción bloquea iframes, objetos y upgrades inseguros', () => {
-    const csp = buildContentSecurityPolicy(false);
+    const csp = buildContentSecurityPolicy('test-nonce-123', false);
 
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain("frame-ancestors 'none'");
@@ -36,9 +36,26 @@ describe('cabeceras de seguridad', () => {
   });
 
   it('habilita eval y websockets solo en desarrollo', () => {
-    expect(buildContentSecurityPolicy(true)).toContain("'unsafe-eval'");
-    expect(buildContentSecurityPolicy(true)).toContain('ws:');
-    expect(buildContentSecurityPolicy(false)).not.toContain('ws:');
+    expect(buildContentSecurityPolicy('test-nonce-123', true)).toContain("'unsafe-eval'");
+    expect(buildContentSecurityPolicy('test-nonce-123', true)).toContain('ws:');
+    expect(buildContentSecurityPolicy('test-nonce-123', false)).not.toContain('ws:');
+  });
+
+  it('inserta el nonce y elimina unsafe-inline de script-src en producción', () => {
+    const csp = buildContentSecurityPolicy('nonce-abc', false);
+
+    expect(csp).toContain("script-src 'self' 'nonce-nonce-abc' 'strict-dynamic'");
+    expect(csp).not.toContain("script-src 'self' 'unsafe-inline'");
+  });
+
+  it('las cabeceras globales ya no incluyen CSP estática', () => {
+    const production = buildGlobalSecurityHeaders(false);
+
+    expect(headerValue(production, 'Content-Security-Policy')).toBeUndefined();
+  });
+
+  it('rechaza un nonce inválido', () => {
+    expect(() => buildContentSecurityPolicy("bad'nonce", false)).toThrow();
   });
 
   it('la Trust Page no filtra el token por Referer ni cachea la respuesta', () => {

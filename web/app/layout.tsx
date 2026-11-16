@@ -25,6 +25,10 @@ export const metadata = {
   description: "Monitoreo de red con motor determinista local. La nube recibe señales agregadas, no paquetes crudos.",
 };
 
+// La CSP con nonce exige render dinámico por request: todas las páginas que
+// usan este layout se renderizan en cada request.
+export const dynamic = 'force-dynamic';
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className={`${spaceGrotesk.variable} ${plexMono.variable}`}>
