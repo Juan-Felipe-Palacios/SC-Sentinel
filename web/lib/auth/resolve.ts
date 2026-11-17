@@ -5,6 +5,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminAuth } from '@/lib/auth/admin';
 import { GUEST_COOKIE, verifyGuestToken, type GuestSession } from '@/lib/auth/guest';
 import type { SessionPrincipal } from '@/lib/auth/session';
+import { clientIp } from '@/lib/http/client-ip';
+
+export { clientIp };
 
 const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
 
@@ -55,13 +58,4 @@ export async function authorize(
       { status: 401, headers: noStoreHeaders }
     ),
   };
-}
-
-export function clientIp(request: NextRequest): string {
-  const forwarded = request.headers.get('x-forwarded-for');
-  if (forwarded) {
-    const first = forwarded.split(',')[0]?.trim();
-    if (first) return first;
-  }
-  return request.headers.get('x-real-ip')?.trim() || 'unknown';
 }

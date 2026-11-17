@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createHash } from 'crypto';
 import { neon } from '@neondatabase/serverless';
 import { authenticateDeviceToken } from '@/lib/auth/device';
+import { clientIp } from '@/lib/http/client-ip';
 import { checkRateLimit } from '@/lib/rate-limit/ingest';
 import { readIngestBody } from '@/lib/ingest/read-body';
 import { logServerError } from '@/lib/logging/error';
@@ -42,8 +43,8 @@ async function hasRecentHeuristicAlert(deviceId: string): Promise<boolean> {
 
 export async function POST(request: NextRequest) {
   // 1. IP rate limit check (anti-abuse for non-authenticated callers)
-  const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || '127.0.0.1';
-  const ipLimit = checkRateLimit(`ip_${clientIp}`, 20, 20);
+  const ip = clientIp(request);
+  const ipLimit = checkRateLimit(`ip_${ip}`, 20, 20);
   if (!ipLimit.allowed) {
     return NextResponse.json(
       { error: 'rate_limited', message: 'Too many requests from this IP' },
