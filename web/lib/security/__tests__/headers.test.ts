@@ -5,6 +5,7 @@ import {
   buildContentSecurityPolicy,
   buildGlobalSecurityHeaders,
   buildTrustPageHeaders,
+  resolveCspMode,
 } from '../headers';
 
 function headerValue(headers: { key: string; value: string }[], key: string): string | undefined {
@@ -56,6 +57,24 @@ describe('cabeceras de seguridad', () => {
 
   it('rechaza un nonce inválido', () => {
     expect(() => buildContentSecurityPolicy("bad'nonce", false)).toThrow();
+  });
+
+  it('la política Report-Only agrega los destinos de reporte y conserva el nonce', () => {
+    const reportOnly = buildContentSecurityPolicy('nonce-abc', false, true);
+
+    expect(reportOnly).toContain("script-src 'self' 'nonce-nonce-abc' 'strict-dynamic'");
+    expect(reportOnly).toContain('report-uri /api/csp-report');
+    expect(reportOnly).toContain('report-to csp-endpoint');
+    // La política aplicada no reporta: P2 es solo observación.
+    expect(buildContentSecurityPolicy('nonce-abc', false)).not.toContain('report-uri');
+  });
+
+  it('resuelve el modo CSP por entorno con CSP_ENFORCE explícito', () => {
+    expect(resolveCspMode({ nodeEnv: 'development' })).toBe('enforce');
+    expect(resolveCspMode({ nodeEnv: 'test' })).toBe('report-only');
+    expect(resolveCspMode({ nodeEnv: 'production' })).toBe('report-only');
+    expect(resolveCspMode({ nodeEnv: 'production', cspEnforce: '1' })).toBe('enforce');
+    expect(resolveCspMode({ nodeEnv: 'production', cspEnforce: '0' })).toBe('report-only');
   });
 
   it('la Trust Page no filtra el token por Referer ni cachea la respuesta', () => {

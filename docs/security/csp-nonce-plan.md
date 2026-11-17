@@ -1,7 +1,9 @@
 # Plan — CSP con nonce por request
 
-Estado: **P1 implementado en código** (builder + middleware + root layout dinámico). Pendiente verificación manual en navegador/preview y fases P2–P5. Este documento planifica V3 del análisis
-de seguridad; no cambia el comportamiento actual.
+Estado: **P1 y P2 implementados en código** (P1: builder + middleware + root layout
+dinámico; P2: `/api/csp-report` + `Content-Security-Policy-Report-Only`). Pendiente el
+despliegue de P2 en preview y las fases P3–P5. Este documento planifica V3 del anális
+de seguridad.
 
 ## Problema
 
@@ -187,10 +189,44 @@ actualizado:
 |---|---|---|
 | P0 | Auditoría de rutas (estática vs dinámica) + verificación de paquetes Vercel montados + decisión D1 documentada en el plan | Sin código |
 | P1 | `buildContentSecurityPolicy(nonce, isDev)` + middleware (nonce, matcher, CSP en request/response, auth intacta) + tests | `pnpm typecheck`, tests verdes |
-| P2 | Deploy **Report-Only** en preview con `/api/csp-report` que registre violaciones + cabecera `Reporting-Endpoints` | 24–48 h sin violaciones de scripts propios |
+| P2 | **Report-Only** en preview con `/api/csp-report` que registre violaciones + cabecera `Reporting-Endpoints` (código implementado; falta el despliegue de preview) | 24–48 h sin violaciones de scripts propios |
 | P3 | Corrección de violaciones reales (hash/nonce/excepción documentada por paquete) | Reporte limpio |
 | P4 | Enforcement en preview + verificación manual completa del plan | Checklist completo |
 | P5 | Producción + monitoreo de reportes 48 h | Criterios de aceptación del plan |
+
+## P2 implementado — colector Report-Only
+
+Fuera de desarrollo la política se emite como `Content-Security-Policy-Report-Only`
+con `report-uri /api/csp-report; report-to csp-endpoint` y la cabecera
+`Reporting-Endpoints: csp-endpoint="/api/csp-report"`. En desarrollo se sigue
+aplicando (`Content-Security-Policy`) para que el bloqueo se vea al instante.
+
+| Pieza | Comportamiento |
+|---|---|
+| `web/lib/security/headers.ts` | `buildContentSecurityPolicy(nonce, isDev, reportOnly)` agrega los destinos de reporte; `resolveCspMode()` decide el modo |
+| `web/middleware.ts` | Elige la cabecera según el modo, la propaga en request (Next lee el nonce de ahí) y en todas las respuestas, incluidas redirecciones |
+| `web/app/api/csp-report/route.ts` | `POST` sin sesión, rate limit 30/min por IP, cuerpo ≤ 16 KB, siempre `204`; `GET` → `405` |
+| `web/lib/security/csp-report.ts` | Normaliza formatos legacy y Reporting API, descarta campos desconocidos y sanea URLs |
+
+Reglas de log del colector (higiene de secretos):
+
+- nunca se registra `original-policy` (contiene el nonce de esa request) ni
+  `script-sample`;
+- solo se registran directiva, disposición y URLs reducidas a origen + ruta, sin
+  query ni fragmento;
+- la ruta de Trust Page `/p/<token>` se redacta como `/p/[redacted]`;
+- máximo 5 reportes por request.
+
+Modo por entorno:
+
+| Entorno | `NODE_ENV` | Cabecera | Nota |
+|---|---|---|---|
+| Desarrollo local | `development` | `Content-Security-Policy` | Aplica, para detectar bloqueos al instante |
+| Preview / producción | `production` | `Content-Security-Policy-Report-Only` | Solo observación (P2) |
+| Cualquiera con `CSP_ENFORCE=1` | — | `Content-Security-Policy` | Interruptor de P4 (preview) y P5 (producción) |
+
+Sin `CSP_ENFORCE=1` no hay enforcement fuera de desarrollo: el paso a bloqueo es
+una variable de entorno del entorno de Vercel, no un cambio de código.
 
 ## Archivos a tocar
 
