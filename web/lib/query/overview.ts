@@ -66,6 +66,8 @@ export interface OverviewResult {
   period: { start: string; end: string };
   /** Última ventana observada, incluso fuera del rango; null si nunca hubo datos. */
   last_data_at: string | null;
+  /** Última ventana con bytes o paquetes, incluso fuera del rango; null si nunca hubo tráfico. */
+  last_traffic_at: string | null;
   totals: {
     bytes_in: number;
     bytes_out: number;
@@ -133,6 +135,10 @@ interface LastDataRow {
   last_data_at: Date | string | null;
 }
 
+interface LastTrafficRow {
+  last_traffic_at: Date | string | null;
+}
+
 interface RiskRow {
   scored_hosts: number | string | null;
   high_hosts: number | string | null;
@@ -189,6 +195,7 @@ function emptyOverview(
     range,
     period: { start: start.toISOString(), end: end.toISOString() },
     last_data_at: null,
+    last_traffic_at: null,
     totals: {
       bytes_in: 0,
       bytes_out: 0,
@@ -245,6 +252,7 @@ export async function queryOverview(
     portRows,
     riskRows,
     lastDataRows,
+    lastTrafficRows,
   ] = await Promise.all([
     queryRows<WindowCountRow>(
       database,
@@ -395,6 +403,17 @@ export async function queryOverview(
           FROM flow_windows
           WHERE device_id = ${deviceId}`
     ),
+    queryRows<LastTrafficRow>(
+      database,
+      sql`SELECT MAX(fw.start_at) AS last_traffic_at
+          FROM flow_windows fw
+          WHERE fw.device_id = ${deviceId}
+            AND EXISTS (
+              SELECT 1 FROM host_stats hs
+              WHERE hs.window_id = fw.window_id
+                AND (hs.bytes_in > 0 OR hs.bytes_out > 0 OR hs.packets > 0)
+            )`
+    ),
   ]);
 
   // La distribución por protocolo sale de las mismas filas: el ranking de puertos se
@@ -417,6 +436,7 @@ export async function queryOverview(
     range,
     period: { start: start.toISOString(), end: end.toISOString() },
     last_data_at: isoOrNull(lastDataRows[0]?.last_data_at),
+    last_traffic_at: isoOrNull(lastTrafficRows[0]?.last_traffic_at),
     totals: {
       bytes_in: totalBytesIn,
       bytes_out: totalBytesOut,

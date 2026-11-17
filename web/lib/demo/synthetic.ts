@@ -231,6 +231,7 @@ export function syntheticOverview(
     range,
     period: { start: period.start.toISOString(), end: period.end.toISOString() },
     last_data_at: now.toISOString(),
+    last_traffic_at: now.toISOString(),
     totals: {
       bytes_in: totals.bytesIn,
       bytes_out: totals.bytesOut,

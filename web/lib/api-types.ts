@@ -94,6 +94,8 @@ export interface OverviewResponse {
   period: Period;
   /** Última ventana observada para el device, incluso fuera del rango; null si nunca hubo datos. */
   last_data_at: string | null;
+  /** Última ventana con bytes o paquetes; null si el device nunca reportó tráfico. */
+  last_traffic_at: string | null;
   totals: OverviewTotals;
   series: OverviewSeriesPoint[];
   top_hosts: OverviewTopHost[];
