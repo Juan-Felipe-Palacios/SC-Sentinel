@@ -91,7 +91,8 @@ impl std::error::Error for StatusError {
 pub struct AgentStatus {
     pub agent_version: String,
     pub device_id: String,
-    /// `ok` (captura o colector activos) o `disabled` (modo collector-only).
+    /// `ok` (captura o colector activos), `degraded` (captura live sin IPv4
+    /// utilizable) o `disabled` (modo collector-only).
     pub capture_status: String,
     pub packets_seen: u64,
     pub packets_dropped: u64,
@@ -124,6 +125,14 @@ pub struct AgentStatus {
     /// nueva. El spool no sirve para esto: un 2xx lo vacía (ADR-0008).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub windows: Vec<WindowStatus>,
+    /// Estado del conjunto de IPs locales que usa el parser.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_ips_usable: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_ips_ipv4: Option<u64>,
+    /// Hora del último refresco exitoso del monitor, no la hora del request.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_ips_last_refresh: Option<String>,
 }
 
 /// Datos que no cambian mientras el agente corre.
@@ -178,14 +187,18 @@ impl StatusShared {
 
     pub fn report(&self) -> AgentStatus {
         let health = self.health.snapshot();
+        let local_ips = self.health.local_ip_health();
+        let capture_status = if !self.config.capture_enabled {
+            "disabled".to_string()
+        } else if local_ips.checked && !local_ips.usable {
+            "degraded".to_string()
+        } else {
+            "ok".to_string()
+        };
         AgentStatus {
             agent_version: self.config.agent_version.clone(),
             device_id: self.config.device_id.clone(),
-            capture_status: if self.config.capture_enabled {
-                "ok".to_string()
-            } else {
-                "disabled".to_string()
-            },
+            capture_status,
             packets_seen: health.packets_seen,
             packets_dropped: health.packets_dropped,
             parse_errors: health.parse_errors,
@@ -202,6 +215,13 @@ impl StatusShared {
             uptime_seconds: Some(self.uptime_seconds()),
             interface: self.config.interface.clone(),
             windows: self.window_history(),
+            local_ips_usable: local_ips.checked.then_some(local_ips.usable),
+            local_ips_ipv4: local_ips.checked.then_some(local_ips.ipv4),
+            local_ips_last_refresh: local_ips.last_refresh_unix.and_then(|unix| {
+                Utc.timestamp_opt(unix, 0)
+                    .single()
+                    .map(|when| when.to_rfc3339_opts(SecondsFormat::Millis, true))
+            }),
         }
     }
 
@@ -400,6 +420,57 @@ mod tests {
         assert!(json.contains("\"collector_ports\":[2056,4739]"));
         assert!(json.contains("\"capture_status\":\"disabled\""));
         assert!(json.contains("\"last_sync_at\":\""));
+    }
+
+    #[test]
+    fn captura_live_sin_ipv4_utilizable_es_degraded() {
+        let health = HealthRegistry::new();
+        health.note_local_ips(false, 0);
+        let status = StatusShared::new(
+            health,
+            StatusConfig {
+                agent_version: "0.1.8".to_string(),
+                device_id: "dev_test".to_string(),
+                mode: "service".to_string(),
+                capture_enabled: true,
+                collector_ports: vec![],
+                geo_loaded: false,
+                geo_country_loaded: false,
+                geo_asn_loaded: false,
+                interface: Some("test0".to_string()),
+            },
+        );
+
+        let degraded = status.report();
+        assert_eq!(degraded.capture_status, "degraded");
+        assert_eq!(degraded.local_ips_usable, Some(false));
+        assert_eq!(degraded.local_ips_ipv4, Some(0));
+        assert!(degraded.local_ips_last_refresh.is_some());
+
+        let json = serde_json::to_string(&degraded).unwrap();
+        assert!(json.contains("\"capture_status\":\"degraded\""));
+        assert!(json.contains("\"local_ips_usable\":false"));
+    }
+
+    #[test]
+    fn captura_live_con_ipv4_utilizable_vuelve_a_ok() {
+        let health = HealthRegistry::new();
+        health.note_local_ips(true, 1);
+        let status = StatusShared::new(
+            health,
+            StatusConfig {
+                agent_version: "0.1.8".to_string(),
+                device_id: "dev_test".to_string(),
+                mode: "service".to_string(),
+                capture_enabled: true,
+                collector_ports: vec![],
+                geo_loaded: false,
+                geo_country_loaded: false,
+                geo_asn_loaded: false,
+                interface: Some("test0".to_string()),
+            },
+        );
+        assert_eq!(status.report().capture_status, "ok");
     }
 
     #[test]

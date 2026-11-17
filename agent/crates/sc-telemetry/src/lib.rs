@@ -3,8 +3,9 @@
 pub mod logging;
 pub mod status;
 
+use chrono::Utc;
 use sc_core::{AgentHealth, CaptureStatus};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 #[derive(Debug)]
@@ -26,7 +27,23 @@ pub struct HealthRegistry {
     pub collector_parse_errors: AtomicU64,
     pub collector_templates_cached: AtomicU64,
     pub collector_flows_normalized: AtomicU64,
+    /// El agente ya publicó al menos una lectura del conjunto de IPs locales.
+    pub local_ips_checked: AtomicBool,
+    /// Hay al menos una IPv4 no APIPA que el parser puede usar.
+    pub local_ips_usable: AtomicBool,
+    pub local_ips_ipv4: AtomicU64,
+    /// Segundos unix del último refresco exitoso; 0 = todavía ninguno.
+    pub local_ips_last_refresh_unix: AtomicI64,
     pub last_error: Mutex<Option<String>>,
+}
+
+/// Foto del estado de IPs locales para `/status`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LocalIpHealth {
+    pub checked: bool,
+    pub usable: bool,
+    pub ipv4: u64,
+    pub last_refresh_unix: Option<i64>,
 }
 
 impl Default for HealthRegistry {
@@ -47,6 +64,10 @@ impl Default for HealthRegistry {
             collector_parse_errors: AtomicU64::new(0),
             collector_templates_cached: AtomicU64::new(0),
             collector_flows_normalized: AtomicU64::new(0),
+            local_ips_checked: AtomicBool::new(false),
+            local_ips_usable: AtomicBool::new(false),
+            local_ips_ipv4: AtomicU64::new(0),
+            local_ips_last_refresh_unix: AtomicI64::new(0),
             last_error: Mutex::new(None),
         }
     }
@@ -117,6 +138,32 @@ impl HealthRegistry {
             .store(flows_normalized, Ordering::Relaxed);
     }
 
+    /// Publica el conjunto de IPs locales resuelto por el monitor.
+    ///
+    /// Se llama al arrancar y en cada refresco exitoso, aunque el contenido no
+    /// haya cambiado, para que `local_ips_last_refresh` refleje el latido del
+    /// monitor y no la hora del request a `/status`.
+    pub fn note_local_ips(&self, usable: bool, ipv4: u64) {
+        self.local_ips_checked.store(true, Ordering::Relaxed);
+        self.local_ips_usable.store(usable, Ordering::Relaxed);
+        self.local_ips_ipv4.store(ipv4, Ordering::Relaxed);
+        self.local_ips_last_refresh_unix
+            .store(Utc::now().timestamp(), Ordering::Relaxed);
+    }
+
+    pub fn local_ip_health(&self) -> LocalIpHealth {
+        let last_refresh_unix = match self.local_ips_last_refresh_unix.load(Ordering::Relaxed) {
+            0 => None,
+            value => Some(value),
+        };
+        LocalIpHealth {
+            checked: self.local_ips_checked.load(Ordering::Relaxed),
+            usable: self.local_ips_usable.load(Ordering::Relaxed),
+            ipv4: self.local_ips_ipv4.load(Ordering::Relaxed),
+            last_refresh_unix,
+        }
+    }
+
     /// Guarda el último error truncado a 500 caracteres.
     /// Truncar por caracteres (no por bytes) evita paniquear al cortar una
     /// secuencia UTF-8 (mensajes de error con acentos en español).
@@ -159,6 +206,24 @@ mod tests {
 
         let last = health.snapshot().last_error.expect("debe guardar el error");
         assert_eq!(last.chars().count(), 500);
+    }
+
+    #[test]
+    fn local_ip_health_refleja_la_ultima_publicacion() {
+        let health = HealthRegistry::new();
+        assert!(!health.local_ip_health().checked);
+
+        health.note_local_ips(false, 0);
+        let degraded = health.local_ip_health();
+        assert!(degraded.checked);
+        assert!(!degraded.usable);
+        assert_eq!(degraded.ipv4, 0);
+        assert!(degraded.last_refresh_unix.is_some());
+
+        health.note_local_ips(true, 1);
+        let ok = health.local_ip_health();
+        assert!(ok.usable);
+        assert_eq!(ok.ipv4, 1);
     }
 
     #[test]
