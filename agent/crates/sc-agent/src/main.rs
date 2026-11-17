@@ -3,8 +3,9 @@
 use clap::Parser;
 use sc_aggregate::{AggregatedWindow, AggregatorConfig, CaptureCounters, WindowAggregator};
 use sc_capture::{
-    list_interfaces, local_ips_for_interface, run_live, run_offline, CaptureChannel,
-    CaptureChannelPair, FlowProducer, LocalIpSet,
+    list_interfaces, local_ips_for_interface, run_live_with_updates, run_offline,
+    start_local_ip_monitor, CaptureChannel, CaptureChannelPair, FlowProducer, LocalIpMonitor,
+    LocalIpSet,
 };
 use sc_collector::{
     Collector, CollectorConfig, CollectorHandle, CollectorMetrics, ListenerConfig, ProtocolFilter,
@@ -19,7 +20,8 @@ use sc_sync::{
 use sc_telemetry::status::{StatusConfig, StatusServer, StatusShared, WindowStatus, STATUS_ADDR};
 use sc_telemetry::{logging, HealthRegistry};
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use tokio::signal;
@@ -37,6 +39,9 @@ const SYNC_INTERVAL: Duration = Duration::from_secs(1);
 const ENROLLMENT_RETRY: Duration = Duration::from_secs(60);
 /// Cada cuántos ticks de 1 s se aplica la retención del spool (cota §9.4).
 const RETENTION_EVERY_TICKS: u64 = 60;
+/// El monitor de IPs vuelve a resolver la interfaz con esta cadencia. Cinco
+/// segundos cubren un cambio DHCP sin esperar una ventana completa.
+const LOCAL_IP_REFRESH_INTERVAL: Duration = Duration::from_secs(5);
 
 #[derive(Parser, Debug)]
 #[command(name = "sc-sentinel-agent", version, about = "SCNet agent daemon")]
@@ -376,6 +381,10 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
     // desarrollo (junto al binario o en sus ancestros).
     let fixture_path = args.fixture.clone().or_else(default_fixture_path);
 
+    // Mantiene vivo el monitor de IPs hasta el apagado del agente. En modos
+    // sin captura live queda en `None`.
+    let mut _local_ip_monitor: Option<LocalIpMonitor> = None;
+
     let capture = if args.no_capture {
         // Solo colector (M4): sin captura live ni offline; el pipeline sigue
         // idéntico pero el canal de captura no recibe nada. Así el colector
@@ -406,14 +415,53 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
             Some(iface) => {
                 tracing::info!(interface = iface, "captura live");
                 // §5: sin las IPs locales el parser descarta todo el tráfico (IPs no locales).
-                let local = match local_ips_for_interface(iface) {
+                let initial = match local_ips_for_interface(iface) {
                     Ok(local) => local,
                     Err(error) => {
                         tracing::error!(event = "interface_lookup_failed", %error, interface = iface, "no se pudo resolver la interfaz");
                         return 1;
                     }
                 };
-                match run_live(iface, local) {
+
+                let usable = initial.has_usable_ipv4();
+                health.note_local_ips(usable, initial.ipv4_count() as u64);
+                if !usable {
+                    tracing::warn!(
+                        event = "local_ips_degraded",
+                        interface = iface,
+                        ipv4_count = initial.ipv4_count(),
+                        ipv6_count = initial.ipv6_count(),
+                        "sin IPv4 no APIPA al arrancar: captura degradada hasta el próximo refresco"
+                    );
+                }
+
+                let (ip_tx, ip_rx) = std_mpsc::channel();
+                let ip_dirty = Arc::new(AtomicBool::new(false));
+                let ip_dirty_monitor = Arc::clone(&ip_dirty);
+                let health_monitor = health.clone();
+                match start_local_ip_monitor(
+                    iface.to_string(),
+                    initial.clone(),
+                    LOCAL_IP_REFRESH_INTERVAL,
+                    local_ips_for_interface,
+                    move |set, changed| {
+                        health_monitor
+                            .note_local_ips(set.has_usable_ipv4(), set.ipv4_count() as u64);
+                        if changed {
+                            let _ = ip_tx.send(set.clone());
+                            ip_dirty_monitor.store(true, Ordering::Release);
+                        }
+                    },
+                ) {
+                    Ok(monitor) => _local_ip_monitor = Some(monitor),
+                    Err(error) => tracing::error!(
+                        event = "local_ip_monitor_start_failed",
+                        %error,
+                        "no se pudo iniciar el monitor de IPs locales"
+                    ),
+                }
+
+                match run_live_with_updates(iface, initial, ip_rx, ip_dirty) {
                     Ok(capture) => capture,
                     Err(error) => {
                         tracing::error!(event = "capture_start_failed", %error, interface = iface, "no se pudo abrir la captura");
