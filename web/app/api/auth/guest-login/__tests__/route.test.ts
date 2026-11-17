@@ -38,11 +38,14 @@ describe('POST /api/auth/guest-login', () => {
   let previousDevice: string | undefined;
   let previousDefault: string | undefined;
   let previousSecret: string | undefined;
+  let previousTrustProxy: string | undefined;
 
   beforeEach(() => {
     previousDevice = process.env.SC_GUEST_DEVICE_ID;
     previousDefault = process.env.DEFAULT_DEVICE_ID;
     previousSecret = process.env.SC_SESSION_SECRET;
+    previousTrustProxy = process.env.TRUST_PROXY;
+    process.env.TRUST_PROXY = '1';
     process.env.SC_GUEST_DEVICE_ID = 'dev_demo';
     delete process.env.DEFAULT_DEVICE_ID;
     process.env.SC_SESSION_SECRET = 'test-guest-login-secret-32-bytes';
@@ -57,6 +60,8 @@ describe('POST /api/auth/guest-login', () => {
     else process.env.DEFAULT_DEVICE_ID = previousDefault;
     if (previousSecret === undefined) delete process.env.SC_SESSION_SECRET;
     else process.env.SC_SESSION_SECRET = previousSecret;
+    if (previousTrustProxy === undefined) delete process.env.TRUST_PROXY;
+    else process.env.TRUST_PROXY = previousTrustProxy;
   });
 
   it('sin SC_GUEST_DEVICE_ID usa DEFAULT_DEVICE_ID (demo sin configuración)', async () => {

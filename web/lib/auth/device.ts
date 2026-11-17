@@ -3,6 +3,7 @@
 import { db, devices } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { logServerError } from '@/lib/logging/error';
+import { safeEqual } from './secrets';
 import { hashToken } from './token';
 
 export { hashToken };
@@ -80,14 +81,12 @@ export async function authenticateDeviceToken(authHeader: string | null): Promis
     }
   }
 
-  // Development fallback when DATABASE_URL is not yet configured. Fuera de
-  // producción exige el token explícito o SC_DEV_AUTH=1.
-  const devAuthEnabled =
-    process.env.NODE_ENV !== 'production' &&
-    Boolean(process.env.SC_INGEST_DEV_TOKEN || process.env.SC_DEV_AUTH === '1');
-  if (devAuthEnabled) {
-    const devToken = process.env.SC_INGEST_DEV_TOKEN || 'sc-sentinel-dev-token';
-    if (token === devToken) {
+  // Development fallback when DATABASE_URL is not yet configured.
+  // V1: exige un SC_INGEST_DEV_TOKEN explícito y distinto del token histórico
+  // por defecto. SC_DEV_AUTH ya no habilita ingest.
+  if (process.env.NODE_ENV !== 'production') {
+    const devToken = process.env.SC_INGEST_DEV_TOKEN?.trim();
+    if (devToken && devToken !== 'sc-sentinel-dev-token' && safeEqual(token, devToken)) {
       return {
         valid: true,
         deviceId: 'dev_local_development',

@@ -49,15 +49,15 @@ describe('authenticateDeviceToken (fallback de desarrollo)', () => {
     });
   });
 
-  it('fuera de producción acepta SC_DEV_AUTH=1 con el token por defecto', async () => {
+  it('fuera de producción ya no acepta SC_DEV_AUTH ni el token por defecto', async () => {
     vi.stubEnv('NODE_ENV', 'test');
     process.env.SC_DEV_AUTH = '1';
 
-    const result = await authenticateDeviceToken('Bearer sc-sentinel-dev-token');
+    const withDevAuth = await authenticateDeviceToken('Bearer sc-sentinel-dev-token');
+    expect(withDevAuth.valid).toBe(false);
 
-    expect(result).toMatchObject({
-      valid: true,
-      deviceId: 'dev_local_development',
-    });
+    process.env.SC_INGEST_DEV_TOKEN = 'sc-sentinel-dev-token';
+    const withLegacyDefault = await authenticateDeviceToken('Bearer sc-sentinel-dev-token');
+    expect(withLegacyDefault.valid).toBe(false);
   });
 });

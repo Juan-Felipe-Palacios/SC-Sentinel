@@ -19,11 +19,14 @@ describe('POST /api/auth/login', () => {
   let previousAdminSecret: string | undefined;
   let previousSessionSecret: string | undefined;
   let previousDevAuth: string | undefined;
+  let previousTrustProxy: string | undefined;
 
   beforeEach(() => {
     previousAdminSecret = process.env.ADMIN_SECRET;
     previousSessionSecret = process.env.SC_SESSION_SECRET;
     previousDevAuth = process.env.SC_DEV_AUTH;
+    previousTrustProxy = process.env.TRUST_PROXY;
+    process.env.TRUST_PROXY = '1';
     delete process.env.ADMIN_SECRET;
     delete process.env.SC_DEV_AUTH;
   });
@@ -36,6 +39,7 @@ describe('POST /api/auth/login', () => {
     restore('ADMIN_SECRET', previousAdminSecret);
     restore('SC_SESSION_SECRET', previousSessionSecret);
     restore('SC_DEV_AUTH', previousDevAuth);
+    restore('TRUST_PROXY', previousTrustProxy);
   });
 
   it('bloquea con 429 el sexto intento fallido desde la misma IP', async () => {
