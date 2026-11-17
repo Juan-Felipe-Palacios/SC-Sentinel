@@ -6,17 +6,14 @@
 // original (contiene el nonce de la request) ni URLs completas con query. La
 // ruta de Trust Page `/p/<token>` se redacta porque el token viaja en el path.
 
-export const MAX_CSP_REPORT_BYTES = 16 * 1024;
+const MAX_CSP_REPORT_BYTES = 16 * 1024;
 const MAX_REPORTS_PER_REQUEST = 5;
 const MAX_FIELD_LENGTH = 200;
 
-export interface CspViolationLog {
-  event: 'csp_violation';
+export interface CspViolation {
   directive: string;
-  disposition: 'report' | 'enforce';
   blocked?: string;
   document?: string;
-  source?: string;
 }
 
 type JsonRecord = Record<string, unknown>;
@@ -59,25 +56,18 @@ export function sanitizeReportedUrl(value: unknown): string | undefined {
   return truncate(`${url.origin}${pathname}`);
 }
 
-function toViolation(source: JsonRecord): CspViolationLog | null {
+function toViolation(source: JsonRecord): CspViolation | null {
   const directive = firstString(source, [
     'effective-directive',
     'effectiveDirective',
     'violated-directive',
-    'violatedDirective',
   ]);
   if (!directive) return null;
 
-  const disposition =
-    firstString(source, ['disposition']) === 'enforce' ? ('enforce' as const) : ('report' as const);
-
   return {
-    event: 'csp_violation',
     directive: truncate(directive),
-    disposition,
     blocked: sanitizeReportedUrl(source['blocked-uri'] ?? source['blockedURL']),
     document: sanitizeReportedUrl(source['document-uri'] ?? source['documentURL']),
-    source: sanitizeReportedUrl(source['source-file'] ?? source['sourceFile']),
   };
 }
 
@@ -86,7 +76,7 @@ function toViolation(source: JsonRecord): CspViolationLog | null {
  * el de Reporting API (`application/reports+json`, array de reportes). Cualquier
  * otra forma devuelve una lista vacía.
  */
-export function normalizeCspReports(payload: unknown): CspViolationLog[] {
+export function normalizeCspReports(payload: unknown): CspViolation[] {
   const records: JsonRecord[] = [];
 
   if (Array.isArray(payload)) {
@@ -102,7 +92,7 @@ export function normalizeCspReports(payload: unknown): CspViolationLog[] {
   return records
     .slice(0, MAX_REPORTS_PER_REQUEST)
     .map(toViolation)
-    .filter((violation): violation is CspViolationLog => violation !== null);
+    .filter((violation): violation is CspViolation => violation !== null);
 }
 
 /**

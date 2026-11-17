@@ -25,9 +25,12 @@ function demoRequest(path = '/demo'): NextRequest {
 
 describe('GET /demo', () => {
   let previousSecret: string | undefined;
+  let previousTrustProxy: string | undefined;
 
   beforeEach(() => {
     previousSecret = process.env.SC_SESSION_SECRET;
+    previousTrustProxy = process.env.TRUST_PROXY;
+    process.env.TRUST_PROXY = '1';
     process.env.SC_SESSION_SECRET = 'test-demo-entry-secret-32-bytes-ok';
     mockedResolve.mockReset();
     mockedLimit.mockReset();
@@ -37,6 +40,8 @@ describe('GET /demo', () => {
   afterEach(() => {
     if (previousSecret === undefined) delete process.env.SC_SESSION_SECRET;
     else process.env.SC_SESSION_SECRET = previousSecret;
+    if (previousTrustProxy === undefined) delete process.env.TRUST_PROXY;
+    else process.env.TRUST_PROXY = previousTrustProxy;
   });
 
   it('crea sesión guest y entra al dashboard', async () => {

@@ -14,7 +14,9 @@
 | `rfc/` | RFCs (propuestas): README + plantilla 0000; numeración 0001+ | proceso |
 | `contracts/` | contratos `/api/ingest` v1 y `/api/chat` v1 + 3 schemas JSON + 4 ejemplos en `examples/` | spec §5, §6 |
 | `diagrams/` | 12 mermaid en `mermaid/` + 4 drawio en `drawio/` + reglas de exports (`README.md` propio) | spec §17 |
-| `architecture/` | C4 overview (L1–L3), data-flow (DFD), decisiones (atajo a `adr/`) | spec §3, §17 |
+| `architecture/` | C4 overview (L1–L3), data-flow (DFD), decisiones (atajo a `adr/`), bootstrap | spec §3, §17 |
+| `designs/` | Diseños técnicos (borradores y specs) | spec §3 |
+| `roadmap.md` | Roadmap y decisiones del propietario (SYNC-30, webhooks) | planificación |
 | `operations/` | deployment, alert-lifecycle, slo, observability (complementan `runbooks/`) | spec §8, §9, §12 |
 | `tutorials/` | quickstart del agente y del dashboard | onboarding |
 | `how-to/` | rotación de secretos, debug de ingest, backup/restore, reglas, upgrade | operación |
@@ -57,7 +59,7 @@ Módulos que sostienen estas rutas: `web/lib/export`, `web/lib/ai/metrics.ts` y 
 |---|---|---|
 | superpowers/specs/ | ✅ v2.2 (consolidación IA free-tier 2026-11-08) | base |
 | superpowers/plans/ | ✅ 8 planes (M0–M5, Ruta B v1/v2) | M0–M5 |
-| adr/ | ✅ 14 ADRs (0001–0014) | M0, M3.5, M4 |
+| adr/ | ✅ 19 ADRs (0001–0019) | M0, M3.5, M4 |
 | rfc/ | ✅ plantilla + índice (sin RFCs aún) | proceso |
 | contracts/ | ✅ v1 congelados (3 schemas + 4 ejemplos) | M0 |
 | diagrams/ | ✅ 17 fuentes (12 mermaid + 4 drawio + exports) | M0–M5 + visual docs |
@@ -69,11 +71,13 @@ Módulos que sostienen estas rutas: `web/lib/export`, `web/lib/ai/metrics.ts` y 
 | how-to/ | ✅ 5 guías | operación |
 | explanation/ | ✅ 4 explicaciones | spec §3 |
 | governance/ | ✅ contribución + versionado | proceso |
-| runbooks/ | ✅ 15 escritos (verificados contra instalación real; pendiente el ciclo físico con el instalador curado) | M1–M5 |
+| runbooks/ | ✅ 16 escritos (verificados contra instalación real; pendiente el ciclo físico con el instalador curado) | M1–M5 |
 | testing/ | ✅ 6 docs + fixtures binarios | M0–M5 |
 | ux/ | ✅ 6 (tokens de marca: valores definidos en la extracción M3) | M3, M3.5 |
 | legal/ | ✅ 5 (2 drafts pendientes de revisión legal antes de M3) | M3 |
 | release/ | ✅ 4 | M2–M5 |
-| security/ | ✅ auditoría 2026-11-09 (altos H1–H7 y M1/M2/M5/M8 + M3/M6/M7 corregidos; M4 y L1–L5 pendientes) | transversal |
+| security/ | ✅ auditoría 2026-11-09 (altos H1–H7 y M1/M2/M5/M8 + M3/M6/M7 corregidos; M4 y L1–L5 pendientes) + plan CSP nonce (P1 y P2 implementados; P3–P5 pendientes) | transversal |
+| designs/ | ✅ borrador ingest por lotes (SYNC-30) | planificación |
+| roadmap.md | ✅ decisiones del propietario (2026-11-15) | planificación |
 
-**Última revisión del índice:** 2026-11-09 — consolidación con el árbol real (rutas, conteos y fuente de verdad corregida).
+**Última revisión del índice:** 2026-11-15 — añadidos `designs/`, `roadmap.md`, `bootstrap-overview.md`; conteos actualizados.

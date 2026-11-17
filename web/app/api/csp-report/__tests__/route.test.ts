@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-import { GET, POST } from '../route';
+import { POST } from '../route';
 
 function reportRequest(
   body: unknown,
@@ -48,8 +48,6 @@ describe('POST /api/csp-report', () => {
             'document-uri': 'https://sc-sentinel.vercel.app/dashboard/overview?device=dev_1#x',
             'blocked-uri': 'inline',
             'effective-directive': 'script-src',
-            'violated-directive': 'script-src',
-            disposition: 'report',
             'original-policy': "script-src 'nonce-secreto123'",
             'script-sample': 'alert(1)',
           },
@@ -63,19 +61,22 @@ describe('POST /api/csp-report', () => {
 
     const events = loggedEvents(warn);
     expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({
+    expect(events[0]).toEqual({
       event: 'csp_violation',
-      directive: 'script-src',
-      disposition: 'report',
-      blocked: 'inline',
-      document: 'https://sc-sentinel.vercel.app/dashboard/overview',
+      violations: [
+        {
+          directive: 'script-src',
+          blocked: 'inline',
+          document: 'https://sc-sentinel.vercel.app/dashboard/overview',
+        },
+      ],
     });
     // Ni la política original (nonce) ni el sample arbitrario llegan al log.
     expect(JSON.stringify(events[0])).not.toContain('nonce-secreto123');
     expect(JSON.stringify(events[0])).not.toContain('alert(1)');
   });
 
-  it('registra reportes de Reporting API y descarta otros tipos', async () => {
+  it('registra en un solo log los reportes de Reporting API y descarta otros tipos', async () => {
     const response = await POST(
       reportRequest(
         [
@@ -85,7 +86,16 @@ describe('POST /api/csp-report', () => {
               documentURL: 'https://sc-sentinel.vercel.app/p/tok_123456/legal',
               blockedURL: 'https://cdn.example.com/lib.js?v=1',
               effectiveDirective: 'script-src-elem',
-              disposition: 'report',
+              sourceFile: 'https://cdn.example.com/lib.js',
+              lineNumber: 1,
+            },
+          },
+          {
+            type: 'csp-violation',
+            body: {
+              documentURL: 'https://sc-sentinel.vercel.app/demo',
+              blockedURL: 'data:text/javascript,alert(1)',
+              effectiveDirective: 'script-src-elem',
             },
           },
           { type: 'deprecation', body: { id: 'x' } },
@@ -98,10 +108,20 @@ describe('POST /api/csp-report', () => {
 
     const events = loggedEvents(warn);
     expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({
-      directive: 'script-src-elem',
-      blocked: 'https://cdn.example.com/lib.js',
-      document: 'https://sc-sentinel.vercel.app/p/[redacted]/legal',
+    expect(events[0]).toEqual({
+      event: 'csp_violation',
+      violations: [
+        {
+          directive: 'script-src-elem',
+          blocked: 'https://cdn.example.com/lib.js',
+          document: 'https://sc-sentinel.vercel.app/p/[redacted]/legal',
+        },
+        {
+          directive: 'script-src-elem',
+          blocked: 'data:',
+          document: 'https://sc-sentinel.vercel.app/demo',
+        },
+      ],
     });
   });
 
@@ -120,12 +140,5 @@ describe('POST /api/csp-report', () => {
 
     expect(response.status).toBe(204);
     expect(warn).not.toHaveBeenCalled();
-  });
-
-  it('rechaza métodos distintos de POST', () => {
-    const response = GET();
-
-    expect(response.status).toBe(405);
-    expect(response.headers.get('allow')).toBe('POST');
   });
 });

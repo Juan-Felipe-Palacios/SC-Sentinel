@@ -8,8 +8,8 @@ export interface SecurityHeader {
 
 export const CSP_HEADER = 'Content-Security-Policy';
 export const CSP_REPORT_ONLY_HEADER = 'Content-Security-Policy-Report-Only';
-export const CSP_REPORT_PATH = '/api/csp-report';
-export const CSP_REPORT_GROUP = 'csp-endpoint';
+const CSP_REPORT_PATH = '/api/csp-report';
+const CSP_REPORT_GROUP = 'csp-endpoint';
 export const CSP_REPORTING_ENDPOINTS = `${CSP_REPORT_GROUP}="${CSP_REPORT_PATH}"`;
 
 export type CspMode = 'enforce' | 'report-only';

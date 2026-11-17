@@ -7,8 +7,8 @@
 // - rate limit por IP y cuerpo acotado antes de parsear (anti-abuso);
 // - solo se registran campos saneados: nunca la política original (lleva el
 //   nonce) ni URLs con query o con el token de una Trust Page;
-// - siempre 204: el navegador ignora la respuesta y un error no debe generar
-//   reintentos ni ruido.
+// - un único log por request (máximo 5 violaciones) y siempre 204: el
+//   navegador ignora la respuesta y un error no debe generar reintentos.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { clientIp } from '@/lib/http/client-ip';
@@ -33,16 +33,10 @@ export async function POST(request: NextRequest) {
     return noContent();
   }
 
-  for (const violation of normalizeCspReports(payload)) {
-    console.warn(JSON.stringify(violation));
+  const violations = normalizeCspReports(payload);
+  if (violations.length > 0) {
+    console.warn(JSON.stringify({ event: 'csp_violation', violations }));
   }
 
   return noContent();
-}
-
-export function GET() {
-  return new NextResponse(null, {
-    status: 405,
-    headers: { Allow: 'POST', 'Cache-Control': 'no-store' },
-  });
 }

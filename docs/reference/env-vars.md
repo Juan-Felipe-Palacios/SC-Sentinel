@@ -13,8 +13,10 @@ Consolidado desde `web/.env.example`, `docs/security/audit-2026-11-09.md` Anexo 
 | `NEXT_PUBLIC_APP_URL` | sí | origen público de la app |
 | `SC_GUEST_DEVICE_ID` | sí (H2) | device expuesto a la demo; sin allowlist no hay demo en prod |
 | `DEFAULT_DEVICE_ID` | no | fallback si falta `SC_GUEST_DEVICE_ID` (solo dev) |
-| `SC_INGEST_DEV_TOKEN` | no (dev) | token de desarrollo para `/api/ingest` (nunca en prod) |
-| `SC_DEV_AUTH` | no (dev) | habilita bypasses locales (`SC_DEV_AUTH=1`) |
+| `SC_INGEST_DEV_TOKEN` | no (dev) | token explícito para el fallback local de `/api/ingest`; sin valor por defecto y distinto de `sc-sentinel-dev-token` (nunca en prod) |
+| `SC_DEV_AUTH` | no (dev) | habilita bypasses de admin locales (`SC_DEV_AUTH=1`); ya no habilita `/api/ingest` |
+| `TRUST_PROXY` | no | `1` solo si la app está detrás de un proxy propio que sobrescribe `X-Forwarded-For`/`X-Real-IP`; sin esto la IP de rate limit es `unknown`. En Vercel se detecta con `VERCEL=1` |
+| `CSP_ENFORCE` | no | `1` aplica la CSP con nonce (`Content-Security-Policy`) en el entorno donde se defina; sin la variable, fuera de desarrollo solo se emite `Content-Security-Policy-Report-Only` hacia `/api/csp-report` (P2). Ver `docs/security/csp-nonce-plan.md` |
 | `OPENROUTER_API_KEY` / `GEMINI_API_KEY` / `GROQ_API_KEY` | recomendada ≥1 | cadena IA (Gemini → OpenRouter → Groq) |
 | `AI_PROVIDER` | no | proveedor primario (`openrouter`\|`gemini`\|`groq`) |
 | `AI_MODELS` | no | modelos del primario (coma-separados) |

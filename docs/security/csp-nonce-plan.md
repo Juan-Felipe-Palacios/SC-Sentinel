@@ -212,10 +212,10 @@ Reglas de log del colector (higiene de secretos):
 
 - nunca se registra `original-policy` (contiene el nonce de esa request) ni
   `script-sample`;
-- solo se registran directiva, disposición y URLs reducidas a origen + ruta, sin
-  query ni fragmento;
+- solo se registran directiva y URLs (documento y bloqueado) reducidas a
+  origen + ruta, sin query ni fragmento;
 - la ruta de Trust Page `/p/<token>` se redacta como `/p/[redacted]`;
-- máximo 5 reportes por request.
+- un único log por request, con máximo 5 violaciones.
 
 Modo por entorno:
 
