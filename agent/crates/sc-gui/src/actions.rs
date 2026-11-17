@@ -165,7 +165,7 @@ pub fn health_level(facts: LiveFacts<'_>, sync_age_secs: Option<i64>) -> HealthL
     if snapshot.spool_bytes > SPOOL_ALERT_BYTES {
         return HealthLevel::Warn;
     }
-    if snapshot.mode != "service" && snapshot.capture_status != "ok" {
+    if !capture_expected(snapshot) {
         return HealthLevel::Warn;
     }
     if snapshot.mode == "service" {
@@ -219,7 +219,7 @@ pub fn substatuses(facts: LiveFacts<'_>, sync_age_secs: Option<i64>) -> SubStatu
         return SubStatuses::UNREACHABLE;
     };
 
-    let capture_ok = snapshot.mode == "service" || snapshot.capture_status == "ok";
+    let capture_ok = capture_expected(snapshot);
     let device = if snapshot.device_id.is_empty() || !capture_ok {
         HealthLevel::Warn
     } else {
@@ -245,6 +245,27 @@ pub fn substatuses(facts: LiveFacts<'_>, sync_age_secs: Option<i64>) -> SubStatu
         device,
         connection,
         retention,
+    }
+}
+
+/// La captura se considera "esperada" cuando está `ok` o cuando el agente corre
+/// como servicio con captura `disabled` (modo colector). Cualquier otro estado
+/// (incluido `disabled` en consola) es una advertencia.
+pub fn capture_expected(snapshot: &crate::status_client::StatusSnapshot) -> bool {
+    snapshot.capture_status == "ok"
+        || (snapshot.mode == "service" && snapshot.capture_status == "disabled")
+}
+
+/// Nivel visual del estado de captura en la vista Estado.
+///
+/// `None` representa `disabled`, que se pinta gris y no genera overlay. Un
+/// estado desconocido se trata como advertencia para no ocultar un problema.
+pub fn capture_level(snapshot: &crate::status_client::StatusSnapshot) -> Option<HealthLevel> {
+    match snapshot.capture_status.as_str() {
+        "ok" => Some(HealthLevel::Ok),
+        "degraded" => Some(HealthLevel::Warn),
+        "disabled" | "" => None,
+        _ => Some(HealthLevel::Warn),
     }
 }
 
@@ -408,7 +429,7 @@ mod tests {
     }
 
     #[test]
-    fn captura_degradada_solo_alerta_en_modo_live() {
+    fn disabled_en_consola_pinta_ambar() {
         let live = snapshot("console", "disabled");
         let live_level = health_level(
             LiveFacts {
@@ -419,6 +440,31 @@ mod tests {
             None,
         );
         assert_eq!(live_level, HealthLevel::Warn);
+    }
+
+    #[test]
+    fn captura_degradada_en_servicio_tambien_pinta_ambar() {
+        let snap = snapshot("service", "degraded");
+        let level = health_level(facts(&snap), Some(5));
+        assert_eq!(level, HealthLevel::Warn);
+        assert_eq!(overlay_from_level(level), Overlay::Warn);
+    }
+
+    #[test]
+    fn capture_level_mapea_los_tres_estados() {
+        assert_eq!(
+            capture_level(&snapshot("service", "ok")),
+            Some(HealthLevel::Ok)
+        );
+        assert_eq!(
+            capture_level(&snapshot("service", "degraded")),
+            Some(HealthLevel::Warn)
+        );
+        assert_eq!(capture_level(&snapshot("service", "disabled")), None);
+        assert_eq!(
+            capture_level(&snapshot("service", "error")),
+            Some(HealthLevel::Warn)
+        );
     }
 
     /// Snapshot enrolado y sano, listo para variar un campo por prueba.
@@ -485,12 +531,12 @@ mod tests {
     }
 
     #[test]
-    fn captura_degradada_marca_el_dispositivo_solo_en_consola() {
-        let console = enrolled("console", "error");
-        let statuses = substatuses(facts(&console), None);
-        assert_eq!(statuses.device, HealthLevel::Warn);
-        assert_eq!(statuses.connection, HealthLevel::Ok);
-        assert_eq!(statuses.retention, HealthLevel::Ok);
+    fn captura_degradada_marca_el_dispositivo_en_cualquier_modo() {
+        for mode in ["console", "service"] {
+            let degraded = enrolled(mode, "degraded");
+            let statuses = substatuses(facts(&degraded), None);
+            assert_eq!(statuses.device, HealthLevel::Warn, "{mode}");
+        }
 
         // En servicio `disabled` es lo esperado por `--no-capture`.
         let service = enrolled("service", "disabled");

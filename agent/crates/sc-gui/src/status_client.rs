@@ -70,6 +70,13 @@ pub struct StatusSnapshot {
     /// agente anterior: la GUI cae al spool y luego al ring-buffer.
     #[serde(default)]
     pub windows: Vec<WindowStatus>,
+    /// Estado del conjunto de IPs locales; `None` con un agente anterior.
+    #[serde(default)]
+    pub local_ips_usable: Option<bool>,
+    #[serde(default)]
+    pub local_ips_ipv4: Option<u64>,
+    #[serde(default)]
+    pub local_ips_last_refresh: Option<String>,
 }
 
 /// Contadores de una ventana tal como los publica `/status`. Solo conteos.
@@ -188,6 +195,8 @@ mod tests {
         assert!(snapshot.uptime_seconds.is_none());
         assert!(snapshot.interface.is_none());
         assert!(snapshot.windows.is_empty());
+        assert!(snapshot.local_ips_usable.is_none());
+        assert!(snapshot.local_ips_last_refresh.is_none());
     }
 
     #[test]
@@ -202,6 +211,19 @@ mod tests {
         assert_eq!(snapshot.windows.len(), 1);
         assert_eq!(snapshot.windows[0].packets_seen, 10);
         assert_eq!(snapshot.windows[0].parse_errors, 0);
+    }
+
+    #[test]
+    fn lee_el_estado_de_ips_locales_cuando_el_agente_lo_expone() {
+        let raw = r#"{"capture_status":"degraded","local_ips_usable":false,
+            "local_ips_ipv4":0,"local_ips_last_refresh":"2026-11-17T00:00:05.000Z"}"#;
+        let snapshot: StatusSnapshot = serde_json::from_str(raw).expect("json con IPs locales");
+        assert_eq!(snapshot.local_ips_usable, Some(false));
+        assert_eq!(snapshot.local_ips_ipv4, Some(0));
+        assert_eq!(
+            snapshot.local_ips_last_refresh.as_deref(),
+            Some("2026-11-17T00:00:05.000Z")
+        );
     }
 
     #[test]
