@@ -3,6 +3,7 @@ import "./globals.css";
 // Banderas SVG locales: los emoji de bandera no se ven como bandera en Windows.
 import "flag-icons/css/flag-icons.min.css";
 import { Space_Grotesk, IBM_Plex_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es" className={`${spaceGrotesk.variable} ${plexMono.variable}`}>
       <body>
         {children}
+        <Analytics />
       </body>
     </html>
   );
