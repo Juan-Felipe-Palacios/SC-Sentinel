@@ -5,18 +5,34 @@ use crate::channel::CaptureChannel;
 use crate::channel::CaptureChannelPair;
 use crate::flow::LocalIpSet;
 use crate::CaptureError;
+use std::sync::atomic::AtomicBool;
+use std::sync::mpsc::Receiver;
+use std::sync::Arc;
 
-/// Captura en vivo sobre una interfaz (requiere compilar con `--features live`).
-///
-/// La interfaz se abre en el hilo llamante para poder devolver el error de
-/// configuración (nombre inexistente, permisos, Npcap ausente) antes de arrancar
-/// el hilo de lectura; el hilo solo bombea paquetes al canal y termina cuando el
-/// consumidor cierra el canal.
+/// Captura en vivo con un conjunto de IPs locales fijo. Se conserva para
+/// tests y llamadas existentes; el daemon usa `run_live_with_updates` para
+/// recibir los refrescos del monitor.
 #[cfg(feature = "live")]
 pub fn run_live(iface: &str, local: LocalIpSet) -> Result<CaptureChannel, CaptureError> {
+    let (_tx, updates) = std::sync::mpsc::channel();
+    run_live_with_updates(iface, local, updates, Arc::new(AtomicBool::new(false)))
+}
+
+/// Captura en vivo que consume actualizaciones de IPs locales sin bloquear.
+///
+/// La interfaz se abre en el hilo llamante para devolver el error de
+/// configuración antes de arrancar el hilo de lectura. Ese hilo es el único
+/// dueño de `local`; en cada paquete revisa si el monitor dejó un conjunto
+/// nuevo. `try_recv` no espera y no hay lock en la ruta caliente.
+#[cfg(feature = "live")]
+pub fn run_live_with_updates(
+    iface: &str,
+    mut local: LocalIpSet,
+    updates: Receiver<LocalIpSet>,
+    updates_dirty: Arc<AtomicBool>,
+) -> Result<CaptureChannel, CaptureError> {
     use crate::parse_packet;
     use std::sync::atomic::Ordering;
-    use std::sync::Arc;
     use std::thread;
     use tokio::sync::mpsc::error::TrySendError;
 
@@ -56,8 +72,16 @@ pub fn run_live(iface: &str, local: LocalIpSet) -> Result<CaptureChannel, Captur
         .map_err(|e| CaptureError::OpenFailure(e.to_string()))?;
 
     thread::spawn(move || {
-        let local = Arc::new(local);
         loop {
+            // El monitor solo activa la bandera cuando cambió el conjunto.
+            // `swap` es una operación atómica barata; el canal no se toca en
+            // el caso normal, ni siquiera con tráfico sostenido.
+            if updates_dirty.swap(false, Ordering::Acquire) {
+                while let Ok(updated) = updates.try_recv() {
+                    local = updated;
+                }
+            }
+
             match capture.next_packet() {
                 Ok(packet) => {
                     thread_packets_seen.fetch_add(1, Ordering::Relaxed);
@@ -103,6 +127,18 @@ pub fn run_live(iface: &str, local: LocalIpSet) -> Result<CaptureChannel, Captur
 /// Sin la feature `live` el daemon sigue compilando, pero no captura.
 #[cfg(not(feature = "live"))]
 pub fn run_live(_iface: &str, _local: LocalIpSet) -> Result<CaptureChannel, CaptureError> {
+    Err(CaptureError::Runtime(
+        "captura live no compilada: recompilar con --features live".to_string(),
+    ))
+}
+
+#[cfg(not(feature = "live"))]
+pub fn run_live_with_updates(
+    _iface: &str,
+    _local: LocalIpSet,
+    _updates: Receiver<LocalIpSet>,
+    _updates_dirty: Arc<AtomicBool>,
+) -> Result<CaptureChannel, CaptureError> {
     Err(CaptureError::Runtime(
         "captura live no compilada: recompilar con --features live".to_string(),
     ))
