@@ -1,11 +1,17 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
-// Resolución del device de la demo pública. Node runtime (consulta la base).
+// Resolución del device de la demo pública. Node runtime (consulta la base
+// solo si hay un device real configurado).
 //
 // Orden: SC_GUEST_DEVICE_ID (allowlist explícita) → DEFAULT_DEVICE_ID →
-// primer device no revocado. En producción sin allowlist la demo falla
-// cerrada para no exponer un device real.
+// dataset sintético local. Sin allowlist ya no se elige el primer device de
+// la base: la demo usa datos de demostración y nunca puede exponer datos
+// reales por accidente.
 
-import { getDeviceById, listDevices } from '@/lib/query/devices';
+import { getDeviceById } from '@/lib/query/devices';
+import {
+  SYNTHETIC_DEMO_DEVICE_ID,
+  isSyntheticDemoDevice,
+} from '@/lib/demo/synthetic';
 
 export type GuestDeviceError = 'not_allowed' | 'not_found';
 
@@ -18,27 +24,17 @@ export async function resolveGuestDevice(
   requestedDeviceId?: string | null
 ): Promise<GuestDeviceResolution> {
   const configured = process.env.SC_GUEST_DEVICE_ID?.trim();
-  let candidate = configured || process.env.DEFAULT_DEVICE_ID?.trim() || null;
-
-  if (!candidate) {
-    if (process.env.NODE_ENV === 'production') {
-      // Sin allowlist explícita no se adivina un device: podría ser de un cliente.
-      return { deviceId: null, error: 'not_found' };
-    }
-    const devices = await listDevices();
-    candidate =
-      devices.find((device) => device.status === 'active')?.id ??
-      devices.find((device) => device.status !== 'revoked')?.id ??
-      null;
-  }
-
-  if (!candidate) {
-    return { deviceId: null, error: 'not_found' };
-  }
+  const candidate =
+    configured || process.env.DEFAULT_DEVICE_ID?.trim() || SYNTHETIC_DEMO_DEVICE_ID;
 
   // Si el visitante escribe un device, solo puede ser el de la demo.
   if (requestedDeviceId && requestedDeviceId !== candidate) {
     return { deviceId: null, error: 'not_allowed' };
+  }
+
+  // El dataset sintético no existe en la base: se resuelve sin consultarla.
+  if (isSyntheticDemoDevice(candidate)) {
+    return { deviceId: SYNTHETIC_DEMO_DEVICE_ID, error: null };
   }
 
   const device = await getDeviceById(candidate);

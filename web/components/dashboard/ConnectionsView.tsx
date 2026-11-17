@@ -6,7 +6,7 @@ import useSWR from 'swr';
 import type { QueryRange } from '@/lib/schemas/query';
 import type { OverviewResponse } from '@/lib/api-types';
 import type { ZoomRange } from '@/lib/zoom';
-import { fetcher } from '@/lib/swr';
+import { fetcher, FetchError } from '@/lib/swr';
 import { ExportBar } from './ExportBar';
 import { TrafficPanel } from './TrafficPanel';
 import { TopPortsTable } from './TopPortsTable';
@@ -27,11 +27,16 @@ export function ConnectionsView({ range }: { range: QueryRange }) {
   const overview = useSWR<OverviewResponse>(overviewKey, fetcher, { refreshInterval: REFRESH_MS });
 
   if (overview.error && !overview.data) {
+    const unavailable = overview.error instanceof FetchError && overview.error.status === 503;
     return (
       <div className="mx-auto max-w-md rounded-xl border-slate-800/80 bg-slate-900/60 p-8 text-center">
-        <p className="font-display text-lg font-semibold text-slate-100">No se pudieron cargar las conexiones</p>
+        <p className="font-display text-lg font-semibold text-slate-100">
+          {unavailable ? 'Servicio de datos no disponible' : 'No se pudieron cargar las conexiones'}
+        </p>
         <p className="mt-2 text-sm leading-6 text-slate-400">
-          {overview.error instanceof Error ? overview.error.message : 'Error de conexión.'} Revisá que la base esté disponible y reintentá.
+          {unavailable
+            ? 'El servicio de datos no está disponible en este momento; no es un período sin datos. Reintentá en unos minutos.'
+            : `${overview.error instanceof Error ? overview.error.message : 'Error de conexión.'} Revisá la conexión y reintentá.`}
         </p>
         <button
           type="button"
@@ -57,7 +62,16 @@ export function ConnectionsView({ range }: { range: QueryRange }) {
     );
   }
 
-  const { series, top_hosts: topHosts, top_ports: topPorts, protocols, top_countries: topCountries, period } = overview.data;
+  const {
+    series,
+    top_hosts: topHosts,
+    top_ports: topPorts,
+    protocols,
+    top_countries: topCountries,
+    period,
+    totals,
+    last_data_at: lastDataAt,
+  } = overview.data;
   const periodLabel = `${new Date(period.start).toLocaleString('es-AR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })} → ${new Date(period.end).toLocaleString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })}`;
 
   return (
@@ -72,6 +86,20 @@ export function ConnectionsView({ range }: { range: QueryRange }) {
         </div>
         <ExportBar range={range} zoom={zoom} />
       </div>
+
+      {totals.windows_count === 0 ? (
+        <div
+          role="status"
+          className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm leading-6 text-amber-300"
+        >
+          <p className="font-display font-semibold">Sin datos en el período seleccionado</p>
+          <p className="mt-1 text-xs leading-5 text-amber-200/80">
+            {lastDataAt
+              ? `Último dato observado: ${new Date(lastDataAt).toLocaleString('es-AR', { dateStyle: 'medium', timeStyle: 'short' })}.`
+              : 'El dispositivo todavía no reportó ninguna ventana.'}
+          </p>
+        </div>
+      ) : null}
 
       {zoom ? (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sc-viz-in/30 bg-sc-viz-in/5 px-4 py-2.5">

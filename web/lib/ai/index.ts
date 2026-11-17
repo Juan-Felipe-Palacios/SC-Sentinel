@@ -42,8 +42,8 @@ export {
   resetRateLimits,
 } from './rate-limit';
 export { canonicalJson, factsHash } from './hash';
-export { AI_CRON_MIN_INTERVAL_MS } from './analyze';
-export type { RunAnalysisOptions } from './analyze';
+export { AI_CRON_MIN_INTERVAL_MS, checkDailyBudget } from './analyze';
+export type { DailyBudgetStatus, RunAnalysisOptions } from './analyze';
 export { fetchAiFacts, type AiFacts } from './facts';
 
 export async function runAiPipeline(

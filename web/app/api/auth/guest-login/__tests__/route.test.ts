@@ -3,6 +3,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { getDeviceById, listDevices } from '@/lib/query/devices';
+import { verifyGuestToken } from '@/lib/auth/guest';
+import { SYNTHETIC_DEMO_DEVICE_ID } from '@/lib/demo/synthetic';
 import { POST } from '../route';
 
 vi.mock('@/lib/query/devices', () => ({
@@ -68,21 +70,22 @@ describe('POST /api/auth/guest-login', () => {
     expect(mockedGetDevice).toHaveBeenCalledWith('dev_default');
   });
 
-  it('sin ninguna variable usa el primer device no revocado', async () => {
+  it('sin ninguna variable usa el dataset sintético sin consultar la base', async () => {
     delete process.env.SC_GUEST_DEVICE_ID;
-    mockedListDevices.mockResolvedValue([
-      { ...device, id: 'dev_revocado', status: 'revoked' },
-      device,
-    ]);
-    mockedGetDevice.mockResolvedValue(device);
+    mockedListDevices.mockResolvedValue([{ ...device, id: 'dev_real' }]);
 
     const response = await POST(guestRequest({}, '203.0.113.15'));
 
     expect(response.status).toBe(200);
-    expect(mockedGetDevice).toHaveBeenCalledWith('dev_demo');
+    expect(mockedListDevices).not.toHaveBeenCalled();
+    expect(mockedGetDevice).not.toHaveBeenCalled();
+
+    const token = response.cookies.get('sc_guest')?.value;
+    const session = await verifyGuestToken(token ?? '');
+    expect(session?.deviceId).toBe(SYNTHETIC_DEMO_DEVICE_ID);
   });
 
-  it('en producción sin allowlist no adivina un device', async () => {
+  it('en producción sin allowlist también usa el dataset sintético', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     delete process.env.SC_GUEST_DEVICE_ID;
     delete process.env.DEFAULT_DEVICE_ID;
@@ -91,16 +94,19 @@ describe('POST /api/auth/guest-login', () => {
     try {
       const response = await POST(guestRequest({}, '203.0.113.18'));
 
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(200);
       expect(mockedListDevices).not.toHaveBeenCalled();
+
+      const token = response.cookies.get('sc_guest')?.value;
+      const session = await verifyGuestToken(token ?? '');
+      expect(session?.deviceId).toBe(SYNTHETIC_DEMO_DEVICE_ID);
     } finally {
       vi.unstubAllEnvs();
     }
   });
 
-  it('responde 404 si no hay ningún device para la demo', async () => {
-    delete process.env.SC_GUEST_DEVICE_ID;
-    mockedListDevices.mockResolvedValue([]);
+  it('un device configurado inexistente sigue fallando cerrado', async () => {
+    mockedGetDevice.mockResolvedValue(null);
 
     const response = await POST(guestRequest({}, '203.0.113.16'));
 

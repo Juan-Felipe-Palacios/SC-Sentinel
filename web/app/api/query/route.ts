@@ -17,8 +17,48 @@ import { fetchLatestInsight } from '@/lib/ai/analyze';
 import { queryEvals } from '@/lib/query/evals';
 import { attachHostnames } from '@/lib/dns/reverse';
 import { logServerError } from '@/lib/logging/error';
+import {
+  isSyntheticDemoDevice,
+  syntheticAlerts,
+  syntheticHealth,
+  syntheticHeatmap,
+  syntheticHostDetail,
+  syntheticHosts,
+  syntheticInsight,
+  syntheticOverview,
+} from '@/lib/demo/synthetic';
+import { classifyOperationalError, isUnavailableCode } from '@/lib/errors/classify';
 
 const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
+
+type SyntheticMetric = 'overview' | 'hosts' | 'alerts' | 'host' | 'heatmap' | 'health' | 'ai';
+
+/** Respuestas de la demo: deterministas y generadas en memoria, sin base. */
+function syntheticResponse(
+  metric: SyntheticMetric,
+  range: Parameters<typeof syntheticOverview>[0],
+  hostKey: string | undefined
+): NextResponse {
+  switch (metric) {
+    case 'overview':
+      return NextResponse.json(syntheticOverview(range), { status: 200, headers: noStoreHeaders });
+    case 'hosts':
+      return NextResponse.json(syntheticHosts(range), { status: 200, headers: noStoreHeaders });
+    case 'alerts':
+      return NextResponse.json(syntheticAlerts(range), { status: 200, headers: noStoreHeaders });
+    case 'host':
+      return NextResponse.json(syntheticHostDetail(hostKey ?? '', range), {
+        status: 200,
+        headers: noStoreHeaders,
+      });
+    case 'heatmap':
+      return NextResponse.json(syntheticHeatmap(range), { status: 200, headers: noStoreHeaders });
+    case 'health':
+      return NextResponse.json(syntheticHealth(), { status: 200, headers: noStoreHeaders });
+    case 'ai':
+      return NextResponse.json(syntheticInsight(), { status: 200, headers: noStoreHeaders });
+  }
+}
 
 export async function GET(request: NextRequest) {
   // 1. Admin o visitante (solo lectura). El visitante queda acotado a su device.
@@ -77,6 +117,24 @@ export async function GET(request: NextRequest) {
   try {
     const deviceId =
       auth.role === 'guest' ? guestDeviceId : await resolveDeviceId(device_id);
+
+    // Demo pública: el visitante queda en el dataset sintético; no se consulta
+    // la base ni se puede cambiar a otro device. `evals` sigue siendo solo admin.
+    if (auth.role === 'guest' && isSyntheticDemoDevice(deviceId)) {
+      if (metric === 'evals') {
+        return NextResponse.json(
+          { error: 'forbidden', message: 'Solo administración.' },
+          { status: 403, headers: noStoreHeaders }
+        );
+      }
+      if (metric === 'host' && !host_key) {
+        return NextResponse.json(
+          { error: 'bad_request', message: 'host_key es obligatorio para metric=host' },
+          { status: 400, headers: noStoreHeaders }
+        );
+      }
+      return syntheticResponse(metric, range, host_key);
+    }
 
     switch (metric) {
       case 'overview':
@@ -137,7 +195,12 @@ export async function GET(request: NextRequest) {
       }
     }
   } catch (error) {
-    logServerError('query_failed', error);
-    return NextResponse.json({ error: 'internal_error' }, { status: 500, headers: noStoreHeaders });
+    const code = classifyOperationalError(error);
+    logServerError('query_failed', error, { code });
+    // Cuerpo público genérico: el código operativo solo va al log.
+    return NextResponse.json(
+      { error: 'data_unavailable' },
+      { status: isUnavailableCode(code) ? 503 : 500, headers: noStoreHeaders }
+    );
   }
 }

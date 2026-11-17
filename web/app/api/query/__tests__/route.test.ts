@@ -5,6 +5,8 @@ import { NextRequest } from 'next/server';
 import { authorize } from '@/lib/auth/resolve';
 import { checkGuestRequestLimit } from '@/lib/rate-limit/guest';
 import { queryEvals } from '@/lib/query/evals';
+import { resolveDeviceId } from '@/lib/query/device';
+import { SYNTHETIC_DEMO_DEVICE_ID } from '@/lib/demo/synthetic';
 import { GET } from '../route';
 
 vi.mock('@/lib/auth/resolve', () => ({
@@ -28,6 +30,7 @@ vi.mock('@/lib/query/device', () => ({
 const mockedAuthorize = vi.mocked(authorize);
 const mockedLimit = vi.mocked(checkGuestRequestLimit);
 const mockedEvals = vi.mocked(queryEvals);
+const mockedResolveDevice = vi.mocked(resolveDeviceId);
 
 function request(): NextRequest {
   return new NextRequest('http://localhost/api/query?metric=evals');
@@ -37,6 +40,57 @@ describe('GET /api/query?metric=evals', () => {
   beforeEach(() => {
     mockedLimit.mockReturnValue({ allowed: true });
     mockedEvals.mockReset();
+    mockedResolveDevice.mockClear();
+  });
+
+  it('sirve datos sintéticos al visitante sin resolver un device real', async () => {
+    mockedAuthorize.mockResolvedValue({
+      ok: true,
+      auth: {
+        role: 'guest',
+        guest: {
+          deviceId: SYNTHETIC_DEMO_DEVICE_ID,
+          expiresAt: Date.now() + 60_000,
+          tokenId: 'token',
+        },
+      },
+    });
+
+    const response = await GET(
+      new NextRequest(`http://localhost/api/query?metric=overview&range=1h`)
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      top_hosts: unknown[];
+      last_data_at: string | null;
+      totals: { hosts_count: number };
+    };
+    expect(body.top_hosts.length).toBeGreaterThan(0);
+    expect(body.totals.hosts_count).toBeGreaterThan(0);
+    expect(body.last_data_at).toBeTruthy();
+    expect(mockedResolveDevice).not.toHaveBeenCalled();
+  });
+
+  it('no permite que el visitante pida otro device', async () => {
+    mockedAuthorize.mockResolvedValue({
+      ok: true,
+      auth: {
+        role: 'guest',
+        guest: {
+          deviceId: SYNTHETIC_DEMO_DEVICE_ID,
+          expiresAt: Date.now() + 60_000,
+          tokenId: 'token',
+        },
+      },
+    });
+
+    const response = await GET(
+      new NextRequest(`http://localhost/api/query?metric=overview&device_id=dev_real`)
+    );
+
+    expect(response.status).toBe(403);
+    expect(mockedResolveDevice).not.toHaveBeenCalled();
   });
 
   it('devuelve 403 al visitante sin consultar métricas globales', async () => {

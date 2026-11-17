@@ -64,6 +64,8 @@ export interface OverviewTopAsn {
 export interface OverviewResult {
   range: QueryRange;
   period: { start: string; end: string };
+  /** Última ventana observada, incluso fuera del rango; null si nunca hubo datos. */
+  last_data_at: string | null;
   totals: {
     bytes_in: number;
     bytes_out: number;
@@ -127,6 +129,10 @@ interface AlertSeverityRow {
   count: number | string | null;
 }
 
+interface LastDataRow {
+  last_data_at: Date | string | null;
+}
+
 interface RiskRow {
   scored_hosts: number | string | null;
   high_hosts: number | string | null;
@@ -182,6 +188,7 @@ function emptyOverview(
   return {
     range,
     period: { start: start.toISOString(), end: end.toISOString() },
+    last_data_at: null,
     totals: {
       bytes_in: 0,
       bytes_out: 0,
@@ -237,6 +244,7 @@ export async function queryOverview(
     alertSeverityRows,
     portRows,
     riskRows,
+    lastDataRows,
   ] = await Promise.all([
     queryRows<WindowCountRow>(
       database,
@@ -381,6 +389,12 @@ export async function queryOverview(
                  (COUNT(*) FILTER (WHERE risk_score::float8 < 0.4))::bigint AS low_hosts
           FROM latest`
     ),
+    queryRows<LastDataRow>(
+      database,
+      sql`SELECT MAX(start_at) AS last_data_at
+          FROM flow_windows
+          WHERE device_id = ${deviceId}`
+    ),
   ]);
 
   // La distribución por protocolo sale de las mismas filas: el ranking de puertos se
@@ -402,6 +416,7 @@ export async function queryOverview(
   return {
     range,
     period: { start: start.toISOString(), end: end.toISOString() },
+    last_data_at: isoOrNull(lastDataRows[0]?.last_data_at),
     totals: {
       bytes_in: totalBytesIn,
       bytes_out: totalBytesOut,

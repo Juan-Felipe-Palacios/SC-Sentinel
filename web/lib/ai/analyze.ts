@@ -44,6 +44,8 @@ export interface RunAnalysisOptions {
    * IA. El panel manual no lo pasa y sigue controlando por facts_hash.
    */
   minIntervalMs?: number;
+  /** El cron ya validó el presupuesto antes de consultar datos del device. */
+  skipBudgetCheck?: boolean;
 }
 
 /** Cadencia del cron de IA: máximo un insight nuevo cada 15 min por device.
@@ -179,6 +181,28 @@ async function countInsightsToday(database: QueryDb): Promise<number> {
   return Number(rows[0]?.total ?? 0);
 }
 
+export interface DailyBudgetStatus {
+  /** true si ya se agotó el presupuesto configurado. */
+  exhausted: boolean;
+  used: number;
+  /** 0 = sin límite configurado. */
+  budget: number;
+}
+
+/**
+ * Comprueba el presupuesto diario sin leer ventanas ni devices. El cron lo
+ * ejecuta antes de resolver el device para no despertar la base de datos de
+ * datos si no queda cuota de IA. Con presupuesto 0 no consulta nada.
+ */
+export async function checkDailyBudget(
+  database: QueryDb = defaultQueryDb
+): Promise<DailyBudgetStatus> {
+  const budget = dailyCallBudget();
+  if (budget <= 0) return { exhausted: false, used: 0, budget: 0 };
+  const used = await countInsightsToday(database);
+  return { exhausted: used >= budget, used, budget };
+}
+
 /** Inicio (ISO) de la ventana de flow más reciente del device; null si no hay. */
 async function latestFlowWindowStart(
   deviceId: string,
@@ -270,14 +294,17 @@ export async function runAnalysisPipeline(
   }
 
   // Presupuesto diario de llamadas: agotado ⇒ no se gasta cuota free.
-  const budget = dailyCallBudget();
-  if (budget > 0) {
-    const used = await countInsightsToday(database);
-    if (used >= budget) {
-      console.warn(JSON.stringify({ event: 'ai_budget_exhausted', used, budget }));
-      const latest = await findLatestInsight(deviceId, language, database);
-      if (latest) return { status: 'cached', insight: latest };
-      return { status: 'degraded', insight: null };
+  // El cron lo comprueba antes de consultar el device y pasa skipBudgetCheck.
+  if (!options.skipBudgetCheck) {
+    const budget = dailyCallBudget();
+    if (budget > 0) {
+      const used = await countInsightsToday(database);
+      if (used >= budget) {
+        console.warn(JSON.stringify({ event: 'ai_budget_exhausted', used, budget }));
+        const latest = await findLatestInsight(deviceId, language, database);
+        if (latest) return { status: 'cached', insight: latest };
+        return { status: 'degraded', insight: null };
+      }
     }
   }
 
@@ -307,7 +334,7 @@ export async function runAnalysisPipeline(
             ${hash},
             NULL,
             NULL,
-            NULL,
+            0,
             NULL,
             NULL
           )`

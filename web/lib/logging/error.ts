@@ -17,6 +17,8 @@ export interface LogServerErrorOptions {
    * driver (código SQLSTATE) el mensaje es lo único que permite diagnosticar.
    */
   includeMessage?: boolean;
+  /** Código operativo estable (db_unavailable, timeout, …). */
+  code?: string;
 }
 
 export function logServerError(
@@ -25,6 +27,7 @@ export function logServerError(
   options: LogServerErrorOptions = {}
 ): void {
   const payload: Record<string, unknown> = { event, error: errorCode(error) };
+  if (options.code) payload.code = options.code;
   if (options.includeMessage && error instanceof Error && error.message) {
     payload.detail = error.message.slice(0, 320);
   }

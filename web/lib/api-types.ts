@@ -92,6 +92,8 @@ export interface OverviewProtocolShare {
 export interface OverviewResponse {
   range: QueryRange;
   period: Period;
+  /** Última ventana observada para el device, incluso fuera del rango; null si nunca hubo datos. */
+  last_data_at: string | null;
   totals: OverviewTotals;
   series: OverviewSeriesPoint[];
   top_hosts: OverviewTopHost[];

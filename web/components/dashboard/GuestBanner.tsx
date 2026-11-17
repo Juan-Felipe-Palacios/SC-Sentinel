@@ -35,10 +35,11 @@ export function GuestBanner({ expiresAt }: { expiresAt: number }) {
     >
       <span className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em]">
         <Eye className="size-3.5" strokeWidth={1.8} aria-hidden="true" />
-        Demo pública
+        Datos de demostración
       </span>
       <span className="text-xs leading-5 text-slate-100/80">
-        Solo lectura, sin registro. Las acciones de administración están deshabilitadas.
+        Tráfico sintético generado para la demo; no corresponde a datos reales. Solo lectura, sin
+        registro.
       </span>
       <span className="ml-auto inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.18em] text-amber-400/80">
         <LockKeyhole className="size-3" aria-hidden="true" />

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { runAnalysisPipeline } from '@/lib/ai/analyze';
+import { checkDailyBudget, runAnalysisPipeline } from '@/lib/ai/analyze';
 import type { AiFacts } from '@/lib/ai/facts';
 
 const facts: AiFacts = {
@@ -157,7 +157,8 @@ describe('modo cron (Estrategias A y B)', () => {
     vi.stubEnv('OPENROUTER_API_KEY', '');
     // Primera consulta: no hay insight previo con el mismo hash. La segunda es
     // el INSERT del insight determinista (no debe faltar).
-    const db = fakeDb([[]]);
+    const execute = vi.fn().mockResolvedValueOnce([]);
+    const db = { execute } as never;
     const emptyFacts: AiFacts = { ...facts, total_bytes: 0, total_packets: 0 };
 
     const result = await runAnalysisPipeline(emptyFacts, 'dev_x', db, 'es');
@@ -168,5 +169,33 @@ describe('modo cron (Estrategias A y B)', () => {
     // Sin hallazgos ni recomendaciones inventadas: el período está vacío.
     expect(result.insight?.findings).toEqual([]);
     expect(result.insight?.recommendations).toEqual([]);
+
+    // Regresión: cost_usd es NOT NULL con default 0. El INSERT de no_traffic
+    // debe enviar 0 y no NULL, o el cron falla con 23502.
+    const insert = execute.mock.calls[1]?.[0] as { queryChunks?: unknown[] };
+    const sqlText = (insert.queryChunks ?? [])
+      .map((chunk) => {
+        if (typeof chunk === 'string') return chunk;
+        const value = (chunk as { value?: unknown }).value;
+        return Array.isArray(value) ? value.join('') : '';
+      })
+      .join('');
+    expect(sqlText).toMatch(/NULL,\s*NULL,\s*0,\s*NULL,\s*NULL/);
+  });
+});
+
+describe('checkDailyBudget', () => {
+  it('no consulta la base cuando no hay límite configurado', async () => {
+    vi.stubEnv('AI_DAILY_CALL_BUDGET', '0');
+    const db = fakeDb([]);
+
+    await expect(checkDailyBudget(db)).resolves.toEqual({ exhausted: false, used: 0, budget: 0 });
+  });
+
+  it('marca el presupuesto como agotado cuando el uso alcanza el límite', async () => {
+    vi.stubEnv('AI_DAILY_CALL_BUDGET', '2');
+    const db = fakeDb([[{ total: '2' }]]);
+
+    await expect(checkDailyBudget(db)).resolves.toEqual({ exhausted: true, used: 2, budget: 2 });
   });
 });

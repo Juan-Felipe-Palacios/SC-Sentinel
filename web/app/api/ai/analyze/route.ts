@@ -11,6 +11,8 @@ import { logServerError } from '@/lib/logging/error';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
+
 export async function POST(request: NextRequest) {
   const check = await authorize(request);
   if (!check.ok) return check.response;
@@ -18,7 +20,10 @@ export async function POST(request: NextRequest) {
   try {
     const deviceId = await resolveDeviceId(undefined);
     if (!deviceId) {
-      return NextResponse.json({ status: 'no_data', insight: null }, { status: 200 });
+      return NextResponse.json(
+        { status: 'no_data', insight: null },
+        { status: 200, headers: noStoreHeaders }
+      );
     }
 
     // El panel IA permite pedir el análisis en español (por defecto) o en inglés.
@@ -26,15 +31,21 @@ export async function POST(request: NextRequest) {
     const result = await runAiPipeline(deviceId, undefined, language);
 
     if (result.status === 'cached') {
-      return NextResponse.json({ cached: true, insight: result.insight }, { status: 200 });
+      return NextResponse.json(
+        { cached: true, insight: result.insight },
+        { status: 200, headers: noStoreHeaders }
+      );
     }
 
     return NextResponse.json(
       { status: result.status, insight: result.insight },
-      { status: 200 }
+      { status: 200, headers: noStoreHeaders }
     );
   } catch (error) {
     logServerError('ai_analyze_failed', error);
-    return NextResponse.json({ error: 'internal_error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'internal_error' },
+      { status: 500, headers: noStoreHeaders }
+    );
   }
 }
