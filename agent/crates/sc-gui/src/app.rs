@@ -230,11 +230,16 @@ impl GuiApp {
             self.history.push(snapshot.packets_seen);
         }
         // Releer el spool cada 5 s: es I/O local y el servicio lo escribe cada 30 s.
+        // Gate (WP1): si /status ya publica >= 2 ventanas, el spool es redundante
+        // (es fuente de fallback) y la relectura se salta. En producción la
+        // lectura era además un open fallido por ACL, así que el gate también
+        // elimina ese I/O periódico de error.
         let spool_due = self
             .last_spool_read
             .map(|at| at.elapsed() >= Duration::from_secs(5))
             .unwrap_or(true);
-        if spool_due {
+        let snapshot_windows = self.snapshot.as_ref().map(|s| s.windows.len());
+        if spool_read_due(spool_due, snapshot_windows) {
             self.spool_windows = read_window_summaries(&default_spool_path(), MAX_POINTS);
             self.last_spool_read = Some(Instant::now());
         }
@@ -1321,9 +1326,40 @@ impl eframe::App for GuiApp {
     }
 }
 
+/// Decisión de relectura del spool (WP1): cadencia cumplida Y el snapshot de
+/// `/status` no publica ya >= 2 ventanas (en ese caso el spool es redundante).
+/// `None` (sin snapshot, agente caído o poll fallido) → sin gate → se lee:
+/// es el fallback que alimenta la vista.
+fn spool_read_due(spool_due: bool, snapshot_windows: Option<usize>) -> bool {
+    spool_due && !matches!(snapshot_windows, Some(n) if n >= 2)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{balloon_fallback_for, header_uptime_label, human_uptime};
+    use super::{balloon_fallback_for, header_uptime_label, human_uptime, spool_read_due};
+
+    #[test]
+    fn gate_skips_with_two_or_more_windows() {
+        assert!(!spool_read_due(true, Some(2)));
+        assert!(!spool_read_due(true, Some(60)));
+    }
+
+    #[test]
+    fn gate_reads_with_fewer_windows() {
+        assert!(spool_read_due(true, Some(0)));
+        assert!(spool_read_due(true, Some(1)));
+    }
+
+    #[test]
+    fn gate_falls_back_when_no_snapshot() {
+        assert!(spool_read_due(true, None));
+    }
+
+    #[test]
+    fn cadence_still_required() {
+        assert!(!spool_read_due(false, Some(0)));
+        assert!(!spool_read_due(false, None));
+    }
 
     fn message() -> (String, String) {
         ("Título".to_string(), "Cuerpo".to_string())
