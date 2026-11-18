@@ -1377,8 +1377,10 @@ impl eframe::App for GuiApp {
                 if let Some(agg) = &mut self.agg {
                     agg.record("poll_age_ms", poll_age_ms as f64, visible);
                 }
-                // Spike si poll_age_ms > 1000 (proxy de staleness).
-                if poll_age_ms > 1000 {
+                // Spike si poll_age_ms > 3000 (proxy de staleness). Enmienda
+                // 2026-11-18 (post pre-flight): con cadencia de poll ≈1,03 s,
+                // 1000 ms quedaba en el piso de ruido (max en reposo: 1002 ms).
+                if poll_age_ms > 3000 {
                     if let Some(tx) = &self.log_tx {
                         tx.send(crate::log_writer::LogLine(format!(
                             "event=gui_timing kind=spike metric=poll_age_ms value={:.1} visible={}",

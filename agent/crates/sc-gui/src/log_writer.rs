@@ -150,12 +150,30 @@ impl Aggregator {
 
     /// Cierra la ventana si el reloj de pared avanzó; devuelve las líneas a
     /// emitir. Se llama una vez por frame. Si la ventana no cambió, vacío.
+    ///
+    /// Si la pausa cruzó varias fronteras (p. ej. oclusión de la ventana),
+    /// cada frontera intermedia se emite como agregada `n=0` (backfill) para
+    /// conservar la invariante de 288 ventanas/día: un gap de ventanas sería
+    /// indistinguible de "logger muerto" en la correlación con el diario.
     pub fn tick(&mut self, now: i64) -> Vec<LogLine> {
         let current = wall_clock_window_start(now);
         if current == self.window_start {
             return Vec::new();
         }
-        let lines = self.close_window();
+        let mut lines = self.close_window();
+        // Backfill: ventanas intermedias omitidas durante la pausa. La
+        // ventana aún abierta (`current`) no se emite.
+        let mut missed = self.window_start + 300;
+        while missed < current {
+            let iso = epoch_to_iso(missed);
+            for metric in AGG_METRICS {
+                lines.push(agg_line(metric, &iso, None, &[]));
+            }
+            // Sin actividad durante la pausa: contadores en cero.
+            lines.push(counter_line("spool_reads", &iso, 0));
+            lines.push(counter_line("spool_skipped", &iso, 0));
+            missed += 300;
+        }
         self.window_start = current;
         lines
     }
@@ -407,5 +425,52 @@ mod tests {
         assert!(second
             .iter()
             .any(|l| l.0.contains("metric=spool_read_ms") && l.0.contains("n=0")));
+    }
+
+    /// Backfill (enmienda 2026-11-18): una pausa que cruza varias fronteras
+    /// emite la agregada completa `n=0` por cada ventana intermedia omitida
+    /// y NO emite la ventana aún abierta.
+    #[test]
+    fn agg_rellena_las_ventanas_omitidas_con_n0() {
+        let start = wall_clock_window_start(1_700_000_000);
+        let mut agg = Aggregator::new(start);
+        agg.record("frame_gap_ms", 260.0, true);
+
+        // Pausa de 900 s: cierra `start`, omite `start+300` y `start+600`,
+        // abre `start+900`.
+        let lines = agg.tick(start + 900);
+        // 3 ventanas × (5 métricas + 2 contadores).
+        assert_eq!(lines.len(), 21);
+        let text: Vec<String> = lines.iter().map(|l| l.0.clone()).collect();
+
+        // La ventana cerrada conserva su muestra.
+        assert!(text
+            .iter()
+            .any(|l| l.contains("window=2023-11-14T22:10:00Z")
+                && l.contains("metric=frame_gap_ms")
+                && l.contains("n=1")));
+
+        // Cada ventana omitida: 5 métricas `n=0` sin régimen + 2 contadores 0.
+        for missed_window in ["2023-11-14T22:15:00Z", "2023-11-14T22:20:00Z"] {
+            let missed: Vec<&String> = text
+                .iter()
+                .filter(|l| l.contains(&format!("window={missed_window}")))
+                .collect();
+            assert_eq!(missed.len(), 7, "ventana {missed_window}");
+            assert!(missed
+                .iter()
+                .filter(|l| l.contains("kind=agg"))
+                .all(|l| l.contains("n=0") && !l.contains("visible=")));
+            assert_eq!(missed.iter().filter(|l| l.contains("kind=agg")).count(), 5);
+            assert!(missed
+                .iter()
+                .filter(|l| l.contains("kind=counter"))
+                .all(|l| l.contains("value=0")));
+        }
+
+        // La ventana actual (abierta, start+900) no se emite.
+        assert!(!text
+            .iter()
+            .any(|l| l.contains("window=2023-11-14T22:25:00Z")));
     }
 }

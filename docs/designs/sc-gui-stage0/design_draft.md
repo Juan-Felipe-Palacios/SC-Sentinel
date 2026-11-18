@@ -168,7 +168,11 @@ if spool_due && !gated {
 | `spool_read_ms` | Duración de `read_window_summaries()` (llamada completa) | > 50 ms |
 | `scm_query_ms` | Duración de `scm::query_service_state()` (solo si `scm_due`) | > 25 ms |
 | `frame_gap_ms` | `Instant::now() - last_update_instant` en `update()` | > 500 ms (solo `visible=1`) |
-| `poll_fetch_ms` + `poll_age_ms` | Duración de `fetch()` en hilo poller + `now - fetched_at` al pintar | `poll_age_ms` (reemplaza `poll_fetch_ms > 1000`) |
+| `poll_fetch_ms` + `poll_age_ms` | Duración de `fetch()` en hilo poller + `now - fetched_at` al pintar | `poll_age_ms > 3000 ms` (enmienda 2026-11-18; ver nota de enmienda) |
+
+**Enmiendas (2026-11-18, tras el pre-flight):**
+1. **Umbral de spike de `poll_age_ms`: 1000 → 3000 ms.** Justificación: en reposo el pre-flight midió `poll_age_ms` max 1002 ms con cadencia de poll ≈1,03 s (n=290/300 s), o sea que 1000 ms estaba en el piso de ruido y habría llenado la corrida 1 de spikes estructurales.
+2. **Backfill de ventanas omitidas** (ver *Modos de emisión*): el pre-flight midió una pausa de repaint de 381 s con el poller vivo (ventana `2026-11-18T13:35:00Z` omitida). Sin backfill, un gap de ventanas sería indistinguible de "logger muerto" y rompería la invariante de 288 ventanas/día en la correlación con el diario.
 
 **Stamp en poller (`status_client.rs`):**
 - El poller graba `fetched_at: Instant` cuando un `fetch` termina con éxito.
@@ -188,6 +192,7 @@ if spool_due && !gated {
 **Modos de emisión:**
 - **(a) Spike:** línea cuando una métrica cruza umbral.
 - **(b) Agregada cada 5 min:** `n/min/p50/p95/max` por métrica. Fronteras fijas cada 300 s alineadas a epoch (`window_start = now - (now % 300s)`). Emisión al cierre. Etiquetada `window=<ISO-8601 UTC>`. No rolling.
+- **(c) Backfill de ventanas omitidas:** si `update()` no corre durante una pausa (p. ej. oclusión de la ventana), al reanudar `tick()` emite la agregada completa (`n=0` en las 5 métricas + contadores `value=0`) por cada frontera intermedia cruzada; la ventana aún abierta no se emite. Conserva la invariante de 288 ventanas/día y permite distinguir "sin muestras" de "logger muerto".
 
 **Nearest-rank (fórmula):** `idx = max(1, ceil(p * n / 100))` sobre el arreglo ordenado ascendente, indexado en 1. Si `n == 0`, la línea se emite con `n=0` y se omiten los percentiles.
 
