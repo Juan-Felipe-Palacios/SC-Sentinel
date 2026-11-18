@@ -213,14 +213,7 @@ impl WindowAggregator {
                                 // Start new window
                                 bounds.start = (now / window_seconds) * window_seconds;
                                 bounds.end = bounds.start + window_seconds;
-                                let key_cache = accumulator.take_key_cache();
-                                accumulator = Accumulator::new(
-                                    self.cfg.hmac_key.clone(),
-                                    self.cfg.anonymize_hosts,
-                                    self.country.clone(),
-                                    self.asn.clone(),
-                                )
-                                .with_key_cache(key_cache);
+                                accumulator = accumulator.next_window();
                             }
                             accumulator.add_flow(&update);
                         }
@@ -244,14 +237,7 @@ impl WindowAggregator {
                         bounds.id_counter += 1;
                         bounds.start = (now / window_seconds) * window_seconds;
                         bounds.end = bounds.start + window_seconds;
-                        let key_cache = accumulator.take_key_cache();
-                        accumulator = Accumulator::new(
-                            self.cfg.hmac_key.clone(),
-                            self.cfg.anonymize_hosts,
-                            self.country.clone(),
-                            self.asn.clone(),
-                        )
-                        .with_key_cache(key_cache);
+                        accumulator = accumulator.next_window();
                     }
                 }
             }

@@ -94,16 +94,18 @@ impl Accumulator {
         }
     }
 
-    /// Adopta una caché `ip → clave` ya caliente (rotación de ventana).
-    pub fn with_key_cache(mut self, key_cache: HashMap<u128, u128>) -> Self {
-        self.key_cache = key_cache;
-        self
-    }
-
-    /// Entrega la caché para que la ventana siguiente no vuelva a marcar las
-    /// mismas IPs. Deja el acumulador sin caché.
-    pub fn take_key_cache(&mut self) -> HashMap<u128, u128> {
-        std::mem::take(&mut self.key_cache)
+    /// Cierra la ventana: devuelve un acumulador vacío que hereda la caché
+    /// `ip → clave`, así la ventana siguiente no vuelve a marcar los mismos
+    /// hosts. El acumulador actual queda sin caché.
+    pub fn next_window(&mut self) -> Self {
+        let mut next = Self::new(
+            self.hmac_key.clone(),
+            self.anonymize_hosts,
+            self.country_lookup.clone(),
+            self.asn_lookup.clone(),
+        );
+        next.key_cache = std::mem::take(&mut self.key_cache);
+        next
     }
 
     /// Clave del host con caché: un HMAC por IP distinta, no por flujo.
@@ -117,6 +119,11 @@ impl Accumulator {
         }
         self.key_cache.insert(ip, key);
         key
+    }
+
+    #[cfg(test)]
+    fn cached_ips(&self) -> usize {
+        self.key_cache.len()
     }
 
     /// País del host: las IPs privadas/locales se etiquetan como "LAN" para no
@@ -563,20 +570,11 @@ mod tests {
             accumulator.add_flow(&outbound(443, Protocol::Tcp, 100));
         }
         let primera = accumulator.build_hosts(10);
-        let cache = accumulator.take_key_cache();
-        assert_eq!(cache.len(), 2, "un marcado por extremo, no por flujo");
-        assert!(
-            accumulator.take_key_cache().is_empty(),
-            "take vacía la caché"
-        );
+        assert_eq!(accumulator.cached_ips(), 2, "un marcado por extremo");
 
-        let mut siguiente = Accumulator::new(
-            b"test-key".to_vec(),
-            false,
-            Arc::new(NoLookup),
-            Arc::new(NoLookup),
-        )
-        .with_key_cache(cache);
+        let mut siguiente = accumulator.next_window();
+        assert_eq!(accumulator.cached_ips(), 0, "la caché se transfiere");
+        assert_eq!(siguiente.cached_ips(), 2, "la ventana nueva la hereda");
         siguiente.add_flow(&outbound(443, Protocol::Tcp, 100));
         let segunda = siguiente.build_hosts(10);
 
