@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
 
-use crate::host_mark::host_key;
+use crate::host_mark::{host_key_hex, host_key_u128};
 use sc_capture::{Direction, FlowUpdate};
 use sc_core::AsnStat;
 use sc_core::{CountryStat, HostSignal, HostStats, PortStat, Protocol};
@@ -12,6 +12,10 @@ use std::sync::Arc;
 /// necesitan decenas de destinos/puertos; 4096 evita que un escaneo masivo
 /// convierta el acumulador en un mapa gigantesco.
 const MAX_TRACKED_DESTINATIONS: usize = 4096;
+
+/// Tope de entradas de la caché `ip → clave del host`. Al llenarse se vacía
+/// entera (se recalienta sola): acota la memoria sin lógica de desalojo.
+const KEY_CACHE_MAX: usize = 16_384;
 
 #[derive(Clone)]
 struct HostAccum {
@@ -57,11 +61,16 @@ pub struct Accumulator {
     anonymize_hosts: bool,
     country_lookup: Arc<dyn CountryLookup>,
     asn_lookup: Arc<dyn AsnLookup>,
-    hosts: HashMap<String, HostAccum>,
-    local_hosts: HashMap<String, HostAccum>,
+    /// Claves de host de 128 bits (no `String`): el mapa no asigna ni formatea
+    /// hex en el camino caliente; el hex se genera solo al emitir el snapshot.
+    hosts: HashMap<u128, HostAccum>,
+    local_hosts: HashMap<u128, HostAccum>,
     ports: HashMap<(u16, Protocol), PortAccum>,
-    countries: HashMap<String, (u64, HashSet<String>)>, // country -> (bytes, hosts_set)
-    asns: HashMap<u32, (Option<String>, u64, HashSet<String>)>, // asn -> (org, bytes, hosts_set)
+    countries: HashMap<String, (u64, HashSet<u128>)>, // country -> (bytes, hosts_set)
+    asns: HashMap<u32, (Option<String>, u64, HashSet<u128>)>, // asn -> (org, bytes, hosts_set)
+    /// Caché `ip → clave del host`. Elimina los dos HMAC-SHA256 por flujo: se
+    /// paga uno por IP distinta, y sobrevive a la rotación de ventana.
+    key_cache: HashMap<u128, u128>,
 }
 
 impl Accumulator {
@@ -81,7 +90,40 @@ impl Accumulator {
             ports: HashMap::new(),
             countries: HashMap::new(),
             asns: HashMap::new(),
+            key_cache: HashMap::new(),
         }
+    }
+
+    /// Cierra la ventana: devuelve un acumulador vacío que hereda la caché
+    /// `ip → clave`, así la ventana siguiente no vuelve a marcar los mismos
+    /// hosts. El acumulador actual queda sin caché.
+    pub fn next_window(&mut self) -> Self {
+        let mut next = Self::new(
+            self.hmac_key.clone(),
+            self.anonymize_hosts,
+            self.country_lookup.clone(),
+            self.asn_lookup.clone(),
+        );
+        next.key_cache = std::mem::take(&mut self.key_cache);
+        next
+    }
+
+    /// Clave del host con caché: un HMAC por IP distinta, no por flujo.
+    fn host_key_cached(&mut self, ip: u128) -> u128 {
+        if let Some(&key) = self.key_cache.get(&ip) {
+            return key;
+        }
+        let key = host_key_u128(&self.hmac_key, ip);
+        if self.key_cache.len() >= KEY_CACHE_MAX {
+            self.key_cache.clear();
+        }
+        self.key_cache.insert(ip, key);
+        key
+    }
+
+    #[cfg(test)]
+    fn cached_ips(&self) -> usize {
+        self.key_cache.len()
     }
 
     /// País del host: las IPs privadas/locales se etiquetan como "LAN" para no
@@ -114,10 +156,10 @@ impl Accumulator {
             Direction::Out => (flow.dst_ip, false),
         };
 
-        let host_key_str = host_key(&self.hmac_key, host_ip);
+        let host_key_value = self.host_key_cached(host_ip);
         let entry = self
             .hosts
-            .entry(host_key_str.clone())
+            .entry(host_key_value)
             .or_insert_with(|| HostAccum::new(host_ip));
         entry.packets += packets;
         if is_in {
@@ -159,7 +201,7 @@ impl Accumulator {
             Direction::In => flow.dst_ip,
             Direction::Out => flow.src_ip,
         };
-        let local_key = host_key(&self.hmac_key, local_ip);
+        let local_key = self.host_key_cached(local_ip);
         let local = self
             .local_hosts
             .entry(local_key)
@@ -206,7 +248,7 @@ impl Accumulator {
                 .entry(cc.clone())
                 .or_insert_with(|| (0, HashSet::new()));
             centry.0 += bytes;
-            centry.1.insert(host_key_str.clone());
+            centry.1.insert(host_key_value);
         }
 
         // ASN stats
@@ -219,15 +261,15 @@ impl Accumulator {
                 centry.0 = info.organization;
             }
             centry.1 += bytes;
-            centry.2.insert(host_key_str);
+            centry.2.insert(host_key_value);
         }
     }
 
-    fn sorted_hosts(&self, top_n: usize) -> Vec<(String, HostAccum)> {
-        let mut hosts_vec: Vec<(String, HostAccum)> = self
+    fn sorted_hosts(&self, top_n: usize) -> Vec<(u128, HostAccum)> {
+        let mut hosts_vec: Vec<(u128, HostAccum)> = self
             .hosts
             .iter()
-            .map(|(key, accum)| (key.clone(), accum.clone()))
+            .map(|(key, accum)| (*key, accum.clone()))
             .collect();
         hosts_vec.sort_by(|a, b| {
             (b.1.bytes_in + b.1.bytes_out)
@@ -242,7 +284,7 @@ impl Accumulator {
         self.sorted_hosts(top_n)
             .into_iter()
             .map(|(hkey, accum)| HostStats {
-                host_key: hkey,
+                host_key: host_key_hex(hkey),
                 ip_display: self.ip_display(&accum),
                 country: self.country_for(accum.ip),
                 bytes_in: accum.bytes_in,
@@ -260,22 +302,22 @@ impl Accumulator {
         let mut signals: Vec<HostSignal> = self
             .local_hosts
             .iter()
-            .map(|(hkey, accum)| self.signal(hkey, accum, true))
+            .map(|(hkey, accum)| self.signal(*hkey, accum, true))
             .collect();
         signals.sort_by(|a, b| a.host_key.cmp(&b.host_key));
         signals.extend(
             self.sorted_hosts(top_n)
                 .into_iter()
-                .map(|(hkey, accum)| self.signal(&hkey, &accum, false)),
+                .map(|(hkey, accum)| self.signal(hkey, &accum, false)),
         );
         signals
     }
 
-    fn signal(&self, host_key: &str, accum: &HostAccum, is_local: bool) -> HostSignal {
+    fn signal(&self, host_key: u128, accum: &HostAccum, is_local: bool) -> HostSignal {
         let mut destinations: Vec<u128> = accum.destinations.iter().copied().collect();
         destinations.sort_unstable();
         HostSignal {
-            host_key: host_key.to_string(),
+            host_key: host_key_hex(host_key),
             ip_display: self.ip_display(accum),
             country: self.country_for(accum.ip),
             is_local,
@@ -512,5 +554,36 @@ mod tests {
         );
         accumulator.add_flow(&outbound(443, Protocol::Tcp, 100));
         assert!(accumulator.build_countries(30).is_empty());
+    }
+
+    /// La caché marca una vez por IP (dos extremos) y se hereda a la ventana
+    /// siguiente sin perder la clave: mismo `host_key` emitido en ambas.
+    #[test]
+    fn la_cache_de_claves_marca_una_vez_por_ip_y_se_hereda() {
+        let mut accumulator = Accumulator::new(
+            b"test-key".to_vec(),
+            false,
+            Arc::new(NoLookup),
+            Arc::new(NoLookup),
+        );
+        for _ in 0..5 {
+            accumulator.add_flow(&outbound(443, Protocol::Tcp, 100));
+        }
+        let primera = accumulator.build_hosts(10);
+        assert_eq!(accumulator.cached_ips(), 2, "un marcado por extremo");
+
+        let mut siguiente = accumulator.next_window();
+        assert_eq!(accumulator.cached_ips(), 0, "la caché se transfiere");
+        assert_eq!(siguiente.cached_ips(), 2, "la ventana nueva la hereda");
+        siguiente.add_flow(&outbound(443, Protocol::Tcp, 100));
+        let segunda = siguiente.build_hosts(10);
+
+        assert_eq!(segunda.len(), primera.len());
+        assert_eq!(segunda[0].host_key, primera[0].host_key);
+        assert_eq!(segunda[0].host_key.len(), 32);
+        assert_eq!(
+            segunda[0].packets, 1,
+            "la clave heredada apunta al host correcto"
+        );
     }
 }

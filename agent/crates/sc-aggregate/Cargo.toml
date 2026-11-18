@@ -23,3 +23,7 @@ chrono = { version = "0.4", features = ["serde"] }
 [dev-dependencies]
 insta = { version = "1.40", features = ["yaml", "json"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+
+[[bench]]
+name = "aggregate_throughput"
+harness = false
