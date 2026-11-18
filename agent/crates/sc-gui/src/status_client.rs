@@ -14,7 +14,7 @@ use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use std::sync::mpsc::{channel, Receiver};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// Endpoint local que publica el agente cuando corre como servicio o consola.
 pub const DEFAULT_STATUS_URL: &str = "http://127.0.0.1:8387/status";
@@ -70,6 +70,17 @@ pub struct StatusSnapshot {
     /// agente anterior: la GUI cae al spool y luego al ring-buffer.
     #[serde(default)]
     pub windows: Vec<WindowStatus>,
+
+    /// Instante en que el poller completó un fetch exitoso. No se deserializa
+    /// del JSON; el poller lo sella antes de enviar por el canal (WP2).
+    /// Usado por la UI para calcular `poll_age_ms = now - fetched_at`.
+    #[serde(skip)]
+    pub fetched_at: Option<Instant>,
+
+    /// Duración del fetch de reqwest en el hilo del poller (ms). No se
+    /// deserializa del JSON; el poller lo sella antes de enviar (WP2).
+    #[serde(skip)]
+    pub poll_fetch_ms: Option<u64>,
 }
 
 /// Contadores de una ventana tal como los publica `/status`. Solo conteos.
@@ -132,7 +143,14 @@ impl Poller {
     pub fn spawn(url: String) -> Self {
         let (tx, rx) = channel();
         thread::spawn(move || loop {
-            if tx.send(fetch(&url)).is_err() {
+            let t0 = Instant::now();
+            let mut snapshot = fetch(&url);
+            let fetch_elapsed = t0.elapsed();
+            if let Some(ref mut s) = snapshot {
+                s.fetched_at = Some(Instant::now());
+                s.poll_fetch_ms = Some(fetch_elapsed.as_millis() as u64);
+            }
+            if tx.send(snapshot).is_err() {
                 break; // la ventana se cerró
             }
             thread::sleep(POLL_INTERVAL);

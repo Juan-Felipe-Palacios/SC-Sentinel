@@ -12,6 +12,7 @@
 mod actions;
 mod app;
 mod enroll;
+mod log_writer;
 mod scm;
 mod spool_history;
 mod status_client;
@@ -34,6 +35,14 @@ fn apply_enroll_payload() -> Option<std::path::PathBuf> {
 
 /// `--balloon-test "Título" "Mensaje"`: dispara un globo al arrancar la GUI,
 /// sin tocar el servicio ni el enrolamiento.
+/// Ruta del log de Stage 0: %LOCALAPPDATA%\SC-Sentinel\logs\gui.log
+fn dirs_log_path() -> std::path::PathBuf {
+    let base = std::env::var_os("LOCALAPPDATA")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    base.join("SC-Sentinel").join("logs").join("gui.log")
+}
+
 fn balloon_test_args() -> Option<(String, String)> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     parse_balloon_test(&args)
@@ -77,10 +86,23 @@ fn main() -> eframe::Result<()> {
     };
 
     let balloon_test = balloon_test_args();
+
+    // Stage 0: instrumentación solo si SC_GUI_STAGE0=1.
+    let stage0 = std::env::var("SC_GUI_STAGE0").as_deref() == Ok("1");
+    let log_tx = if stage0 {
+        let log_path = dirs_log_path();
+        let (sender, _handle) = crate::log_writer::spawn_writer(log_path);
+        // _handle se filtra: el hilo vive hasta que el sender se dropee al
+        // cerrar la GUI. El handle se descarta intencionalmente.
+        Some(sender)
+    } else {
+        None
+    };
+
     eframe::run_native(
         "SC-Sentinel",
         options,
-        Box::new(move |cc| Box::new(GuiApp::new(cc, balloon_test))),
+        Box::new(move |cc| Box::new(GuiApp::new(cc, balloon_test, log_tx))),
     )
 }
 

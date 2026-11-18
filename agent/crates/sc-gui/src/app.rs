@@ -47,6 +47,18 @@ pub struct GuiApp {
     /// Resúmenes por ventana leídos del spool (vacío = usar `history`).
     spool_windows: Vec<WindowSummary>,
     last_spool_read: Option<Instant>,
+    /// Último instante en que se pintó un frame (para `frame_gap_ms`).
+    last_update_instant: Option<Instant>,
+    /// Si la ventana está visible (no oculta en la bandeja).
+    window_visible: bool,
+    /// Emisor del hilo escritor de `gui.log` (solo si `SC_GUI_STAGE0=1`).
+    log_tx: Option<crate::log_writer::LogSender>,
+    /// Acumulador de agregadas de 5 min (solo si `SC_GUI_STAGE0=1`): con el
+    /// flag apagado no hay instancia y el overhead es cero.
+    agg: Option<crate::log_writer::Aggregator>,
+    /// Sonda `spool_open`: último OS error code emitido (dedupe: una línea
+    /// por tipo de error, no por intento). `None` = sin error o aún sin sondear.
+    spool_open_last_err: Option<i32>,
     // Wizard de enrolamiento (F4).
     enroll_device: String,
     enroll_token: String,
@@ -59,7 +71,11 @@ pub struct GuiApp {
 }
 
 impl GuiApp {
-    pub fn new(cc: &eframe::CreationContext<'_>, balloon_test: Option<(String, String)>) -> Self {
+    pub fn new(
+        cc: &eframe::CreationContext<'_>,
+        balloon_test: Option<(String, String)>,
+        log_tx: Option<crate::log_writer::LogSender>,
+    ) -> Self {
         theme::apply(&cc.egui_ctx);
         let tray = match Tray::new("SC-Sentinel") {
             Ok(tray) => Some(tray),
@@ -68,6 +84,11 @@ impl GuiApp {
                 None
             }
         };
+        // El agregador solo existe con instrumentación activa: sin flag no hay
+        // instancia, ni muestras, ni emisión (overhead cero).
+        let agg = log_tx
+            .as_ref()
+            .map(|_| crate::log_writer::Aggregator::new(crate::log_writer::now_epoch()));
         Self {
             tray,
             tab: Tab::default(),
@@ -84,6 +105,11 @@ impl GuiApp {
             history: PacketHistory::default(),
             spool_windows: read_window_summaries(&default_spool_path(), MAX_POINTS),
             last_spool_read: Some(Instant::now()),
+            last_update_instant: Some(Instant::now()),
+            window_visible: true,
+            log_tx,
+            agg,
+            spool_open_last_err: None,
             enroll_device: String::new(),
             enroll_token: String::new(),
             enroll_token_saved: false,
@@ -164,7 +190,7 @@ impl GuiApp {
     }
 
     /// Drena el poller, refresca el SCM y recalcula el semáforo.
-    fn refresh(&mut self) {
+    fn refresh(&mut self, visible: bool) {
         // `--balloon-test`: se espera a que la ventana y la bandeja existan.
         let balloon_due = self
             .pending_balloon
@@ -178,8 +204,13 @@ impl GuiApp {
         }
 
         if let Some(result) = self.poller.try_latest() {
-            if result.is_some() {
+            if let Some(snapshot) = result.as_ref() {
                 self.last_poll_ok = Some(Instant::now());
+                // poll_fetch_ms: duración del fetch, una muestra por intento
+                // exitoso (no por frame).
+                if let (Some(agg), Some(ms)) = (&mut self.agg, snapshot.poll_fetch_ms) {
+                    agg.record("poll_fetch_ms", ms as f64, visible);
+                }
             }
             // Un poll fallido borra el snapshot: el panel deja de mostrar datos
             // viejos como si fueran actuales.
@@ -191,9 +222,24 @@ impl GuiApp {
             .map(|at| at.elapsed() >= SCM_QUERY_INTERVAL)
             .unwrap_or(true);
         if scm_due {
+            let t0 = Instant::now();
             let previous = self.service;
             self.service = scm::query_service_state(scm::SERVICE_NAME);
+            let ms = t0.elapsed().as_millis() as u64;
             self.last_scm_query = Some(Instant::now());
+            if let Some(agg) = &mut self.agg {
+                agg.record("scm_query_ms", ms as f64, visible);
+            }
+            // Spike si > 25 ms.
+            if ms > 25 {
+                if let Some(tx) = &self.log_tx {
+                    tx.send(crate::log_writer::LogLine(format!(
+                        "event=gui_timing kind=spike metric=scm_query_ms value={:.1} visible={}",
+                        ms as f64,
+                        if visible { 1 } else { 0 }
+                    )));
+                }
+            }
             // Globo de bandeja: el servicio dejó de correr.
             if previous == ServiceState::Running && self.service != ServiceState::Running {
                 tray_balloon::warning(
@@ -240,8 +286,46 @@ impl GuiApp {
             .unwrap_or(true);
         let snapshot_windows = self.snapshot.as_ref().map(|s| s.windows.len());
         if spool_read_due(spool_due, snapshot_windows) {
+            // Sonda spool_open (solo con instrumentación): una línea por tipo
+            // de error (dedupe por OS error code), no por intento.
+            if let Some(tx) = &self.log_tx {
+                let probe_err = std::fs::File::open(default_spool_path())
+                    .err()
+                    .and_then(|e| e.raw_os_error());
+                match probe_err {
+                    Some(code) if self.spool_open_last_err != Some(code) => {
+                        self.spool_open_last_err = Some(code);
+                        tx.send(crate::log_writer::LogLine(format!(
+                            "event=gui_timing kind=spike metric=spool_open value=0 os_error={}",
+                            code
+                        )));
+                    }
+                    Some(_) => {}                            // mismo error ya emitido
+                    None => self.spool_open_last_err = None, // sin error: re-armar
+                }
+            }
+            let t0 = Instant::now();
             self.spool_windows = read_window_summaries(&default_spool_path(), MAX_POINTS);
+            let spool_read_ms = t0.elapsed().as_millis() as u64;
             self.last_spool_read = Some(Instant::now());
+            // Muestra y contador: solo con instrumentación activa (flag).
+            if let Some(agg) = &mut self.agg {
+                agg.record("spool_read_ms", spool_read_ms as f64, visible);
+                agg.count_spool_read();
+            }
+            if spool_read_ms > 50 {
+                if let Some(tx) = &self.log_tx {
+                    tx.send(crate::log_writer::LogLine(format!(
+                        "event=gui_timing kind=spike metric=spool_read_ms value={:.1} visible={}",
+                        spool_read_ms as f64,
+                        if visible { 1 } else { 0 }
+                    )));
+                }
+            }
+        } else if spool_due {
+            if let Some(agg) = &mut self.agg {
+                agg.count_spool_skipped();
+            }
         }
 
         let sync_age = self
@@ -258,9 +342,10 @@ impl GuiApp {
         );
     }
 
-    fn show_window(&self, ctx: &egui::Context) {
+    fn show_window(&mut self, ctx: &egui::Context) {
         ctx.send_viewport_cmd(ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(ViewportCommand::Focus);
+        self.window_visible = true;
     }
 
     fn handle(&mut self, action: MenuAction, ctx: &egui::Context) {
@@ -1261,7 +1346,60 @@ fn tooltip_for(overlay: Overlay) -> &'static str {
 
 impl eframe::App for GuiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        self.refresh();
+        let visible = self.window_visible;
+        // frame_gap_ms: cadencia de frames efectivamente pintados.
+        let frame_gap_ms = self
+            .last_update_instant
+            .map(|at| at.elapsed().as_millis() as u64);
+        self.last_update_instant = Some(Instant::now());
+
+        self.refresh(visible);
+
+        // Muestras y spikes de frame_gap_ms / poll_age_ms.
+        if let Some(ms) = frame_gap_ms {
+            if let Some(agg) = &mut self.agg {
+                agg.record("frame_gap_ms", ms as f64, visible);
+            }
+            // Spike si > 500 ms con ventana visible.
+            if ms > 500 && visible {
+                if let Some(tx) = &self.log_tx {
+                    tx.send(crate::log_writer::LogLine(format!(
+                        "event=gui_timing kind=spike metric=frame_gap_ms value={:.1} visible=1",
+                        ms as f64
+                    )));
+                }
+            }
+        }
+        // poll_age_ms: edad del snapshot al pintar.
+        if let Some(snap) = &self.snapshot {
+            if let Some(fetched_at) = snap.fetched_at {
+                let poll_age_ms = fetched_at.elapsed().as_millis() as u64;
+                if let Some(agg) = &mut self.agg {
+                    agg.record("poll_age_ms", poll_age_ms as f64, visible);
+                }
+                // Spike si poll_age_ms > 1000 (proxy de staleness).
+                if poll_age_ms > 1000 {
+                    if let Some(tx) = &self.log_tx {
+                        tx.send(crate::log_writer::LogLine(format!(
+                            "event=gui_timing kind=spike metric=poll_age_ms value={:.1} visible={}",
+                            poll_age_ms as f64,
+                            if visible { 1 } else { 0 }
+                        )));
+                    }
+                }
+            }
+        }
+
+        // Cierre de ventana de 5 min: una vez por frame, emite las agregadas
+        // al cruzar la frontera de epoch (fuera del hilo de UI por el canal).
+        if let Some(agg) = &mut self.agg {
+            let lines = agg.tick(crate::log_writer::now_epoch());
+            if let Some(tx) = &self.log_tx {
+                for line in lines {
+                    tx.send(line);
+                }
+            }
+        }
 
         // Se sondea primero y se actúa después: el préstamo mutable de la
         // bandeja no puede convivir con `&mut self` en `handle`.
@@ -1288,6 +1426,7 @@ impl eframe::App for GuiApp {
                 CloseAction::HideToTray => {
                     ctx.send_viewport_cmd(ViewportCommand::CancelClose);
                     ctx.send_viewport_cmd(ViewportCommand::Visible(false));
+                    self.window_visible = false;
                 }
                 CloseAction::Quit => {}
             }
