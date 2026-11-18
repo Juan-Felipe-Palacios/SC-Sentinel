@@ -53,6 +53,9 @@ pub struct GuiApp {
     window_visible: bool,
     /// Emisor del hilo escritor de `gui.log` (solo si `SC_GUI_STAGE0=1`).
     log_tx: Option<crate::log_writer::LogSender>,
+    /// Handle del hilo escritor: "Salir" lo une tras cerrar el canal para no
+    /// perder las líneas en cola (solo si `SC_GUI_STAGE0=1`).
+    log_writer: Option<std::thread::JoinHandle<()>>,
     /// Acumulador de agregadas de 5 min (solo si `SC_GUI_STAGE0=1`): con el
     /// flag apagado no hay instancia y el overhead es cero.
     agg: Option<crate::log_writer::Aggregator>,
@@ -75,6 +78,7 @@ impl GuiApp {
         cc: &eframe::CreationContext<'_>,
         balloon_test: Option<(String, String)>,
         log_tx: Option<crate::log_writer::LogSender>,
+        log_writer: Option<std::thread::JoinHandle<()>>,
     ) -> Self {
         theme::apply(&cc.egui_ctx);
         let tray = match Tray::new("SC-Sentinel") {
@@ -108,6 +112,7 @@ impl GuiApp {
             last_update_instant: Some(Instant::now()),
             window_visible: true,
             log_tx,
+            log_writer,
             agg,
             spool_open_last_err: None,
             enroll_device: String::new(),
@@ -348,6 +353,23 @@ impl GuiApp {
         self.window_visible = true;
     }
 
+    /// "Salir" termina el proceso de verdad (spec §19).
+    ///
+    /// `ViewportCommand::Close` no bastaba: verificado el 2026-11-18, tras el
+    /// clic en "Salir" la ventana seguía viva, `update()` dejaba de emitir y el
+    /// proceso giraba CPU hasta matarlo a mano (4 instancias wedged). El cierre
+    /// explícito drena el hilo escritor —al dropear el sender se cierra el
+    /// canal y el writer termina tras escribir con flush por línea— y une el
+    /// handle antes de salir para no perder las líneas en cola.
+    fn exit_process(&mut self) {
+        self.quitting = true;
+        drop(self.log_tx.take());
+        if let Some(handle) = self.log_writer.take() {
+            let _ = handle.join();
+        }
+        std::process::exit(0);
+    }
+
     fn handle(&mut self, action: MenuAction, ctx: &egui::Context) {
         match action {
             MenuAction::Show => self.show_window(ctx),
@@ -355,10 +377,7 @@ impl GuiApp {
                 self.tab = Tab::Enroll;
                 self.show_window(ctx);
             }
-            MenuAction::Quit => {
-                self.quitting = true;
-                ctx.send_viewport_cmd(ViewportCommand::Close);
-            }
+            MenuAction::Quit => self.exit_process(),
         }
     }
 
@@ -1422,7 +1441,9 @@ impl eframe::App for GuiApp {
         self.sync_tray(overlay);
 
         // La [×] nunca cierra el proceso: oculta la ventana y deja el icono en
-        // la bandeja. Solo "Salir" marca `quitting`.
+        // la bandeja. "Salir" termina en `handle` → `exit_process`; esta rama
+        // es la red de seguridad si la petición de cierre llega con `quitting`
+        // ya marcado por otro camino.
         if ctx.input(|input| input.viewport().close_requested()) {
             match close_action(self.quitting) {
                 CloseAction::HideToTray => {
@@ -1430,7 +1451,7 @@ impl eframe::App for GuiApp {
                     ctx.send_viewport_cmd(ViewportCommand::Visible(false));
                     self.window_visible = false;
                 }
-                CloseAction::Quit => {}
+                CloseAction::Quit => self.exit_process(),
             }
         }
 

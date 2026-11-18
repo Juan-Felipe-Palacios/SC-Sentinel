@@ -317,11 +317,48 @@ mod tests {
         sender.send(LogLine("otra línea".into()));
     }
 
+    /// "Salir" (fix 2026-11-18): al dropear el sender el canal se cierra, el
+    /// writer termina tras escribir TODAS las líneas que estaban en cola y el
+    /// `join()` de `exit_process` no pierde nada.
+    #[test]
+    fn writer_drena_las_lineas_en_cola_al_cerrar_el_canal() {
+        // Directorio propio: `sc_gui_log_test_{pid}` lo comparte el test del
+        // tope y `remove_dir_all` en paralelo lo borraría (carrera).
+        let dir =
+            std::env::temp_dir().join(format!("sc_gui_log_test_{}_drenaje", std::process::id()));
+        fs::create_dir_all(&dir).expect("crear directorio temporal");
+        let path = dir.join("drenaje.log");
+
+        let (sender, handle) = spawn_writer(path.clone());
+        for i in 0..50 {
+            sender.send(LogLine(format!("linea={i}")));
+        }
+        // Mismo orden que `GuiApp::exit_process`: cerrar canal y unir.
+        drop(sender);
+        handle
+            .join()
+            .expect("el writer termina al cerrarse el canal");
+
+        let content = fs::read_to_string(&path).expect("log escrito");
+        assert_eq!(
+            content.lines().count(),
+            50,
+            "las 50 líneas en cola se escriben antes de salir"
+        );
+        assert!(
+            content.contains("linea=49"),
+            "la última línea en cola llega"
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
     /// Tope de 10 MB (N2): un fichero por encima del tope se trunca en la
     /// siguiente escritura del hilo writer real.
     #[test]
     fn tope_de_10mb_trunca_el_fichero() {
-        let dir = std::env::temp_dir().join(format!("sc_gui_log_test_{}", std::process::id()));
+        // Directorio propio (sufijo `_tope`): evita la carrera con el test de
+        // drenaje que usa otro sufijo en la misma raíz temporal.
+        let dir = std::env::temp_dir().join(format!("sc_gui_log_test_{}_tope", std::process::id()));
         fs::create_dir_all(&dir).expect("crear directorio temporal");
         let path = dir.join("gui.log");
         // Fichero por encima del tope: 10 MB + 1 byte.

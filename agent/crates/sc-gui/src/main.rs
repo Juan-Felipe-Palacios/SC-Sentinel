@@ -89,20 +89,20 @@ fn main() -> eframe::Result<()> {
 
     // Stage 0: instrumentación solo si SC_GUI_STAGE0=1.
     let stage0 = std::env::var("SC_GUI_STAGE0").as_deref() == Ok("1");
-    let log_tx = if stage0 {
+    let (log_tx, log_writer) = if stage0 {
         let log_path = dirs_log_path();
-        let (sender, _handle) = crate::log_writer::spawn_writer(log_path);
-        // _handle se filtra: el hilo vive hasta que el sender se dropee al
-        // cerrar la GUI. El handle se descarta intencionalmente.
-        Some(sender)
+        let (sender, handle) = crate::log_writer::spawn_writer(log_path);
+        // El handle viaja a GuiApp: "Salir" cierra el canal, drena y une el
+        // hilo antes de `process::exit` para no perder líneas en cola.
+        (Some(sender), Some(handle))
     } else {
-        None
+        (None, None)
     };
 
     eframe::run_native(
         "SC-Sentinel",
         options,
-        Box::new(move |cc| Box::new(GuiApp::new(cc, balloon_test, log_tx))),
+        Box::new(move |cc| Box::new(GuiApp::new(cc, balloon_test, log_tx, log_writer))),
     )
 }
 
