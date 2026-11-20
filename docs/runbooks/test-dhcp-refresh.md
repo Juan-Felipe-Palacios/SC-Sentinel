@@ -76,48 +76,97 @@ Invoke-RestMethod http://127.0.0.1:8388/status |
 
 Guardar esta primera salida en `$root\evidence\00-inicial.json`.
 
-## Etapa A — Agregar y retirar una IPv4 secundaria (sin cortar la red)
+## Hallazgo de plataforma: no hay coexistencia DHCP + estática por estas vías
 
-Esta etapa ejercita `pcap_findalldevs` contra un cambio real del sistema
-operativo sin liberar el DHCP de la interfaz.
+Medido el 2026-11-20 sobre la interfaz Wi-Fi de prueba: tanto
+`New-NetIPAddress -InterfaceAlias 'Wi-Fi'` como
+`netsh interface ipv4 add address name="Wi-Fi"` convierten la interfaz a
+direccionamiento **estático**, eliminan la concesión DHCP y **borran la ruta por
+defecto** (`DEFAULT_ROUTE_PRESENT=False`). Se reprodujo dos veces, con rollback
+verificado.
 
-1. Elegir una IPv4 libre de la misma subred (ejemplo: `192.168.1.250`) y
-   agregarla:
+Consecuencia: la etapa A ya **no agrega un secundario**. Sustituye la dirección
+y restaura DHCP en el mismo paso, con rollback automático para no dejar la
+máquina sin ruta por defecto.
+
+El contrato que se verifica es el del bug de 0.1.7: **`local_ips_refreshed` se
+emite por cambio de contenido del conjunto, aunque el conteo no cambie.** Un
+`ipv4_count=2` no es alcanzable en este Windows y no es criterio de aceptación.
+
+## Etapa A — Sustituir la dirección IPv4 con rollback (sin liberar el DHCP)
+
+Ejercita `pcap_findalldevs` contra un cambio real del sistema operativo sin
+liberar la concesión por `ipconfig /release`.
+
+1. Verificar y anotar el estado previo (IP, sufijo, ruta):
 
 ```powershell
-New-NetIPAddress -InterfaceAlias 'Wi-Fi' `
-  -IPAddress 192.168.1.250 -PrefixLength 24
+Get-NetIPAddress -InterfaceAlias 'Wi-Fi' -AddressFamily IPv4 |
+  Select-Object IPAddress, PrefixLength, SuffixOrigin
+Get-NetRoute -InterfaceAlias 'Wi-Fi' -AddressFamily IPv4 `
+  -DestinationPrefix '0.0.0.0/0' | Select-Object NextHop
 ```
 
-2. En **≤10 s** (dos ticks del monitor), el log debe contener un evento
-   `local_ips_refreshed` con `ipv4_count` mayor y `usable_ipv4=true`:
+2. Sustituir y **restaurar en el mismo script** (el `finally` es obligatorio: si
+   falla el renew, la interfaz tiene que quedar en DHCP igual):
 
 ```powershell
-Select-String -Path "$root\agent.log" -Pattern 'local_ips_refreshed' |
+$ErrorActionPreference = 'Stop'
+"CHANGE_AT_UTC=$((Get-Date).ToUniversalTime().ToString('o'))"
+try {
+  New-NetIPAddress -InterfaceAlias 'Wi-Fi' `
+    -IPAddress 192.168.1.250 -PrefixLength 24 | Out-Null
+  Start-Sleep -Seconds 12   # ventana de observación del tick
+} finally {
+  netsh interface ipv4 delete address name="Wi-Fi" address=192.168.1.250 | Out-Null
+  netsh interface ipv4 set address name="Wi-Fi" source=dhcp | Out-Null
+  ipconfig /renew "Wi-Fi" | Out-Null
+}
+"RESTORE_AT_UTC=$((Get-Date).ToUniversalTime().ToString('o'))"
+Get-NetIPAddress -InterfaceAlias 'Wi-Fi' -AddressFamily IPv4 |
+  Select-Object IPAddress, PrefixLength, SuffixOrigin
+Get-NetRoute -InterfaceAlias 'Wi-Fi' -AddressFamily IPv4 `
+  -DestinationPrefix '0.0.0.0/0' | Select-Object NextHop
+```
+
+3. En **≤10 s** de cada cambio (dos ticks del monitor), el log debe contener un
+   `local_ips_refreshed` con la dirección nueva y `usable_ipv4=true` en los dos
+   sentidos:
+
+```powershell
+Select-String -Path "$root\agent.log" -Pattern 'local_ips_' |
   Select-Object -Last 5
 Invoke-RestMethod http://127.0.0.1:8388/status |
   Select-Object capture_status, local_ips_usable, local_ips_ipv4,
                 local_ips_last_refresh |
-  ConvertTo-Json | Set-Content "$root\evidence\01-ip-agregada.json"
+  ConvertTo-Json | Set-Content "$root\evidence\01-ip-sustituida.json"
 ```
 
-3. Desde otro host, generar tráfico hacia `192.168.1.250` (por ejemplo, un
-   `Test-NetConnection` o un `ping` continuo). La instancia debe reflejarlo en
-   `packets_seen` y en la ventana activa de `/status`; no se adjuntan paquetes
-   crudos.
+4. Verificar que la red quedó usable: `SuffixOrigin=Dhcp`, `0.0.0.0/0` con
+   `NextHop` presente y `packets_seen` creciendo entre dos lecturas.
 
-4. Retirar la IP:
+5. Repetir el ciclo una vez más: el primer cambio de una instancia recién
+   arrancada puede ser el que exhibe la anomalía de abajo.
 
-```powershell
-Remove-NetIPAddress -InterfaceAlias 'Wi-Fi' `
-  -IPAddress 192.168.1.250 -Confirm:$false
-```
+**Aceptación A:** refresh por cambio de contenido en ambos sentidos en ≤2 ticks;
+`usable_ipv4=true` tras cada restauración; ruta por defecto presente al
+terminar; `capture_status=ok`; `packets_seen` creciendo; cero panics.
 
-5. En **≤10 s** debe aparecer otro `local_ips_refreshed` con `ipv4_count`
-   menor, sin `panic` y sin detener la captura. Guardar el status y el log.
+### Anomalía conocida: el primer cambio estático puede tardar minutos
 
-**Aceptación A:** refresh en ambas direcciones en ≤2 ticks; `capture_status`
-vuelve a `ok`; `packets_seen` sigue creciendo; cero panics.
+Medido el 2026-11-20: el primer cambio a estática (19:22) se reflejó a las
+19:27:29 (~5 min), mientras los cuatro cambios siguientes tardaron 5–7 s. La
+hipótesis (sin verificar) es que la notificación de cambio de dirección no se
+dispara para un set estático y sí para el `renew`, que es lo que invalida la
+caché del resolver de Npcap.
+
+No bloquea el escenario de producción (DHCP: el renew notifica, y eso es lo que
+mide el gate). Retest: en una instancia limpia, aplicar el paso 2 y medir la
+latencia en ambos sentidos. Si queda **≤10 s**, la demora fue contextual (pérdida
+de ruta en el primer intento); si vuelve a ~5 min, es limitación confirmada del
+monitor y se abre ticket de Etapa 2 (P1: escuchar `NotifyAddrChange` /
+`WM_DEVICECHANGE` o forzar frescura del resolver en vez de depender de la
+notificación).
 
 ## Etapa B — Release/renew completo (escenario original)
 
@@ -130,7 +179,10 @@ ipconfig /release "Wi-Fi"
 ```
 
 2. En **≤10 s** el monitor debe publicar `local_ips_degraded` y `/status` debe
-   mostrar `capture_status=degraded` (vacío/APIPA o solo IPv6):
+   mostrar `capture_status=degraded` (vacío/APIPA o solo IPv6). Medido: primero
+   `ipv4_count=0` y a los ~10 s una APIPA (`169.254.x.x`) con `ipv4_count=1`;
+   en ambos casos `usable_ipv4=false`, porque una dirección link-local no es
+   utilizable para captura:
 
 ```powershell
 Select-String -Path "$root\agent.log" -Pattern 'local_ips_degraded' |
