@@ -5,8 +5,9 @@
 //! en un hilo y se consulta el SCM de Windows para saber si el servicio vive.
 
 use crate::actions::{
-    close_action, health_level, menu_effect, overlay_from_level, substatuses, CloseAction,
-    HealthLevel, LiveFacts, MenuAction, MenuEffect, Overlay, ServiceState, SettingsSection, Tab,
+    capture_level, close_action, health_level, menu_effect, overlay_from_level, substatuses,
+    CloseAction, HealthLevel, LiveFacts, MenuAction, MenuEffect, Overlay, ServiceState,
+    SettingsSection, Tab,
 };
 use crate::enroll::{self, EnrollRequest};
 use crate::scm;
@@ -461,14 +462,11 @@ impl GuiApp {
                     row(ui, "Device ID", device_label(snapshot));
                     row(ui, "Versión", snapshot.agent_version.clone());
                     row(ui, "Modo", snapshot.mode.clone());
-                    row(
+                    row_colored(
                         ui,
                         "Captura",
-                        if snapshot.capture_status.is_empty() {
-                            "—"
-                        } else {
-                            snapshot.capture_status.as_str()
-                        },
+                        capture_text(snapshot, Utc::now()),
+                        capture_color(snapshot),
                     );
                     row(
                         ui,
@@ -1109,6 +1107,10 @@ fn sparkline(ui: &mut egui::Ui, values: &[u64]) {
 }
 
 fn row(ui: &mut egui::Ui, key: &str, value: impl Into<String>) {
+    row_colored(ui, key, value, theme::TEXT);
+}
+
+fn row_colored(ui: &mut egui::Ui, key: &str, value: impl Into<String>, color: egui::Color32) {
     ui.label(
         RichText::new(key)
             .color(theme::MUTED)
@@ -1116,10 +1118,51 @@ fn row(ui: &mut egui::Ui, key: &str, value: impl Into<String>) {
     );
     ui.label(
         RichText::new(value.into())
-            .color(theme::TEXT)
+            .color(color)
             .size(theme::VALUE_SIZE),
     );
     ui.end_row();
+}
+
+fn capture_color(snapshot: &StatusSnapshot) -> egui::Color32 {
+    match capture_level(snapshot) {
+        Some(level) => theme::level_color(level),
+        None => theme::MUTED,
+    }
+}
+
+fn capture_text(snapshot: &StatusSnapshot, now: chrono::DateTime<Utc>) -> String {
+    match snapshot.capture_status.as_str() {
+        "disabled" => "Captura: deshabilitada (modo colector)".to_string(),
+        "degraded" => {
+            let mut text = "Captura: degradada — sin IPv4 local utilizable (vacío/APIPA). El monitor reintenta cada 5 s."
+                .to_string();
+            if let Some(age) = local_ips_refresh_age(snapshot, now) {
+                text.push_str(&format!(" Último refresco hace {age}."));
+            }
+            text
+        }
+        "ok" => {
+            let mut text = "Captura: ok".to_string();
+            if let Some(count) = snapshot.local_ips_ipv4 {
+                text.push_str(&format!(" · IPv4 locales: {count}"));
+            }
+            if let Some(age) = local_ips_refresh_age(snapshot, now) {
+                text.push_str(&format!(" · refresco hace {age}"));
+            }
+            text
+        }
+        "" => "Captura: —".to_string(),
+        other => format!("Captura: {other}"),
+    }
+}
+
+fn local_ips_refresh_age(snapshot: &StatusSnapshot, now: chrono::DateTime<Utc>) -> Option<String> {
+    let raw = snapshot.local_ips_last_refresh.as_deref()?;
+    let at = chrono::DateTime::parse_from_rfc3339(raw)
+        .ok()?
+        .with_timezone(&Utc);
+    Some(human_age((now - at).num_seconds().max(0)))
 }
 
 fn headline(level: HealthLevel) -> &'static str {
@@ -1191,6 +1234,7 @@ fn device_hint(snapshot: &StatusSnapshot) -> String {
     }
     match snapshot.capture_status.as_str() {
         "ok" => "Enrolado · captura activa".to_string(),
+        "degraded" => "Enrolado · captura degradada (sin IPv4 utilizable)".to_string(),
         "disabled" if snapshot.mode == "service" => "Enrolado · captura deshabilitada".to_string(),
         "" => "Enrolado · captura sin reportar".to_string(),
         other => format!("Enrolado · captura {other}"),
@@ -1353,7 +1397,11 @@ fn spool_read_due(spool_due: bool, snapshot_windows: Option<usize>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{balloon_fallback_for, header_uptime_label, human_uptime, spool_read_due};
+    use super::{
+        balloon_fallback_for, capture_text, header_uptime_label, human_uptime, spool_read_due,
+    };
+    use crate::status_client::StatusSnapshot;
+    use chrono::Utc;
 
     #[test]
     fn gate_skips_with_two_or_more_windows() {
@@ -1429,5 +1477,47 @@ mod tests {
         let (title, body) = balloon_fallback_for(Some(false), false, None).unwrap();
         assert!(title.contains("Avisos de Windows"));
         assert!(body.contains("cabecera"));
+    }
+
+    fn capture_snapshot(status: &str) -> StatusSnapshot {
+        StatusSnapshot {
+            capture_status: status.to_string(),
+            local_ips_usable: Some(status != "degraded"),
+            local_ips_ipv4: Some(1),
+            local_ips_last_refresh: Some("2026-11-17T00:00:05.000Z".to_string()),
+            ..Default::default()
+        }
+    }
+
+    fn now() -> chrono::DateTime<Utc> {
+        chrono::DateTime::parse_from_rfc3339("2026-11-17T00:00:10.000Z")
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    #[test]
+    fn captura_ok_muestra_ipv4_y_antiguedad_del_refresco() {
+        let text = capture_text(&capture_snapshot("ok"), now());
+        assert_eq!(text, "Captura: ok · IPv4 locales: 1 · refresco hace 5 s");
+    }
+
+    #[test]
+    fn captura_degradada_explica_el_motivo_y_el_ultimo_refresco() {
+        let text = capture_text(&capture_snapshot("degraded"), now());
+        assert!(text.contains("sin IPv4 local utilizable"));
+        assert!(text.contains("Último refresco hace 5 s"));
+    }
+
+    #[test]
+    fn captura_deshabilitada_y_agente_antiguo_no_inventan_datos() {
+        assert_eq!(
+            capture_text(&capture_snapshot("disabled"), now()),
+            "Captura: deshabilitada (modo colector)"
+        );
+        let old = StatusSnapshot {
+            capture_status: "ok".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(capture_text(&old, now()), "Captura: ok");
     }
 }

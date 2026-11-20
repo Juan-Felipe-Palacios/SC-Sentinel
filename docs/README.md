@@ -26,7 +26,7 @@
 | `governance/` | contribución, versionado | proceso |
 | `reference/` | api-contracts, data-model (ERD), detection-rules | spec §5, §6 |
 | `visuals/` | risk-score-calculation, multi-tenant-future | spec §17 |
-| `runbooks/` | 11: local-dev, inst. Windows/Linux, troubleshoot pcap/sync, colector MikroTik/Cisco, rotación token, cleanup DB, incident-response, rotación Trust Pages, export datasets grandes | spec §8, §9, §12, §13 |
+| `runbooks/` | 17: local-dev, inst. Windows/Linux, troubleshoot pcap/sync, colector MikroTik/Cisco, rotación token, cleanup DB, incident-response, rotación Trust Pages, export datasets grandes, DHCP refresh | spec §8, §9, §12, §13 |
 | `testing/` | 6 docs (test-plan, acceptance-criteria por hito, fixtures, release-checklist, throughput-benchmark, pcap-vs-flow) + `fixtures/` con capturas pcap/NetFlow/IPFIX | spec §14, §15 |
 | `ux/` | 6: landing-sitemap, dashboard-wireframes, design-tokens, copywriting, login-drone-show y prototipo M3.5 (HTML) | spec §18 |
 | `legal/` | THIRD_PARTY_NOTICES, maxmind-notice, npcap-notice, privacidad (draft), términos (draft) | licencias §3 del spec |
@@ -73,7 +73,7 @@ Módulos que sostienen estas rutas: `web/lib/export`, `web/lib/ai/metrics.ts` y 
 | how-to/ | ✅ 5 guías | operación |
 | explanation/ | ✅ 4 explicaciones | spec §3 |
 | governance/ | ✅ contribución + versionado | proceso |
-| runbooks/ | ✅ 16 escritos (verificados contra instalación real; pendiente el ciclo físico con el instalador curado) | M1–M5 |
+| runbooks/ | ✅ 17 escritos (verificados contra instalación real; pendiente el ciclo físico con el instalador curado) | M1–M5 |
 | testing/ | ✅ 6 docs + fixtures binarios | M0–M5 |
 | ux/ | ✅ 6 (tokens de marca: valores definidos en la extracción M3) | M3, M3.5 |
 | legal/ | ✅ 5 (2 drafts pendientes de revisión legal antes de M3) | M3 |

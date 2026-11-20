@@ -4,11 +4,13 @@ pub mod driver;
 pub mod fixtures;
 pub mod flow;
 pub mod live;
+pub mod monitor;
 pub mod parser;
 
 pub use channel::{CaptureChannel, CaptureChannelPair, FlowProducer, CHANNEL_CAPACITY};
 pub use driver::{run_offline, CaptureError, CaptureStats};
 pub use fixtures::generate_loopback_trace;
 pub use flow::{Direction, FlowUpdate, LocalIpSet};
-pub use live::{list_interfaces, local_ips_for_interface, run_live};
+pub use live::{list_interfaces, local_ips_for_interface, run_live, run_live_with_updates};
+pub use monitor::{start_local_ip_monitor, LocalIpMonitor};
 pub use parser::{parse_packet, ParseError};
