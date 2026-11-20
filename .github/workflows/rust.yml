@@ -9,6 +9,10 @@ jobs:
   test:
     runs-on: ${{ matrix.os }}
     strategy:
+      # Con fail-fast (el valor por defecto) un fallo de entorno en Linux
+      # cancelaba el job de Windows y el CI no ejecutaba `cargo test` en
+      # ninguna plataforma.
+      fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest]
     defaults:
@@ -43,10 +47,15 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-deny,cargo-audit
-      # La feature `live` requiere cabeceras de libpcap para compilar.
-      - name: Instalar libpcap (Linux, feature live)
+      # La feature `live` necesita cabeceras de libpcap. `sc-gui` tambien se
+      # compila en Linux, por ser miembro del workspace: eframe y tray-icon
+      # arrastran gtk3/glib, libayatana-appindicator y libxdo, que el runner
+      # ubuntu-latest no trae. Sin ellas el build muere resolviendo `glib-2.0`.
+      - name: Instalar dependencias de sistema (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcap-dev libgtk-3-dev libglib2.0-dev libayatana-appindicator3-dev libxdo-dev libxkbcommon-dev libwayland-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libssl-dev
       # En Windows el crate `pcap` enlaza contra la biblioteca de import de
       # Npcap: hace falta el SDK para que la feature `live` compile.
       - name: Instalar Npcap SDK (Windows, feature live)
