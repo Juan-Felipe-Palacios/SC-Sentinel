@@ -1,6 +1,6 @@
 # Plan — CSP con nonce por request
 
-Estado: **P1 y P2 implementados en código** (P1: builder + middleware + root layout
+Estado: **P1 y P2 implementados y desplegados** (Report-Only en producción; verificado con `curl` el 2026-11-20) (P1: builder + middleware + root layout
 dinámico; P2: `/api/csp-report` + `Content-Security-Policy-Report-Only`). Pendiente el
 despliegue de P2 en preview y las fases P3–P5. Este documento planifica V3 del anális
 de seguridad.
@@ -273,3 +273,18 @@ una variable de entorno del entorno de Vercel, no un cambio de código.
 - Queda documentada cualquier excepción (por ejemplo, Analytics) con su hash o
   justificación.
 - D1 resuelta y reflejada en el código antes de P1.
+
+## Estado al 2026-11-20
+
+`https://sc-sentinel.vercel.app` sirve hoy `Content-Security-Policy-Report-Only`
+con un nonce distinto por request y `report-uri /api/csp-report`, es decir P2 ya
+está en producción, no solo en código. Lo que queda:
+
+| Fase | Estado |
+|---|---|
+| P3 · corregir violaciones reales | Pendiente: requiere leer los reportes de producción |
+| P4 · enforcement en preview | Decidido: 48 h con `CSP_ENFORCE=1`, **después** de resolver el PR #8 (Analytics) |
+| P5 · enforcement en producción | Pendiente de P4 |
+
+Durante las 48 h de preview, producción sigue en Report-Only: se analizan **dos**
+fuentes de violaciones, no una.
