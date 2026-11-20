@@ -5,8 +5,8 @@
 //! en un hilo y se consulta el SCM de Windows para saber si el servicio vive.
 
 use crate::actions::{
-    close_action, health_level, overlay_from_level, substatuses, CloseAction, HealthLevel,
-    LiveFacts, MenuAction, Overlay, ServiceState, SettingsSection, Tab,
+    close_action, health_level, menu_effect, overlay_from_level, substatuses, CloseAction,
+    HealthLevel, LiveFacts, MenuAction, MenuEffect, Overlay, ServiceState, SettingsSection, Tab,
 };
 use crate::enroll::{self, EnrollRequest};
 use crate::scm;
@@ -280,13 +280,13 @@ impl GuiApp {
     }
 
     fn handle(&mut self, action: MenuAction, ctx: &egui::Context) {
-        match action {
-            MenuAction::Show => self.show_window(ctx),
-            MenuAction::Enroll => {
+        match menu_effect(action) {
+            MenuEffect::Show => self.show_window(ctx),
+            MenuEffect::ShowEnrollTab => {
                 self.tab = Tab::Enroll;
                 self.show_window(ctx);
             }
-            MenuAction::Quit => self.exit_process(),
+            MenuEffect::Exit => self.exit_process(),
         }
     }
 

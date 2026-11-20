@@ -47,6 +47,23 @@ Todo esto pasa al ticket P0 de Etapa 2
   (`HKCU\Environment`), verificado como ausente.
 - **Cierre de «Salir»**: `exit_process` mantiene `std::process::exit(0)`.
 
+## WS2 re-escopado: qué se prueba del cierre de «Salir»
+
+Los tests de drenaje, canal cerrado y tope de 10 MB que acompañaron al fix eran
+tests **del escritor**, no del cierre: al retirarse `log_writer.rs` con WP2 se
+retiraron con él **por diseño**, no por pérdida de cobertura. Lo que queda del
+fix y cómo se cubre:
+
+| Pieza | Cómo se verifica |
+|---|---|
+| `close_action` ( [×] oculta, no mata ) | Test unitario en `actions.rs` — se mantiene |
+| Enrutado del menú: «Salir» es la única acción que pide salir | Test unitario `salir_es_la_unica_accion_que_enruta_a_la_salida_explicita` sobre `menu_effect()` (función pura, sin `process::exit`) |
+| El proceso **muere** de verdad al pulsar «Salir» | **Prueba manual obligatoria sobre `--release`, pendiente** (checklist de sello, WS8) |
+
+La tercera fila no es sustituible por un test: un test no puede observar la
+muerte de su propio proceso. Es la única prueba de que la rama Quit se alcanza
+en el binario optimizado, y queda como ítem obligatorio antes del sello.
+
 ## Verificación
 
 | Comprobación | Comando | Resultado |
@@ -67,6 +84,8 @@ firma del cuelgue. Para la próxima medición, el criterio de validez no puede s
 
 ## No verificado
 
+- Clic real en «Salir» sobre `--release`: **no ejecutado**. Sin esa prueba no se
+  puede afirmar que el proceso muere en el binario publicado (ver WS2).
 - No se reprodujo el spin de forma controlada; el minidump no se analizó con
   símbolos.
 - El criterio de 24 h sigue abierto: lo cierra la corrida del ticket P0.

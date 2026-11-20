@@ -23,6 +23,32 @@ pub enum MenuAction {
     Quit,
 }
 
+/// Efecto de una entrada del menú sobre la ventana y el proceso.
+///
+/// Existe para poder probar el **enrutado** de «Salir» sin matar el proceso de
+/// test: `MenuAction::Quit` debe llegar a la rama que sale de verdad, y esa
+/// rama (`std::process::exit`) se prueba a mano sobre `--release` porque un
+/// test no puede observar la muerte de su propio proceso.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MenuEffect {
+    /// Restaura la ventana en la pestaña actual.
+    Show,
+    /// Restaura la ventana en la pestaña de enrolamiento.
+    ShowEnrollTab,
+    /// Termina el proceso (única salida real).
+    Exit,
+}
+
+/// Traduce la entrada de menú a su efecto. Función pura: la decisión de salir
+/// se prueba aquí, la salida real en la prueba manual de `--release`.
+pub fn menu_effect(action: MenuAction) -> MenuEffect {
+    match action {
+        MenuAction::Show => MenuEffect::Show,
+        MenuAction::Enroll => MenuEffect::ShowEnrollTab,
+        MenuAction::Quit => MenuEffect::Exit,
+    }
+}
+
 /// Entradas del menú, en orden. La etiqueta es la que ve el usuario.
 pub const MENU_ITEMS: [(&str, MenuAction); 3] = [
     ("Mostrar", MenuAction::Show),
@@ -281,6 +307,18 @@ mod tests {
             .find(|(_, action)| *action == MenuAction::Quit)
             .map(|(label, _)| *label);
         assert_eq!(quit, Some("Salir"));
+    }
+
+    #[test]
+    fn salir_es_la_unica_accion_que_enruta_a_la_salida_explicita() {
+        assert_eq!(menu_effect(MenuAction::Quit), MenuEffect::Exit);
+        assert_eq!(menu_effect(MenuAction::Show), MenuEffect::Show);
+        assert_eq!(menu_effect(MenuAction::Enroll), MenuEffect::ShowEnrollTab);
+        let exits = MENU_ITEMS
+            .iter()
+            .filter(|(_, action)| menu_effect(*action) == MenuEffect::Exit)
+            .count();
+        assert_eq!(exits, 1);
     }
 
     #[test]

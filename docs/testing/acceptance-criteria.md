@@ -394,12 +394,20 @@ Evidencia: `docs/evidence/sc-gui-stage0-2026-11-18/`.
 - [x] Instrumentación temporal retirada del código y `SC_GUI_STAGE0` borrada del
       entorno de usuario (verificado: la variable ya no existe).
 - [x] Bug «Salir» cerrado (`dfccf81`, 2026-11-18): el cierre sale del proceso con
-      `exit(0)`.
+      `exit(0)`. Enrutado cubierto por test (`menu_effect`), ver nota de abajo.
+- [ ] **Prueba manual obligatoria antes del sello:** clic real en «Salir» del
+      menú de bandeja sobre un build `--release`; el proceso debe morir y no
+      quedar ningún `sc-gui` en ejecución. Es la única prueba de que la rama Quit
+      se alcanza en el binario optimizado. **No ejecutada todavía.**
 
 > Nota de cobertura: el test de drenaje del hilo escritor que acompañó al fix de
 > «Salir» se retiró el 2026-11-20 junto con la instrumentación, porque el hilo
-> escritor ya no existe. Lo que queda del fix es la salida explícita del proceso,
-> cubierta por la prueba manual del 2026-11-18.
+> escritor ya no existe: eran tests del escritor, no del cierre, y su retiro es
+> **por diseño**, no una regresión de cobertura. Lo que queda del fix es la
+> salida explícita del proceso: `close_action` mantiene su test y el enrutado de
+> «Salir» se prueba sobre `menu_effect()`. La muerte real del proceso en
+> `--release` exige clic manual (ítem de arriba), porque un test no puede
+> observar su propio proceso.
 >
 > Hallazgo que cambia el relato de Stage 0: el segundo corte no es una pausa de
 > repintado sino un **spin** de un solo hilo con ~85 % de un núcleo y cero
