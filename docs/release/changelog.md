@@ -2,10 +2,21 @@
 
 Formato: Keep a Changelog 1.1 (semantic entries) publicado también en cada GitHub Release.
 
-## [0.1.9] — en preparación
+## [0.1.9] — 2026-11-20
 
 > Sustituye a **0.1.8**, publicada el 2026-11-20 pero **no desplegada**: el
 > servicio siguió corriendo 0.1.7. Sin re-tag: `v0.1.8` queda como está.
+
+### Added
+- (Agent) Monitor de IPs locales cada 5 s: `local_ips_usable`, `local_ips_ipv4`
+  y `local_ips_last_refresh` en `/status`, con los eventos
+  `local_ips_refreshed` y `local_ips_degraded`. Emite refresh ante un cambio de
+  **contenido** del conjunto aunque el conteo no cambie, que es el bug de 0.1.7.
+- (GUI) Estado de captura degradada: badge ámbar de advertencia y detalle
+  «sin IPv4 local utilizable (vacío/APIPA)» en vez de mostrar verde con la
+  captura inservible.
+- (Docs) Runbook `docs/runbooks/test-dhcp-refresh.md` (etapas A y B) y la
+  evidencia medida de ambas en `docs/evidence/local-ip-refresh-2026-11-20.md`.
 
 ### Changed
 - (GUI) Retirada la instrumentación temporal de Stage 0: sin `SC_GUI_STAGE0`,
@@ -15,6 +26,8 @@ Formato: Keep a Changelog 1.1 (semantic entries) publicado también en cada GitH
   ADR-0020.
 
 ### Fixed
+- (Agent) La captura ya no queda «ok» con una tabla de IPs locales vieja: el
+  monitor consulta el resolver de Npcap y el refresh se propaga a `/status`.
 - (CI) El workflow de Rust instala las dependencias GTK en Linux y no cancela el
   job de Windows ante un fallo de entorno.
 
@@ -38,7 +51,7 @@ Formato: Keep a Changelog 1.1 (semantic entries) publicado también en cada GitH
 ### Fixed
 - (Web) Eliminada la referencia duplicada al script de Vercel Web Analytics.
 
-## [0.1.7] — 2026-11-15
+## [0.1.7] — 2026-11-15
 
 ### Added
 - (Legal) Anexo A con los textos completos de MIT y Apache-2.0 de Sniffnet
