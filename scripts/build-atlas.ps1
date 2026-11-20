@@ -41,7 +41,9 @@ foreach ($patron in $prioridad) {
   }
 }
 Get-ChildItem $docs -Recurse -Filter *.md -File |
-  Where-Object { -not $usados.Contains($_.FullName) -and $_.FullName -notmatch '\\diagrams\\exports\\' } |
+  # La evidencia (docs/evidence) queda fuera del atlas: son bitacoras de
+  # corridas, no documentacion, y no se versionan.
+  Where-Object { -not $usados.Contains($_.FullName) -and $_.FullName -notmatch '\\diagrams\\exports\\' -and $_.FullName -notlike '*\evidence\*' } |
   Sort-Object FullName |
   ForEach-Object { $elegidos.Add($_.FullName) }
 
