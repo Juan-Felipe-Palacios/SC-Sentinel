@@ -374,3 +374,34 @@ Hecha sobre el **ZIP descargado de la release v0.1.3**, no sobre el binario loca
 > CORRECTO) y la release v0.1.6 se publica desde el tag `v0.1.6` (CI compila y
 > empaqueta con `release.yml`), de modo que el artefacto publicado ya no lleva
 > los instaladores previos a estos arreglos.
+
+## Stage 0 — `sc-gui` (instrumentación temporal, 2026-11-18)
+
+Diseño: `docs/designs/sc-gui-stage0/`. Informe: `informe-cierre.md`.
+Evidencia: `docs/evidence/sc-gui-stage0-2026-11-18/`.
+
+- [x] Gate WP1 (salto de relectura del spool cuando `/status` ya publica
+      ventanas) implementado y **permanente**: no depende de ningún flag.
+- [x] Brief, anclaje y design draft commiteados.
+- [ ] Corrida de 24 h con ≥ 288 ventanas agregadas — **no alcanzado**: 39
+      ventanas (13,5 %). Criterio declarado no alcanzado por limitación del
+      instrumento (decisión del propietario, 2026-11-20). No se marca como
+      cumplido.
+- [x] Evidencia archivada: diario en UTC con offset declarado, métricas
+      derivadas con `sha256` del log crudo, snapshot forense del proceso.
+- [x] Ticket contingente dispositionado: pasa a **P0 de Etapa 2** con alcance
+      ampliado de «repaint oculto» a «stall/spin» (`ticket-contingente.md`).
+- [x] Instrumentación temporal retirada del código y `SC_GUI_STAGE0` borrada del
+      entorno de usuario (verificado: la variable ya no existe).
+- [x] Bug «Salir» cerrado (`dfccf81`, 2026-11-18): el cierre sale del proceso con
+      `exit(0)`.
+
+> Nota de cobertura: el test de drenaje del hilo escritor que acompañó al fix de
+> «Salir» se retiró el 2026-11-20 junto con la instrumentación, porque el hilo
+> escritor ya no existe. Lo que queda del fix es la salida explícita del proceso,
+> cubierta por la prueba manual del 2026-11-18.
+>
+> Hallazgo que cambia el relato de Stage 0: el segundo corte no es una pausa de
+> repintado sino un **spin** de un solo hilo con ~85 % de un núcleo y cero
+> salida. La hipótesis de oclusión quedó descartada y el criterio de 24 h se
+> cierra en el ticket P0, no aquí.
