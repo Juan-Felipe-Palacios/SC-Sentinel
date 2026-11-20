@@ -2,6 +2,22 @@
 
 Formato: Keep a Changelog 1.1 (semantic entries) publicado también en cada GitHub Release.
 
+## [0.1.9] — en preparación
+
+> Sustituye a **0.1.8**, publicada el 2026-11-20 pero **no desplegada**: el
+> servicio siguió corriendo 0.1.7. Sin re-tag: `v0.1.8` queda como está.
+
+### Changed
+- (GUI) Retirada la instrumentación temporal de Stage 0: sin `SC_GUI_STAGE0`,
+  sin `gui.log` de métricas y sin sonda `spool_open`. El gate de relectura del
+  spool se mantiene.
+- (CI) `cargo audit` ignora `RUSTSEC-2026-0257` con el motivo documentado en
+  ADR-0020.
+
+### Fixed
+- (CI) El workflow de Rust instala las dependencias GTK en Linux y no cancela el
+  job de Windows ante un fallo de entorno.
+
 ## [0.1.8] — 2026-11-18
 
 ### Added
