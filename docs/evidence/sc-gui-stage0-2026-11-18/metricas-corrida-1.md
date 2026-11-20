@@ -31,6 +31,54 @@ El bloque 2 es **contiguo**: 36 × 5 min = 180 min exactos medidos, y luego cort
 discreto. No hubo degradación gradual: hay 36 ventanas completas y después
 ninguna.
 
+## Tabla por ventana (288 ranuras de 5 min)
+
+Rejilla completa del criterio de Stage 0: **288 ventanas** desde la primera
+ventana registrada (`2026-11-18T17:00:00Z`) hasta 24 h después.
+Cada celda es una ventana de 5 min: **●** escrita en `gui.log`, **·** ausente.
+La rejilla empieza en la primera ventana observada porque el `.log` conservado no
+contiene ventanas anteriores (el proceso arrancó a las 16:08Z y ese tramo se
+perdió con el PID 22940).
+
+Resultado: **39 presentes · 249 ausentes · 39/288 = 13.5 %**.
+
+| Hora (UTC) | :00 | :05 | :10 | :15 | :20 | :25 | :30 | :35 | :40 | :45 | :50 | :55 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-18 17 | ● | ● | ● | · | · | · | · | · | · | · | · | · |
+| 2026-11-18 18 | · | · | · | · | · | · | · | · | · | · | · | · |
+| 2026-11-18 19 | · | · | · | · | · | · | · | · | · | · | · | · |
+| 2026-11-18 20 | · | · | · | · | · | · | · | · | · | · | · | · |
+| 2026-11-18 21 | · | · | · | · | ● | ● | ● | ● | ● | ● | ● | ● |
+| 2026-11-18 22 | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| 2026-11-18 23 | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| 2026-11-19 00 | ● | ● | ● | ● | · | · | · | · | · | · | · | · |
+| 2026-11-19 01 | · | · | · | · | · | · | · | · | · | · | · | · |
+| 2026-11-19 02 | · | · | · | · | · | · | · | · | · | · | · | · |
+| 2026-11-19 03 | · | · | · | · | · | · | · | · | · | · | · | · |
+| 2026-11-19 04 | · | · | · | · | · | · | · | · | · | · | · | · |
+| 2026-11-19 05 | · | · | · | · | · | · | · | · | · | · | · | · |
+| 2026-11-19 06 | · | · | · | · | · | · | · | · | · | · | · | · |
+| 2026-11-19 07 | · | · | · | · | · | · | · | · | · | · | · | · |
+| 2026-11-19 08 | · | · | · | · | · | · | · | · | · | · | · | · |
+| 2026-11-19 09 | · | · | · | · | · | · | · | · | · | · | · | · |
+| 2026-11-19 10 | · | · | · | · | · | · | · | · | · | · | · | · |
+| 2026-11-19 11 | · | · | · | · | · | · | · | · | · | · | · | · |
+| 2026-11-19 12 | · | · | · | · | · | · | · | · | · | · | · | · |
+| 2026-11-19 13 | · | · | · | · | · | · | · | · | · | · | · | · |
+| 2026-11-19 14 | · | · | · | · | · | · | · | · | · | · | · | · |
+| 2026-11-19 15 | · | · | · | · | · | · | · | · | · | · | · | · |
+| 2026-11-19 16 | · | · | · | · | · | · | · | · | · | · | · | · |
+
+Lectura de la rejilla:
+
+- Bloque 1: fila `2026-11-18 17`, columnas `:00`, `:05`, `:10` (3 ventanas).
+- Hueco: **49 ventanas ausentes** de `17:15` a `21:15` (245 min de ventanas; entre
+  el inicio de la última presente, `17:10`, y el de la primera del bloque 2,
+  `21:20`, transcurren 250 min).
+- Bloque 2: `21:20` → `00:15` (36 ventanas contiguas, 180 min).
+- Después de `00:15`: 249 ventanas ausentes por el stall del proceso, que siguió
+  vivo hasta el kill del 2026-11-20T17:30Z.
+
 ## Líneas por tipo y por métrica
 
 | `kind` | Líneas |
