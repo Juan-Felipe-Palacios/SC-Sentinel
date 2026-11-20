@@ -99,6 +99,11 @@ pub fn is_double_click(previous: Option<Instant>, now: Instant) -> bool {
 
 /// Estado del servicio según el SCM (F3). Si el agente no responde, la GUI no
 /// puede distinguir "detenido" de "colgado", así que ambos son `Unknown`.
+/// `Stopped` y `Pending` los produce unicamente la lectura del SCM, que
+/// existe solo en Windows: en el resto de plataformas la GUI solo puede
+/// pintar `Unknown`. El `allow` es puntual para no ocultar dead code del
+/// resto del crate.
+#[cfg_attr(not(windows), allow(dead_code))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServiceState {
     Running,
