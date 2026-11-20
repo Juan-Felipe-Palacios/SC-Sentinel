@@ -81,7 +81,15 @@ jobs:
       # Evita bit-rot de la captura real: sin esto, `live` solo se compila a mano.
       - name: Check feature live
         run: cargo check -p sc-capture --features live
-      - run: cargo audit
+      # RUSTSEC-2026-0257 (webbrowser 0.8.15, via egui-winit/eframe 0.27) no
+      # tiene parche dentro de su rama: el arreglo es >=1.2.2 y egui-winit
+      # 0.27 exige ^0.8, asi que solo se cierra subiendo todo el stack de la
+      # GUI. La ruta afectada (open/open_browser, inyeccion de argumentos por
+      # la variable BROWSER en Unix) no se invoca en sc-gui y solo existe en
+      # Unix, mientras la GUI se distribuye unicamente para Windows. Se ignora
+      # ese aviso y solo ese: el gate sigue fallando ante cualquier
+      # vulnerabilidad nueva.
+      - run: cargo audit --ignore RUSTSEC-2026-0257
       - run: cargo deny check licenses
       - run: cargo build --release
       # El binario de Windows debe poder capturar: el texto "captura live no
