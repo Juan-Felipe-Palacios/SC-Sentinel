@@ -2,7 +2,27 @@
 
 Formato: Keep a Changelog 1.1 (semantic entries) publicado también en cada GitHub Release.
 
-## [0.1.7] — 2026-11-15
+## [0.1.8] — 2026-11-18
+
+### Added
+- (Web) Colector CSP Report-Only (P2): reporte de violaciones sin bloquear.
+- (GUI) Instrumentación Stage 0 de sc-gui bajo la variable `SC_GUI_STAGE0`.
+- (Docs) Brief, anclaje y design draft de Stage 0 para la GUI.
+
+### Changed
+- (Web) CSP con nonce por request (P1) en lugar de política estática.
+- (Web) Resolución de la IP del cliente endurecida contra spoofing.
+- (Web) Fallback de autenticación en desarrollo endurecido.
+- (GUI) Gate de relectura del spool cuando `/status` ya alimenta la vista (perf).
+- (Web) Alineación de las tarjetas KPI del dashboard y del diagrama de arquitectura.
+- (Web) Restauración del componente Vercel Web Analytics.
+- (Web) Restauración de la demo pública y del cron de IA en producción.
+- (Web) Indicación del último tráfico cuando las ventanas están vacías.
+
+### Fixed
+- (Web) Eliminada la referencia duplicada al script de Vercel Web Analytics.
+
+## [0.1.7] — 2026-11-15
 
 ### Added
 - (Legal) Anexo A con los textos completos de MIT y Apache-2.0 de Sniffnet

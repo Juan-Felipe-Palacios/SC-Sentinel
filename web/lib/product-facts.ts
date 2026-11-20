@@ -5,8 +5,8 @@
 export const PRODUCT = {
   name: "SC-Sentinel",
   company: "Strategic Connex",
-  version: "0.1.7",
-  releaseLabel: "15 nov 2026",
+  version: "0.1.8",
+  releaseLabel: "18 nov 2026",
   windowSeconds: 30,
   swrSeconds: 5,
   platforms: ["Windows (servicio)", "Linux (colector)"],

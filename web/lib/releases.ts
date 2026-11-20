@@ -20,6 +20,34 @@ export interface ReleaseNote {
 
 export const RELEASES: ReleaseNote[] = [
   {
+    version: "0.1.8",
+    date: "18 nov 2026",
+    title: "CSP con nonce, endurecimiento de seguridad y GUI Stage 0",
+    summary:
+      "La web publica endurece la política de seguridad (CSP con nonce por request, colector Report-Only y resolución anti-spoofing de IP de cliente) y la GUI de escritorio gana instrumentación Stage 0 y un gate de rendimiento sobre el spool.",
+    highlight: "CSP con nonce por request y colector Report-Only (P1/P2) en el dashboard.",
+    groups: {
+      added: [
+        "Colector CSP Report-Only (P2) para reportar violaciones sin bloquear.",
+        "Instrumentación Stage 0 de sc-gui bajo la variable SC_GUI_STAGE0.",
+        "Brief, anclaje y design draft de Stage 0 para la GUI (docs/sc-gui).",
+      ],
+      changed: [
+        "CSP con nonce por request (P1) en lugar de una política estática.",
+        "Resolución de la IP del cliente endurecida contra spoofing.",
+        "Fallback de autenticación en desarrollo endurecido.",
+        "Gate de relectura del spool cuando /status ya alimenta la vista (perf GUI).",
+        "Alineación de las tarjetas KPI del dashboard y del diagrama de arquitectura.",
+        "Restauración del componente Vercel Web Analytics.",
+        "Restauración de la demo pública y del cron de IA en producción.",
+        "Indicación del último tráfico cuando las ventanas están vacías.",
+      ],
+      fixed: [
+        "Eliminada la referencia duplicada al script de Vercel Web Analytics.",
+      ],
+    },
+  },
+  {
     version: "0.1.7",
     date: "15 nov 2026",
     title: "Avisos de terceros y licencias completas",
