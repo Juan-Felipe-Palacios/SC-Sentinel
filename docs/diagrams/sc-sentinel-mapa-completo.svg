@@ -1,0 +1,273 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1680 1250" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#495057"/></marker>
+    <marker id="ab" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#1971c2"/></marker>
+    <marker id="ag" markerWidth="9" markerHeight="6" refX="9" refY="3" orient="auto"><polygon points="0 0, 9 3, 0 6" fill="#2f9e44"/></marker>
+  </defs>
+
+  <rect width="1680" height="1250" fill="#fafbfc"/>
+  <text x="840" y="38" text-anchor="middle" font-size="26" font-weight="bold" fill="#1e1e1e">SC-Sentinel — Mapa completo del proyecto</text>
+  <text x="840" y="62" text-anchor="middle" font-size="13" fill="#868e96">Monorepo: agente Rust + web Next.js · planes gratuitos · 2026-11</text>
+
+  <!-- ===================== RAÍZ ===================== -->
+  <rect x="30" y="80" width="1620" height="52" rx="8" fill="#f1f3f5" stroke="#adb5bd" stroke-width="2"/>
+  <text x="50" y="102" font-size="14" font-weight="bold" fill="#495057">RAÍZ  SC-Sentinel/</text>
+  <text x="50" y="122" font-size="12" fill="#868e96">README.md · AGENTS.md · LICENSE (propietaria) · .gitignore · opencode.jsonc · skills-lock.json · .env.local (secreto, no versionar)</text>
+
+  <!-- ===================== COLUMNA IZQUIERDA: AGENT ===================== -->
+  <rect x="30" y="155" width="530" height="640" rx="10" fill="#a5d8ff" stroke="#1971c2" stroke-width="2"/>
+  <text x="50" y="183" font-size="17" font-weight="bold" fill="#1971c2">agent/ — Workspace Rust (11 crates · ~17.8k líneas)</text>
+  <text x="50" y="203" font-size="12" fill="#1971c2">Cargo.toml · Cargo.lock · deny.toml · fmt · clippy -D warnings · test --workspace</text>
+
+  <!-- Pipeline principal -->
+  <rect x="50" y="220" width="230" height="54" rx="5" fill="#ffffff" stroke="#1971c2" stroke-width="1.5"/>
+  <text x="165" y="242" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e1e1e">sc-capture</text>
+  <text x="165" y="260" text-anchor="middle" font-size="11" fill="#495057">1065 l · pcap pasiva Npcap</text>
+
+  <rect x="310" y="220" width="230" height="54" rx="5" fill="#ffffff" stroke="#1971c2" stroke-width="1.5"/>
+  <text x="425" y="242" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e1e1e">sc-collector</text>
+  <text x="425" y="260" text-anchor="middle" font-size="11" fill="#495057">4835 l · IPFIX/sFlow/NetFlow · OT</text>
+
+  <rect x="310" y="294" width="230" height="54" rx="5" fill="#ffffff" stroke="#1971c2" stroke-width="1.5"/>
+  <text x="425" y="316" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e1e1e">sc-aggregate</text>
+  <text x="425" y="334" text-anchor="middle" font-size="11" fill="#495057">1185 l · ventanas 5 min</text>
+
+  <rect x="50" y="294" width="230" height="54" rx="5" fill="#ffffff" stroke="#1971c2" stroke-width="1.5"/>
+  <text x="165" y="316" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e1e1e">sc-detect</text>
+  <text x="165" y="334" text-anchor="middle" font-size="11" fill="#495057">964 l · reglas + normalidad</text>
+
+  <rect x="50" y="368" width="230" height="54" rx="5" fill="#ffffff" stroke="#1971c2" stroke-width="1.5"/>
+  <text x="165" y="390" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e1e1e">spool SQLite → sc-sync</text>
+  <text x="165" y="408" text-anchor="middle" font-size="11" fill="#495057">965 l · drenaje HTTPS 30 min</text>
+
+  <rect x="310" y="368" width="230" height="54" rx="5" fill="#ffffff" stroke="#1971c2" stroke-width="1.5"/>
+  <text x="425" y="390" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e1e1e">sc-geo</text>
+  <text x="425" y="408" text-anchor="middle" font-size="11" fill="#495057">548 l · GeoLite2 MaxMind</text>
+
+  <!-- Soporte -->
+  <rect x="50" y="442" width="230" height="54" rx="5" fill="#ffffff" stroke="#1971c2" stroke-width="1.5"/>
+  <text x="165" y="464" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e1e1e">sc-agent</text>
+  <text x="165" y="482" text-anchor="middle" font-size="11" fill="#495057">1922 l · servicio Windows/SCM</text>
+
+  <rect x="310" y="442" width="230" height="54" rx="5" fill="#ffffff" stroke="#1971c2" stroke-width="1.5"/>
+  <text x="425" y="464" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e1e1e">sc-config</text>
+  <text x="425" y="482" text-anchor="middle" font-size="11" fill="#495057">1238 l · TOML + env</text>
+
+  <rect x="50" y="516" width="230" height="54" rx="5" fill="#ffffff" stroke="#1971c2" stroke-width="1.5"/>
+  <text x="165" y="538" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e1e1e">sc-core</text>
+  <text x="165" y="556" text-anchor="middle" font-size="11" fill="#495057">349 l · tipos comunes</text>
+
+  <rect x="310" y="516" width="230" height="54" rx="5" fill="#ffffff" stroke="#1971c2" stroke-width="1.5"/>
+  <text x="425" y="538" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e1e1e">sc-telemetry</text>
+  <text x="425" y="556" text-anchor="middle" font-size="11" fill="#495057">730 l · métricas internas</text>
+
+  <rect x="50" y="590" width="490" height="54" rx="5" fill="#d0bfff" stroke="#7048e8" stroke-width="2"/>
+  <text x="295" y="612" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e1e1e">sc-gui — bandeja Windows (eframe/egui)</text>
+  <text x="295" y="630" text-anchor="middle" font-size="11" fill="#495057">4038 l · Stage 0 instrumentación · fix Salir dfccf81 · 71 tests</text>
+
+  <text x="50" y="675" font-size="12" font-weight="bold" fill="#1971c2">Tests por crate (archivos con #[test]):</text>
+  <text x="50" y="695" font-size="11" fill="#495057">collector 14 · gui 8 · capture 5 · aggregate/geo/sync/telemetry 3 c/u · agent/detect 2 · config/core 1</text>
+
+  <text x="50" y="725" font-size="12" font-weight="bold" fill="#1971c2">Ruta caliente:</text>
+  <text x="50" y="745" font-size="11" fill="#495057">paquete → collector (disección barata) → aggregate (ventana) → detect (reglas) → spool → sync</text>
+  <text x="50" y="770" font-size="11" fill="#868e96">Sin panic en PDU malformado · captura estrictamente pasiva · clase C nunca sale del nodo</text>
+
+  <!-- ===================== COLUMNA CENTRO: WEB ===================== -->
+  <rect x="590" y="155" width="540" height="640" rx="10" fill="#b2f2bb" stroke="#2f9e44" stroke-width="2"/>
+  <text x="610" y="183" font-size="17" font-weight="bold" fill="#2f9e44">web/ — Next.js 15 · Vercel Hobby</text>
+  <text x="610" y="203" font-size="12" fill="#2f9e44">TypeScript · Zod · Drizzle · SWR · pnpm · 61 tests</text>
+
+  <!-- Rutas -->
+  <rect x="610" y="218" width="245" height="130" rx="5" fill="#ffffff" stroke="#2f9e44" stroke-width="1.5"/>
+  <text x="732" y="240" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e1e1e">app/(marketing)</text>
+  <text x="732" y="262" text-anchor="middle" font-size="11" fill="#495057">landing · funcionalidades</text>
+  <text x="732" y="280" text-anchor="middle" font-size="11" fill="#495057">contacto · novedades · security</text>
+  <text x="732" y="298" text-anchor="middle" font-size="11" fill="#495057">legal/privacy · terms</text>
+  <text x="732" y="316" text-anchor="middle" font-size="11" fill="#495057">legal/third-party-notices</text>
+  <text x="732" y="336" text-anchor="middle" font-size="11" fill="#868e96">robots · sitemap · opengraph</text>
+
+  <rect x="875" y="218" width="235" height="130" rx="5" fill="#ffffff" stroke="#2f9e44" stroke-width="1.5"/>
+  <text x="992" y="240" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e1e1e">app/(dashboard)</text>
+  <text x="992" y="262" text-anchor="middle" font-size="11" fill="#495057">overview · alerts · hosts</text>
+  <text x="992" y="280" text-anchor="middle" font-size="11" fill="#495057">connections · evals · admin</text>
+  <text x="992" y="298" text-anchor="middle" font-size="11" fill="#495057">settings</text>
+  <text x="992" y="325" text-anchor="middle" font-size="11" fill="#868e96">login · demo · p/[token]</text>
+
+  <!-- API -->
+  <rect x="610" y="364" width="500" height="150" rx="5" fill="#ffffff" stroke="#2f9e44" stroke-width="1.5"/>
+  <text x="860" y="386" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e1e1e">app/api/ — 14 grupos de rutas</text>
+  <text x="625" y="410" font-size="11" fill="#495057">ingest · query · alerts/[id] · devices/enroll · devices/[id]/rotate</text>
+  <text x="625" y="430" font-size="11" fill="#495057">auth/login · auth/logout · auth/guest-login · chat + history</text>
+  <text x="625" y="450" font-size="11" fill="#495057">ai/analyze · ai/cron · cron/cleanup · trust/access · trust/[id]</text>
+  <text x="625" y="470" font-size="11" fill="#495057">export/stats · csp-report · operators</text>
+  <text x="625" y="496" font-size="11" fill="#868e96">tests __tests__/ en ingest, query, alerts, auth, chat, csp-report, devices, ai</text>
+
+  <!-- lib -->
+  <rect x="610" y="530" width="245" height="145" rx="5" fill="#ffffff" stroke="#2f9e44" stroke-width="1.5"/>
+  <text x="732" y="552" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e1e1e">lib/ — 20+ módulos</text>
+  <text x="625" y="575" font-size="11" fill="#495057">auth · db · schemas · security</text>
+  <text x="625" y="593" font-size="11" fill="#495057">ingest · query · alerts · trust</text>
+  <text x="625" y="611" font-size="11" fill="#495057">ai · chat · rate-limit · http</text>
+  <text x="625" y="629" font-size="11" fill="#495057">errors · logging · geo · dns</text>
+  <text x="625" y="647" font-size="11" fill="#495057">export · risk · health · cleanup</text>
+  <text x="625" y="665" font-size="11" fill="#495057">demo · legal · swr · viz</text>
+
+  <!-- components -->
+  <rect x="875" y="530" width="235" height="145" rx="5" fill="#ffffff" stroke="#2f9e44" stroke-width="1.5"/>
+  <text x="992" y="552" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e1e1e">components/</text>
+  <text x="992" y="580" text-anchor="middle" font-size="12" fill="#495057">dashboard</text>
+  <text x="992" y="602" text-anchor="middle" font-size="12" fill="#495057">marketing</text>
+  <text x="992" y="624" text-anchor="middle" font-size="12" fill="#495057">chat</text>
+  <text x="992" y="646" text-anchor="middle" font-size="12" fill="#495057">trust · legal</text>
+
+  <text x="610" y="705" font-size="12" font-weight="bold" fill="#2f9e44">Seguridad:</text>
+  <text x="610" y="725" font-size="11" fill="#495057">CSP estricta · rate-limit · Zod en todo input · auth por token · SSRF en webhooks</text>
+  <text x="610" y="750" font-size="12" font-weight="bold" fill="#2f9e44">Gates:</text>
+  <text x="610" y="770" font-size="11" fill="#495057">pnpm typecheck · lint · test (61) · build · contracts</text>
+
+  <!-- ===================== COLUMNA DERECHA ===================== -->
+  <!-- Contratos -->
+  <rect x="1160" y="155" width="490" height="150" rx="10" fill="#ffd8a8" stroke="#e67700" stroke-width="2"/>
+  <text x="1180" y="183" font-size="16" font-weight="bold" fill="#e67700">Contratos — 3 formatos, mismo cambio</text>
+  <text x="1180" y="208" font-size="12" fill="#495057">docs/contracts/</text>
+  <text x="1180" y="228" font-size="11" fill="#495057">window-snapshot.v1.schema.json</text>
+  <text x="1180" y="246" font-size="11" fill="#495057">alert.v1.schema.json · agent-health.v1.schema.json</text>
+  <text x="1180" y="264" font-size="11" fill="#495057">ingest-api.v1.md · chat-api.v1.md</text>
+  <text x="1180" y="286" font-size="11" fill="#868e96">serde (Rust) ↔ Zod (TS) ↔ JSON Schema · verify-contracts.sh</text>
+
+  <!-- CI/CD -->
+  <rect x="1160" y="325" width="490" height="170" rx="10" fill="#e9ecef" stroke="#868e96" stroke-width="2"/>
+  <text x="1180" y="353" font-size="16" font-weight="bold" fill="#495057">CI/CD — .github/workflows (6)</text>
+  <text x="1180" y="380" font-size="12" fill="#495057">rust.yml — fmt · clippy · test workspace</text>
+  <text x="1180" y="400" font-size="12" fill="#495057">web.yml — typecheck · lint · test · build</text>
+  <text x="1180" y="420" font-size="12" fill="#495057">contracts.yml — schemas + Zod + serde</text>
+  <text x="1180" y="440" font-size="12" fill="#495057">release.yml — tag → ZIP + SHA256SUMS</text>
+  <text x="1180" y="460" font-size="12" fill="#495057">ai-cron.yml · skills.yml</text>
+  <text x="1180" y="483" font-size="11" fill="#868e96">push main → Vercel deploy producción</text>
+
+  <!-- Neon -->
+  <rect x="1160" y="515" width="235" height="130" rx="10" fill="#ffd43b" stroke="#e67700" stroke-width="2"/>
+  <text x="1277" y="543" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e1e1e">Neon Postgres</text>
+  <text x="1277" y="568" text-anchor="middle" font-size="12" fill="#495057">plan gratuito · CU-horas</text>
+  <text x="1277" y="590" text-anchor="middle" font-size="12" fill="#495057">ventanas · alertas</text>
+  <text x="1277" y="610" text-anchor="middle" font-size="12" fill="#495057">device · insights · trust</text>
+  <text x="1277" y="632" text-anchor="middle" font-size="11" fill="#868e96">migraciones aditivas</text>
+
+  <!-- Externos -->
+  <rect x="1415" y="515" width="235" height="130" rx="10" fill="#ffc9c9" stroke="#e03131" stroke-width="2"/>
+  <text x="1532" y="543" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e1e1e">Externos</text>
+  <text x="1532" y="568" text-anchor="middle" font-size="12" fill="#495057">Gemini · Groq · OpenRouter</text>
+  <text x="1532" y="590" text-anchor="middle" font-size="12" fill="#495057">Slack · Discord webhooks</text>
+  <text x="1532" y="610" text-anchor="middle" font-size="12" fill="#495057">MaxMind GeoLite2</text>
+  <text x="1532" y="632" text-anchor="middle" font-size="12" fill="#495057">Npcap · GitHub</text>
+
+  <!-- ===================== FILA INFERIOR: DOCS ===================== -->
+  <rect x="30" y="820" width="1050" height="250" rx="10" fill="#e9ecef" stroke="#868e96" stroke-width="2"/>
+  <text x="50" y="848" font-size="17" font-weight="bold" fill="#495057">docs/ — 22 directorios (índice verificable en docs/README.md)</text>
+
+  <!-- Docs column 1 -->
+  <rect x="50" y="865" width="240" height="38" rx="4" fill="#ffffff" stroke="#adb5bd"/>
+  <text x="60" y="889" font-size="12" fill="#1e1e1e"><tspan font-weight="bold">adr/</tspan> 20 ADRs (0001–0020)</text>
+  <rect x="50" y="910" width="240" height="38" rx="4" fill="#ffffff" stroke="#adb5bd"/>
+  <text x="60" y="934" font-size="12" fill="#1e1e1e"><tspan font-weight="bold">architecture/</tspan> C4 · data-flow</text>
+  <rect x="50" y="955" width="240" height="38" rx="4" fill="#ffffff" stroke="#adb5bd"/>
+  <text x="60" y="979" font-size="12" fill="#1e1e1e"><tspan font-weight="bold">runbooks/</tspan> 16 runbooks</text>
+  <rect x="50" y="1000" width="240" height="38" rx="4" fill="#ffffff" stroke="#adb5bd"/>
+  <text x="60" y="1024" font-size="12" fill="#1e1e1e"><tspan font-weight="bold">release/</tspan> changelog · versioning</text>
+
+  <!-- Docs column 2 -->
+  <rect x="310" y="865" width="240" height="38" rx="4" fill="#ffffff" stroke="#adb5bd"/>
+  <text x="320" y="889" font-size="12" fill="#1e1e1e"><tspan font-weight="bold">designs/</tspan> sc-gui-stage0</text>
+  <rect x="310" y="910" width="240" height="38" rx="4" fill="#ffffff" stroke="#adb5bd"/>
+  <text x="320" y="934" font-size="12" fill="#1e1e1e"><tspan font-weight="bold">evidence/</tspan> 4 corridas Stage 0</text>
+  <rect x="310" y="955" width="240" height="38" rx="4" fill="#ffffff" stroke="#adb5bd"/>
+  <text x="320" y="979" font-size="12" fill="#1e1e1e"><tspan font-weight="bold">legal/</tspan> privacy · terms · 3rd</text>
+  <rect x="310" y="1000" width="240" height="38" rx="4" fill="#ffffff" stroke="#adb5bd"/>
+  <text x="320" y="1024" font-size="12" fill="#1e1e1e"><tspan font-weight="bold">security/</tspan> threat model</text>
+
+  <!-- Docs column 3 -->
+  <rect x="570" y="865" width="240" height="38" rx="4" fill="#ffffff" stroke="#adb5bd"/>
+  <text x="580" y="889" font-size="12" fill="#1e1e1e"><tspan font-weight="bold">contracts/</tspan> 5 specs</text>
+  <rect x="570" y="910" width="240" height="38" rx="4" fill="#ffffff" stroke="#adb5bd"/>
+  <text x="580" y="934" font-size="12" fill="#1e1e1e"><tspan font-weight="bold">testing/</tspan> strategy</text>
+  <rect x="570" y="955" width="240" height="38" rx="4" fill="#ffffff" stroke="#adb5bd"/>
+  <text x="580" y="979" font-size="12" fill="#1e1e1e"><tspan font-weight="bold">governance/ · rfc/</tspan></text>
+  <rect x="570" y="1000" width="240" height="38" rx="4" fill="#ffffff" stroke="#adb5bd"/>
+  <text x="580" y="1024" font-size="12" fill="#1e1e1e"><tspan font-weight="bold">how-to/ · tutorials/</tspan></text>
+
+  <!-- Docs column 4 -->
+  <rect x="830" y="865" width="230" height="38" rx="4" fill="#ffffff" stroke="#adb5bd"/>
+  <text x="840" y="889" font-size="12" fill="#1e1e1e"><tspan font-weight="bold">reference/ · explanation/</tspan></text>
+  <rect x="830" y="910" width="230" height="38" rx="4" fill="#ffffff" stroke="#adb5bd"/>
+  <text x="840" y="934" font-size="12" fill="#1e1e1e"><tspan font-weight="bold">operations/ · ux/</tspan></text>
+  <rect x="830" y="955" width="230" height="38" rx="4" fill="#ffffff" stroke="#adb5bd"/>
+  <text x="840" y="979" font-size="12" fill="#1e1e1e"><tspan font-weight="bold">visuals/ · diagrams/</tspan></text>
+  <rect x="830" y="1000" width="230" height="38" rx="4" fill="#ffffff" stroke="#adb5bd"/>
+  <text x="840" y="1024" font-size="12" fill="#1e1e1e"><tspan font-weight="bold">superpowers/</tspan></text>
+
+  <!-- ===================== FILA INFERIOR: SCRIPTS ===================== -->
+  <rect x="1100" y="820" width="550" height="250" rx="10" fill="#d0bfff" stroke="#7048e8" stroke-width="2"/>
+  <text x="1120" y="848" font-size="17" font-weight="bold" fill="#7048e8">scripts/ — 30+ scripts</text>
+
+  <rect x="1120" y="865" width="250" height="88" rx="4" fill="#ffffff" stroke="#7048e8"/>
+  <text x="1130" y="887" font-size="12" font-weight="bold" fill="#1e1e1e">Despliegue agente (Windows)</text>
+  <text x="1130" y="907" font-size="11" fill="#495057">install-agent.ps1 · deploy-agent-service.ps1</text>
+  <text x="1130" y="925" font-size="11" fill="#495057">uninstall · backup-agent-binary · enable-live-capture</text>
+  <text x="1130" y="943" font-size="11" fill="#495057">re-enroll · reinstall · instalar/desinstalar .bat</text>
+
+  <rect x="1390" y="865" width="240" height="88" rx="4" fill="#ffffff" stroke="#7048e8"/>
+  <text x="1400" y="887" font-size="12" font-weight="bold" fill="#1e1e1e">Verificación</text>
+  <text x="1400" y="907" font-size="11" fill="#495057">verify-agent.ps1 · verify-contracts.sh</text>
+  <text x="1400" y="925" font-size="11" fill="#495057">verify-m5-cycle · verify-migrations</text>
+  <text x="1400" y="943" font-size="11" fill="#495057">check-doc-versions · test-contracts-zod</text>
+
+  <rect x="1120" y="965" width="250" height="88" rx="4" fill="#ffffff" stroke="#7048e8"/>
+  <text x="1130" y="987" font-size="12" font-weight="bold" fill="#1e1e1e">Release</text>
+  <text x="1130" y="1007" font-size="11" fill="#495057">package-release.ps1 (pwsh)</text>
+  <text x="1130" y="1025" font-size="11" fill="#495057">build-atlas.ps1 · apply-migrations.mjs</text>
+  <text x="1130" y="1043" font-size="11" fill="#495057">validate-contracts.js · trust-smoke.mjs</text>
+
+  <rect x="1390" y="965" width="240" height="88" rx="4" fill="#ffffff" stroke="#7048e8"/>
+  <text x="1400" y="987" font-size="12" font-weight="bold" fill="#1e1e1e">Utilidades</text>
+  <text x="1400" y="1007" font-size="11" fill="#495057">abrir-gui.bat · check-skills.ps1</text>
+  <text x="1400" y="1025" font-size="11" fill="#495057">extract-udp-payloads.py · svg2dxf.py</text>
+  <text x="1400" y="1043" font-size="11" fill="#495057">headroom-verify.mjs · LEEME-INSTALACION</text>
+
+  <!-- ===================== FLUJOS ===================== -->
+  <!-- Agente → Web (sync) -->
+  <path d="M 560 400 L 585 400" stroke="#1971c2" stroke-width="2.5" marker-end="url(#ab)"/>
+  <text x="572" y="392" font-size="10" fill="#1971c2" text-anchor="middle">HTTPS</text>
+
+  <!-- Web → Neon -->
+  <path d="M 1130 590 L 1155 590" stroke="#495057" stroke-width="2" marker-end="url(#a)"/>
+  <text x="1142" y="582" font-size="10" fill="#495057" text-anchor="middle">SQL</text>
+
+  <!-- Web → Externos -->
+  <path d="M 1130 620 L 1410 620" stroke="#495057" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#a)"/>
+  <text x="1270" y="614" font-size="10" fill="#495057" text-anchor="middle">LLM · webhooks</text>
+
+  <!-- Contratos ↔ ambos -->
+  <path d="M 1160 230 L 1135 230" stroke="#e67700" stroke-width="2" marker-end="url(#a)"/>
+  <path d="M 1160 250 L 1135 450" stroke="#e67700" stroke-width="2" stroke-dasharray="4,3" marker-end="url(#a)"/>
+  <text x="1148" y="340" font-size="10" fill="#e67700" text-anchor="middle" transform="rotate(-90,1148,340)">serde ↔ Zod</text>
+
+  <!-- CI → agente + web -->
+  <path d="M 1160 400 L 565 400" stroke="#868e96" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#a)"/>
+  <text x="900" y="394" font-size="10" fill="#868e96" text-anchor="middle">gates Rust + Web</text>
+
+  <!-- ===================== LEYENDA / NOTAS ===================== -->
+  <rect x="30" y="1090" width="1620" height="140" rx="8" fill="#fff9db" stroke="#f59f00" stroke-width="1.5"/>
+  <text x="50" y="1118" font-size="14" font-weight="bold" fill="#e67700">Reglas del proyecto (AGENTS.md)</text>
+  <text x="50" y="1142" font-size="12" fill="#495057">1. Solo planes gratuitos (Vercel Hobby no comercial · Neon CU-horas)   2. Datos clase C (IPs, hosts, valores OT) nunca salen del nodo   3. Captura estrictamente pasiva (SPAN/TAP)</text>
+  <text x="50" y="1164" font-size="12" fill="#495057">4. Contratos = JSON Schema + Zod + serde en el mismo cambio   5. Migraciones aditivas en rama Neon   6. Push a main = deploy producción   7. Licencia propietaria</text>
+  <text x="50" y="1186" font-size="12" fill="#495057">8. IA externa solo con datos clase A/B aceptados   9. Release: tag → CI → SHA256SUMS → verify-agent.ps1   10. N4 destructivo requiere "dale" explícito</text>
+  <text x="50" y="1212" font-size="11" fill="#868e96">Fuera de alcance v1: multi-tenant · macOS · móvil · exportación PCAP · email</text>
+
+  <!-- Stats footer -->
+  <text x="1650" y="1118" text-anchor="end" font-size="12" font-weight="bold" fill="#495057">Métricas del repo</text>
+  <text x="1650" y="1142" text-anchor="end" font-size="11" fill="#495057">11 crates Rust · ~17.8k líneas</text>
+  <text x="1650" y="1162" text-anchor="end" font-size="11" fill="#495057">61 tests web · 71 tests sc-gui</text>
+  <text x="1650" y="1182" text-anchor="end" font-size="11" fill="#495057">20 ADRs · 16 runbooks · 6 workflows</text>
+  <text x="1650" y="1202" text-anchor="end" font-size="11" fill="#495057">30+ scripts · 5 contratos</text>
+  <text x="1650" y="1222" text-anchor="end" font-size="11" fill="#868e96">HEAD: dfccf81 · 2026-11-18</text>
+</svg>
