@@ -284,7 +284,7 @@ Menciones encontradas:
 | Archivo:línea | Texto | Veredicto |
 |---|---|---|
 | `docs/legal/THIRD_PARTY_NOTICES.md:17` | «CC BY-SA 4.0 + condiciones especiales del EULA» | **Incorrecto**: la licencia vigente es el EULA |
-| `docs/qa/QA-2026-11-21.md:244` | «EULA CC BY-SA 4.0 + condiciones» | **Incorrecto** |
+| `docs/qa/QA-2026-11-21.md:249` | «EULA CC BY-SA 4.0 + condiciones» | **Incorrecto** |
 | `docs/superpowers/plans/2026-11-03-m0-scaffold-ci.md:837` | «licencias CC BY-SA y EULA» | **Ambiguo**: sugiere que ambas aplican |
 | `docs/legal/maxmind-notice.md:27-28` | «EULA, no CC BY-SA 4.0 (que corresponde a versiones anteriores a dic-2019)» | Correcto |
 | `agent/resources/geolite2/README.md:7-8` | «EULA, no CC BY-SA 4.0» | Correcto |

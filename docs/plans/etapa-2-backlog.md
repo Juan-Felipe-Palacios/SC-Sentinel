@@ -66,7 +66,7 @@ nivel (N0–N4).
 | **B-008** | Host always-on (NUC/VM, Ethernet, sin suspensión, arranque automático y watchdog) + `service_started_at`/`stopped_at` y motivo + UI «sin datos por mantenimiento». | Propietario (infra) / agente (código) | Media | N1/N3 |
 | **B-030** | Política de ruteo explícita por entorno (`AI_PROVIDER`) y cadena de fallback logueada; dejar de depender del orden de detección de claves. | Agente | Media | N1/N2 |
 | **B-031** | Status del proveedor en `chat_fallback`/`chat_stream_failed`: **medido en Preview** (`status=404`, `error=ApiError`) y cubierto por test. Queda el remanente de llevarlo a producción con el próximo release; no se reabre como investigación. | Agente | Media | N1/N2 |
-| **B-032** | Corregir las 3 menciones de licencia (`docs/legal/THIRD_PARTY_NOTICES.md:17`, `docs/qa/QA-2026-11-21.md:244`, `docs/superpowers/plans/2026-11-03-m0-scaffold-ci.md:837`): el GeoLite EULA **incorpora obligaciones** de CC BY-SA 4.0 pero **no es** CC BY-SA 4.0. | Agente | Baja | N1 |
+| **B-032** | Corregir las 3 menciones de licencia (`docs/legal/THIRD_PARTY_NOTICES.md:17`, `docs/qa/QA-2026-11-21.md:249`, `docs/superpowers/plans/2026-11-03-m0-scaffold-ci.md:837`): el GeoLite EULA **incorpora obligaciones** de CC BY-SA 4.0 pero **no es** CC BY-SA 4.0. | Agente | Baja | N1 |
 
 ## Higiene pendiente de autorización
 
