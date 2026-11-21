@@ -14,7 +14,7 @@ Las adaptaciones y modificaciones de Strategic Connex son propiedad de Strategic
 
 | Componente | Uso | Licencia / condición |
 |---|---|---|
-| MaxMind GeoLite2 (Country / ASN, .mmdb) | geolocalización de hosts (sc-geo) | CC BY-SA 4.0 + condiciones especiales del EULA — ver `maxmind-notice.md` |
+| MaxMind GeoLite2 (Country / ASN, .mmdb) | geolocalización de hosts (sc-geo) | GeoLite EULA (12-feb-2026): incorpora obligaciones de CC BY-SA 4.0, pero **no es** CC BY-SA 4.0 — ver `maxmind-notice.md` |
 
 ## 3. Software del entorno (no redistribuido)
 
