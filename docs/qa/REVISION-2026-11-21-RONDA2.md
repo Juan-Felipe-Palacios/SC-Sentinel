@@ -248,7 +248,7 @@ Evidencia:
 | 23 | B-011 | Medio | — | 2 | 2 | 2 | 2,00 | Estado de error IA |
 | 24 | B-024 | Medio | — | 2 | 2 | 2 | 2,00 | Long task landing |
 | 25 | B-015 | Medio | — | 2 | 2 | 2 | 2,00 | Separar modos Npcap |
-| 26 | B-032 | Bajo | — | 2 | 2 | 1 | 4,00 | Corregir CC BY-SA |
+| 26 | B-032 | Bajo | — | 2 | 2 | 1 | 4,00 | Corregir CC BY-SA — **resuelto** (§8) |
 | 27 | B-019 | Bajo | — | 3 | 1 | 1 | 3,00 | Meta description |
 | 28 | B-020 | Bajo | — | 3 | 1 | 1 | 3,00 | A11y label |
 | 29 | B-021 | Bajo | — | 3 | 1 | 1 | 3,00 | Enlaces en login |
@@ -291,6 +291,17 @@ Menciones encontradas:
 | `web/app/(marketing)/legal/third-party-notices/page.tsx:115` | «La licencia vigente es el EULA… CC BY-SA corresponde a versiones anteriores» | Correcto |
 
 **Fuente oficial:** EULA de GeoLite2, actualizado el **12-feb-2026**, `https://www.maxmind.com/en/geolite2/eula` (consultado 2026-11-21). El EULA **incorpora elementos** de CC BY-SA 4.0 (atribución y compartir-igual), pero no es «CC BY-SA 4.0». La formulación correcta es: «GeoLite EULA (incorpora obligaciones de atribución de CC BY-SA 4.0)». Corregir las tres menciones al tocar documentación; no es un cambio de licencia.
+
+**Estado — B-032 resuelto en lo versionado (2026-11-21):** las tres menciones pasan al wording canónico: «GeoLite2 se distribuye bajo el MaxMind GeoLite EULA, que incorpora obligaciones de atribución CC BY-SA 4.0; no es una licencia CC BY-SA 4.0».
+
+| Evidencia | Commit | Alcance |
+|---|---|---|
+| `docs/legal/THIRD_PARTY_NOTICES.md:17` | `d213436` | mención #1 |
+| `docs/superpowers/plans/2026-11-03-m0-scaffold-ci.md:836-839` | `488a828` | mención #3 (bloque de `LICENSE`) |
+| `LICENSE:12-15` | `33b9943` | mención #4 (atribución del tercero; términos del producto intactos) |
+| citas `244` → `249` | `7f01d1b` | este documento y `docs/plans/etapa-2-backlog.md` |
+
+**Remanente declarado:** `docs/qa/QA-2026-11-21.md` sigue **sin versionar**. Su mención (línea 249, reconfirmada por `grep -n 'MaxMind GeoLite2 | países'`) está corregida en disco pero no en el repositorio, así que la mención #2 y las citas que la señalan no resuelven en un clon limpio. B-032 **no se cierra del todo** hasta que el propietario autorice versionar ese archivo; no se versionó por iniciativa propia.
 
 ---
 
@@ -375,7 +386,7 @@ Resumen:
 | B-025 | **Alto hasta medir** | Consumo Neon no medido; 219.757 filas / ~130 MB |
 | Prioridad v2 | **Hecho** | Este documento §7 |
 | B-006 vs H7 | **Justificado** | Cabeceras presentes; falta enforce |
-| CC BY-SA | **Hecho** | 3 menciones incorrectas/ambiguas; EULA 12-feb-2026 |
+| CC BY-SA | **Resuelto (parcial)** | 3 menciones al wording canónico (`d213436`, `488a828`, `33b9943`); remanente: `QA-2026-11-21.md` sin versionar |
 | Dashboard real | **No hecho** | Requiere OK para instalar `playwright-core` |
 | Chatbot RAG | **Diseñado, no ejecutado** | `CHATBOT-RAG-TEST.md` |
 | Push 40c30a8 | **No hecho** | Sin CI por paths; decisión D7 |
