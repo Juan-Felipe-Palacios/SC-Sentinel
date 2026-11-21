@@ -26,6 +26,7 @@ import {
 import {
   CHAT_LLM_TIMEOUT_MS,
   ChatLlmError,
+  describeChatFailure,
   estimateTokens,
   resolveChatModelPlan,
   streamChatCompletion,
@@ -270,8 +271,17 @@ export async function POST(request: NextRequest) {
               ? error.message
               : 'No se pudo generar la respuesta. Intentá de nuevo.';
 
-          // Solo el código: nunca el prompt ni la clave del proveedor.
-          console.error(JSON.stringify({ event: 'chat_stream_failed', code }));
+          // Solo código, proveedor y status: nunca el prompt ni la clave.
+          const failure = describeChatFailure(error);
+          console.error(
+            JSON.stringify({
+              event: 'chat_stream_failed',
+              code,
+              provider,
+              status: failure.status,
+              error: failure.error,
+            })
+          );
 
           if (!isGuest && activeConversationId && fullText.trim()) {
             try {

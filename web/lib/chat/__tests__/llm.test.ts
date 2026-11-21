@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChatLlmMessage } from '../types';
-import { estimateTokens, resolveChatModelPlan, streamChatCompletion } from '../llm';
+import {
+  ChatLlmError,
+  describeChatFailure,
+  estimateTokens,
+  resolveChatModelPlan,
+  streamChatCompletion,
+} from '../llm';
 import { isCooling, markRateLimited, resetRateLimits } from '@/lib/ai/rate-limit';
 
 const messages: ChatLlmMessage[] = [
@@ -26,6 +32,7 @@ const OK_SSE = [
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
   resetRateLimits();
 });
 
@@ -126,6 +133,43 @@ describe('streamChatCompletion', () => {
     expect(isCooling('groq')).toBe(true);
   });
 
+  it('registra el status HTTP del proveedor en chat_fallback', async () => {
+    vi.stubEnv('AI_PROVIDER', 'groq');
+    vi.stubEnv('GROQ_API_KEY', 'gsk_test');
+    vi.stubEnv('OPENROUTER_API_KEY', 'sk-or-test');
+    vi.stubEnv('GEMINI_API_KEY', '');
+    vi.stubEnv('GOOGLE_AI_API_KEY', '');
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    // Groq tiene dos modelos por defecto: hay que agotar ambos para que la
+    // cadena pase a OpenRouter y emita `chat_fallback`.
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('upstream error', { status: 503 }))
+      .mockResolvedValueOnce(new Response('upstream error', { status: 503 }))
+      .mockResolvedValueOnce(new Response(sseStream(OK_SSE), { status: 200 }));
+
+    const stream = streamChatCompletion(messages, {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    while (!(await stream.next()).done) {
+      // Consumir el stream completo.
+    }
+
+    const fallback = log.mock.calls
+      .map((call) => String(call[0]))
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .find((entry) => entry.event === 'chat_fallback');
+
+    expect(fallback).toMatchObject({
+      from: 'groq',
+      to: 'openrouter',
+      reason: 'error',
+      status: 503,
+      error: 'provider_http_error',
+    });
+  });
+
   it('devuelve rate_limited cuando todos los proveedores están en cooldown', async () => {
     vi.stubEnv('AI_PROVIDER', 'groq');
     vi.stubEnv('GROQ_API_KEY', 'gsk_test');
@@ -167,6 +211,31 @@ describe('resolveChatModelPlan', () => {
       models: ['a', 'b'],
     });
     expect(resolveChatModelPlan({ provider: 'groq', models: [] }).models.length).toBeGreaterThan(0);
+  });
+});
+
+describe('describeChatFailure', () => {
+  it('mapea el status HTTP y el código sin exponer el mensaje', () => {
+    expect(describeChatFailure(new ChatLlmError('provider_http_error', 'detalle interno', 429))).toEqual({
+      status: 429,
+      error: 'provider_http_error',
+    });
+    expect(describeChatFailure(new ChatLlmError('missing_api_key', 'falta la clave'))).toEqual({
+      error: 'missing_api_key',
+    });
+    expect(describeChatFailure(new Error('boom'))).toEqual({ error: 'Error' });
+    expect(describeChatFailure('texto')).toEqual({ error: 'unknown_error' });
+
+    // Caso real medido en Preview: el ApiError de Gemini no es ChatLlmError y
+    // trae el status en `code`, no en `status`.
+    const geminiApiError = Object.assign(new Error('Resource exhausted'), {
+      name: 'ApiError',
+      code: 429,
+    });
+    expect(describeChatFailure(geminiApiError)).toEqual({
+      status: 429,
+      error: 'ApiError',
+    });
   });
 });
 

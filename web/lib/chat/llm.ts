@@ -40,6 +40,41 @@ export class ChatLlmError extends Error {
   }
 }
 
+/**
+ * Datos seguros de un fallo de provider para los logs: código propio y status
+ * HTTP. Nunca incluye el mensaje del proveedor, el prompt ni la clave.
+ */
+export interface ChatFailureDetails {
+  status?: number;
+  error: string;
+}
+
+/** Status HTTP numérico de errores de SDK que no son `ChatLlmError` (p. ej.
+ * el `ApiError` de Gemini expone `code: 429` en lugar de `status`). */
+function providerStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const candidate = error as { status?: unknown; statusCode?: unknown; code?: unknown };
+  for (const value of [candidate.status, candidate.statusCode, candidate.code]) {
+    if (typeof value === 'number' && value >= 100 && value <= 599) return value;
+  }
+  return undefined;
+}
+
+export function describeChatFailure(error: unknown): ChatFailureDetails {
+  const status = providerStatus(error);
+  if (error instanceof ChatLlmError) {
+    return status === undefined
+      ? { error: error.code }
+      : { status, error: error.code };
+  }
+  if (error instanceof Error) {
+    return status === undefined
+      ? { error: error.name }
+      : { status, error: error.name };
+  }
+  return { error: 'unknown_error' };
+}
+
 export type ChatStreamChunk =
   | { type: 'delta'; text: string }
   | {
@@ -445,12 +480,15 @@ export async function* streamChatCompletion(
             : missingKey
               ? 'missing_key'
               : 'error';
+        const failure = lastError ? describeChatFailure(lastError) : null;
         console.log(
           JSON.stringify({
             event: 'chat_fallback',
             from: entry.provider,
             to: nextEntry.provider,
             reason: fallbackReason,
+            ...(failure?.status !== undefined ? { status: failure.status } : {}),
+            error: failure?.error ?? (missingKey ? 'missing_api_key' : 'unknown_error'),
           })
         );
       }
