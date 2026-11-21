@@ -53,6 +53,21 @@ tasas sin medición.
 | Roadmap Fases 2–5 (PCAP export/import, BPF, notificaciones Resend/webhooks, API, PWA en vez de iOS) | Roadmap | Planificación |
 | Control por duración de la instrumentación (`SC_GUI_STAGE0_SECONDS`, D5) | Stage 0 | Baja, con el P0 |
 
+## Seguimientos de la auditoría ronda 2 (2026-11-21)
+
+Estos ítems entran al backlog; **no abren frentes nuevos**. Cada uno conserva su
+ID B-xxx y su prioridad del ranking v2. No se ejecutan sin la autorización de su
+nivel (N0–N4).
+
+| Ítem | Qué falta | Dueño | Prioridad | Nivel |
+|---|---|---|---|---|
+| **B-028** | Runbook de rotación por secreto y ventana de corte de `SC_HMAC_KEY`: discontinuidad de `host_key` aceptada con retención de 7 días, o versionado de clave si se exige continuidad. La decisión es del propietario. | Propietario | **Alta** | N4 |
+| **B-029** | Decisión `anonymize_hosts` (privacidad vs. debug). Nota: los históricos guardan `ip_display` hasta la retención de 7 días; `host_key` es HMAC en ambos modos y no cambia al activar la anonimización. | Propietario | **Alta** | N1/N3 |
+| **B-008** | Host always-on (NUC/VM, Ethernet, sin suspensión, arranque automático y watchdog) + `service_started_at`/`stopped_at` y motivo + UI «sin datos por mantenimiento». | Propietario (infra) / agente (código) | Media | N1/N3 |
+| **B-030** | Política de ruteo explícita por entorno (`AI_PROVIDER`) y cadena de fallback logueada; dejar de depender del orden de detección de claves. | Agente | Media | N1/N2 |
+| **B-031** | Status del proveedor en `chat_fallback`/`chat_stream_failed`: **medido en Preview** (`status=404`, `error=ApiError`) y cubierto por test. Queda el remanente de llevarlo a producción con el próximo release; no se reabre como investigación. | Agente | Media | N1/N2 |
+| **B-032** | Corregir las 3 menciones de licencia (`docs/legal/THIRD_PARTY_NOTICES.md:17`, `docs/qa/QA-2026-11-21.md:244`, `docs/superpowers/plans/2026-11-03-m0-scaffold-ci.md:837`): el GeoLite EULA **incorpora obligaciones** de CC BY-SA 4.0 pero **no es** CC BY-SA 4.0. | Agente | Baja | N1 |
+
 ## Higiene pendiente de autorización
 
 Nada de esto se ejecuta sin «dale» explícito y lista de rutas:
