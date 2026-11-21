@@ -834,7 +834,9 @@ SOFTWARE PROPIO — LICENCIA PROPIETARIA
    original en docs/legal/THIRD_PARTY_NOTICES.md y conservan los avisos de
    copyright correspondientes en sus encabezados.
 4. Este producto incluye datos GeoLite2 creados por MaxMind, disponibles en
-   https://www.maxmind.com (licencias CC BY-SA y EULA — ver docs/legal/maxmind-notice.md).
+   https://www.maxmind.com. GeoLite2 se distribuye bajo el MaxMind GeoLite
+   EULA, que incorpora obligaciones de atribución CC BY-SA 4.0; no es una
+   licencia CC BY-SA 4.0 (ver docs/legal/maxmind-notice.md).
 5. Npcap se distribuye DE MANERA INDEPENDIENTE y no forma parte de este
    software (ver docs/legal/npcap-notice.md).
 
