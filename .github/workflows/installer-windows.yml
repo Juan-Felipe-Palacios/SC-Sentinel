@@ -58,9 +58,15 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $zip = Join-Path $env:RUNNER_TEMP 'nsis-3.10.zip'
           $url = 'https://downloads.sourceforge.net/project/nsis/NSIS%203/3.10/nsis-3.10.zip'
-          Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+          # SourceForge responde a Invoke-WebRequest con una pagina intersticial
+          # de ~124 KB en lugar del ZIP (visto en el run 45063309964). curl.exe
+          # sigue la descarga real y entrega el archivo publicado.
+          & curl.exe -fsSL --retry 3 --retry-delay 2 -o $zip $url
+          if ($LASTEXITCODE -ne 0) { throw "curl no pudo descargar nsis-3.10.zip (exit $LASTEXITCODE)" }
           $sha = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($sha -ne $env:SCS_NSIS_SHA256) { throw "SHA256 de nsis-3.10.zip no coincide: $sha" }
+          if ($sha -ne $env:SCS_NSIS_SHA256) {
+            throw "SHA256 de nsis-3.10.zip no coincide: $sha (bytes: $((Get-Item -LiteralPath $zip).Length))"
+          }
           $dest = Join-Path $env:RUNNER_TEMP 'nsis'
           Expand-Archive -LiteralPath $zip -DestinationPath $dest -Force
           $makensis = Join-Path $dest 'makensis.exe'
