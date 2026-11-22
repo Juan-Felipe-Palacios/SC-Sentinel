@@ -1,0 +1,162 @@
+name: Instalador Windows (NSIS)
+
+# Solo manual y sin publicar: compila el instalador .exe y ejecuta las pruebas
+# en un runner windows-latest (VM efimera). No crea tags, no toca releases y no
+# publica nada.
+#
+#   dry_run = true (por defecto): compila el setup y corre las pruebas que no
+#     instalan servicios (Pester: deteccion de estado, config.toml intacto,
+#     parametros del instalador). T13-T18 necesitan instalar, asi que quedan
+#     para dry_run=false.
+#   dry_run = false: ademas T1, T4-T9 y T13-T18 con el servicio real y un
+#     servidor de ingesta local simulado (2xx) para obtener sync_confirmed y
+#     spool_flushed pending=0.
+#
+# El agente se compila con la feature `sc-capture/live` (el setup que se
+# publica tiene que poder capturar). El e2e instala en modo colector con
+# `--no-capture`, asi que el runner no necesita el runtime de Npcap.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'true: solo compila y prueba sin instalar servicios'
+        type: boolean
+        default: true
+      version:
+        description: 'Version del instalador (x.y.z); 0.1.10 es la release objetivo'
+        required: false
+        default: '0.1.10'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installer-windows-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      # nsis-3.10.zip publicado en SourceForge; el job se niega a usarlo si el
+      # hash no coincide.
+      SCS_NSIS_SHA256: fcdce3229717a2a148e7cda0ab5bdb667f39d8fb33ede1da8dabc336bd5ad110
+      # npcap-sdk-1.13.zip: solo cabeceras y bibliotecas de import para
+      # compilar la feature live; no es el runtime redistribuible de Npcap.
+      SCS_NPCAP_SDK_SHA256: dad1f2bf1b02b787be08ca4862f99e39a876c1f274bac4ac0cedc9bbc58f94fd
+      SCS_VERSION: ${{ inputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar NSIS 3.10 (version fijada y SHA256 verificado)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $env:RUNNER_TEMP 'nsis-3.10.zip'
+          $url = 'https://downloads.sourceforge.net/project/nsis/NSIS%203/3.10/nsis-3.10.zip'
+          Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+          $sha = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sha -ne $env:SCS_NSIS_SHA256) { throw "SHA256 de nsis-3.10.zip no coincide: $sha" }
+          $dest = Join-Path $env:RUNNER_TEMP 'nsis'
+          Expand-Archive -LiteralPath $zip -DestinationPath $dest -Force
+          $makensis = Join-Path $dest 'makensis.exe'
+          if (-not (Test-Path -LiteralPath $makensis)) { throw 'makensis.exe no aparece tras descomprimir NSIS' }
+          "SCS_MAKENSIS=$makensis" | Out-File -FilePath $env:GITHUB_ENV -Append
+          & $makensis /VERSION
+
+      # El crate `pcap` enlaza contra `wpcap.lib`: sin el SDK la feature live no
+      # compila en Windows y el setup saldria colector-only sin decirlo.
+      - name: Instalar Npcap SDK 1.13 (SHA256 verificado)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sdk = Join-Path $env:RUNNER_TEMP 'npcap-sdk'
+          New-Item -ItemType Directory -Force -Path $sdk | Out-Null
+          $zip = Join-Path $env:RUNNER_TEMP 'npcap-sdk.zip'
+          Invoke-WebRequest -Uri 'https://npcap.com/dist/npcap-sdk-1.13.zip' -OutFile $zip -UseBasicParsing
+          $sha = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sha -ne $env:SCS_NPCAP_SDK_SHA256) { throw "SHA256 de npcap-sdk-1.13.zip no coincide: $sha" }
+          Expand-Archive -Force -Path $zip -DestinationPath $sdk
+          $lib = Join-Path $sdk 'Lib\x64'
+          if (-not (Test-Path (Join-Path $lib 'wpcap.lib'))) {
+            throw "el SDK de Npcap descargado no contiene Lib\x64\wpcap.lib"
+          }
+          # LIBPCAP_VER evita que el build script intente deducir la version
+          # cargando wpcap.dll (el runtime de Npcap no esta en el runner).
+          "LIBPCAP_VER=1.0.0" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "LIBPCAP_LIBDIR=$lib" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Instalar Pester 3.4 (las pruebas usan la sintaxis heredada)
+        shell: pwsh
+        run: Install-Module Pester -RequiredVersion 3.4.0 -Force -SkipPublisherCheck -Scope CurrentUser
+
+      - name: Compilar agente (con captura live) y GUI
+        working-directory: agent
+        run: |
+          cargo build --release -p sc-agent --features sc-capture/live
+          if ($LASTEXITCODE -ne 0) { throw "cargo build (sc-agent) fallo con $LASTEXITCODE" }
+          cargo build --release -p sc-gui
+          if ($LASTEXITCODE -ne 0) { throw "cargo build (sc-gui) fallo con $LASTEXITCODE" }
+
+      # Gate: el texto "captura live no compilada" solo existe cuando la feature
+      # `live` esta apagada. Si aparece, el setup no podria capturar en el equipo
+      # del usuario y el job se corta antes de empaquetar.
+      - name: Verificar que el agente compilo con captura live
+        shell: pwsh
+        run: |
+          $exe = 'agent/target/release/sc-sentinel-agent.exe'
+          if (-not (Test-Path -LiteralPath $exe)) { throw "no existe $exe" }
+          $text = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($exe))
+          if ($text.Contains('captura live no compilada')) {
+            throw "el binario $exe se compilo sin la feature live"
+          }
+          Write-Host "agente con captura live: OK"
+
+      - name: Empaquetar la release (ZIP + SHA256SUMS)
+        shell: pwsh
+        run: pwsh ./scripts/package-release.ps1 -Version $env:SCS_VERSION -Target windows-x64
+
+      - name: Compilar el instalador
+        shell: pwsh
+        run: |
+          & pwsh ./scripts/build-installer.ps1 -Version $env:SCS_VERSION -MakensisPath $env:SCS_MAKENSIS 2>&1 |
+            ForEach-Object { Write-Host $_ }
+          if ($LASTEXITCODE -ne 0) { throw "build-installer.ps1 fallo con $LASTEXITCODE" }
+
+      - name: Pester (deteccion de estado, config.toml intacto, parametros)
+        shell: pwsh
+        run: |
+          $scripts = @(
+            @{ Path = 'scripts/tests/config-toml.Tests.ps1' },
+            @{ Path = 'scripts/tests/install-agent-params.Tests.ps1' },
+            @{ Path = 'scripts/tests/installer-state.Tests.ps1'; Parameters = @{ MakensisPath = $env:SCS_MAKENSIS } }
+          )
+          $r = Invoke-Pester -Script $scripts -PassThru
+          if ($r.PassedCount -eq 0) { throw 'Pester no ejecuto ninguna prueba' }
+          if ($r.FailedCount -gt 0) { throw "Pester: $($r.FailedCount) fallo(s), $($r.PassedCount) ok" }
+
+      - name: Pruebas de extremo a extremo (T1, T4-T9, T13-T18 si dry_run=false)
+        shell: pwsh
+        run: |
+          $setup = Join-Path $PWD "dist\sc-sentinel-agent-v$($env:SCS_VERSION)-windows-x64-setup.exe"
+          $mode = if ('${{ inputs.dry_run }}' -eq 'true') { 'BuildOnly' } else { 'Full' }
+          pwsh ./scripts/tests/installer-e2e-windows.ps1 -SetupPath $setup -Version $env:SCS_VERSION `
+            -Mode $mode -OutDir (Join-Path $PWD 'dist\e2e')
+
+      - name: Publicar artefactos (retencion 7 dias)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-windows-${{ github.run_id }}
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            dist/sc-sentinel-agent-v*-windows-x64-setup.exe
+            dist/sc-sentinel-agent-v*-windows-x64.zip
+            dist/SHA256SUMS-windows-x64.txt
+            dist/e2e/result.json
+            dist/e2e/transcript.txt
