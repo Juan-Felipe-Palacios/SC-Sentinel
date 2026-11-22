@@ -69,8 +69,13 @@ jobs:
           }
           $dest = Join-Path $env:RUNNER_TEMP 'nsis'
           Expand-Archive -LiteralPath $zip -DestinationPath $dest -Force
-          $makensis = Join-Path $dest 'makensis.exe'
-          if (-not (Test-Path -LiteralPath $makensis)) { throw 'makensis.exe no aparece tras descomprimir NSIS' }
+          # El ZIP trae makensis.exe dentro de una carpeta versionada, asi que
+          # se busca en lugar de asumir la raiz del destino.
+          # Hay dos: el lanzador pequeno de la raiz y el binario real en Bin\.
+          # Se toma el de mayor tamano para no depender del lanzador.
+          $makensis = Get-ChildItem -LiteralPath $dest -Filter 'makensis.exe' -Recurse |
+            Sort-Object Length -Descending | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $makensis) { throw 'makensis.exe no aparece tras descomprimir NSIS' }
           "SCS_MAKENSIS=$makensis" | Out-File -FilePath $env:GITHUB_ENV -Append
           & $makensis /VERSION
 
