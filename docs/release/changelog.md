@@ -2,6 +2,43 @@
 
 Formato: Keep a Changelog 1.1 (semantic entries) publicado también en cada GitHub Release.
 
+## [0.1.10] — preparada, sin tag
+
+Release única: versión reproducible y los instaladores NSIS/`.sh`. No se publica
+hasta que el gate de instalación real esté en verde y el propietario autorice el
+tag; no reemplaza a 0.1.9, que queda publicada como está.
+
+### Added
+- (Ops) Instalador NSIS `sc-sentinel-agent-v0.1.10-windows-x64-setup.exe`:
+  asistente y `/S`, detección de instalación existente (estados 0/1/3/4),
+  actualización que conserva `config.toml`, `.host-key`, token y spool, aviso de
+  degradación con código `7` y salida `19` cuando la actualización se aplica sin
+  `sync_confirmed` en 30 s. Los scripts de la actualización viajan incrustados y
+  se ejecutan desde `$INSTDIR\installer` (R13).
+- (Ops) `.github/workflows/installer-windows.yml` (`workflow_dispatch`, sin tags
+  ni release): NSIS 3.10 y SDK de Npcap 1.13 fijados por SHA256, agente compilado
+  con `sc-capture/live` y gate que lo verifica, T1 y T4–T9/T13–T18 con servicio
+  real y servidor de ingesta local simulado.
+- (Agent) `FileVersion`/`ProductVersion` en `sc-sentinel-agent.exe` y
+  `sc-gui.exe`, con gate en CI y en `verify-agent.ps1`.
+
+### Changed
+- (Docs) Runbooks, diseño y changelog unificados en **0.1.10**; el workflow del
+  instalador toma 0.1.10 por defecto.
+
+### Fixed
+- (Ops) `package-release.ps1` y `build-installer.ps1` incluían
+  `lib<BEL>gent-binpath.psm1` (carácter BEL en el nombre): el build del instalador
+  abortaba siempre. Corregido y verificado byte a byte.
+- (Ops) El paquete Windows incluye `deploy-agent-service.ps1` y `lib\`
+  (`agent-binpath.psm1`, `config-toml.psm1`); el ZIP 0.1.10 anterior no los
+  tenía y `build-installer.ps1` ahora se niega a compilar sin ellos.
+- (Ops) `install-agent.ps1` nunca reescribe un `config.toml` existente: si hacen
+  falta claves nuevas deja `config.toml.nuevo`, y todo cambio en `ProgramData`
+  va precedido de un respaldo verificado (`.sha256`).
+- (Ops) `verify-agent.ps1 -Service` compara el `sc-gui.exe` instalado contra el
+  manifiesto del paquete (B-002).
+
 ## [0.1.9] — 2026-11-20
 
 > Sustituye a **0.1.8**, publicada el 2026-11-20 pero **no desplegada**: el

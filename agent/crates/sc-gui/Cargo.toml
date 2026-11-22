@@ -41,3 +41,8 @@ windows-sys = { version = "0.59", features = [
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
 ] }
+
+# VERSIONINFO del .exe (A1 de 0.1.10). Solo se instala en Windows: en Linux el
+# build script no lo usa. MIT, ya permitida en agent/deny.toml.
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1.34"

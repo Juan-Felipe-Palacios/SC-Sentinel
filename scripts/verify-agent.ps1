@@ -23,17 +23,22 @@
 .PARAMETER Service
   Anade la verificacion de la instalacion del servicio Windows.
 
+.PARAMETER SetupPath
+  Instalador .exe a verificar (VersionInfo, LegalCopyright y version). Por
+  defecto, el mas reciente de dist\*-windows-x64-setup.exe.
+
 .PARAMETER SkipPackage
   Omite la verificacion del paquete y solo comprueba el servicio.
 
 .EXAMPLE
   .\scripts\verify-agent.ps1
   .\scripts\verify-agent.ps1 -Service
-  .\scripts\verify-agent.ps1 -ZipPath C:\descargas\sc-sentinel-agent-v0.1.9-windows-x64.zip
+  .\scripts\verify-agent.ps1 -ZipPath C:\descargas\sc-sentinel-agent-v0.1.10-windows-x64.zip
 #>
 [CmdletBinding()]
 param(
   [string] $ZipPath,
+  [string] $SetupPath,
   [switch] $Service,
   [switch] $SkipPackage
 )
@@ -59,6 +64,18 @@ function Test-Expect {
   if ($Condition) { Write-Ok $OkText } else { Write-Fail $FailText }
 }
 
+# Lee un valor de HKLM en la vista de 64 bits (independiente de la bitness del
+# proceso, que en un instalador NSIS es 32 bits).
+function Get-Registry64Value {
+  param([string] $SubKey, [string] $Name)
+  $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::LocalMachine, [Microsoft.Win32.RegistryView]::Registry64)
+  try {
+    $key = $base.OpenSubKey($SubKey)
+    if (-not $key) { return $null }
+    try { return $key.GetValue($Name, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames) } finally { $key.Close() }
+  } finally { $base.Close() }
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
 # --------------------------------------------------------------------------
@@ -68,9 +85,16 @@ if (-not $SkipPackage) {
   Write-Head 'PAQUETE (artefacto publicado)'
 
   if (-not $ZipPath) {
+    # Orden por version numerica, no por nombre: como texto "v0.1.9" queda por
+    # encima de "v0.1.10" y el gate verificaria el ZIP viejo.
     $candidate = Get-ChildItem (Join-Path $repoRoot 'dist') -Filter 'sc-sentinel-agent-v*-windows-x64.zip' -ErrorAction SilentlyContinue |
-                 Sort-Object Name -Descending | Select-Object -First 1
-    if ($candidate) { $ZipPath = $candidate.FullName }
+                 ForEach-Object {
+                   if ($_.Name -match 'v(\d+)\.(\d+)\.(\d+)-windows-x64\.zip$') {
+                     [pscustomobject]@{ File = $_; Version = [version]"$($Matches[1]).$($Matches[2]).$($Matches[3])" }
+                   }
+                 } |
+                 Sort-Object Version -Descending | Select-Object -First 1
+    if ($candidate) { $ZipPath = $candidate.File.FullName }
   }
 
   if (-not $ZipPath -or -not (Test-Path $ZipPath)) {
@@ -137,6 +161,49 @@ if (-not $SkipPackage) {
         Write-Fail 'El paquete no contiene sc-sentinel-agent.exe'
       }
 
+      # --- VERSIONINFO de los dos .exe del paquete (build.rs) ---
+      # La version esperada sale del nombre del ZIP
+      # (sc-sentinel-agent-vX.Y.Z-windows-x64.zip): es el unico dato del
+      # paquete que lo ata a la release de la que salio. El gate del workflow
+      # compara los .exe recien compilados contra el tag; esto comprueba los
+      # .exe que viajan dentro del ZIP, que es el artefacto que se publica.
+      if ($ZipPath -match 'sc-sentinel-agent-v([0-9]+\.[0-9]+\.[0-9]+)-') {
+        $expectedInfo = $Matches[1]
+        foreach ($name in @('sc-sentinel-agent.exe', 'sc-gui.exe')) {
+          $bin = Join-Path $work $name
+          if (-not (Test-Path $bin)) { continue }   # ausente ya se reporta arriba
+          $vi = (Get-Item $bin).VersionInfo
+          $fileVersion = $vi.FileVersion
+          $productVersion = $vi.ProductVersion
+          Write-Info "$name FileVersion=$fileVersion ProductVersion=$productVersion esperado=$expectedInfo"
+          Test-Expect ($fileVersion -eq $expectedInfo -and $productVersion -eq $expectedInfo) `
+            "$name declara $expectedInfo en FileVersion y ProductVersion" `
+            "$name no coincide con el paquete ($expectedInfo): FileVersion '$fileVersion', ProductVersion '$productVersion'"
+        }
+      } else {
+        Write-Warn 'El nombre del ZIP no incluye la version (vX.Y.Z): no se puede comprobar VERSIONINFO'
+      }
+
+      # --- GUI: hash y FileVersion del paquete (B-002) ---
+      # El hash se guarda para compararlo con el sc-gui.exe instalado cuando se
+      # pide -Service: un paquete con GUI distinta a la instalada es el defecto
+      # B-002 (GUI vieja ejecutandose en silencio).
+      $guiZip = Join-Path $work 'sc-gui.exe'
+      if (Test-Path $guiZip) {
+        $script:PackageGuiHash = (Get-FileHash $guiZip -Algorithm SHA256).Hash.ToLower()
+        $guiFileVersion = (Get-Item $guiZip).VersionInfo.FileVersion
+        Write-Info "sc-gui.exe SHA256 $($script:PackageGuiHash)"
+        Test-Expect (-not [string]::IsNullOrWhiteSpace($guiFileVersion)) `
+          "GUI del paquete declara FileVersion $guiFileVersion" `
+          'sc-gui.exe no declara FileVersion: no se puede distinguir una GUI vieja'
+      }
+
+      # --- Npcap no se redistribuye (licencia free: 5 equipos, sin redistribucion) ---
+      $npcapFiles = @(Get-ChildItem $work -Recurse -File | Where-Object { $_.Name -match '(?i)npcap' })
+      Test-Expect ($npcapFiles.Count -eq 0) `
+        'Npcap no se redistribuye en el paquete' `
+        "El paquete incluye archivos de Npcap: $($npcapFiles.Name -join ', ')"
+
       # --- Captura live compilada (Defecto 1) ---
       if (Test-Path $exe) {
         $ifaces = (& $exe --list-interfaces 2>&1 | Out-String)
@@ -157,9 +224,21 @@ if (-not $SkipPackage) {
       if (Test-Path $exe) {
         $bytes = [System.IO.File]::ReadAllBytes($exe)
         $ascii = [System.Text.Encoding]::ASCII.GetString($bytes)
+        # Cada ruta se busca con las dos barras: el binario puede llevar la
+        # ruta tal como la genero rustc, o normalizada con '/' por el linker o
+        # por un remapeo de rutas. El gate del workflow comprueba las dos.
+        $leakGroups = [ordered]@{
+          'captura live no compilada'  = @('captura live no compilada')
+          'CARGO_MANIFEST_DIR'          = @('CARGO_MANIFEST_DIR')
+          'ruta del workspace'          = @('D:\ProyectosWeb', 'D:/ProyectosWeb')
+          'ruta del crate sc-geo'       = @('crates\sc-geo', 'crates/sc-geo')
+          'ruta del registro de cargo'  = @('.cargo\registry', '.cargo/registry')
+        }
         $leaks = @()
-        foreach ($pattern in @('captura live no compilada', 'CARGO_MANIFEST_DIR', 'D:\ProyectosWeb', 'crates\sc-geo', '.cargo\registry')) {
-          if ($ascii.Contains($pattern)) { $leaks += $pattern }
+        foreach ($label in $leakGroups.Keys) {
+          foreach ($pattern in $leakGroups[$label]) {
+            if ($ascii.Contains($pattern)) { $leaks += "$label ($pattern)"; break }
+          }
         }
         if ($leaks.Count -eq 0) {
           Write-Ok 'Higiene del binario: sin rutas de compilacion'
@@ -196,6 +275,42 @@ if (-not $SkipPackage) {
     } finally {
       Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
     }
+  }
+}
+
+# --------------------------------------------------------------------------
+# NIVEL 1b - INSTALADOR .EXE (NSIS)
+# --------------------------------------------------------------------------
+if (-not $SkipPackage) {
+  Write-Head 'INSTALADOR (.exe NSIS)'
+
+  if (-not $SetupPath) {
+    $candidate = Get-ChildItem (Join-Path $repoRoot 'dist') -Filter '*-windows-x64-setup.exe' -ErrorAction SilentlyContinue |
+                 Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($candidate) { $SetupPath = $candidate.FullName }
+  }
+
+  if ($SetupPath -and (Test-Path $SetupPath)) {
+    $setupItem = Get-Item $SetupPath
+    $setupHash = (Get-FileHash $setupItem.FullName -Algorithm SHA256).Hash.ToLower()
+    Write-Info ("{0} ({1:N0} B)" -f $setupItem.Name, $setupItem.Length)
+    Write-Info "SHA256: $setupHash"
+
+    $vi = $setupItem.VersionInfo
+    $expectedSetup = if ($setupItem.Name -match 'v(\d+\.\d+\.\d+)-windows-x64-setup') { $Matches[1] } else { $null }
+    if ($expectedSetup) {
+      Test-Expect ($vi.FileVersion -eq $expectedSetup -and $vi.ProductVersion -eq $expectedSetup) `
+        "Setup declara $expectedSetup en FileVersion y ProductVersion" `
+        "Setup no coincide con su nombre (${expectedSetup}): FileVersion '$($vi.FileVersion)', ProductVersion '$($vi.ProductVersion)'"
+    } else {
+      Write-Warn 'El nombre del setup no incluye la version (vX.Y.Z-windows-x64-setup)'
+    }
+    # Cierra el aviso 9100 de makensis: el recurso debe declarar el titular.
+    Test-Expect (-not [string]::IsNullOrWhiteSpace($vi.LegalCopyright)) `
+      "LegalCopyright: $($vi.LegalCopyright)" `
+      'El setup no declara LegalCopyright (aviso 9100 de makensis)'
+  } else {
+    Write-Info 'No hay instalador .exe que verificar (se compila con scripts/build-installer.ps1)'
   }
 }
 
@@ -272,6 +387,29 @@ if ($Service) {
         Write-Warn 'El proceso del agente no tiene sockets UDP abiertos: el colector no esta escuchando'
       }
     }
+  }
+
+  # B-002: la GUI instalada tiene que ser exactamente la del paquete y declarar
+  # version. Sin esto, un upgrade podia dejar la GUI vieja en su sitio.
+  $installDir = 'C:\Program Files\SC-Sentinel'
+  $regInstallDir = Get-Registry64Value -SubKey 'Software\SC-Sentinel' -Name 'InstallDir'
+  if ($regInstallDir) { $installDir = "$regInstallDir" }
+  $installedGui = Join-Path $installDir 'sc-gui.exe'
+  if (Test-Path $installedGui) {
+    $igVersion = (Get-Item $installedGui).VersionInfo.FileVersion
+    Test-Expect (-not [string]::IsNullOrWhiteSpace($igVersion)) `
+      "GUI instalada declara FileVersion $igVersion" `
+      'La GUI instalada no declara FileVersion'
+    if ($script:PackageGuiHash) {
+      $igHash = (Get-FileHash $installedGui -Algorithm SHA256).Hash.ToLower()
+      Test-Expect ($igHash -eq $script:PackageGuiHash) `
+        "GUI instalada == GUI del paquete (SHA256 $igHash)" `
+        "GUI instalada distinta de la del paquete (paquete $($script:PackageGuiHash), instalada $igHash)"
+    } else {
+      Write-Info 'Sin paquete verificado en esta corrida: no se compara el hash de la GUI instalada'
+    }
+  } else {
+    Write-Warn "No hay GUI instalada en $installDir"
   }
 
   # El instalador deja config/spool/logs solo para SYSTEM y Administradores,

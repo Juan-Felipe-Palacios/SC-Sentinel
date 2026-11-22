@@ -145,7 +145,7 @@ set "SCS_INSTALL_TOKEN=%INGEST_TOKEN%"
 if not "%COLLECTOR_PORTS%"=="" set "SCS_INSTALL_PORTS=%COLLECTOR_PORTS%"
 if not defined SCS_INSTALL_PORTS set "SCS_INSTALL_PORTS=2055,4739"
 >> "%LOG%" echo [%date% %time%] paso-instalando puertos=%SCS_INSTALL_PORTS%
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& $env:SCS_INSTALL_PS1 -DeviceId $env:SCS_INSTALL_DEVICE_ID -IngestToken $env:SCS_INSTALL_TOKEN -BinaryPath $env:SCS_INSTALL_BIN -CollectorPorts ($env:SCS_INSTALL_PORTS -split ',')" > "%PSOUT%" 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& $env:SCS_INSTALL_PS1 -DeviceId $env:SCS_INSTALL_DEVICE_ID -BinaryPath $env:SCS_INSTALL_BIN -CollectorPorts ($env:SCS_INSTALL_PORTS -split ',')" > "%PSOUT%" 2>&1
 set "RC=%ERRORLEVEL%"
 set "SCS_INSTALL_TOKEN="
 set "INGEST_TOKEN="

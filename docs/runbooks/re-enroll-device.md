@@ -41,7 +41,12 @@ muestra una única vez.
 
 ```powershell
 # PowerShell como Administrador, desde la raíz del repo
-.\scripts\re-enroll-device.ps1 -DeviceId 'dev_m5svc' -IngestToken 'sc_dev_...'
+# El token NO va por argv (B-014): se pasa por entorno o por archivo.
+$env:SC_ENROLL_TOKEN = 'sc_dev_...'
+.\scripts\re-enroll-device.ps1 -DeviceId 'dev_m5svc'
+
+# Alternativa: un archivo de una sola linea; se borra al leerlo.
+.\scripts\re-enroll-device.ps1 -DeviceId 'dev_m5svc' -IngestTokenFile .\token.txt
 ```
 
 Hace, en este orden: valida los parámetros, comprueba que la consola es elevada,
@@ -54,6 +59,10 @@ ventana aceptada por el backend.
 - **exit 1** si el service no arranca, el backend sigue rechazando, o no hubo
   tráfico nuevo que confirmar.
 - **exit 2** si los parámetros son inválidos o la consola no es elevada.
+
+El token entra por la variable de entorno `SC_ENROLL_TOKEN` (la que usa el
+helper elevado de la GUI) o por `-IngestTokenFile`; no existe `-IngestToken`,
+porque en `argv` lo leeria cualquier usuario con `Win32_Process.CommandLine`.
 
 Opciones: `-ServiceName` (por defecto `SC-Sentinel-Agent`), `-TimeoutSeconds`
 (por defecto 100 = dos ciclos de agregación + margen), `-SkipVerification`

@@ -116,6 +116,34 @@ jobs:
         working-directory: agent
         run: cargo build --release -p sc-gui
 
+      # Gate: los dos .exe del paquete deben declarar la version de la release
+      # en VERSIONINFO (build.rs de cada crate). Si `agent/Cargo.toml` no se
+      # sube a la version del tag, el recurso queda con la version anterior y
+      # este paso corta el job antes de empaquetar y publicar.
+      - name: Verificar FileVersion y ProductVersion de los .exe
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        run: |
+          $expected = "${{ steps.meta.outputs.version }}"
+          $targets = @(
+            'agent/target/release/sc-sentinel-agent.exe',
+            'agent/target/release/sc-gui.exe'
+          )
+          $failures = @()
+          foreach ($exe in $targets) {
+            if (-not (Test-Path $exe)) { throw "no existe $exe" }
+            $info = (Get-Item $exe).VersionInfo
+            $file = $info.FileVersion
+            $product = $info.ProductVersion
+            Write-Host "$exe  FileVersion=$file  ProductVersion=$product  esperado=$expected"
+            if ($file -ne $expected) { $failures += "$exe FileVersion '$file'" }
+            if ($product -ne $expected) { $failures += "$exe ProductVersion '$product'" }
+          }
+          if ($failures.Count -gt 0) {
+            throw "VERSIONINFO no coincide con la version de la release ($expected): $($failures -join '; ')"
+          }
+          Write-Host "OK: ambos .exe declaran $expected en FileVersion y ProductVersion"
+
       # En Linux el agente se despliega en modo colector (`--no-capture`), tal
       # y como documenta docs/runbooks/install-agent-linux.md: "no hace falta
       # libpcap". Con la feature `live` el binario enlaza dinamicamente con
@@ -172,6 +200,24 @@ jobs:
       - name: Empaquetar
         shell: pwsh
         run: ./scripts/package-release.ps1 -Version "${{ steps.meta.outputs.version }}" -Target "${{ matrix.target }}"
+
+      # Instalador .exe: NSIS embebe el contenido ya verificado del ZIP. El
+      # usuario final solo elige la carpeta de instalacion y pega el Device ID
+      # y el Token; el servicio, la GUI, GeoLite2, las ACL y la entrada de
+      # "Agregar o quitar programas" los pone el instalador.
+      - name: Instalar NSIS
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        run: |
+          choco install nsis --no-progress -y
+          $makensis = Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'
+          if (-not (Test-Path $makensis)) { throw "NSIS no quedo instalado" }
+          & $makensis -VERSION
+
+      - name: Compilar instalador .exe
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        run: ./scripts/build-installer.ps1 -Version "${{ steps.meta.outputs.version }}"
 
       - uses: actions/upload-artifact@v4
         with:

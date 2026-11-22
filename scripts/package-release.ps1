@@ -105,10 +105,27 @@ foreach ($licenseName in @('sniffnet-LICENSE-MIT.txt', 'sniffnet-LICENSE-APACHE.
 }
 
 if ($esWindows) {
-  foreach ($f in @('install-agent.ps1', 'uninstall-agent.ps1', 'instalar-sc-sentinel.bat', 'desinstalar-sc-sentinel.bat', 'abrir-gui.bat', 'LEEME-INSTALACION.txt')) {
+  foreach ($f in @('install-agent.ps1', 'uninstall-agent.ps1', 'deploy-agent-service.ps1', 'instalar-sc-sentinel.bat', 'desinstalar-sc-sentinel.bat', 'abrir-gui.bat', 'LEEME-INSTALACION.txt')) {
     Copy-Item (Join-Path $repo "scripts/$f") (Join-Path $stage $f) -Force
     $copied[$f] = Join-Path $repo "scripts/$f"
   }
+  # install-agent.ps1 carga su helper por ruta relativa (lib\agent-binpath.psm1)
+  # y la actualizacion llama a deploy-agent-service.ps1 para el respaldo
+  # verificado y el drenaje: los dos viajan en el paquete, si no el instalador
+  # falla en la maquina del usuario y no en la release.
+  $libStage = Join-Path $stage 'lib'
+  if (-not (Test-Path $libStage)) { New-Item -ItemType Directory -Path $libStage -Force | Out-Null }
+  $binpathHelper = Join-Path $repo 'scripts/lib/agent-binpath.psm1'
+  if (-not (Test-Path $binpathHelper)) { throw "No existe $binpathHelper" }
+  Copy-Item $binpathHelper (Join-Path $libStage 'agent-binpath.psm1') -Force
+  $copied['lib/agent-binpath.psm1'] = $binpathHelper
+  # install-agent.ps1 importa lib\config-toml.psm1 para no reescribir nunca un
+  # config.toml existente y para respaldar antes de tocar ProgramData: sin el
+  # modulo el instalador falla en la maquina del usuario.
+  $configHelper = Join-Path $repo 'scripts/lib/config-toml.psm1'
+  if (-not (Test-Path $configHelper)) { throw "No existe $configHelper" }
+  Copy-Item $configHelper (Join-Path $libStage 'config-toml.psm1') -Force
+  $copied['lib/config-toml.psm1'] = $configHelper
   # La GUI viaja en el paquete: install-agent.ps1 la copia a Program Files y
   # abrir-gui.bat la lanza. Sin ella el usuario solo tendria el servicio.
   $guiSource = Join-Path $repo 'agent/target/release/sc-gui.exe'
