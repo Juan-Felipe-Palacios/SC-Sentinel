@@ -56,7 +56,21 @@ $NewPath = Join-Path $BackupDir 'sc-sentinel-agent.exe.new'
 $Stamp = Get-Date -Format 'yyyyMMddHHmmss'
 
 function Get-Sha([string]$path) {
-    return (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+    # Get-FileHash no existe en el powershell.exe 5.1 que lanza NSIS (run
+    # 45258353232: getFileHash=False); el respaldo se calculaba con hash vacio
+    # y la actualizacion abortaba (codigo 27). Hash propio, mayusculas como
+    # antes para no invalidar los .sha256 ya escritos.
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [System.IO.File]::Open($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        try {
+            return ([System.BitConverter]::ToString($sha.ComputeHash($stream)) -replace '-', '').ToUpperInvariant()
+        } finally {
+            $stream.Dispose()
+        }
+    } finally {
+        $sha.Dispose()
+    }
 }
 
 function Get-Bytes([string]$path) {

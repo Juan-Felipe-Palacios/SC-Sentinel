@@ -25,7 +25,21 @@ $script:AdminsSid = 'S-1-5-32-544'
 function Get-ScsFileSha256 {
   param([Parameter(Mandatory = $true)][string]$Path)
   if (-not (Test-Path -LiteralPath $Path)) { return '' }
-  return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+  # Hash propio en vez de Get-FileHash: en el powershell.exe 5.1 que lanza
+  # NSIS el cmdlet no existe (run 45258353232: getFileHash=False) y el modulo
+  # fallaba al escribir config.toml. FileShare.ReadWrite evita chocar con el
+  # escaner de archivos.
+  $sha = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    try {
+      return ([System.BitConverter]::ToString($sha.ComputeHash($stream)) -replace '-', '').ToLowerInvariant()
+    } finally {
+      $stream.Dispose()
+    }
+  } finally {
+    $sha.Dispose()
+  }
 }
 
 function Get-ScsTextSha256 {
