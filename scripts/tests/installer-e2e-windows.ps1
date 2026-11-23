@@ -314,7 +314,18 @@ try {
     # ni deja .bak, asi que T5 no tendria respaldo que revertir ni T4 un
     # drenaje que observar. El PE sigue ejecutable con bytes de mas al final.
     Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
-    [System.IO.File]::AppendAllText((Join-Path $InstallDir 'sc-sentinel-agent.exe'), 'SCS-PREV')
+    $stopBy = (Get-Date).AddSeconds(60)
+    while ((Get-Date) -lt $stopBy) {
+      $svcNow = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+      if (-not $svcNow -or $svcNow.Status -eq 'Stopped') { break }
+      Start-Sleep -Seconds 1
+    }
+    $installedExe = Join-Path $InstallDir 'sc-sentinel-agent.exe'
+    $prevExe = Join-Path $env:TEMP 'scs-prev-agent.exe'
+    Copy-Item -LiteralPath $installedExe -Destination $prevExe -Force
+    [System.IO.File]::AppendAllText($prevExe, 'SCS-PREV')
+    Remove-Item -LiteralPath $installedExe -Force
+    Copy-Item -LiteralPath $prevExe -Destination $installedExe -Force
     Start-Service -Name $ServiceName -ErrorAction SilentlyContinue
     $null = Wait-ServiceRunning 60
     $cfgHashBefore = Get-Sha (Get-ConfigPath)
