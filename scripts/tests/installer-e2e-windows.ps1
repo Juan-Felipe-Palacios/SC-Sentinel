@@ -179,6 +179,66 @@ function Invoke-Setup {
   }
 }
 
+# NetFlow v5 sintetico (header de 24 bytes + un registro de 48 bytes) con los
+# mismos valores que agent/crates/sc-collector/src/fixtures.rs. Sin trafico el
+# agente no encola ninguna ventana y `sync_confirmed` no puede aparecer.
+function Add-Be16 {
+  param([System.Collections.Generic.List[byte]]$List, [uint16]$Value)
+  $b = [BitConverter]::GetBytes($Value)
+  if ([BitConverter]::IsLittleEndian) { [Array]::Reverse($b) }
+  $List.AddRange($b)
+}
+
+function Add-Be32 {
+  param([System.Collections.Generic.List[byte]]$List, [uint32]$Value)
+  $b = [BitConverter]::GetBytes($Value)
+  if ([BitConverter]::IsLittleEndian) { [Array]::Reverse($b) }
+  $List.AddRange($b)
+}
+
+function New-NetFlowV5Datagram {
+  $p = New-Object 'System.Collections.Generic.List[byte]'
+  Add-Be16 $p 5          # version
+  Add-Be16 $p 1          # count
+  Add-Be32 $p 1000       # sys_uptime
+  Add-Be32 $p ([uint32][DateTimeOffset]::UtcNow.ToUnixTimeSeconds())
+  Add-Be32 $p 0          # unix_nsecs
+  Add-Be32 $p 42         # flow_sequence
+  $p.AddRange([byte[]](0, 0))   # engine_type, engine_id
+  Add-Be16 $p 0          # sampling_interval
+  $p.AddRange([byte[]](192, 168, 1, 41))  # src
+  $p.AddRange([byte[]](8, 8, 8, 8))      # dst
+  $p.AddRange([byte[]](0, 0, 0, 0))      # next_hop
+  Add-Be16 $p 0          # input
+  Add-Be16 $p 0          # output
+  Add-Be32 $p 10         # dPkts
+  Add-Be32 $p 1500       # dOctets
+  Add-Be32 $p 0          # first
+  Add-Be32 $p 0          # last
+  Add-Be16 $p 51234      # src_port
+  Add-Be16 $p 443        # dst_port
+  $p.AddRange([byte[]](0, 0x10, 6, 0))   # pad1, tcp_flags, prot, tos
+  Add-Be16 $p 0          # src_as
+  Add-Be16 $p 0          # dst_as
+  $p.AddRange([byte[]](0, 0))   # src_mask, dst_mask
+  $p.AddRange([byte[]](0, 0))   # pad2
+  return $p.ToArray()
+}
+
+function Send-NetFlowV5 {
+  param([int]$Port = 2055, [int]$Packets = 3)
+  $payload = New-NetFlowV5Datagram
+  $udp = New-Object System.Net.Sockets.UdpClient
+  try {
+    for ($i = 0; $i -lt $Packets; $i++) {
+      $null = $udp.Send($payload, $payload.Length, '127.0.0.1', $Port)
+      Start-Sleep -Milliseconds 300
+    }
+  } finally {
+    $udp.Close()
+  }
+}
+
 function Get-ConfigPath { return (Join-Path $DataDir 'config\config.toml') }
 function Get-SpoolPath { return (Join-Path $DataDir 'spool\sc-spool.sqlite') }
 
@@ -250,6 +310,13 @@ try {
 
     # ---------------- T4/T16: actualizacion silenciosa ----------------
     Write-Log '== T4/T16. Actualizacion silenciosa =='
+    # Version anterior distinta: con el mismo sha el deploy no copia el binario
+    # ni deja .bak, asi que T5 no tendria respaldo que revertir ni T4 un
+    # drenaje que observar. El PE sigue ejecutable con bytes de mas al final.
+    Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+    [System.IO.File]::AppendAllText((Join-Path $InstallDir 'sc-sentinel-agent.exe'), 'SCS-PREV')
+    Start-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    $null = Wait-ServiceRunning 60
     $cfgHashBefore = Get-Sha (Get-ConfigPath)
     $spoolHashBefore = Get-Sha (Get-SpoolPath)
     $tokenBefore = Get-TokenEnvironment
@@ -272,6 +339,9 @@ try {
     }
     Add-Check 'T16.spool_intacto' $spoolIntacto $spoolDetalle
     Add-Check 'T16.token_intacto' ($tokenBefore -eq (Get-TokenEnvironment) -and $tokenBefore) 'SC_INGEST_TOKEN igual antes y despues (valor no impreso)'
+    # El binario recien instalado ya esta corriendo: se le manda una ventana
+    # NetFlow para que el sync tenga algo que publicar contra el simulador.
+    Send-NetFlowV5 -Port 2055
     Add-Check 'T16.sync_confirmado' (Wait-LogMarker -Marker 'sync_confirmed' -SinceUtc $syncSince -TimeoutSeconds 240) 'sync_confirmed en agent.log'
     Add-Check 'T4.servicio' (Wait-ServiceRunning 120) 'servicio en ejecucion tras actualizar'
     $deployLog = Join-Path $DataDir 'logs\agent.log'
@@ -321,7 +391,8 @@ try {
       if ($LASTEXITCODE -eq 1060) { break }
       Start-Sleep -Seconds 1
     }
-    $scriptBinPath = '"' + (Join-Path $ScriptsInstalledDir 'sc-sentinel-agent.exe') + '" -config "' + (Get-ConfigPath) + '" --no-capture'
+    # `--config` (dos guiones): clap rechaza `-config` y el servicio no arranca.
+    $scriptBinPath = '"' + (Join-Path $ScriptsInstalledDir 'sc-sentinel-agent.exe') + '" --config "' + (Get-ConfigPath) + '" --no-capture'
     New-Service -Name $ServiceName -BinaryPathName $scriptBinPath -DisplayName 'SC Sentinel e2e' -StartupType Automatic | Out-Null
     New-ItemProperty -Path $ServiceKey -Name Environment -Value $savedEnv -PropertyType MultiString -Force | Out-Null
     Start-Service -Name $ServiceName
@@ -358,6 +429,16 @@ try {
 
     # ---------------- T14: archivos ajenos ----------------
     Write-Log '== T14. Carpeta con archivos ajenos =='
+    # Sin servicio, el instalador evalua /D; con uno, va por actualizacion y el
+    # destino lo manda el servicio, asi que la carpeta ajena nunca se mira.
+    Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+    sc.exe delete $ServiceName | Out-Null
+    $deadline = (Get-Date).AddSeconds(60)
+    while ((Get-Date) -lt $deadline) {
+      sc.exe query $ServiceName *> $null
+      if ($LASTEXITCODE -eq 1060) { break }
+      Start-Sleep -Seconds 1
+    }
     New-Item -ItemType Directory -Path $ForeignDir -Force | Out-Null
     for ($i = 1; $i -le 6; $i++) { Set-Content -LiteralPath (Join-Path $ForeignDir "ajeno-$i.txt") -Value 'x' -NoNewline }
     $code = Invoke-Setup -Arguments @('/S', "/D=$ForeignDir")
@@ -433,8 +514,8 @@ finally {
   # deja aqui el motivo real.
   $agentLog = Join-Path $env:ProgramData 'SC-Sentinel\logs\agent.log'
   if (Test-Path -LiteralPath $agentLog) {
-    Write-Log '== agent.log (ultimas 20 lineas) =='
-    Get-Content -LiteralPath $agentLog -Tail 20 | ForEach-Object { Write-Log "  $_" }
+    Write-Log '== agent.log (ultimas 60 lineas) =='
+    Get-Content -LiteralPath $agentLog -Tail 60 | ForEach-Object { Write-Log "  $_" }
   }
   $summary | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $OutDir 'result.json') -Encoding UTF8
   Write-Log "== Resumen: $($results.Count) comprobaciones, $($failed.Count) fallo(s) =="
