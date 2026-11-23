@@ -69,6 +69,20 @@ $LogDir = "$DataDir\logs"
 $SpoolDir = "$DataDir\spool"
 $GeoIpDir = "$InstallDir\geolite2"
 
+# El instalador corre powershell.exe 5.1 heredando el PSModulePath de quien
+# lanzo el setup (en CI, pwsh 7). Con las rutas de PowerShell 7 delante, 5.1 no
+# carga sus propios modulos y Get-Acl/Get-FileHash fallan (runs 45258353232 y
+# 45271863346). Se deja solo la ruta legacy de Windows PowerShell.
+function Reset-ScsPsModulePath {
+ $rutas = @((Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\Modules'))
+ if ($env:ProgramFiles) { $rutas += (Join-Path $env:ProgramFiles 'WindowsPowerShell\Modules') }
+ if (${env:ProgramFiles(x86)}) { $rutas += (Join-Path ${env:ProgramFiles(x86)} 'WindowsPowerShell\Modules') }
+ if ($env:USERPROFILE) { $rutas += (Join-Path $env:USERPROFILE 'Documents\WindowsPowerShell\Modules') }
+ $rutas = @($rutas | Where-Object { Test-Path -LiteralPath $_ })
+ $env:PSModulePath = ($rutas -join ';')
+}
+Reset-ScsPsModulePath
+
 # Reglas de config.toml y respaldo verificado de datos: modulo compartido con
 # las pruebas (scripts/lib/config-toml.psm1). Viaja dentro del paquete.
 Import-Module (Join-Path $PSScriptRoot 'lib\config-toml.psm1') -Force

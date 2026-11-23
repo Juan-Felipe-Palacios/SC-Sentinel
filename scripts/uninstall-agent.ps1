@@ -39,8 +39,21 @@ function Write-Step {
  Write-Host "$Status $Message" -ForegroundColor $(if ($Status -eq "✗") { "Red" } else { "Green" })
 }
 
+# Igual que install-agent.ps1: el desinstalador tambien corre powershell.exe
+# 5.1 desde NSIS y puede heredar el PSModulePath de pwsh 7, con el que sus
+# propios modulos no cargan.
+function Reset-ScsPsModulePath {
+ $rutas = @((Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\Modules'))
+ if ($env:ProgramFiles) { $rutas += (Join-Path $env:ProgramFiles 'WindowsPowerShell\Modules') }
+ if (${env:ProgramFiles(x86)}) { $rutas += (Join-Path ${env:ProgramFiles(x86)} 'WindowsPowerShell\Modules') }
+ if ($env:USERPROFILE) { $rutas += (Join-Path $env:USERPROFILE 'Documents\WindowsPowerShell\Modules') }
+ $rutas = @($rutas | Where-Object { Test-Path -LiteralPath $_ })
+ $env:PSModulePath = ($rutas -join ';')
+}
+Reset-ScsPsModulePath
+
 # Verificar que se ejecuta como administrador
-$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
  [Security.Principal.WindowsBuiltInRole]::Administrator
 )
 if (-not $isAdmin) {

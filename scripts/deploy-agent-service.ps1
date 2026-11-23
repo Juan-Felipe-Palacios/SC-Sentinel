@@ -48,6 +48,19 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Igual que en install-agent.ps1: si powershell.exe 5.1 hereda el PSModulePath
+# de pwsh 7, Microsoft.PowerShell.Security no carga y Get-Acl falla (el respaldo
+# se marcaba inseguro). Se deja solo la ruta legacy.
+function Reset-ScsPsModulePath {
+    $rutas = @((Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\Modules'))
+    if ($env:ProgramFiles) { $rutas += (Join-Path $env:ProgramFiles 'WindowsPowerShell\Modules') }
+    if (${env:ProgramFiles(x86)}) { $rutas += (Join-Path ${env:ProgramFiles(x86)} 'WindowsPowerShell\Modules') }
+    if ($env:USERPROFILE) { $rutas += (Join-Path $env:USERPROFILE 'Documents\WindowsPowerShell\Modules') }
+    $rutas = @($rutas | Where-Object { Test-Path -LiteralPath $_ })
+    $env:PSModulePath = ($rutas -join ';')
+}
+Reset-ScsPsModulePath
 if (-not $Source) { $Source = Join-Path $PSScriptRoot '..\agent\target\release\sc-sentinel-agent.exe' }
 
 $BakPath = Join-Path $BackupDir 'sc-sentinel-agent.exe.bak'
