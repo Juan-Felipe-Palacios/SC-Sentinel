@@ -145,6 +145,31 @@ function Write-InstallLog {
  }
 }
 
+# Hash SHA256 sin depender del cmdlet Get-FileHash: en el proceso que lanza
+# NSIS (powershell.exe 5.1 heredando el entorno del instalador) el cmdlet
+# devolvia vacio en el runner de CI, y un hash vacio no puede compararse con
+# SHA256SUMS.txt ni con el origen (run 45256702515: "SHA256 " y falso
+# desajuste de la GUI). Se abre con FileShare.ReadWrite para no chocar con el
+# escaner de archivos ni con otro lector.
+function Get-Sha256Hex {
+ param([string]$Path)
+ $sha = [System.Security.Cryptography.SHA256]::Create()
+ try {
+  $fs = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+  try {
+   $bytes = $sha.ComputeHash($fs)
+   return ([System.BitConverter]::ToString($bytes) -replace '-', '').ToLowerInvariant()
+  } finally {
+   $fs.Dispose()
+  }
+ } catch {
+  Write-InstallLog 'HASH' "no se pudo leer $Path : $($_.Exception.Message)"
+  throw
+ } finally {
+  $sha.Dispose()
+ }
+}
+
 function Write-Step {
  param([string]$Message, [string]$Status = "✓")
  Write-Host "$Status $Message" -ForegroundColor $(if ($Status -eq "✗") { "Red" } else { "Green" })
@@ -189,7 +214,7 @@ function Install-GuiAndLauncher {
  if (Test-Path $guiSource) {
   $guiPath = "$Dir\sc-gui.exe"
   $guiBak = "$guiPath.bak"
-  $guiSrcHash = (Get-FileHash $guiSource -Algorithm SHA256).Hash
+  $guiSrcHash = Get-Sha256Hex -Path $guiSource
   # El paquete trae SHA256SUMS.txt (lo valida build-installer.ps1 al compilar):
   # la GUI copiada se compara tambien con el manifiesto, no solo con el origen.
   $guiManifestHash = Get-PackageManifestHash -PackageDir $PackageDir -RelativePath 'sc-gui.exe'
@@ -202,9 +227,9 @@ function Install-GuiAndLauncher {
    }
    # Respaldo verificado antes de reemplazar: si el .bak no coincide con la GUI
    # instalada se aborta con 4 (la version anterior debe poder restaurarse).
-   $guiPrevHash = (Get-FileHash $guiPath -Algorithm SHA256).Hash
+   $guiPrevHash = Get-Sha256Hex -Path $guiPath
    Copy-Item $guiPath $guiBak -Force -ErrorAction SilentlyContinue
-   $guiBakHash = if (Test-Path $guiBak) { (Get-FileHash $guiBak -Algorithm SHA256).Hash } else { '' }
+   $guiBakHash = if (Test-Path $guiBak) { Get-Sha256Hex -Path $guiBak } else { '' }
    if ($guiBakHash -ne $guiPrevHash) {
     Write-Error-Exit "No se pudo respaldar la GUI instalada ($guiPath): el .bak no coincide con el original." -Code 4
    }
@@ -213,7 +238,7 @@ function Install-GuiAndLauncher {
    Remove-Item $guiPath -Force -ErrorAction SilentlyContinue
   }
   Copy-Item $guiSource $guiPath -Force
-  $guiDstHash = if (Test-Path $guiPath) { (Get-FileHash $guiPath -Algorithm SHA256).Hash } else { '' }
+  $guiDstHash = if (Test-Path $guiPath) { Get-Sha256Hex -Path $guiPath } else { '' }
   $guiVersion = if (Test-Path $guiPath) { (Get-Item $guiPath).VersionInfo.FileVersion } else { '' }
   if ($guiDstHash -ne $guiSrcHash -or ($guiManifestHash -and $guiDstHash -ne $guiManifestHash) -or -not $guiVersion) {
    if (Test-Path $guiBak) { Copy-Item $guiBak $guiPath -Force -ErrorAction SilentlyContinue }
@@ -247,8 +272,8 @@ function Install-GeoDatabases {
  if ($candidates.Count -gt 0) {
   $source = @($candidates)[0]
   Copy-Item $source $installed -Force
-  $srcHash = (Get-FileHash $source -Algorithm SHA256).Hash
-  $dstHash = (Get-FileHash $installed -Algorithm SHA256).Hash
+  $srcHash = Get-Sha256Hex -Path $source
+  $dstHash = Get-Sha256Hex -Path $installed
   if ($srcHash -ne $dstHash) {
    Write-Error-Exit "La base GeoLite2 copiada no coincide con la de origen`n  origen: $srcHash`n  copiado: $dstHash"
   }
@@ -269,8 +294,8 @@ function Install-GeoDatabases {
   $asnSource = @($asnCandidates)[0]
   $asnInstalled = "$GeoDir\$asnName"
   Copy-Item $asnSource $asnInstalled -Force
-  $asnSrcHash = (Get-FileHash $asnSource -Algorithm SHA256).Hash
-  $asnDstHash = (Get-FileHash $asnInstalled -Algorithm SHA256).Hash
+  $asnSrcHash = Get-Sha256Hex -Path $asnSource
+  $asnDstHash = Get-Sha256Hex -Path $asnInstalled
   if ($asnSrcHash -ne $asnDstHash) {
    Write-Error-Exit "La base GeoLite2 ASN copiada no coincide con la de origen`n  origen: $asnSrcHash`n  copiado: $asnDstHash"
   }
@@ -285,6 +310,8 @@ function Install-GeoDatabases {
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
  [Security.Principal.WindowsBuiltInRole]::Administrator
 )
+Write-InstallLog 'ENV' ("ps={0} admin={1} getFileHash={2} modulePath={3}" -f `
+  $PSVersionTable.PSVersion, $isAdmin, [bool](Get-Command Get-FileHash -ErrorAction SilentlyContinue), $env:PSModulePath)
 if (-not $isAdmin) {
  Write-Error-Exit "Este script debe ejecutarse como Administrador. Clic derecho → Ejecutar como administrador."
 }
@@ -493,8 +520,8 @@ if (-not (Test-Path $BinPath)) {
 }
 # Verificar que lo copiado es identico al origen: si la copia falla en
 # silencio el servicio se quedaria con la version antigua.
-$srcHash = (Get-FileHash $BinSource -Algorithm SHA256).Hash
-$dstHash = if (Test-Path $BinPath) { (Get-FileHash $BinPath -Algorithm SHA256).Hash } else { '' }
+$srcHash = Get-Sha256Hex -Path $BinSource
+$dstHash = if (Test-Path $BinPath) { Get-Sha256Hex -Path $BinPath } else { '' }
 if ($srcHash -ne $dstHash) {
   if (Test-Path "$BinPath.bak") { Copy-Item "$BinPath.bak" $BinPath -Force -ErrorAction SilentlyContinue }
   Write-Error-Exit "El binario copiado no coincide con el de origen; se restauro el anterior (rollback).`n  origen: $srcHash`n  copiado: $dstHash" -Code 4
