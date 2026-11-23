@@ -723,7 +723,14 @@ if ($LASTEXITCODE -ne 0) {
 
 # Paso 11: Iniciar servicio
 Write-Step "Iniciando servicio..."
-Start-Service -Name $ServiceName -ErrorAction Stop
+try {
+ Start-Service -Name $ServiceName -ErrorAction Stop
+} catch {
+ # El SCM devuelve el error del arranque (por ejemplo 0xC0000135 si falta una
+ # DLL); sin este catch el script moria con una excepcion sin traza util.
+ Write-InstallLog 'WARN' "Start-Service fallo: $($_.Exception.Message)"
+ Write-Host " ⚠ No se pudo iniciar el servicio: $($_.Exception.Message)" -ForegroundColor Yellow
+}
 
 # Verificar que está corriendo
 Start-Sleep -Seconds 2
@@ -755,3 +762,10 @@ Write-Host " sc qfailure $ServiceName # Ver recovery" -ForegroundColor Gray
 Write-Host " sc stop $ServiceName # Detener (drain ≤30s)" -ForegroundColor Gray
 Write-Host " Get-Content $LogDir\agent.log -Tail 20 # Ver log" -ForegroundColor Gray
 Write-Host ""
+
+# Un servicio que no arranca no es una instalacion correcta: se informa del
+# fallo con codigo de salida para que el e2e no lo de por bueno.
+if (-not ($service -and $service.Status -eq 'Running')) {
+ Write-InstallLog 'ERROR' 'el servicio quedo instalado pero no arranco'
+ exit 1
+}

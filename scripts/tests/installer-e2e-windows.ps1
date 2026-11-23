@@ -418,6 +418,13 @@ finally {
     Write-Log '== install-agent.log (ultimas 40 lineas) =='
     Get-Content -LiteralPath $installLog -Tail 40 | ForEach-Object { Write-Log "  $_" }
   }
+  # Log del agente: un servicio que no arranca (DLL faltante, config invalida)
+  # deja aqui el motivo real.
+  $agentLog = Join-Path $env:ProgramData 'SC-Sentinel\logs\agent.log'
+  if (Test-Path -LiteralPath $agentLog) {
+    Write-Log '== agent.log (ultimas 20 lineas) =='
+    Get-Content -LiteralPath $agentLog -Tail 20 | ForEach-Object { Write-Log "  $_" }
+  }
   $summary | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $OutDir 'result.json') -Encoding UTF8
   Write-Log "== Resumen: $($results.Count) comprobaciones, $($failed.Count) fallo(s) =="
   foreach ($f in $failed) { Write-Log ("  FALLO {0}: {1}" -f $f.check, $f.detail) }
