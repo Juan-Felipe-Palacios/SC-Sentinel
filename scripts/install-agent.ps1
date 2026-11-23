@@ -405,7 +405,19 @@ if ($UpdateMode) {
 
  Write-Step "Actualizando el agente (respaldo verificado + drenaje del spool)"
  $deployArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$deployScript`" -Mode Deploy -Source `"$BinSource`" -Target `"$BinPath`" -Service `"$ServiceName`" -BackupDir `"$DataDir\backup`" -LogPath `"$LogDir\agent.log`" -SyncTimeoutSec 30"
- $deployProc = Start-Process -FilePath 'powershell.exe' -ArgumentList $deployArgs -Wait -PassThru -NoNewWindow
+ # La salida del despliegue se captura: en /S no llega a nadie y los cortes
+ # del script (ACL del respaldo, drenaje) solo se explican en stdout.
+ $deployOut = Join-Path $LogDir 'deploy-agent-service.out.log'
+ $deployErr = Join-Path $LogDir 'deploy-agent-service.err.log'
+ $deployProc = Start-Process -FilePath 'powershell.exe' -ArgumentList $deployArgs -Wait -PassThru -NoNewWindow `
+  -RedirectStandardOutput $deployOut -RedirectStandardError $deployErr
+ if ($deployProc.ExitCode -ne 0) {
+  foreach ($deployLog in @($deployOut, $deployErr)) {
+   if (Test-Path -LiteralPath $deployLog) {
+    Get-Content -LiteralPath $deployLog -Tail 40 | ForEach-Object { Write-InstallLog 'DEPLOY' $_ }
+   }
+  }
+ }
  switch ($deployProc.ExitCode) {
   0 { Write-Step "Agente actualizado; servicio en ejecucion con sync confirmado" }
   19 {
@@ -677,6 +689,8 @@ if ($waited -gt 0) {
  Write-Step "Servicio previo liberado del SCM tras ${waited}s"
 }
 Write-InstallLog 'SVC' "ImagePath previsto: $binPathQuoted"
+$serviceKey = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName"
+Write-InstallLog 'SVC' ("ImagePath en registro: " + (Get-ItemProperty -LiteralPath $serviceKey -Name ImagePath -ErrorAction SilentlyContinue).ImagePath)
 
 # New-Service escribe el binPath via API de servicio; Windows PowerShell 5.1
 # arruina las comillas internas del binPath al pasarselas a un exe nativo

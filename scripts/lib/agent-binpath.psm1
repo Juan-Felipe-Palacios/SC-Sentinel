@@ -21,10 +21,13 @@ function Get-AgentBinPath {
  if ($CaptureInterface) {
   return "`"$BinPath`" --config `"$ConfigFile`" --interface `"$CaptureInterface`""
  }
- # Modo collector-only por defecto: la fuente de datos es el colector UDP
- # (NetFlow/IPFIX). Sin fuente de captura, arrancar sin --no-capture aborta
- # con codigo 2 (el agente exige --interface).
- return "`"$BinPath`" --config `"$ConfigFile`" --no-capture"
+ # Modo collector-only: sin argumentos. El SCM no entrega el binPath tal cual
+ # (run 45268816783: el proceso recibio '-config' donde el ImagePath decia
+ # '--config'), asi que el modo por defecto no depende de la linea de ordenes:
+ # `with_service_defaults` en sc-agent aplica el config instalado y
+ # `--no-capture` cuando no hay fuente de captura. La fuente de datos es el
+ # colector UDP (NetFlow/IPFIX).
+ return "`"$BinPath`""
 }
 
 function Set-AgentImagePath {
