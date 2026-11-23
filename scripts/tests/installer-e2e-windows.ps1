@@ -239,6 +239,20 @@ function Send-NetFlowV5 {
   }
 }
 
+# T7 purga ProgramData, asi que el log del agente hay que copiarlo por fase o
+# se pierde el motivo real de un servicio que no arranca.
+function Save-PhaseLogs {
+  param([string]$Tag)
+  foreach ($pair in @(
+    @((Join-Path $DataDir 'logs\agent.log'), "agent.$Tag.log"),
+    @((Join-Path $DataDir 'logs\install-agent.log'), "install.$Tag.log")
+  )) {
+    if (Test-Path -LiteralPath $pair[0]) {
+      Copy-Item -LiteralPath $pair[0] -Destination (Join-Path $OutDir $pair[1]) -Force -ErrorAction SilentlyContinue
+    }
+  }
+}
+
 function Get-ConfigPath { return (Join-Path $DataDir 'config\config.toml') }
 function Get-SpoolPath { return (Join-Path $DataDir 'spool\sc-spool.sqlite') }
 
@@ -337,6 +351,7 @@ try {
     Send-NetFlowV5 -Port 2055
     Add-Check 'T16.sync_confirmado' (Wait-LogMarker -Marker 'sync_confirmed' -SinceUtc $syncSince -TimeoutSeconds 240) 'sync_confirmed en agent.log'
     Add-Check 'T4.servicio' (Wait-ServiceRunning 120) 'servicio en ejecucion tras actualizar'
+    Save-PhaseLogs -Tag 't4'
 
     # ---------------- T13/T15/T18: instalacion hecha con scripts ----------------
     Write-Log '== T13/T15/T18. Actualizacion sobre una instalacion hecha con scripts =='
@@ -364,8 +379,10 @@ try {
     $scriptBinPath = '"' + (Join-Path $ScriptsInstalledDir 'sc-sentinel-agent.exe') + '" --config "' + (Get-ConfigPath) + '" --no-capture'
     New-Service -Name $ServiceName -BinaryPathName $scriptBinPath -DisplayName 'SC Sentinel e2e' -StartupType Automatic | Out-Null
     New-ItemProperty -Path $ServiceKey -Name Environment -Value $savedEnv -PropertyType MultiString -Force | Out-Null
-    Start-Service -Name $ServiceName
+    Write-Log ('ImagePath del servicio de scripts: ' + (Get-ItemProperty -LiteralPath $ServiceKey -Name ImagePath -ErrorAction SilentlyContinue).ImagePath)
+    try { Start-Service -Name $ServiceName -ErrorAction Stop } catch { Write-Log ('Start-Service: ' + $_.Exception.Message) }
     Add-Check 'T18.servicio_scripts' (Wait-ServiceRunning 120) 'servicio apuntando a la carpeta sin marcador'
+    Save-PhaseLogs -Tag 't18'
 
     $cfgHashBefore = Get-Sha (Get-ConfigPath)
     $code = Invoke-Setup -Arguments @('/S', "/D=$OtherDir")
@@ -507,6 +524,13 @@ finally {
   if (Test-Path -LiteralPath $agentLog) {
     Write-Log '== agent.log (ultimas 60 lineas) =='
     Get-Content -LiteralPath $agentLog -Tail 60 | ForEach-Object { Write-Log "  $_" }
+  }
+  foreach ($tag in @('t4', 't18')) {
+    $phase = Join-Path $OutDir "agent.$tag.log"
+    if (Test-Path -LiteralPath $phase) {
+      Write-Log "== agent.$tag.log (ultimas 80 lineas) =="
+      Get-Content -LiteralPath $phase -Tail 80 | ForEach-Object { Write-Log "  $_" }
+    }
   }
   $summary | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $OutDir 'result.json') -Encoding UTF8
   Write-Log "== Resumen: $($results.Count) comprobaciones, $($failed.Count) fallo(s) =="
