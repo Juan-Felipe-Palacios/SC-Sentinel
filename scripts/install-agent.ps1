@@ -128,14 +128,33 @@ function Ensure-FileWritable {
   }
 }
 
+# Traza persistente: el instalador corre en modo silencioso (/S) desde NSIS y
+# su stdout no llega a nadie. Sin este archivo, un corte en la maquina del
+# usuario (o en CI) no deja mas rastro que el codigo de salida.
+function Write-InstallLog {
+ param([string]$Level, [string]$Message)
+ try {
+  $logDir = Join-Path $env:ProgramData 'SC-Sentinel\logs'
+  if (-not (Test-Path -LiteralPath $logDir)) {
+   New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+  }
+  $line = "[{0}] {1} {2}" -f (Get-Date).ToUniversalTime().ToString('o'), $Level, $Message
+  Add-Content -LiteralPath (Join-Path $logDir 'install-agent.log') -Value $line -Encoding UTF8
+ } catch {
+  # La traza nunca puede ser la causa de un fallo de instalacion.
+ }
+}
+
 function Write-Step {
  param([string]$Message, [string]$Status = "✓")
  Write-Host "$Status $Message" -ForegroundColor $(if ($Status -eq "✗") { "Red" } else { "Green" })
+ Write-InstallLog 'STEP' "$Status $Message"
 }
 
 function Write-Error-Exit {
  param([string]$Message, [int]$Code = 1)
  Write-Host "✗ $Message" -ForegroundColor Red
+ Write-InstallLog 'ERROR' "code=$Code $Message"
  exit $Code
 }
 

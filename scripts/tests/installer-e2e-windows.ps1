@@ -411,6 +411,13 @@ finally {
     ok = ($failed.Count -eq 0 -and $results.Count -gt 0)
     checks = $results
   }
+  # Traza del instalador: en /S su stdout se pierde, asi que el diagnostico de
+  # un fallo (hash, FileVersion, ACL) queda en este log.
+  $installLog = Join-Path $env:ProgramData 'SC-Sentinel\logs\install-agent.log'
+  if (Test-Path -LiteralPath $installLog) {
+    Write-Log '== install-agent.log (ultimas 40 lineas) =='
+    Get-Content -LiteralPath $installLog -Tail 40 | ForEach-Object { Write-Log "  $_" }
+  }
   $summary | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $OutDir 'result.json') -Encoding UTF8
   Write-Log "== Resumen: $($results.Count) comprobaciones, $($failed.Count) fallo(s) =="
   foreach ($f in $failed) { Write-Log ("  FALLO {0}: {1}" -f $f.check, $f.detail) }
