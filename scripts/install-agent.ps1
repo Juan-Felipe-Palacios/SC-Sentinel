@@ -676,6 +676,7 @@ while ($true) {
 if ($waited -gt 0) {
  Write-Step "Servicio previo liberado del SCM tras ${waited}s"
 }
+Write-InstallLog 'SVC' "ImagePath previsto: $binPathQuoted"
 
 # New-Service escribe el binPath via API de servicio; Windows PowerShell 5.1
 # arruina las comillas internas del binPath al pasarselas a un exe nativo
@@ -732,9 +733,15 @@ try {
  Write-Host " ⚠ No se pudo iniciar el servicio: $($_.Exception.Message)" -ForegroundColor Yellow
 }
 
-# Verificar que está corriendo
-Start-Sleep -Seconds 2
-$service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+# Verificar que está corriendo. Un arranque real puede tardar varios segundos
+# (carga del binario, spool, GeoLite2): se espera hasta 60 s antes de darlo
+# por fallido, en vez de mirar una sola vez a los 2 s.
+$service = $null
+for ($wait = 0; $wait -lt 120; $wait += 2) {
+ Start-Sleep -Seconds 2
+ $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+ if ($service -and $service.Status -eq 'Running') { break }
+}
 if ($service -and $service.Status -eq 'Running') {
  Write-Step "Servicio iniciado correctamente"
 } else {

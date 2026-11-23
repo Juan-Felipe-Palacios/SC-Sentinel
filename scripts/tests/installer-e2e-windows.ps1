@@ -259,7 +259,18 @@ try {
     Add-Check 'T4.exitcode' ($code -eq 0 -or $code -eq 19) "exit $code, esperado 0 o 19"
     Add-Check 'T16.config_intacto' ($cfgHashBefore -ne '' -and $cfgHashBefore -eq (Get-Sha (Get-ConfigPath))) "sha $(Get-SafeSha (Get-ConfigPath))"
     Add-Check 'T16.config_nuevo_ausente' (-not (Test-Path -LiteralPath "$(Get-ConfigPath).nuevo")) 'no se dejo config.toml.nuevo'
-    Add-Check 'T16.spool_intacto' ($spoolHashBefore -eq '' -or $spoolHashBefore -eq (Get-Sha (Get-SpoolPath))) 'spool con el mismo hash'
+    # El spool es una SQLite viva: el agente escribe en ella mientras corre, asi
+    # que el hash exacto cambia por actividad normal. Lo que se exige es que el
+    # instalador no la reemplace: sigue existiendo y conserva su fecha de
+    # creacion (no se recreo ni se trunco a cero).
+    $spoolNow = Get-Item -LiteralPath (Get-SpoolPath) -ErrorAction SilentlyContinue
+    $spoolIntacto = $null -ne $spoolNow -and $spoolNow.Length -gt 0 -and $spoolNow.CreationTimeUtc -le $syncSince
+    $spoolDetalle = if ($spoolNow) {
+      "spool conservado ({0} bytes, creado {1:o})" -f $spoolNow.Length, $spoolNow.CreationTimeUtc
+    } else {
+      'spool ausente'
+    }
+    Add-Check 'T16.spool_intacto' $spoolIntacto $spoolDetalle
     Add-Check 'T16.token_intacto' ($tokenBefore -eq (Get-TokenEnvironment) -and $tokenBefore) 'SC_INGEST_TOKEN igual antes y despues (valor no impreso)'
     Add-Check 'T16.sync_confirmado' (Wait-LogMarker -Marker 'sync_confirmed' -SinceUtc $syncSince -TimeoutSeconds 240) 'sync_confirmed en agent.log'
     Add-Check 'T4.servicio' (Wait-ServiceRunning 120) 'servicio en ejecucion tras actualizar'

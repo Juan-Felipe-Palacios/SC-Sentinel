@@ -170,10 +170,17 @@ async fn run_service(arguments: Vec<OsString>) -> Result<(), ServiceError> {
     // del proceso, que el SCM construyó a partir del `binPath`. Los
     // argumentos del SCM quedan como respaldo.
     let argv = normalize_argv(service_command_line(arguments));
+    // Se conserva la representacion para el mensaje de error: argv se mueve
+    // al parser.
+    let argv_debug = format!("{argv:?}");
     let args = match crate::Args::try_parse_from(argv) {
         Ok(args) => args,
         Err(error) => {
-            let mensaje = format!("sc-sentinel-agent: argumentos del servicio: {error}");
+            // El argv se registra para poder diagnosticar un ImagePath mal
+            // construido: en el run 45265338714 el SCM entrego un token `-c`
+            // que no aparece en ningun script del repo.
+            let mensaje =
+                format!("sc-sentinel-agent: argumentos del servicio: {error} (argv: {argv_debug})");
             eprintln!("{mensaje}");
             append_service_log(&mensaje);
             agent_finished.store(true, Ordering::Relaxed);
