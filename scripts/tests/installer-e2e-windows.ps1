@@ -310,24 +310,6 @@ try {
 
     # ---------------- T4/T16: actualizacion silenciosa ----------------
     Write-Log '== T4/T16. Actualizacion silenciosa =='
-    # Version anterior distinta: con el mismo sha el deploy no copia el binario
-    # ni deja .bak, asi que T5 no tendria respaldo que revertir ni T4 un
-    # drenaje que observar. El PE sigue ejecutable con bytes de mas al final.
-    Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
-    $stopBy = (Get-Date).AddSeconds(60)
-    while ((Get-Date) -lt $stopBy) {
-      $svcNow = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-      if (-not $svcNow -or $svcNow.Status -eq 'Stopped') { break }
-      Start-Sleep -Seconds 1
-    }
-    $installedExe = Join-Path $InstallDir 'sc-sentinel-agent.exe'
-    $prevExe = Join-Path $env:TEMP 'scs-prev-agent.exe'
-    Copy-Item -LiteralPath $installedExe -Destination $prevExe -Force
-    [System.IO.File]::AppendAllText($prevExe, 'SCS-PREV')
-    Remove-Item -LiteralPath $installedExe -Force
-    Copy-Item -LiteralPath $prevExe -Destination $installedExe -Force
-    Start-Service -Name $ServiceName -ErrorAction SilentlyContinue
-    $null = Wait-ServiceRunning 60
     $cfgHashBefore = Get-Sha (Get-ConfigPath)
     $spoolHashBefore = Get-Sha (Get-SpoolPath)
     $tokenBefore = Get-TokenEnvironment
@@ -355,30 +337,6 @@ try {
     Send-NetFlowV5 -Port 2055
     Add-Check 'T16.sync_confirmado' (Wait-LogMarker -Marker 'sync_confirmed' -SinceUtc $syncSince -TimeoutSeconds 240) 'sync_confirmed en agent.log'
     Add-Check 'T4.servicio' (Wait-ServiceRunning 120) 'servicio en ejecucion tras actualizar'
-    $deployLog = Join-Path $DataDir 'logs\agent.log'
-    $drainSeen = $false
-    if (Test-Path -LiteralPath $deployLog) {
-      $drainSeen = [bool](Get-Content -LiteralPath $deployLog -Tail 200 | Where-Object { $_ -match 'spool_flushed' -and $_ -match 'pending=0' })
-    }
-    Add-Check 'T4.drenaje' $drainSeen 'spool_flushed pending=0 en agent.log'
-
-    # ---------------- T5: rollback ----------------
-    Write-Log '== T5. Rollback con deploy-agent-service.ps1 -Mode Rollback =='
-    $bakPath = Join-Path $DataDir 'backup\sc-sentinel-agent.exe.bak'
-    if (Test-Path -LiteralPath $bakPath) {
-      $bakSha = Get-Sha $bakPath
-      $deployScript = Join-Path $InstallDir 'installer\deploy-agent-service.ps1'
-      $proc = Start-Process -FilePath 'powershell.exe' -Wait -PassThru -NoNewWindow -ArgumentList @(
-        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $deployScript, '-Mode', 'Rollback',
-        '-Service', $ServiceName, '-BackupDir', (Join-Path $DataDir 'backup'),
-        '-LogPath', (Join-Path $DataDir 'logs\agent.log')
-      )
-      Add-Check 'T5.exitcode' ($proc.ExitCode -eq 0) "exit $($proc.ExitCode), esperado 0"
-      Add-Check 'T5.binario_restaurado' ((Get-Sha (Join-Path $InstallDir 'sc-sentinel-agent.exe')) -eq $bakSha) 'sha instalado == sha del .bak'
-      Add-Check 'T5.servicio' (Wait-ServiceRunning 120) 'servicio en ejecucion'
-    } else {
-      Add-Check 'T5.respaldo' $false "no existe $bakPath (la actualizacion no dejo respaldo)"
-    }
 
     # ---------------- T13/T15/T18: instalacion hecha con scripts ----------------
     Write-Log '== T13/T15/T18. Actualizacion sobre una instalacion hecha con scripts =='
@@ -426,6 +384,28 @@ try {
       $bakSidecar = ((Get-Content -LiteralPath "$bakPath.sha256" -TotalCount 1) -split '\s+')[0].Trim().ToUpperInvariant()
     }
     Add-Check 'T13.respaldo' ($bakSha -ne '' -and $bakSha -eq $bakSidecar) 'respaldo .bak con su .sha256'
+
+    # ---------------- T4.drenaje / T5: solo hay respaldo si el binario cambio
+    # En T4 se reinstala el mismo sha y el deploy no copia nada; aqui si hubo
+    # binario anterior distinto, que es cuando existen .bak y drenaje.
+    $deployLog = Join-Path $DataDir 'logs\agent.log'
+    $drainSeen = $false
+    if (Test-Path -LiteralPath $deployLog) {
+      $drainSeen = [bool](Get-Content -LiteralPath $deployLog -Tail 200 | Where-Object { $_ -match 'spool_flushed' -and $_ -match 'pending=0' })
+    }
+    Add-Check 'T4.drenaje' $drainSeen 'spool_flushed pending=0 en agent.log'
+
+    Write-Log '== T5. Rollback con deploy-agent-service.ps1 -Mode Rollback =='
+    $deployScript = Join-Path $ScriptsInstalledDir 'installer\deploy-agent-service.ps1'
+    $proc = Start-Process -FilePath 'powershell.exe' -Wait -PassThru -NoNewWindow -ArgumentList @(
+      '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $deployScript, '-Mode', 'Rollback',
+      '-Service', $ServiceName, '-BackupDir', (Join-Path $DataDir 'backup'),
+      '-Target', (Join-Path $ScriptsInstalledDir 'sc-sentinel-agent.exe'),
+      '-LogPath', (Join-Path $DataDir 'logs\agent.log')
+    )
+    Add-Check 'T5.exitcode' ($proc.ExitCode -eq 0) "exit $($proc.ExitCode), esperado 0"
+    Add-Check 'T5.binario_restaurado' ((Get-Sha (Join-Path $ScriptsInstalledDir 'sc-sentinel-agent.exe')) -eq $bakSha) 'sha instalado == sha del .bak'
+    Add-Check 'T5.servicio' (Wait-ServiceRunning 120) 'servicio en ejecucion'
 
     # ---------------- T17: archivado de respaldos ----------------
     Write-Log '== T17. Archivado de .bak-* =='
