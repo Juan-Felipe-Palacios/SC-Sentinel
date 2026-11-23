@@ -127,6 +127,19 @@ jobs:
           }
           Write-Host "agente con captura live: OK"
 
+      # Gate: el modo colector no debe exigir el runtime de Npcap (R4 del
+      # diseno). Si wpcap.dll estuviera enlazada de forma estatica, el proceso
+      # ni arrancaria aqui, donde el runtime no esta instalado.
+      - name: Verificar que el agente arranca sin el runtime de Npcap
+        shell: pwsh
+        run: |
+          $exe = 'agent/target/release/sc-sentinel-agent.exe'
+          & $exe --help | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            throw "el agente no arranca sin wpcap.dll (exit $LASTEXITCODE): el modo colector no puede depender de Npcap"
+          }
+          Write-Host "agente arranca sin Npcap: OK"
+
       - name: Empaquetar la release (ZIP + SHA256SUMS)
         shell: pwsh
         run: pwsh ./scripts/package-release.ps1 -Version $env:SCS_VERSION -Target windows-x64
