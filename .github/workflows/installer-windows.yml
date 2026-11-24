@@ -245,8 +245,14 @@ jobs:
       - name: Diagnostico del servicio
         shell: pwsh
         run: |
-          $setup = Join-Path $PWD "dist\sc-sentinel-agent-v$($env:SCS_VERSION)-windows-x64-setup.exe"
-          if (-not (Test-Path -LiteralPath $setup)) { throw "no aparece el instalador $setup" }
+          # upload-artifact recorta el prefijo comun (`dist`), asi que el .exe
+          # queda en la raiz del artefacto y no bajo dist\. Se busca en todo el
+          # arbol descargado para no depender de ese detalle.
+          $name = "sc-sentinel-agent-v$($env:SCS_VERSION)-windows-x64-setup.exe"
+          $setup = Get-ChildItem -Path $PWD -Recurse -Filter $name -ErrorAction SilentlyContinue |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $setup) { throw "no aparece el instalador $name bajo $PWD" }
+          Write-Host "instalador: $setup"
           pwsh ./scripts/tests/installer-service-diagnose.ps1 -SetupPath $setup -Version $env:SCS_VERSION -OutDir (Join-Path $PWD 'dist\diag')
 
       - name: Publicar diagnostico (retencion 7 dias)

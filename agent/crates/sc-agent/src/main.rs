@@ -231,6 +231,13 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
             eprintln!(
                 "sc-sentinel-agent: falta el device id. Pasá --device-id dev_<uuid> o definí SC_SENTINEL_DEVICE_ID (el id sale de la tabla devices del dashboard)."
             );
+            // Un servicio no tiene consola: sin esta linea el agent.log queda
+            // vacio y la causa del arranque fallido es invisible.
+            tracing::error!(
+                event = "startup_failed",
+                motivo = "device_id_ausente",
+                "falta el device id: ni --device-id ni SC_SENTINEL_DEVICE_ID; el servicio no puede arrancar"
+            );
             return 2;
         }
     };
@@ -259,6 +266,11 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
         }
         Err(error) => {
             eprintln!("sc-sentinel-agent: {error}");
+            tracing::error!(
+                event = "startup_failed",
+                motivo = "hmac_key",
+                "no se pudo resolver la clave HMAC de host_mark: {error}"
+            );
             return 2;
         }
     };
@@ -270,6 +282,11 @@ pub(crate) async fn run_agent(args: Args) -> i32 {
             Ok(token) => Some(token),
             Err(error) => {
                 eprintln!("sc-sentinel-agent: {error}");
+                tracing::error!(
+                    event = "startup_failed",
+                    motivo = "token",
+                    "no se pudo resolver el token de ingesta: {error}"
+                );
                 return 2;
             }
         },

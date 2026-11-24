@@ -197,6 +197,12 @@ async fn run_service(arguments: Vec<OsString>) -> Result<(), ServiceError> {
     let args = with_service_defaults(args);
 
     let code = crate::run_agent(args).await;
+    if code != 0 {
+        // Un servicio no tiene consola: si el agente se cae al arrancar, el
+        // log (que ya existe porque se abre antes) quedaria vacio y el SCM
+        // solo mostraria un codigo. Esta linea deja la causa en agent.log.
+        append_service_log(&format!("el agente termino al arrancar con codigo {code}"));
+    }
     agent_finished.store(true, Ordering::Relaxed);
     let _ = bridge.join();
     set_status(
