@@ -212,6 +212,9 @@ jobs:
             dist/SHA256SUMS-windows-x64.txt
             dist/e2e/result.json
             dist/e2e/transcript.txt
+            dist/e2e/service.*.txt
+            dist/e2e/agent.*.log
+            dist/e2e/install.*.log
 
   # Diagnostico corto del arranque como servicio (run 45286615679: el agente
   # escribio una sola linea en agent.log y el drenaje nunca se confirmo).
@@ -219,7 +222,11 @@ jobs:
   # despues de pararlo. No crea tags, releases ni nada publico.
   diagnose:
     needs: build-and-test
-    if: ${{ inputs.diagnose == true }}
+    # Tambien cuando el e2e falla: ese es justo el caso a diagnosticar y los
+    # artefactos se publican con `if: always()`. Solo se omite si el run se
+    # cancela o si el build no llego a producir el instalador (el paso de
+    # descarga no rompe el job en ese caso).
+    if: ${{ !cancelled() && inputs.diagnose == true }}
     runs-on: windows-latest
     timeout-minutes: 30
     env:
@@ -229,6 +236,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Descargar el instalador del job anterior
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: installer-windows-${{ github.run_id }}

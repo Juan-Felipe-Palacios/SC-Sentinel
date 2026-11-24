@@ -16,7 +16,10 @@
     (c) el agente en consola con los MISMOS argumentos de su ImagePath durante
         10 s, capturando stdout, stderr y código de salida;
     (d) comparación de las claves de [log] con la plantilla que genera
-        install-agent.ps1 y con la ruta efectiva del log.
+        install-agent.ps1 y con la ruta efectiva del log;
+    (e) servicio recreado a mano con la misma forma que usa el arnés E2E
+        (`"<exe>" --config "<config>" --no-capture`), con y sin el
+        `Environment` del servicio instalado: es el escenario de T18.
 
   Nunca imprime el token: solo el nombre de la variable del servicio.
   Sale 0 aunque el diagnóstico encuentre un defecto (su propósito es recoger
@@ -272,6 +275,54 @@ if (Test-Path -LiteralPath $ConfigPath) {
   }
 } else {
   Log '  config.toml AUSENTE: el agente arranca con la ruta por defecto'
+}
+
+# --- (e) servicio recreado a mano, como el del arnés E2E ------------------
+Log ''
+Log '== (e) servicio recreado a mano (--config ... --no-capture), como T18 =='
+$reName = 'SCS-DIAG-Recreado'
+$reKey = "HKLM:\SYSTEM\CurrentControlSet\Services\$reName"
+$reBin = Join-Path $InstallDir 'sc-sentinel-agent.exe'
+$instEnv = @((Get-ItemProperty -LiteralPath $ServiceKey -Name Environment -ErrorAction SilentlyContinue).Environment)
+Log "  binario: $reBin (sha $(Get-Sha $reBin))"
+Log "  Environment del servicio instalado: $(@($instEnv).Count) entrada(s)"
+foreach ($variant in @('sin_environment', 'con_environment')) {
+  & sc.exe delete $reName *> $null
+  Start-Sleep -Milliseconds 500
+  $reBinPath = '"' + $reBin + '" --config "' + $ConfigPath + '" --no-capture'
+  $bytesBefore = if (Test-Path -LiteralPath $AgentLog) { (Get-Item -LiteralPath $AgentLog).Length } else { -1 }
+  try {
+    New-Service -Name $reName -BinaryPathName $reBinPath -DisplayName 'SCS diag recreado' -StartupType Manual | Out-Null
+    if ($variant -eq 'con_environment' -and @($instEnv).Count -gt 0) {
+      New-ItemProperty -Path $reKey -Name Environment -Value $instEnv -PropertyType MultiString -Force | Out-Null
+    }
+    $startError = ''
+    try { Start-Service -Name $reName -ErrorAction Stop } catch { $startError = $_.Exception.Message }
+    if ($startError) { Log "  [$variant] Start-Service: $startError" }
+    $state = 'NO_EXISTE'
+    $reDeadline = (Get-Date).AddSeconds(20)
+    while ((Get-Date) -lt $reDeadline) {
+      $svc = Get-Service -Name $reName -ErrorAction SilentlyContinue
+      if (-not $svc) { break }
+      $state = "$($svc.Status)"
+      if ($state -eq 'Running' -or $state -eq 'Stopped') { break }
+      Start-Sleep -Milliseconds 500
+    }
+    Start-Sleep -Seconds 3
+    Log "  [$variant] estado: $state"
+    foreach ($l in @(& sc.exe queryex $reName 2>&1)) {
+      if ("$l" -match 'WIN32_EXIT_CODE|SERVICE_EXIT_CODE|^\s*STATE') { Log "    $($l.Trim())" }
+    }
+    $bytesAfter = if (Test-Path -LiteralPath $AgentLog) { (Get-Item -LiteralPath $AgentLog).Length } else { -1 }
+    Log "  [$variant] agent.log bytes: $bytesBefore -> $bytesAfter"
+  } catch {
+    Log "  [$variant] no se pudo crear el servicio: $($_.Exception.Message)"
+  } finally {
+    & sc.exe stop $reName *> $null
+    Start-Sleep -Milliseconds 500
+    & sc.exe delete $reName *> $null
+    Start-Sleep -Milliseconds 500
+  }
 }
 
 $summary = [pscustomobject]@{
