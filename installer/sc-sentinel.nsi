@@ -375,6 +375,22 @@ Function .onInit
   ; editable, pagina de credenciales y pagina de actualizacion.
   Call DetectInstallState
 
+  ; Red de seguridad: la actualizacion con servicio se salta la pagina de
+  ; carpeta, asi que la ruta derivada del ImagePath nunca pasaba por
+  ; ValidateInstallDir. Un ImagePath con formato inesperado no puede terminar
+  ; copiando el paquete en la raiz de la unidad (defecto del 24/11:
+  ; $INSTDIR = "C:" y C:\installer).
+  ${If} $InstallState == 1
+    Call ValidateInstallDir
+    ${If} $R8 == 0
+      ${IfNot} ${Silent}
+        MessageBox MB_ICONSTOP "$R7"
+      ${EndIf}
+      SetErrorLevel 3
+      Quit
+    ${EndIf}
+  ${EndIf}
+
   StrCpy $SyncPending 0
   StrCpy $FinishText "SC-Sentinel quedó instalado y el servicio está en ejecución.$\r$\n$\r$\nPara capturar tráfico local además de recibir NetFlow/IPFIX hace falta Npcap instalado en el equipo (no se incluye por su licencia)."
 

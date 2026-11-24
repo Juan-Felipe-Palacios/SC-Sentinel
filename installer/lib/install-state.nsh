@@ -99,29 +99,66 @@ FunctionEnd
 ; caso la comparacion falla y se usa el destino por defecto.
 Function ScsImagePathToDir
   Exch $0
-  ; Sin comillas iniciales (New-Service las escribe alrededor del .exe).
+  ; Ruta entre comillas (lo que escribe New-Service): la ruta puede tener
+  ; espacios ("C:\Program Files\SC-Sentinel\..."), asi que el terminador es la
+  ; comilla de cierre. Cortar en el primer espacio devolvia "C:" y el
+  ; instalador copiaba el paquete en C:\installer antes de salir con codigo 5.
   StrCpy $1 $0 1
   ${If} $1 == '"'
     StrCpy $2 $0 "" 1
+    StrCpy $9 1
   ${Else}
     StrCpy $2 $0
+    StrCpy $9 0
   ${EndIf}
-  ; Recorte en la primera comilla o espacio: quedan solo el .exe y su ruta.
   StrLen $4 $2
   StrCpy $5 $4
-  StrCpy $6 0
-  ${Do}
-    ${If} $6 >= $4
-      ${ExitDo}
+  ${If} $9 == 1
+    StrCpy $6 0
+    ${Do}
+      ${If} $6 >= $4
+        ${ExitDo}
+      ${EndIf}
+      StrCpy $7 $2 1 $6
+      ${If} $7 == '"'
+        StrCpy $5 $6
+        ${ExitDo}
+      ${EndIf}
+      IntOp $6 $6 + 1
+    ${Loop}
+  ${Else}
+    ; Sin comillas el primer espacio puede estar dentro de la ruta
+    ; ("C:\Program Files\..."): se corta tras el ultimo ".exe" y, si no
+    ; aparece, en el primer espacio. Misma regla que Get-InstallDirFromImagePath
+    ; (scripts/lib/agent-binpath.psm1).
+    StrCpy $8 0
+    StrCpy $6 0
+    ${Do}
+      StrCpy $7 $2 4 $6
+      ${If} $7 == ""
+        ${ExitDo}
+      ${EndIf}
+      ${If} $7 == ".exe"
+        IntOp $5 $6 + 4
+        StrCpy $8 1
+      ${EndIf}
+      IntOp $6 $6 + 1
+    ${Loop}
+    ${If} $8 == 0
+      StrCpy $6 0
+      ${Do}
+        ${If} $6 >= $4
+          ${ExitDo}
+        ${EndIf}
+        StrCpy $7 $2 1 $6
+        ${If} $7 == " "
+          StrCpy $5 $6
+          ${ExitDo}
+        ${EndIf}
+        IntOp $6 $6 + 1
+      ${Loop}
     ${EndIf}
-    StrCpy $7 $2 1 $6
-    ${If} $7 == '"'
-    ${OrIf} $7 == " "
-      StrCpy $5 $6
-      ${ExitDo}
-    ${EndIf}
-    IntOp $6 $6 + 1
-  ${Loop}
+  ${EndIf}
   StrCpy $2 $2 $5
   ; Recorte en la ultima barra: queda la carpeta.
   ${Do}

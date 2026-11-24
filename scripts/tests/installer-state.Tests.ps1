@@ -181,6 +181,23 @@ Describe 'installer/lib/install-state.nsh (deteccion de instalacion existente)' 
       $r.InstallDir | Should Be $sym
     }
 
+    # Defecto del 24/11 (release 0.1.10): el parser cortaba el ImagePath en el
+    # primer espacio aunque viniera entre comillas. Con el agente instalado en
+    # "C:\Program Files\SC-Sentinel" el destino quedaba en "C:" y el instalador
+    # copiaba el paquete en C:\installer antes de fallar con codigo 5.
+    It 'T15: ImagePath entre comillas con espacios da la carpeta completa' -Skip:$skip {
+      $image = '"C:\SCS Test Files\SC-Sentinel\sc-sentinel-agent.exe" --config "C:\ProgramData\SC-Sentinel\config\config.toml" --interface "Intel(R) Wireless-AC 9560 160MHz"'
+      $r = Invoke-State -Dir (Join-Path $testRoot 'empty') -ImagePath $image
+      $r.State | Should Be 1
+      $r.ServiceDir | Should Be 'C:\SCS Test Files\SC-Sentinel'
+      $r.InstallDir | Should Be 'C:\SCS Test Files\SC-Sentinel'
+    }
+
+    It 'T15: ImagePath sin comillas con espacios tampoco se corta en el primer espacio' -Skip:$skip {
+      $r = Invoke-State -Dir (Join-Path $testRoot 'empty') -ImagePath 'C:\SCS Test Files\SC-Sentinel\sc-sentinel-agent.exe --no-capture'
+      $r.ServiceDir | Should Be 'C:\SCS Test Files\SC-Sentinel'
+    }
+
     It 'T14: archivos ajenos sin servicio se rechazan y se listan hasta 5 nombres' -Skip:$skip {
       $r = Invoke-State -Dir $foreign
       $r.State | Should Be 3
