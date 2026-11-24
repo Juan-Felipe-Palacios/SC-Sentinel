@@ -1,0 +1,20 @@
+# Toolchain fijo: NO subir a 1.100 sin leer esto.
+#
+# Rust 1.100.0 en x86_64-pc-windows-msvc dejo de enlazar WaitOnAddress,
+# WakeByAddressAll y WakeByAddressSingle contra api-ms-win-core-synch-l1-2-0.dll
+# y las resuelve por el primer import library que las ofrezca. `pcap 2.4` trae
+# windows-sys 0.36.1, cuyo lib las declara bajo vertdll.dll (el runtime de los
+# enclaves VBS): el binario importa desde ahi y muere con STATUS_ACCESS_VIOLATION
+# (0xC0000005) la primera vez que un hilo se aparca.
+#
+# Sintoma observado en los runs 45295078293 / 45395279499 / 45400005284: el
+# servicio arranca, escribe unas lineas (o ninguna) y el SCM lo ve "terminated
+# unexpectedly" (7031) en bucle; WER nombra vertdll.dll con el mismo offset
+# 0xdc8e en todas las caidas. Ver rust-lang/rust#165915.
+#
+# Se puede volver a subir cuando pcap deje de arrastrar windows-sys 0.36.1
+# (o cuando ese import library no liste las WaitOnAddress bajo vertdll.dll).
+[toolchain]
+channel = "1.99.1"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

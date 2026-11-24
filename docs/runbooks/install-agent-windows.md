@@ -21,22 +21,67 @@ El enrollment del dashboard solo crea el device y devuelve su token: **no toca l
 
 ```powershell
 # PowerShell como administrador, en la raíz del repo
-.\scripts\re-enroll-device.ps1 -DeviceId dev_… -IngestToken 'sc_dev_…'
+# El token no viaja por argv: se pasa por entorno o por -IngestTokenFile.
+$env:SC_ENROLL_TOKEN = 'sc_dev_…'
+.\scripts\re-enroll-device.ps1 -DeviceId dev_…
 ```
 
 Devuelve `0` solo si el backend aceptó una ventana. Un `1` con `401/403` en el log significa que el token no pertenece a ese `device_id`, está rotado o el device se eliminó. Los batches que quedaron retenidos en el spool se reasignan al device nuevo (`rebase_device_id`) y se drenan solos.
 
 ## 1. Instalación
 
-Hay dos vías equivalentes. La **1.1** es la recomendada para un equipo sin acceso al repo y para usuarios sin conocimientos de informática.
+Hay tres vías equivalentes. La **1.1** es la recomendada: es el único archivo que hay que descargar y no requiere conocimientos de informática.
 
-### 1.1 Instalador de un clic (ZIP de la release)
+### 1.1 Instalador `.exe` (recomendado)
 
-1. Descargar el paquete de la release: `https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/download/v0.1.9/sc-sentinel-agent-v0.1.9-windows-x64.zip` (la última versión siempre está en <https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/latest>).
+1. Descargar `sc-sentinel-agent-v0.1.10-windows-x64-setup.exe` de la release y verificar su SHA256 contra `SHA256SUMS.txt`:
+
+   ```powershell
+   Get-FileHash .\sc-sentinel-agent-v0.1.10-windows-x64-setup.exe -Algorithm SHA256
+   ```
+
+2. Doble clic. Windows pide permisos de administrador: pulsar «Sí».
+3. Elegir la carpeta de instalación (la que viene, `C:\Program Files\SC-Sentinel`, es la recomendada) y pulsar «Siguiente».
+4. Pegar el `device_id` (`dev_…`) y el token (`sc_dev_…`) del paso 0. El token se escribe enmascarado y se entrega al instalador por un archivo temporal con ACL restringida: no viaja por la línea de comandos y el instalador lo borra al leerlo.
+5. «Instalar». El asistente copia binario, GUI y bases GeoLite2, genera `config.toml`, crea el servicio con recovery y lo arranca. Al final ofrece abrir la GUI.
+6. En «Aplicaciones instaladas» aparece «SC-Sentinel Agent» con su versión; se desinstala desde ahí y conserva `C:\ProgramData\SC-Sentinel`.
+
+El instalador valida la carpeta antes de escribir: rechaza raíces de unidad (`C:\`), `C:\Windows` y todo lo que hay debajo, `System32`, las carpetas del usuario (Escritorio, Documentos, Descargas), rutas UNC o relativas y las raíces de `Program Files`/`ProgramData`.
+
+Si la carpeta ya tiene archivos que **no** son de SC-Sentinel y no hay servicio ni rastro del producto, el asistente muestra los primeros cinco nombres y ofrece **«Sí: elegir otra carpeta»** o **«No: cancelar»**; no borra ni pisa nada. En modo `/S` termina con **3** sin escribir.
+
+Si ya hay una instalación —servicio `SC-Sentinel-Agent` en marcha, marcador del instalador o una carpeta que solo contiene archivos del producto (el caso de las instalaciones hechas con `scripts\install-agent.ps1`, que no tienen desinstalador)— el asistente entra en **modo actualización**: muestra la versión detectada, la carpeta fija del servicio y qué se conserva (`config.toml`, `.host-key`, el token del equipo, el spool, los logs y los respaldos). No vuelve a pedir Device ID ni token y no recrea el servicio.
+
+Con un servicio instalado la carpeta **no se puede cambiar** desde el asistente: reapuntar un servicio en marcha no es una operación del instalador. Para mover la instalación hay que desinstalar (conservando datos) y volver a instalar en la carpeta nueva.
+
+Antes de actualizar hay que **cerrar la GUI**: si `sc-gui.exe` está en ejecución el instalador se detiene con código **4**, no modifica nada y pide cerrarla. No se mata el proceso ni se deja la versión vieja en silencio. Cada binario copiado se compara por SHA256 con el del paquete y, si no coincide, se restaura el anterior y la instalación se corta. El agente se reemplaza con el procedimiento de `scripts\deploy-agent-service.ps1`: respaldo `.bak` con su `.sha256` en `C:\ProgramData\SC-Sentinel\backup`, parada con drenaje (`spool_flushed pending=0`), copia verificada por SHA, arranque y espera de un `sync_confirmed`. Si en 30 s no hay sync confirmado el instalador **no falla**: avisa en la página final, el agente queda en ejecución y el spool reintenta solo; en `/S` termina con código **19**. Ese código no significa «sin red»: también sale con proxy/firewall que bloquea la salida, device desenrolado (401/403), cuota agotada o backend caído.
+
+El instalador **nunca reescribe `config.toml`**: si ya existe, lo conserva y, cuando la versión nueva generaría otra configuración, deja `C:\ProgramData\SC-Sentinel\config\config.toml.nuevo` (+ `.sha256`) para que la revises. Antes de cualquier cambio en `ProgramData` deja un respaldo verificado en `C:\ProgramData\SC-Sentinel\backup`. Si la versión instalada es **más nueva** que la del instalador, advierte y pide confirmación; en `/S` se niega con código **7**.
+
+Los respaldos antiguos `sc-sentinel-agent.exe.bak-<marca>` de la carpeta de instalación se pueden **archivar** (casilla desmarcada por defecto, o `SCS_INSTALL_ARCHIVE_BAKS=1` en modo `/S`): se **mueven** a `C:\ProgramData\SC-Sentinel\backup\legacy`, con ACL solo para SYSTEM y Administradores. Nunca se borra un respaldo.
+
+Códigos de salida: `0` correcto, `1` fallo del servicio, `2` faltan credenciales, `3` carpeta inválida o con archivos ajenos, `4` GUI abierta o hash distinto, `5` fallo de la actualización (respaldo, drenaje o arranque), `7` la versión instalada es más nueva y `/S` no degrada sin confirmación, `19` actualización aplicada pero sin `sync_confirmed` en 30 s (servicio en ejecución; el spool reintenta).
+
+Antes de actualizar hay que **cerrar la GUI**: si `sc-gui.exe` está en ejecución el instalador se detiene con código **4**, no modifica nada y pide cerrarla. No se mata el proceso ni se deja la versión vieja en silencio. Cada binario copiado se compara por SHA256 con el del paquete y, si no coincide, se restaura el anterior y la instalación se corta.
+
+Modo desatendido (GPO, Intune), sin UI:
+
+```powershell
+$env:SCS_INSTALL_DEVICE_ID = 'dev_2f1c…'
+$env:SCS_INSTALL_TOKEN     = 'sc_dev_9a04…'   # el token va por entorno y el instalador lo borra al leerlo
+.\sc-sentinel-agent-v0.1.10-windows-x64-setup.exe /S /D=C:\Program Files\SC-Sentinel
+Remove-Item Env:SCS_INSTALL_TOKEN, Env:SCS_INSTALL_DEVICE_ID
+```
+
+`/D=` debe ser el último parámetro y sin comillas (regla de NSIS). El `.exe` lo compila el CI con NSIS 3.x a partir del contenido ya verificado del ZIP (`scripts/build-installer.ps1`).
+
+### 1.2 Instalador de un clic (ZIP de la release)
+
+1. Descargar el paquete de la release: `https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/download/v0.1.10/sc-sentinel-agent-v0.1.10-windows-x64.zip` (la última versión siempre está en <https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/latest>).
 2. Verificar el hash del artefacto contra `SHA256SUMS.txt` (mismo directorio en la release):
 
    ```powershell
-   Get-FileHash .\sc-sentinel-agent-v0.1.9-windows-x64.zip -Algorithm SHA256
+   Get-FileHash .\sc-sentinel-agent-v0.1.10-windows-x64.zip -Algorithm SHA256
    ```
 
 3. Descomprimir **todo** el ZIP en una carpeta (no solo el `.exe`).
@@ -70,7 +115,7 @@ Contenido del ZIP:
 | `LEEME-INSTALACION.txt` | Guía en lenguaje llano para usuarios sin conocimientos de informática. |
 | `SHA256SUMS.txt` | Hash de todos los ficheros del paquete para verificar la integridad. |
 
-### 1.2 Instalador en PowerShell (desde el repo)
+### 1.3 Instalador en PowerShell (desde el repo)
 
 Desde un PowerShell **como administrador**, en la raíz del repo:
 
@@ -81,20 +126,25 @@ $env:LIBPCAP_VER = "1.0.0"
 $env:LIBPCAP_LIBDIR = "C:\npcap-sdk-1.13\Lib\x64"
 cargo build --release -p sc-agent --features sc-capture/live   # → agent\target\release\sc-sentinel-agent.exe
 
-.\scripts\install-agent.ps1 -DeviceId "dev_2f1c…" -IngestToken "sc_dev_9a04…"
+# El token va por entorno (o por -IngestTokenFile), nunca por argv: en la lista
+# de procesos lo veria cualquier usuario del equipo (B-014).
+$env:SCS_INSTALL_TOKEN = "sc_dev_9a04…"
+.\scripts\install-agent.ps1 -DeviceId "dev_2f1c…"
+Remove-Item Env:SCS_INSTALL_TOKEN
 ```
 
-Parámetros: `-DeviceId` y `-IngestToken` (obligatorios), `-ConfigPath`, `-BinaryPath`, `-CollectorPorts` (por defecto `2055, 4739`), `-GeoIpDbPath` (base GeoLite2; si se omite se autodetecta en el paquete o en `agent/resources/geolite2/`), `-PurgeData`.
+Parámetros: `-DeviceId` (obligatorio), `-IngestTokenFile` o la variable `SCS_INSTALL_TOKEN` (el token es obligatorio, pero no se acepta como parámetro), `-ConfigPath`, `-BinaryPath`, `-CollectorPorts` (por defecto `2055, 4739`), `-GeoIpDbPath` (base GeoLite2; si se omite se autodetecta en el paquete o en `agent/resources/geolite2/`), `-PurgeData`.
 
 El instalador (`scripts/install-agent.ps1`):
 
 1. Detiene y borra el servicio previo si existe, y espera a que el SCM libere el nombre.
-2. Copia el binario a `C:\Program Files\SC-Sentinel\` **verificando el hash SHA256** (si el destino existe, fija antes los permisos: un binario instalado con ACL sin herencia bloqueaba la copia en silencio).
-3. Copia la base GeoLite2 a `C:\Program Files\SC-Sentinel\geolite2\GeoLite2-Country.mmdb` **verificando el hash SHA256**; si no la encuentra, avisa y el agente sigue funcionando sin geolocalización.
-4. Crea `C:\ProgramData\SC-Sentinel\{config,spool,logs}` y escribe `config.toml` con las claves reales de `sc-config` (`[ingest] url/token_env/compression`, `[privacy] hmac_key_file`, `[spool] path/max_bytes/max_age_days`, `[log] level/file`, `[collector] enabled/bind_addr/listeners`).
-5. Restringe permisos: `icacls` sin herencia, solo SYSTEM + Administradores en config/spool/logs, y solo lectura (SYSTEM + Administradores) sobre la base GeoLite2.
-6. Guarda `SC_INGEST_TOKEN`, `SC_SENTINEL_DEVICE_ID` y `SC_GEOIP_DB` en `HKLM\SYSTEM\CurrentControlSet\Services\SC-Sentinel-Agent\Environment` (entorno del servicio, no un archivo plano).
-7. `sc.exe create ... binPath= "\"C:\...\sc-sentinel-agent.exe\" --config \"C:\...\config.toml\" --no-capture" start= auto` + **failure actions** `restart 5 s / 10 s / 30 s` con `reset= 86400` (recovery ante caída y ante reboot/reinicio del servidor).
+2. Antes de tocar nada, comprueba que `sc-gui.exe` no esté en ejecución y corta con código 4 si lo está.
+3. Copia el binario a `C:\Program Files\SC-Sentinel\` **verificando el hash SHA256**; si no coincide, restaura el `.bak` y corta con código 4 (si el destino existe, fija antes los permisos: un binario instalado con ACL sin herencia bloqueaba la copia en silencio). Hace lo mismo con la GUI: hash y `FileVersion` del ejemplar instalado contra el del paquete, con rollback al `.bak`.
+4. Copia la base GeoLite2 a `C:\Program Files\SC-Sentinel\geolite2\GeoLite2-Country.mmdb` **verificando el hash SHA256**; si no la encuentra, avisa y el agente sigue funcionando sin geolocalización.
+5. Crea `C:\ProgramData\SC-Sentinel\{config,spool,logs}` y escribe `config.toml` con las claves reales de `sc-config` (`[ingest] url/token_env/compression`, `[privacy] hmac_key_file`, `[spool] path/max_bytes/max_age_days`, `[log] level/file`, `[collector] enabled/bind_addr/listeners`).
+6. Restringe permisos: `icacls` sin herencia, solo SYSTEM + Administradores en el directorio de datos y en config/spool/logs, Usuarios solo lectura/ejecución en la carpeta de instalación, y solo lectura (SYSTEM + Administradores) sobre la base GeoLite2.
+7. Guarda `SC_INGEST_TOKEN`, `SC_SENTINEL_DEVICE_ID` y `SC_GEOIP_DB` en `HKLM\SYSTEM\CurrentControlSet\Services\SC-Sentinel-Agent\Environment` (entorno del servicio, no un archivo plano) y deja `DataDir` en `HKLM\Software\SC-Sentinel` para que el desinstalador borre la ruta real.
+8. `sc.exe create ... binPath= "\"C:\...\sc-sentinel-agent.exe\" --config \"C:\...\config.toml\" --no-capture" start= auto` + **failure actions** `restart 5 s / 10 s / 30 s` con `reset= 86400` (recovery ante caída y ante reboot/reinicio del servidor).
 
 > **Por qué `--no-capture`:** el servicio arranca en modo **collector-only**. La fuente de datos del daemon es el colector UDP (fuente exclusiva por segmento, ver `docs/testing/pcap-vs-flow.md` §7). Sin ese flag el agente exigiría una interfaz de captura y abortaría con código 2.
 
@@ -109,7 +159,7 @@ Desinstalación simétrica: `.\scripts\uninstall-agent.ps1` (usa `-PurgeData` pa
 ## 2. Instalación manual (sin instalador)
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/download/v0.1.9/sc-sentinel-agent-v0.1.9-windows-x64.zip" -OutFile agent.zip
+Invoke-WebRequest -Uri "https://github.com/Juan-Felipe-Palacios/SC-Sentinel/releases/download/v0.1.10/sc-sentinel-agent-v0.1.10-windows-x64.zip" -OutFile agent.zip
 Expand-Archive agent.zip -DestinationPath ".\sc-sentinel" -Force
 
 New-Item -ItemType Directory -Path "C:\ProgramData\SC-Sentinel\{config,spool,logs}" -Force

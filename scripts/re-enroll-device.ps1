@@ -27,9 +27,11 @@
 .PARAMETER DeviceId
   Device id inscrito en el tenant (formato dev_...).
 
-.PARAMETER IngestToken
-  Token del device (formato sc_...). Se escribe en el Environment del service;
-  no se registra en logs, ni en stdout, ni en config.toml.
+.PARAMETER IngestTokenFile
+  Archivo con el token del device (formato sc_...). Se borra en cuanto se lee.
+  Sin este parametro el token se toma de la variable de entorno
+  SC_ENROLL_TOKEN. No existe un parametro de token: en argv lo veria
+  cualquier usuario del equipo (B-014).
 
 .PARAMETER ServiceName
   Nombre del service. Por defecto SC-Sentinel-Agent.
@@ -44,7 +46,8 @@
 
 .EXAMPLE
   # Consola de PowerShell ejecutada como administrador
-  .\\scripts\\re-enroll-device.ps1 -DeviceId dev_m5svc -IngestToken 'sc_dev_...'
+  $env:SC_ENROLL_TOKEN = 'sc_dev_...'
+  .\\scripts\\re-enroll-device.ps1 -DeviceId dev_m5svc
 
 .NOTES
   El token plaintext no se puede recuperar del backend (solo se guarda su
@@ -56,8 +59,8 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$DeviceId,
 
-    [Parameter(Mandatory = $true)]
-    [string]$IngestToken,
+    [Parameter(Mandatory = $false, HelpMessage = 'Archivo con el token (se borra al leerlo)')]
+    [string]$IngestTokenFile,
 
     [string]$ServiceName = 'SC-Sentinel-Agent',
 
@@ -111,6 +114,26 @@ Write-Step 'Validando parámetros'
 $DeviceId = $DeviceId.Trim()
 if ($DeviceId -notmatch '^dev_[A-Za-z0-9][A-Za-z0-9_\-]{2,}$') {
     Fail "el device id '$DeviceId' no tiene el formato dev_<id> del dashboard." 2
+}
+# El token no se acepta por argv (B-014): en Win32_Process.CommandLine lo
+# veria cualquier usuario del equipo. Entra por -IngestTokenFile (se borra al
+# leerlo), igual que en install-agent.ps1, o por SC_ENROLL_TOKEN (el entorno
+# que usa el helper elevado de la GUI).
+$IngestToken = $null
+if ($IngestTokenFile) {
+    if (-not (Test-Path -LiteralPath $IngestTokenFile)) {
+        Fail "no existe el archivo de token indicado: $IngestTokenFile" 2
+    }
+    try {
+        $IngestToken = ([System.IO.File]::ReadAllText($IngestTokenFile)).Trim()
+    } finally {
+        Remove-Item -LiteralPath $IngestTokenFile -Force -ErrorAction SilentlyContinue
+    }
+} else {
+    $IngestToken = $env:SC_ENROLL_TOKEN
+}
+if (-not $IngestToken) {
+    Fail 'falta el token: usa -IngestTokenFile o la variable de entorno SC_ENROLL_TOKEN.' 2
 }
 # El token viaja como bearer plano: se validan longitud y prefijo, pero nunca
 # se imprime su valor.

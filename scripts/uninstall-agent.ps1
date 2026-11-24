@@ -7,6 +7,10 @@
  Opcionalmente elimina todos los datos (config, logs, spool).
 .PARAMETER PurgeData
  Si se especifica, elimina C:\ProgramData\SC-Sentinel completo
+.PARAMETER KeepInstallDir
+ No borra los binarios: los elimina el desinstalador del instalador .exe
+ (NSIS) segun su manifiesto. Lo usa el desinstalador para no duplicar el
+ borrado del directorio de instalacion.
 .EXAMPLE
  .\uninstall-agent.ps1
  .\uninstall-agent.ps1 -PurgeData
@@ -14,11 +18,20 @@
 
 [CmdletBinding()]
 param(
+ [Parameter(Mandatory=$false, HelpMessage="Carpeta donde se instalaron los binarios (default: C:\Program Files\SC-Sentinel)")]
+ [ValidateNotNullOrEmpty()]
+ [string]$InstallDir = "C:\Program Files\SC-Sentinel",
+
  [Parameter(Mandatory=$false, HelpMessage="Eliminar todos los datos")]
- [switch]$PurgeData
+ [switch]$PurgeData,
+
+ [Parameter(Mandatory=$false, HelpMessage="No borrar los binarios (los elimina el desinstalador NSIS)")]
+ [switch]$KeepInstallDir
 )
 
 $ServiceName = "SC-Sentinel-Agent"
+# Ruta de datos por defecto; se sustituye por la que escribio el instalador en
+# el registro, si existe (ver mas abajo).
 $DataDir = "C:\ProgramData\SC-Sentinel"
 
 function Write-Step {
@@ -26,13 +39,58 @@ function Write-Step {
  Write-Host "$Status $Message" -ForegroundColor $(if ($Status -eq "✗") { "Red" } else { "Green" })
 }
 
+# Igual que install-agent.ps1: el desinstalador tambien corre powershell.exe
+# 5.1 desde NSIS y puede heredar el PSModulePath de pwsh 7, con el que sus
+# propios modulos no cargan.
+function Reset-ScsPsModulePath {
+ $rutas = @((Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\Modules'))
+ if ($env:ProgramFiles) { $rutas += (Join-Path $env:ProgramFiles 'WindowsPowerShell\Modules') }
+ if (${env:ProgramFiles(x86)}) { $rutas += (Join-Path ${env:ProgramFiles(x86)} 'WindowsPowerShell\Modules') }
+ if ($env:USERPROFILE) { $rutas += (Join-Path $env:USERPROFILE 'Documents\WindowsPowerShell\Modules') }
+ $rutas = @($rutas | Where-Object { Test-Path -LiteralPath $_ })
+ $env:PSModulePath = ($rutas -join ';')
+}
+Reset-ScsPsModulePath
+
 # Verificar que se ejecuta como administrador
-$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
  [Security.Principal.WindowsBuiltInRole]::Administrator
 )
 if (-not $isAdmin) {
  Write-Host "✗ Este script debe ejecutarse como Administrador." -ForegroundColor Red
  exit 1
+}
+
+# Lee un valor REG_SZ de HKLM en la vista de 64 bits. El .exe NSIS es de 32
+# bits y lanza powershell.exe redirigido a SysWOW64: con HKLM:\Software caeria
+# en WOW6432Node y no veria la ruta que escribio el instalador.
+function Get-Registry64Value {
+ param([string]$SubKey, [string]$Name)
+ $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::LocalMachine, [Microsoft.Win32.RegistryView]::Registry64)
+ try {
+  $key = $base.OpenSubKey($SubKey)
+  if (-not $key) { return $null }
+  try { return $key.GetValue($Name, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames) } finally { $key.Close() }
+ } finally { $base.Close() }
+}
+
+$registeredDataDir = Get-Registry64Value -SubKey 'Software\SC-Sentinel' -Name 'DataDir'
+if ($registeredDataDir) {
+ $DataDir = ("$registeredDataDir").Trim().TrimEnd('\')
+}
+
+# -PurgeData solo puede borrar una carpeta de datos: nunca una carpeta de
+# sistema, de usuario o una raiz de unidad, aunque el registro apunte ahi.
+function Test-SafeDataDir {
+ param([string]$Path)
+ $p = "$Path".Trim().TrimEnd('\')
+ if ($p.Length -lt 4) { return $false }
+ $blocked = @($env:WINDIR, $env:ProgramFiles, [Environment]::GetEnvironmentVariable('ProgramFiles(x86)'), $env:USERPROFILE, $env:PUBLIC) | Where-Object { $_ }
+ foreach ($b in $blocked) {
+  $b = "$b".TrimEnd('\')
+  if ($p -ieq $b -or $p.StartsWith("$b\", [System.StringComparison]::OrdinalIgnoreCase)) { return $false }
+ }
+ return $true
 }
 
 Write-Host "`n=== Desinstalador de SC-Sentinel Agent ===" -ForegroundColor Cyan
@@ -107,7 +165,6 @@ if ($waited -gt 0) {
 
 # Paso 3: Eliminar binario y directorio de instalación (con verificación)
 Write-Step "Eliminando binario..."
-$InstallDir = "C:\Program Files\SC-Sentinel"
 # La GUI sigue viva tras detener el servicio (es un proceso de usuario, no del
 # SCM) y su exe bloqueado impide borrar el directorio: se cierra primero.
 foreach ($procName in @('sc-gui', 'sc-sentinel-agent')) {
@@ -121,29 +178,39 @@ if (Get-Process -Name 'sc-gui' -ErrorAction SilentlyContinue) {
 }
 # La GUI y su lanzador no son parte del servicio: se borran explicitamente para
 # que no queden residuos aunque el borrado del directorio falle a medias.
-if (Test-Path $InstallDir) {
- foreach ($f in @('sc-gui.exe', 'abrir-gui.bat')) {
-  $p = Join-Path $InstallDir $f
-  if (Test-Path $p) {
-   icacls $p /grant "*S-1-5-32-544:F" 2>&1 | Out-Null
-   Remove-Item $p -Force -ErrorAction SilentlyContinue
-   if (Test-Path $p) { Write-Host " ⚠ No se pudo eliminar $p" -ForegroundColor Yellow }
-   else { Write-Step "Eliminado $f" }
+if ($KeepInstallDir) {
+ # Lo invoca el desinstalador .exe: el borrado de archivos lo hace NSIS segun
+ # el manifiesto, que se niega a borrar recursivamente carpetas ajenas.
+ Write-Step "Archivos conservados en ${InstallDir}: los elimina el desinstalador del instalador, segun su manifiesto" -Status "ℹ"
+} else {
+ if (Test-Path $InstallDir) {
+  foreach ($f in @('sc-gui.exe', 'abrir-gui.bat')) {
+   $p = Join-Path $InstallDir $f
+   if (Test-Path $p) {
+    icacls $p /grant "*S-1-5-32-544:F" 2>&1 | Out-Null
+    Remove-Item $p -Force -ErrorAction SilentlyContinue
+    if (Test-Path $p) { Write-Host " ⚠ No se pudo eliminar $p" -ForegroundColor Yellow }
+    else { Write-Step "Eliminado $f" }
+   }
   }
  }
-}
-if (Test-Path $InstallDir) {
- if (Remove-ProtectedDir $InstallDir) {
-  Write-Step "Directorio de instalación eliminado"
+ if (Test-Path $InstallDir) {
+  if (Remove-ProtectedDir $InstallDir) {
+   Write-Step "Directorio de instalación eliminado"
+  } else {
+   Write-Host " ✗ No se pudo eliminar $InstallDir" -ForegroundColor Red
+  }
  } else {
-  Write-Host " ✗ No se pudo eliminar $InstallDir" -ForegroundColor Red
+  Write-Step "Directorio de instalación no encontrado" -Status "ℹ"
  }
-} else {
- Write-Step "Directorio de instalación no encontrado" -Status "ℹ"
 }
 
 # Paso 4: Eliminar datos (opcional)
 if ($PurgeData) {
+ if (-not (Test-SafeDataDir $DataDir)) {
+  Write-Host " ✗ No se borra $DataDir : no es una carpeta de datos valida (ruta del sistema o registro tampeado)." -ForegroundColor Red
+  exit 2
+ }
  Write-Step "Eliminando datos (config, logs, spool)..."
  if (Remove-ProtectedDir $DataDir) {
   Write-Step "Datos eliminados: $DataDir"

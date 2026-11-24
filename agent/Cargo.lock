@@ -3227,7 +3227,7 @@ dependencies = [
  "errno 0.3.14",
  "libc",
  "linux-raw-sys 0.4.15",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3313,7 +3313,7 @@ dependencies = [
 
 [[package]]
 name = "sc-agent"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "chrono",
  "clap",
@@ -3334,11 +3334,12 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "windows-service",
+ "winresource",
 ]
 
 [[package]]
 name = "sc-aggregate"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "chrono",
  "hex",
@@ -3356,7 +3357,7 @@ dependencies = [
 
 [[package]]
 name = "sc-capture"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "assert_matches",
  "chrono",
@@ -3378,7 +3379,7 @@ dependencies = [
 
 [[package]]
 name = "sc-collector"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "proptest",
  "sc-capture",
@@ -3390,7 +3391,7 @@ dependencies = [
 
 [[package]]
 name = "sc-config"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "serde",
  "tempfile",
@@ -3401,7 +3402,7 @@ dependencies = [
 
 [[package]]
 name = "sc-core"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "chrono",
  "serde",
@@ -3411,7 +3412,7 @@ dependencies = [
 
 [[package]]
 name = "sc-detect"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "chrono",
  "sc-core",
@@ -3420,7 +3421,7 @@ dependencies = [
 
 [[package]]
 name = "sc-geo"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "hex",
  "maxminddb",
@@ -3433,7 +3434,7 @@ dependencies = [
 
 [[package]]
 name = "sc-gui"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "arboard",
  "chrono",
@@ -3446,11 +3447,12 @@ dependencies = [
  "serde_json",
  "tray-icon",
  "windows-sys 0.59.0",
+ "winresource",
 ]
 
 [[package]]
 name = "sc-sync"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "backoff",
  "chrono",
@@ -3474,7 +3476,7 @@ dependencies = [
 
 [[package]]
 name = "sc-telemetry"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "chrono",
  "http-body-util",
@@ -5104,6 +5106,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "winresource"
+version = "0.1.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2bc6d36480b829272a5bdabf08e6dca8004761c1da7e35efef800540c66221b"
+dependencies = [
+ "toml 1.2.0+spec-1.1.0",
+ "version_check",
 ]
 
 [[package]]

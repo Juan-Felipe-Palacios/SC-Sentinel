@@ -33,3 +33,8 @@ uuid = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows-service = "0.8"
+
+# VERSIONINFO del .exe (A1 de 0.1.10). Solo se instala en Windows: en Linux el
+# build script no lo usa. MIT, ya permitida en agent/deny.toml.
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1.34"

@@ -144,12 +144,12 @@ pub fn apply_elevated(payload: &Path) -> Result<String, String> {
     let _ = std::fs::remove_file(payload);
     let script = find_enroll_script()?;
 
-    // El token viaja por entorno, no en la línea de comandos del proceso.
+    // El token viaja por entorno, no en la línea de comandos del proceso
+    // (B-014): el script ya no acepta -IngestToken.
     let status = Command::new("powershell")
         .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
         .arg(&script)
-        .args(["-DeviceId", &request.device_id, "-IngestToken"])
-        .arg(&request.token)
+        .args(["-DeviceId", &request.device_id])
         .env("SC_ENROLL_TOKEN", &request.token)
         .status()
         .map_err(|error| format!("no se pudo ejecutar el script de enrolamiento: {error}"))?;

@@ -48,6 +48,19 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Igual que en install-agent.ps1: si powershell.exe 5.1 hereda el PSModulePath
+# de pwsh 7, Microsoft.PowerShell.Security no carga y Get-Acl falla (el respaldo
+# se marcaba inseguro). Se deja solo la ruta legacy.
+function Reset-ScsPsModulePath {
+    $rutas = @((Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\Modules'))
+    if ($env:ProgramFiles) { $rutas += (Join-Path $env:ProgramFiles 'WindowsPowerShell\Modules') }
+    if (${env:ProgramFiles(x86)}) { $rutas += (Join-Path ${env:ProgramFiles(x86)} 'WindowsPowerShell\Modules') }
+    if ($env:USERPROFILE) { $rutas += (Join-Path $env:USERPROFILE 'Documents\WindowsPowerShell\Modules') }
+    $rutas = @($rutas | Where-Object { Test-Path -LiteralPath $_ })
+    $env:PSModulePath = ($rutas -join ';')
+}
+Reset-ScsPsModulePath
 if (-not $Source) { $Source = Join-Path $PSScriptRoot '..\agent\target\release\sc-sentinel-agent.exe' }
 
 $BakPath = Join-Path $BackupDir 'sc-sentinel-agent.exe.bak'
@@ -56,7 +69,21 @@ $NewPath = Join-Path $BackupDir 'sc-sentinel-agent.exe.new'
 $Stamp = Get-Date -Format 'yyyyMMddHHmmss'
 
 function Get-Sha([string]$path) {
-    return (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+    # Get-FileHash no existe en el powershell.exe 5.1 que lanza NSIS (run
+    # 45258353232: getFileHash=False); el respaldo se calculaba con hash vacio
+    # y la actualizacion abortaba (codigo 27). Hash propio, mayusculas como
+    # antes para no invalidar los .sha256 ya escritos.
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [System.IO.File]::Open($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        try {
+            return ([System.BitConverter]::ToString($sha.ComputeHash($stream)) -replace '-', '').ToUpperInvariant()
+        } finally {
+            $stream.Dispose()
+        }
+    } finally {
+        $sha.Dispose()
+    }
 }
 
 function Get-Bytes([string]$path) {
@@ -218,6 +245,21 @@ function Write-ServiceStoppedNotice {
     Write-Host ''
     Write-Host 'SERVICIO DETENIDO: ejecutá sc start SC-Sentinel-Agent' -ForegroundColor Red
     Write-Host ''
+}
+
+# Un fallo despues de la parada no puede dejar el equipo sin agente: se vuelve a
+# arrancar (con el binario que haya) antes de salir. El codigo de salida no
+# cambia; solo el estado final del servicio.
+function Start-ServiceAfterAbort([string]$Motivo) {
+    Write-Host "reintento   : arranque tras el fallo ($Motivo)"
+    sc.exe start $Service | Out-Null
+    $state = Wait-ServiceState 'Running' 30
+    if ($state -eq 'Running') {
+        Write-Host 'servicio    : Running (se reintento el arranque tras el fallo)'
+    } else {
+        Write-ServiceStoppedNotice
+    }
+    Show-State
 }
 
 if ($ExportFunctions) { return }
@@ -647,8 +689,7 @@ if ($state -ne 'Stopped') {
 $drain = Wait-SpoolDrained $stopUtc 15
 if (-not $drain) {
     Write-Host 'ABORTA (16): el drenaje no confirmo spool_flushed pending=0; no se copio nada'
-    Write-ServiceStoppedNotice
-    Show-State
+    Start-ServiceAfterAbort 'drenaje no confirmado'
     exit 16
 }
 Write-Host "drenaje    : $drain"
@@ -658,8 +699,7 @@ Copy-Item -LiteralPath $artifactToInstall -Destination $Target -Force
 $shaCopied = Get-Sha $Target
 if ($shaCopied -ne $shaTarget) {
     Write-Host "ABORTA (17): la copia no coincide (copiado=$shaCopied esperado=$shaTarget); servicio detenido"
-    Write-ServiceStoppedNotice
-    Show-State
+    Start-ServiceAfterAbort 'copia no verificada'
     exit 17
 }
 
