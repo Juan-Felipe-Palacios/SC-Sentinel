@@ -2,11 +2,10 @@
 
 Formato: Keep a Changelog 1.1 (semantic entries) publicado también en cada GitHub Release.
 
-## [0.1.10] — preparada, sin tag
+## [0.1.10] — 2026-11-24
 
-Release única: versión reproducible y los instaladores NSIS/`.sh`. No se publica
-hasta que el gate de instalación real esté en verde y el propietario autorice el
-tag; no reemplaza a 0.1.9, que queda publicada como está.
+Release publicada con el tag `v0.1.10`: versión reproducible e instaladores
+NSIS/`.sh`. Sustituye a 0.1.9, que queda publicada como está.
 
 ### Added
 - (Ops) Instalador NSIS `sc-sentinel-agent-v0.1.10-windows-x64-setup.exe`:
