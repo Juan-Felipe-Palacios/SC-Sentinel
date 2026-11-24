@@ -99,6 +99,24 @@ function Save-ScmEvents {
   }
 }
 
+function Save-AppEvents {
+  param([datetime]$Since, [string]$Tag)
+  # WER deja el modulo que falla en el evento 1000 del log Application; sin
+  # esto un 0xC0000005 solo se ve como "terminated unexpectedly" (7031).
+  Log "eventos de aplicacion (WER) [$Tag] desde $($Since.ToString('o'))"
+  try {
+    $events = @(Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = $Since } -ErrorAction Stop |
+      Where-Object { $_.Id -eq 1000 -or $_.Id -eq 1001 -or $_.Id -eq 1026 })
+    Log "  total: $($events.Count)"
+    foreach ($e in $events) {
+      $msg = (($e.Message -split "`r?`n") | Where-Object { $_.Trim() } | Select-Object -First 5) -join ' | '
+      Log ("  {0:o} id={1} provider={2} {3}" -f $e.TimeCreated, $e.Id, $e.ProviderName, $msg)
+    }
+  } catch {
+    Log "  no se pudieron leer los eventos de aplicacion: $($_.Exception.Message)"
+  }
+}
+
 function Save-ServiceSnapshot {
   param([string]$Tag)
   Log "== estado del servicio [$Tag] $(Get-Date -Format o) =="
@@ -178,6 +196,7 @@ Save-ServiceSnapshot -Tag 'arrancado'
 Save-ConfigKeys
 Save-AgentLog -Tag 'arrancado'
 Save-ScmEvents -Since $installStart -Tag 'arrancado'
+Save-AppEvents -Since $installStart -Tag 'arrancado'
 
 # --- (b) sc stop ---------------------------------------------------------
 if (Test-Path -LiteralPath $ServiceKey) {
@@ -224,7 +243,7 @@ if (Test-Path -LiteralPath $ServiceKey) {
       Start-Sleep -Seconds 10
       $p.Refresh()
       if ($p.HasExited) {
-        Log "  salio solo en 10 s: exitcode=$($p.ExitCode)"
+        Log "  salio solo en 10 s: exitcode=$($p.ExitCode) (0x$('{0:X8}' -f $p.ExitCode))"
       } else {
         Log '  sigue vivo a los 10 s'
         Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
@@ -243,6 +262,7 @@ if (Test-Path -LiteralPath $ServiceKey) {
       } else { Log '    (sin archivo)' }
     }
     Save-AgentLog -Tag 'consola'
+    Save-AppEvents -Since (Get-Date).AddMinutes(-2).ToUniversalTime() -Tag 'consola'
   }
 }
 
@@ -324,6 +344,10 @@ foreach ($variant in @('sin_environment', 'con_environment')) {
     Start-Sleep -Milliseconds 500
   }
 }
+
+Log ''
+Log '== (f) eventos de aplicacion (WER) de toda la ventana =='
+Save-AppEvents -Since $installStart -Tag 'ventana_completa'
 
 $summary = [pscustomobject]@{
   fecha = (Get-Date).ToString('s')
