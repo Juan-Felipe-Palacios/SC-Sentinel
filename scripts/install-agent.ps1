@@ -526,7 +526,7 @@ if ($UpdateMode) {
  }
 
  Write-Step "Actualizando el agente (respaldo verificado + drenaje del spool)"
- $deployArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$deployScript`" -Mode Deploy -Source `"$BinSource`" -Target `"$BinPath`" -Service `"$ServiceName`" -BackupDir `"$DataDir\backup`" -LogPath `"$LogDir\agent.log`" -SyncTimeoutSec 30"
+ $deployArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$deployScript`" -Mode Deploy -Source `"$BinSource`" -Target `"$BinPath`" -Service `"$ServiceName`" -BackupDir `"$DataDir\backup`" -LogPath `"$LogDir\agent.log`" -SyncTimeoutSec 120"
  # La salida del despliegue se captura: en /S no llega a nadie y los cortes
  # del script (ACL del respaldo, drenaje) solo se explican en stdout.
  $deployOut = Join-Path $LogDir 'deploy-agent-service.out.log'
@@ -544,7 +544,7 @@ if ($UpdateMode) {
   0 { Write-Step "Agente actualizado; servicio en ejecucion con sync confirmado" }
   19 {
    $syncPending = $true
-   Write-Host " ⚠ El servicio arranco con el binario nuevo, pero el servidor de ingesta no confirmo ninguna ventana (sync_confirmed) en 30 s." -ForegroundColor Yellow
+   Write-Host " ⚠ El servicio arranco con el binario nuevo, pero el servidor de ingesta no confirmo ninguna ventana (sync_confirmed) en 120 s." -ForegroundColor Yellow
    Write-Host "   Causas habituales: sin conectividad o proxy/firewall que bloquea la salida, device sin enrolar (401/403), cuota agotada o backend caido. No es una prueba de que el equipo no tenga red." -ForegroundColor Yellow
    Write-Host "   El agente quedo instalado y en ejecucion; el spool reintenta el envio solo." -ForegroundColor Yellow
   }

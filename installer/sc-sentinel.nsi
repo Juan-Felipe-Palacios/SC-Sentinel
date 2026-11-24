@@ -22,7 +22,7 @@
 ;   5 fallo de la actualizacion (respaldo, drenaje o arranque)
 ;   7 la version instalada es mas nueva que la del instalador (/S se niega a
 ;     degradar sin confirmacion)
-;   19 actualizacion aplicada pero sin sync_confirmed en 30 s (/S): el servicio
+;   19 actualizacion aplicada pero sin sync_confirmed en 120 s (/S): el servicio
 ;     esta en ejecucion y el spool reintenta; el codigo solo marca advertencia
 ;
 ; Actualizacion: si el servicio SC-Sentinel-Agent ya existe, el destino queda
@@ -511,12 +511,12 @@ Section "Instalar SC-Sentinel" SecInstall
     Pop $0
     ${If} "$0" == "19"
       ; Codigo 19 de deploy-agent-service.ps1: el binario nuevo arranco pero el
-      ; servidor de ingesta no confirmo ninguna ventana en 30 s. NO es un fallo
+      ; servidor de ingesta no confirmo ninguna ventana en 120 s. NO es un fallo
       ; de la actualizacion ni prueba de que el equipo no tenga red; se avisa en
       ; la pagina final y en /S el .exe termina con 19 (distinto de cero) para
       ; que GPO/Intune lo registre como advertencia.
       StrCpy $SyncPending 1
-      StrCpy $FinishText "SC-Sentinel se actualizo, pero el servicio no confirmo la sincronizacion con el servidor de ingesta en 30 s.$\r$\n$\r$\nEl agente esta instalado y en ejecucion; el spool reintenta el envio solo. Revisa conectividad, proxy/firewall, que el device siga enrolado y C:\ProgramData\SC-Sentinel\logs\agent.log.$\r$\n$\r$\nPara capturar trafico local ademas de recibir NetFlow/IPFIX hace falta Npcap instalado en el equipo (no se incluye por su licencia)."
+      StrCpy $FinishText "SC-Sentinel se actualizo, pero el servicio no confirmo la sincronizacion con el servidor de ingesta en 120 s.$\r$\n$\r$\nEl agente esta instalado y en ejecucion; el spool reintenta el envio solo. Revisa conectividad, proxy/firewall, que el device siga enrolado y C:\ProgramData\SC-Sentinel\logs\agent.log.$\r$\n$\r$\nPara capturar trafico local ademas de recibir NetFlow/IPFIX hace falta Npcap instalado en el equipo (no se incluye por su licencia)."
       DetailPrint "ADVERTENCIA: actualizacion aplicada sin sync confirmado (codigo 19)"
     ${ElseIf} "$0" != "0"
       ${IfNot} ${Silent}

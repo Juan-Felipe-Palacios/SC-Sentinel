@@ -97,7 +97,7 @@ Antes de escribir o reemplazar cualquier archivo de `ProgramData` se deja `Progr
 
 **Versión detectada** (para la página de actualización y el aviso de degradación): 1) `GET http://127.0.0.1:8387/status` → `agent_version`, con tope de 2 s; 2) `DisplayVersion` de la clave de desinstalación; 3) `ProductVersion` de `sc-sentinel-agent.exe`; 4) `desconocida` (no falla). Si la versión instalada es mayor que la del instalador se pide confirmación explícita y, en `/S`, se aborta con código `7` sin escribir nada.
 
-Códigos de salida del instalador: `0` correcto · `1` fallo del servicio · `2` faltan credenciales · `3` carpeta inválida o con ajenos · `4` GUI abierta o hash distinto · `5` fallo de la actualización · `7` degradación rechazada en `/S` · `19` actualización aplicada **sin `sync_confirmed`** en 30 s (el servicio queda en ejecución y el spool reintenta; no significa «sin red»).
+Códigos de salida del instalador: `0` correcto · `1` fallo del servicio · `2` faltan credenciales · `3` carpeta inválida o con ajenos · `4` GUI abierta o hash distinto · `5` fallo de la actualización · `7` degradación rechazada en `/S` · `19` actualización aplicada **sin `sync_confirmed`** en 120 s (el servicio queda en ejecución y el spool reintenta; no significa «sin red»).
 
 ## 4. Opciones de tecnología
 
