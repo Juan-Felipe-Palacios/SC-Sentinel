@@ -247,6 +247,21 @@ function Write-ServiceStoppedNotice {
     Write-Host ''
 }
 
+# Un fallo despues de la parada no puede dejar el equipo sin agente: se vuelve a
+# arrancar (con el binario que haya) antes de salir. El codigo de salida no
+# cambia; solo el estado final del servicio.
+function Start-ServiceAfterAbort([string]$Motivo) {
+    Write-Host "reintento   : arranque tras el fallo ($Motivo)"
+    sc.exe start $Service | Out-Null
+    $state = Wait-ServiceState 'Running' 30
+    if ($state -eq 'Running') {
+        Write-Host 'servicio    : Running (se reintento el arranque tras el fallo)'
+    } else {
+        Write-ServiceStoppedNotice
+    }
+    Show-State
+}
+
 if ($ExportFunctions) { return }
 
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
@@ -674,8 +689,7 @@ if ($state -ne 'Stopped') {
 $drain = Wait-SpoolDrained $stopUtc 15
 if (-not $drain) {
     Write-Host 'ABORTA (16): el drenaje no confirmo spool_flushed pending=0; no se copio nada'
-    Write-ServiceStoppedNotice
-    Show-State
+    Start-ServiceAfterAbort 'drenaje no confirmado'
     exit 16
 }
 Write-Host "drenaje    : $drain"
@@ -685,8 +699,7 @@ Copy-Item -LiteralPath $artifactToInstall -Destination $Target -Force
 $shaCopied = Get-Sha $Target
 if ($shaCopied -ne $shaTarget) {
     Write-Host "ABORTA (17): la copia no coincide (copiado=$shaCopied esperado=$shaTarget); servicio detenido"
-    Write-ServiceStoppedNotice
-    Show-State
+    Start-ServiceAfterAbort 'copia no verificada'
     exit 17
 }
 

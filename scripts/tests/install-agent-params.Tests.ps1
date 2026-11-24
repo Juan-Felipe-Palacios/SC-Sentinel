@@ -226,3 +226,73 @@ Describe 'instalador NSIS (version detectada y avisos 7/19)' {
         $nsi | Should Match 'config\.toml\.nuevo'
     }
 }
+
+# --- actualizacion sobre otra carpeta, recuperacion y drenaje ---------------
+$deployAgent = (Resolve-Path (Join-Path $here '..\deploy-agent-service.ps1')).Path
+$deployText = [System.IO.File]::ReadAllText($deployAgent)
+$binpathModule = (Resolve-Path (Join-Path $here '..\lib\agent-binpath.psm1')).Path
+Import-Module $binpathModule -Force
+
+Describe 'agent-binpath.psm1 (carpeta del servicio desde el ImagePath)' {
+    It 'extrae la carpeta con comillas y argumentos' {
+        Get-InstallDirFromImagePath -ImagePath '"C:\SCS-E2E-Scripts\sc-sentinel-agent.exe" --config "C:\ProgramData\SC-Sentinel\config\config.toml" --no-capture' |
+            Should Be 'C:\SCS-E2E-Scripts'
+    }
+
+    It 'extrae la carpeta sin comillas' {
+        Get-InstallDirFromImagePath -ImagePath 'C:\Program Files\SC-Sentinel\sc-sentinel-agent.exe --no-capture' |
+            Should Be 'C:\Program Files\SC-Sentinel'
+    }
+
+    It 'tolera espacios alrededor y no inventa una carpeta' {
+        Get-InstallDirFromImagePath -ImagePath "  `"C:\SC-Sentinel\sc-sentinel-agent.exe`"  " | Should Be 'C:\SC-Sentinel'
+        Get-InstallDirFromImagePath -ImagePath '' | Should Be ''
+        Get-InstallDirFromImagePath -ImagePath 'sc-sentinel-agent.exe' | Should Be ''
+    }
+}
+
+Describe 'install-agent.ps1 (actualizacion: la carpeta la manda el servicio)' {
+    It 'resuelve la carpeta del servicio desde su ImagePath' {
+        $agentText | Should Match 'Get-ServiceInstallDir'
+        $agentText | Should Match 'ImagePath'
+        $agentText | Should Match 'Get-InstallDirFromImagePath'
+    }
+
+    It 'ignora la carpeta pedida cuando el servicio apunta a otra' {
+        $agentText | Should Match 'se ignora la carpeta pedida'
+        $agentText | Should Match '\$InstallDir = \$serviceInstallDir'
+    }
+
+    It 'escribe InstallDir y la clave de desinstalacion en la carpeta del servicio' {
+        $agentText | Should Match 'Set-InstallRegistryDir'
+        $agentText | Should Match "'InstallLocation'"
+        $agentText | Should Match 'QuietUninstallString'
+        $agentText | Should Match 'Software.SC-Sentinel'
+    }
+
+    It 'restaura el .bak verificado y arranca el servicio si el deploy falla' {
+        $agentText | Should Match 'Restore-AgentAfterFailedUpdate'
+        $agentText | Should Match 'sc-sentinel-agent\.exe\.bak'
+        $agentText | Should Match 'Start-Service -Name \$Name'
+        $agentText | Should Match 'exe\.bak\.sha256|\$bakShaFile'
+    }
+
+    It 'mantiene el 19 como advertencia con codigo distinto de cero' {
+        $agentText | Should Match 'exit 19'
+        $agentText | Should Match 'SIN sync confirmado'
+    }
+}
+
+Describe 'deploy-agent-service.ps1 (un fallo no deja el servicio parado)' {
+    It 'declara el reintento de arranque tras el fallo' {
+        $deployText | Should Match 'function Start-ServiceAfterAbort'
+    }
+
+    It 'reintenta el arranque antes de salir con 16 (drenaje)' {
+        $deployText | Should Match "ABORTA \(16\)[\s\S]{0,400}Start-ServiceAfterAbort"
+    }
+
+    It 'reintenta el arranque antes de salir con 17 (copia)' {
+        $deployText | Should Match "ABORTA \(17\)[\s\S]{0,400}Start-ServiceAfterAbort"
+    }
+}

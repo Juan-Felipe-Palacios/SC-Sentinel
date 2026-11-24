@@ -388,9 +388,112 @@ Write-Host ""
 # ProgramData\SC-Sentinel\backup, parada con drenaje (spool_flushed pending=0),
 # copia con SHA del origen y arranque con espera de sync_confirmed.
 # --------------------------------------------------------------------------
+# Carpeta donde vive el binario del servicio segun su ImagePath. Es la unica
+# fuente fiable en modo actualizacion: /D y la clave InstallDir del registro
+# pueden apuntar a una instalacion anterior (run 45286615679: el servicio corria
+# desde C:\SCS-E2E-Scripts y el instalador copiaba en C:\SCS-E2E-App).
+function Get-ServiceInstallDir {
+ param([string]$Name)
+ $key = "HKLM:\SYSTEM\CurrentControlSet\Services\$Name"
+ $image = (Get-ItemProperty -LiteralPath $key -Name ImagePath -ErrorAction SilentlyContinue).ImagePath
+ if (-not $image) { return '' }
+ Import-Module (Join-Path $PSScriptRoot 'lib\agent-binpath.psm1') -Force
+ $dir = Get-InstallDirFromImagePath -ImagePath $image
+ if (-not $dir) { return '' }
+ # La carpeta solo vale si de verdad contiene el binario que el servicio ejecuta.
+ if (-not (Test-Path -LiteralPath (Join-Path $dir 'sc-sentinel-agent.exe') -PathType Leaf)) { return '' }
+ return $dir
+}
+
+# Deja la entrada de "Agregar o quitar programas" apuntando a la carpeta real
+# del servicio. Se escribe antes de actualizar: si la actualizacion falla, la
+# ficha sigue describiendo la instalacion que de verdad existe.
+function Set-InstallRegistryDir {
+ param([string]$Dir)
+ $uninstallSubKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\SC-Sentinel-Agent'
+ Set-Registry64Value -SubKey 'Software\SC-Sentinel' -Name 'InstallDir' -Value $Dir
+ Set-Registry64Value -SubKey $uninstallSubKey -Name 'InstallLocation' -Value $Dir
+ Set-Registry64Value -SubKey $uninstallSubKey -Name 'DisplayIcon' -Value (Join-Path $Dir 'sc-gui.exe')
+ Set-Registry64Value -SubKey $uninstallSubKey -Name 'UninstallString' -Value ('"{0}\uninstall.exe"' -f $Dir)
+ Set-Registry64Value -SubKey $uninstallSubKey -Name 'QuietUninstallString' -Value ('"{0}\uninstall.exe" /S' -f $Dir)
+}
+
+# Un deploy fallido no puede dejar el equipo sin agente. Si hay .bak verificado
+# (binario + .sha256 coincidentes) se restaura; si no, se arranca el binario que
+# ya estaba. En ambos casos se espera a Running y se informa el estado real.
+function Restore-AgentAfterFailedUpdate {
+ param([string]$BinPath, [string]$BackupDir, [string]$Name)
+ $bak = Join-Path $BackupDir 'sc-sentinel-agent.exe.bak'
+ $bakShaFile = "$bak.sha256"
+ $restored = $false
+ $detail = ''
+ try {
+  if (-not (Test-Path -LiteralPath $bak)) {
+   $detail = 'no hay .bak; se arranca el binario existente'
+  } elseif (-not (Test-Path -LiteralPath $bakShaFile)) {
+   $detail = 'el .bak no tiene .sha256; no se restaura sin poder verificarlo'
+  } else {
+   $expected = ((Get-Content -LiteralPath $bakShaFile -TotalCount 1) -split '\s+')[0].Trim()
+   $actual = Get-Sha256Hex -Path $bak
+   if (-not $expected -or $actual -ne $expected.ToLowerInvariant()) {
+    $detail = 'el .bak no coincide con su .sha256; no se restaura'
+   } elseif (-not (Ensure-FileWritable $BinPath)) {
+    $detail = "no se puede escribir $BinPath"
+   } else {
+    Copy-Item -LiteralPath $bak -Destination $BinPath -Force
+    $copied = Get-Sha256Hex -Path $BinPath
+    if ($copied -ne $actual) {
+     $detail = "la copia del respaldo no coincide ($copied != $actual)"
+    } else {
+     $restored = $true
+     $detail = "binario anterior restaurado desde $bak (SHA256 $copied)"
+    }
+   }
+  }
+ } catch { $detail = $_.Exception.Message }
+
+ $state = 'NO_EXISTE'
+ try {
+  $svc = Get-Service -Name $Name -ErrorAction Stop
+  $state = "$($svc.Status)"
+  if ($state -ne 'Running') {
+   for ($attempt = 1; $attempt -le 3 -and $state -ne 'Running'; $attempt++) {
+    try { Start-Service -Name $Name -ErrorAction Stop } catch {
+     $detail = "$detail; Start-Service fallo: $($_.Exception.Message)"
+    }
+    for ($wait = 0; $wait -lt 15; $wait += 1) {
+     Start-Sleep -Seconds 1
+     $state = "$((Get-Service -Name $Name -ErrorAction SilentlyContinue).Status)"
+     if ($state -eq 'Running') { break }
+    }
+    if ($state -ne 'Running') { Start-Sleep -Seconds 2 }
+   }
+  }
+ } catch { $state = 'NO_EXISTE' }
+
+ return [pscustomobject]@{ Restored = $restored; State = $state; Detail = $detail; BakPath = $bak }
+}
+
 if ($UpdateMode) {
- $BinPath = "$InstallDir\sc-sentinel-agent.exe"
  $ConfigFile = "$ConfigDir\config.toml"
+
+ # El destino lo manda el servicio: reapuntar un servicio instalado no es una
+ # opcion del instalador y copiar en otra carpeta dejaria la version vieja en
+ # ejecucion (run 45286615679).
+ $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+ if (-not $svc) {
+  Write-Error-Exit "No hay servicio $ServiceName que actualizar. Ejecuta el instalador sin -UpdateMode para crearlo con el Device ID y el Token." -Code 5
+ }
+ $serviceInstallDir = Get-ServiceInstallDir -Name $ServiceName
+ if (-not $serviceInstallDir) {
+  Write-Error-Exit "No se pudo leer la carpeta del servicio $ServiceName desde su ImagePath. No se modifico nada; revisa el servicio con sc qc $ServiceName." -Code 5
+ }
+ if ($serviceInstallDir.TrimEnd('\') -ne $InstallDir.TrimEnd('\')) {
+  Write-Step "Destino del servicio: $serviceInstallDir (se ignora la carpeta pedida: $InstallDir)" -Status "ℹ"
+  Write-InstallLog 'SVC' "UpdateMode: carpeta resuelta del ImagePath = $serviceInstallDir (parametro / registro: $InstallDir)"
+ }
+ $InstallDir = $serviceInstallDir.TrimEnd('\')
+ $BinPath = "$InstallDir\sc-sentinel-agent.exe"
 
  # Solo la copia INSTALADA del paquete ($INSTDIR\installer) puede ejecutar la
  # actualizacion: ni el directorio de trabajo ni %TEMP% pueden inyectar el
@@ -404,10 +507,6 @@ if ($UpdateMode) {
  # Huella de config.toml antes de tocar nada: se vuelve a comprobar al final.
  $configBefore = Get-ScsFileSha256 -Path $ConfigFile
  $syncPending = $false
- $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
- if (-not $svc) {
-  Write-Error-Exit "No hay servicio $ServiceName que actualizar. Ejecuta el instalador sin -UpdateMode para crearlo con el Device ID y el Token." -Code 5
- }
  $BinSource = if ($BinaryPath) { $BinaryPath } else { Join-Path $PSScriptRoot "..\agent\target\release\sc-sentinel-agent.exe" }
  if (-not (Test-Path $BinSource)) {
   Write-Error-Exit "Binario no encontrado: $BinSource" -Code 5
@@ -415,6 +514,15 @@ if ($UpdateMode) {
  $deployScript = Join-Path $PSScriptRoot 'deploy-agent-service.ps1'
  if (-not (Test-Path $deployScript)) {
   Write-Error-Exit "El paquete no trae deploy-agent-service.ps1: sin el no hay respaldo verificado, drenaje ni verificacion de arranque." -Code 5
+ }
+
+ # La ficha del producto sigue a la carpeta del servicio, aunque la
+ # actualizacion falle despues: es la instalacion que existe de verdad.
+ try {
+  Set-InstallRegistryDir -Dir $InstallDir
+  Write-Step "Registro: InstallDir y desinstalador apuntan a $InstallDir"
+ } catch {
+  Write-Error-Exit "No se pudo actualizar la clave del producto en el registro ($($_.Exception.Message)); no se toca el servicio." -Code 5
  }
 
  Write-Step "Actualizando el agente (respaldo verificado + drenaje del spool)"
@@ -441,7 +549,22 @@ if ($UpdateMode) {
    Write-Host "   El agente quedo instalado y en ejecucion; el spool reintenta el envio solo." -ForegroundColor Yellow
   }
   default {
-   Write-Error-Exit "La actualizacion del agente fallo (codigo $($deployProc.ExitCode) de deploy-agent-service.ps1); no se copio la GUI.`n  Si el servicio quedo detenido: sc start $ServiceName`n  Para volver atras: powershell -NoProfile -ExecutionPolicy Bypass -File `"$deployScript`" -Mode Rollback" -Code 5
+   # Nunca se deja el servicio parado: se restaura el .bak verificado (o se
+   # arranca el binario existente) antes de informar el fallo.
+   $recovery = Restore-AgentAfterFailedUpdate -BinPath $BinPath -BackupDir (Join-Path $DataDir 'backup') -Name $ServiceName
+   Write-InstallLog 'DEPLOY' "recuperacion: restored=$($recovery.Restored) estado=$($recovery.State) detalle=$($recovery.Detail)"
+   if ($recovery.State -ne 'Running') {
+    Write-Host " ✗ No se pudo dejar el servicio en ejecucion tras el fallo (estado=$($recovery.State))." -ForegroundColor Red
+    Write-Host "   $($recovery.Detail)" -ForegroundColor Red
+    Write-Host "   Arrancalo a mano: sc start $ServiceName" -ForegroundColor Yellow
+   } elseif ($recovery.Restored) {
+    Write-Host " ⚠ Se restauro el binario anterior y el servicio quedo en ejecucion." -ForegroundColor Yellow
+    Write-Host "   $($recovery.Detail)" -ForegroundColor Yellow
+   } else {
+    Write-Host " ⚠ El servicio quedo en ejecucion con el binario existente." -ForegroundColor Yellow
+    Write-Host "   $($recovery.Detail)" -ForegroundColor Yellow
+   }
+   Write-Error-Exit "La actualizacion del agente fallo (codigo $($deployProc.ExitCode) de deploy-agent-service.ps1); no se copio la GUI.`n  Servicio: $($recovery.State)`n  Recuperacion: $($recovery.Detail)`n  Detalle del despliegue: C:\ProgramData\SC-Sentinel\logs\deploy-agent-service.out.log" -Code 5
   }
  }
 

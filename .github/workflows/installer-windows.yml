@@ -10,7 +10,16 @@ name: Instalador Windows (NSIS)
 #     para dry_run=false.
 #   dry_run = false: ademas T1, T4-T9 y T13-T18 con el servicio real y un
 #     servidor de ingesta local simulado (2xx) para obtener sync_confirmed y
-#     spool_flushed pending=0.
+#     spool_flushed pending=0. No publica nada: solo sube artefactos del run.
+#
+#   diagnose = true: ademas del trabajo anterior, instala el mismo .exe en otro
+#     job corto y vuelca el estado real del servicio (sc qc/queryex, eventos del
+#     SCM, procesos, claves de config.toml y agent.log) antes y despues de
+#     pararlo, y una ejecucion en consola con los argumentos de su ImagePath.
+#     Tampoco publica nada.
+#
+# La version por defecto es 0.1.11: 0.1.10 queda reservada al release
+# reproducible y estos instaladores son de prueba del gate.
 #
 # El agente se compila con la feature `sc-capture/live` (el setup que se
 # publica tiene que poder capturar). El e2e instala en modo colector con
@@ -24,9 +33,13 @@ on:
         type: boolean
         default: true
       version:
-        description: 'Version del instalador (x.y.z); 0.1.10 es la release objetivo'
+        description: 'Version del instalador de prueba (x.y.z); 0.1.10 queda para el release'
         required: false
-        default: '0.1.10'
+        default: '0.1.11'
+      diagnose:
+        description: 'true: ademas vuelca el diagnostico del servicio (no publica nada)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -101,9 +114,20 @@ jobs:
           "LIBPCAP_VER=1.0.0" | Out-File -FilePath $env:GITHUB_ENV -Append
           "LIBPCAP_LIBDIR=$lib" | Out-File -FilePath $env:GITHUB_ENV -Append
 
+      # windows-latest trae Pester 5.9 y Invoke-Pester resuelve esa version: con
+      # -Script (sintaxis 3.x) no ejecuta nada y devuelve $null, que el gate
+      # antiguo interpretaba como "sin fallos" (run 45286615679: 0 pruebas).
       - name: Instalar Pester 3.4 (las pruebas usan la sintaxis heredada)
         shell: pwsh
-        run: Install-Module Pester -RequiredVersion 3.4.0 -Force -SkipPublisherCheck -Scope CurrentUser
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Install-Module Pester -RequiredVersion 3.4.0 -Force -SkipPublisherCheck -Scope CurrentUser
+          $m = Get-Module -ListAvailable Pester | Where-Object { $_.Version -eq '3.4.0' } | Select-Object -First 1
+          if (-not $m) { throw 'Pester 3.4 no quedo disponible tras Install-Module' }
+          Import-Module $m.Path -Force
+          $loaded = (Get-Module Pester).Version.ToString()
+          Write-Host "Pester cargado: $loaded"
+          if ($loaded -ne '3.4.0') { throw "se cargo Pester $loaded y no 3.4.0" }
 
       - name: Compilar agente (con captura live) y GUI
         working-directory: agent
@@ -159,9 +183,13 @@ jobs:
             @{ Path = 'scripts/tests/install-agent-params.Tests.ps1' },
             @{ Path = 'scripts/tests/installer-state.Tests.ps1'; Parameters = @{ MakensisPath = $env:SCS_MAKENSIS } }
           )
+          Import-Module Pester -RequiredVersion 3.4.0 -Force
           $r = Invoke-Pester -Script $scripts -PassThru
-          if ($r.PassedCount -eq 0) { throw 'Pester no ejecuto ninguna prueba' }
+          if (-not $r -or $r.TotalCount -eq 0) {
+            throw "Pester no ejecuto ninguna prueba (TotalCount=$($r.TotalCount)); el gate no puede darse por bueno"
+          }
           if ($r.FailedCount -gt 0) { throw "Pester: $($r.FailedCount) fallo(s), $($r.PassedCount) ok" }
+          Write-Host "Pester: $($r.PassedCount) pruebas en verde"
 
       - name: Pruebas de extremo a extremo (T1, T4-T9, T13-T18 si dry_run=false)
         shell: pwsh
@@ -184,3 +212,45 @@ jobs:
             dist/SHA256SUMS-windows-x64.txt
             dist/e2e/result.json
             dist/e2e/transcript.txt
+
+  # Diagnostico corto del arranque como servicio (run 45286615679: el agente
+  # escribio una sola linea en agent.log y el drenaje nunca se confirmo).
+  # Instala el MISMO .exe en un runner limpio y vuelca el estado real antes y
+  # despues de pararlo. No crea tags, releases ni nada publico.
+  diagnose:
+    needs: build-and-test
+    if: ${{ inputs.diagnose == true }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      SCS_VERSION: ${{ inputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Descargar el instalador del job anterior
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-windows-${{ github.run_id }}
+          path: .
+
+      - name: Diagnostico del servicio
+        shell: pwsh
+        run: |
+          $setup = Join-Path $PWD "dist\sc-sentinel-agent-v$($env:SCS_VERSION)-windows-x64-setup.exe"
+          if (-not (Test-Path -LiteralPath $setup)) { throw "no aparece el instalador $setup" }
+          pwsh ./scripts/tests/installer-service-diagnose.ps1 -SetupPath $setup -Version $env:SCS_VERSION -OutDir (Join-Path $PWD 'dist\diag')
+
+      - name: Publicar diagnostico (retencion 7 dias)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-diagnose-${{ github.run_id }}
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            dist/diag/diagnose.txt
+            dist/diag/diagnose.json
+            dist/diag/agent.*.log
+            dist/diag/console.out.txt
+            dist/diag/console.err.txt

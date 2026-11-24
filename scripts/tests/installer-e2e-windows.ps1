@@ -59,6 +59,7 @@ $DataDir = 'C:\ProgramData\SC-Sentinel'
 $UninstallKey = 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\SC-Sentinel-Agent'
 $ServiceKey = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName"
 $SoftwareKey = 'HKLM:\Software\SC-Sentinel'
+$bakPath = Join-Path $DataDir 'backup\sc-sentinel-agent.exe.bak'
 $DeviceId = 'dev_ci0000000000000001'
 $Token = 'sc_dev_ciPrueba0000000000000000000000000000'
 $IngestUrl = "http://127.0.0.1:$IngestPort/api/ingest"
@@ -78,6 +79,66 @@ function Add-Check {
   param([string]$Name, [bool]$Ok, [string]$Detail)
   [void]$results.Add([pscustomobject]@{ check = $Name; ok = $Ok; detail = $Detail })
   Write-Log ("[{0}] {1}: {2}" -f $(if ($Ok) { ' OK ' } else { 'FALLO' }), $Name, $Detail)
+}
+
+# Cada bloque T corre aislado: un fallo (una excepcion de Start-Process, un
+# cmdlet que no existe) se registra como resultado y las pruebas siguientes
+# siguen. Antes, la falta de uninstall.exe cortaba T6-T9 en silencio.
+function Invoke-TestBlock {
+  param([string]$Name, [scriptblock]$Block)
+  Write-Log "-- bloque $Name --"
+  try {
+    . $Block
+  } catch {
+    Add-Check "$Name.excepcion" $false $_.Exception.Message
+    Write-Log ("EXCEPCION en {0}: {1}" -f $Name, $_.Exception.Message)
+    Write-Log $_.ScriptStackTrace
+  }
+}
+
+# Estado real del servicio y del log en cada fase, sin valores de configuracion
+# ni credenciales: sc qc/queryex (incluye el codigo de salida del proceso),
+# procesos con su linea de ordenes, tamano y fechas del agent.log y los NOMBRES
+# de las claves de config.toml.
+function Dump-ServiceDiagnostics {
+  param([string]$Tag)
+  $path = Join-Path $OutDir "service.$Tag.txt"
+  $lines = New-Object System.Collections.ArrayList
+  [void]$lines.Add("== $Tag  $(Get-Date -Format o) ==")
+  foreach ($cmd in @('qc', 'queryex', 'qfailure')) {
+    [void]$lines.Add("sc $cmd $ServiceName")
+    $out = & sc.exe $cmd $ServiceName 2>&1
+    foreach ($l in @($out)) { [void]$lines.Add("  $l") }
+  }
+  $procs = @(Get-CimInstance Win32_Process -Filter "Name='sc-sentinel-agent.exe'" -ErrorAction SilentlyContinue)
+  [void]$lines.Add("procesos sc-sentinel-agent: $($procs.Count)")
+  foreach ($p in $procs) {
+    [void]$lines.Add(("  pid={0} creado={1:o} cmd={2}" -f $p.ProcessId, $p.CreationDate, $p.CommandLine))
+  }
+  $log = Join-Path $DataDir 'logs\agent.log'
+  if (Test-Path -LiteralPath $log) {
+    $fi = Get-Item -LiteralPath $log
+    [void]$lines.Add(("agent.log bytes={0} creado={1:o} modificado={2:o}" -f $fi.Length, $fi.CreationTimeUtc, $fi.LastWriteTimeUtc))
+    foreach ($l in @(Get-Content -LiteralPath $log -Tail 40)) { [void]$lines.Add("  | $l") }
+  } else {
+    [void]$lines.Add('agent.log AUSENTE')
+  }
+  $cfg = Get-ConfigPath
+  if (Test-Path -LiteralPath $cfg) {
+    [void]$lines.Add('config.toml: secciones y claves (sin valores)')
+    $section = ''
+    foreach ($l in @(Get-Content -LiteralPath $cfg)) {
+      $t = $l.Trim()
+      if ($t -match '^\[(.+)\]$') {
+        $section = $Matches[1]
+        [void]$lines.Add("  [$section]")
+      } elseif ($t -match '^([A-Za-z0-9_]+)\s*=') {
+        [void]$lines.Add(("    {0}.{1}" -f $section, $Matches[1]))
+      }
+    }
+  }
+  [System.IO.File]::WriteAllLines($path, $lines, [System.Text.UTF8Encoding]::new($false))
+  Write-Log "   (diagnostico del servicio: $path)"
 }
 
 function Get-Sha {
@@ -298,6 +359,7 @@ try {
     Add-Check 'ingesta.simulador' (-not $script:simulator.HasExited) "HttpListener en 127.0.0.1:$IngestPort"
 
     # ---------------- T1: instalacion limpia ----------------
+    Invoke-TestBlock 'T1' {
     Write-Log '== T1. Instalacion limpia =='
     foreach ($d in @($InstallDir, $OtherDir, $ForeignDir, $ScriptsInstalledDir)) {
       if (Test-Path -LiteralPath $d) { Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue }
@@ -310,6 +372,7 @@ try {
     Add-Check 'T1.deploy_script' (Test-Path -LiteralPath (Join-Path $InstallDir 'installer\deploy-agent-service.ps1')) 'deploy-agent-service.ps1 incrustado'
     Add-Check 'T1.config_helper' (Test-Path -LiteralPath (Join-Path $InstallDir 'installer\lib\config-toml.psm1')) 'lib\config-toml.psm1 incrustado'
     Add-Check 'T1.servicio' (Wait-ServiceRunning 120) 'servicio SC-Sentinel-Agent en ejecucion'
+    Dump-ServiceDiagnostics -Tag 't1'
     $uninst = Get-ItemProperty -LiteralPath $UninstallKey -ErrorAction SilentlyContinue
     Add-Check 'T1.registro' ($null -ne $uninst -and $uninst.DisplayVersion -eq $Version) "DisplayVersion $($uninst.DisplayVersion)"
     Add-Check 'T1.config' (Test-Path -LiteralPath (Get-ConfigPath)) (Get-ConfigPath)
@@ -323,6 +386,9 @@ try {
     Restart-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
 
     # ---------------- T4/T16: actualizacion silenciosa ----------------
+    }
+
+    Invoke-TestBlock 'T4' {
     Write-Log '== T4/T16. Actualizacion silenciosa =='
     $cfgHashBefore = Get-Sha (Get-ConfigPath)
     $spoolHashBefore = Get-Sha (Get-SpoolPath)
@@ -351,9 +417,11 @@ try {
     Send-NetFlowV5 -Port 2055
     Add-Check 'T16.sync_confirmado' (Wait-LogMarker -Marker 'sync_confirmed' -SinceUtc $syncSince -TimeoutSeconds 240) 'sync_confirmed en agent.log'
     Add-Check 'T4.servicio' (Wait-ServiceRunning 120) 'servicio en ejecucion tras actualizar'
+    Dump-ServiceDiagnostics -Tag 't4'
     Save-PhaseLogs -Tag 't4'
+    }
 
-    # ---------------- T13/T15/T18: instalacion hecha con scripts ----------------
+    Invoke-TestBlock 'T18' {
     Write-Log '== T13/T15/T18. Actualizacion sobre una instalacion hecha con scripts =='
     Copy-Item -LiteralPath $InstallDir -Destination $ScriptsInstalledDir -Recurse -Force
     foreach ($own in @('.sc-sentinel-install', '.sc-sentinel-manifest.txt', 'uninstall.exe')) {
@@ -382,14 +450,22 @@ try {
     Write-Log ('ImagePath del servicio de scripts: ' + (Get-ItemProperty -LiteralPath $ServiceKey -Name ImagePath -ErrorAction SilentlyContinue).ImagePath)
     try { Start-Service -Name $ServiceName -ErrorAction Stop } catch { Write-Log ('Start-Service: ' + $_.Exception.Message) }
     Add-Check 'T18.servicio_scripts' (Wait-ServiceRunning 120) 'servicio apuntando a la carpeta sin marcador'
+    Dump-ServiceDiagnostics -Tag 't18'
     Save-PhaseLogs -Tag 't18'
+    }
 
+    # ---------------- T13/T15: actualizacion sobre otra carpeta ----------------
+    Invoke-TestBlock 'T13/T15' {
     $cfgHashBefore = Get-Sha (Get-ConfigPath)
     $code = Invoke-Setup -Arguments @('/S', "/D=$OtherDir")
     Add-Check 'T13.exitcode' ($code -eq 0 -or $code -eq 19) "exit $code, esperado 0 o 19"
     Add-Check 'T15.destino_fijo' (-not (Test-Path -LiteralPath $OtherDir)) "/D no creo $OtherDir"
     $regInstallDir = (Get-ItemProperty -LiteralPath $SoftwareKey -Name InstallDir -ErrorAction SilentlyContinue).InstallDir
     Add-Check 'T15.registro_destino' ($regInstallDir -eq $ScriptsInstalledDir) "InstallDir $regInstallDir"
+    $uninstKey = Get-ItemProperty -LiteralPath $UninstallKey -ErrorAction SilentlyContinue
+    Add-Check 'T15.clave_desinstalacion' ($uninstKey.InstallLocation -eq $ScriptsInstalledDir) "InstallLocation $($uninstKey.InstallLocation)"
+    $uninstCmd = "$($uninstKey.UninstallString)"
+    Add-Check 'T15.desinstalador_apunta' ($uninstCmd -like "*$ScriptsInstalledDir\uninstall.exe*") "UninstallString $uninstCmd"
     $payloadAgent = Join-Path $ScriptsInstalledDir 'installer\sc-sentinel-agent.exe'
     Add-Check 'T13.binario_reemplazado' ((Get-Sha (Join-Path $ScriptsInstalledDir 'sc-sentinel-agent.exe')) -eq (Get-Sha $payloadAgent) -and (Get-Sha (Join-Path $ScriptsInstalledDir 'sc-sentinel-agent.exe')) -ne $oldAgentHash) 'sha instalado == sha del paquete y != anterior'
     Add-Check 'T13.desinstalador' (Test-Path -LiteralPath (Join-Path $ScriptsInstalledDir 'uninstall.exe')) 'uninstall.exe creado'
@@ -411,8 +487,12 @@ try {
       $drainSeen = [bool](Get-Content -LiteralPath $deployLog -Tail 200 | Where-Object { $_ -match 'spool_flushed' -and $_ -match 'pending=0' })
     }
     Add-Check 'T4.drenaje' $drainSeen 'spool_flushed pending=0 en agent.log'
+    }
 
+    Invoke-TestBlock 'T5' {
     Write-Log '== T5. Rollback con deploy-agent-service.ps1 -Mode Rollback =='
+    # Cada bloque corre en su propio ambito: el .bak de T13 se vuelve a leer.
+    $bakSha = Get-Sha $bakPath
     $deployScript = Join-Path $ScriptsInstalledDir 'installer\deploy-agent-service.ps1'
     $proc = Start-Process -FilePath 'powershell.exe' -Wait -PassThru -NoNewWindow -ArgumentList @(
       '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $deployScript, '-Mode', 'Rollback',
@@ -423,6 +503,10 @@ try {
     Add-Check 'T5.exitcode' ($proc.ExitCode -eq 0) "exit $($proc.ExitCode), esperado 0"
     Add-Check 'T5.binario_restaurado' ((Get-Sha (Join-Path $ScriptsInstalledDir 'sc-sentinel-agent.exe')) -eq $bakSha) 'sha instalado == sha del .bak'
     Add-Check 'T5.servicio' (Wait-ServiceRunning 120) 'servicio en ejecucion'
+    Dump-ServiceDiagnostics -Tag 't5'
+    }
+
+    Invoke-TestBlock 'T17' {
 
     # ---------------- T17: archivado de respaldos ----------------
     Write-Log '== T17. Archivado de .bak-* =='
@@ -434,6 +518,9 @@ try {
     Add-Check 'T17.exitcode' ($code -eq 0 -or $code -eq 19) "exit $code"
     Add-Check 'T17.archivados' ($legacyBaks.Count -ge 5) "$($legacyBaks.Count) respaldos en backup\legacy"
     Add-Check 'T17.sin_residuos' (@(Get-ChildItem -LiteralPath $ScriptsInstalledDir -Filter 'sc-sentinel-agent.exe.bak-*' -ErrorAction SilentlyContinue).Count -eq 0) 'ninguno queda en la carpeta de instalacion'
+    }
+
+    Invoke-TestBlock 'T14' {
 
     # ---------------- T14: archivos ajenos ----------------
     Write-Log '== T14. Carpeta con archivos ajenos =='
@@ -453,17 +540,29 @@ try {
     Add-Check 'T14.exitcode' ($code -eq 3) "exit $code, esperado 3"
     Add-Check 'T14.sin_escritura' (-not (Test-Path -LiteralPath (Join-Path $ForeignDir '.sc-sentinel-install')) -and -not (Test-Path -LiteralPath (Join-Path $ForeignDir 'sc-sentinel-agent.exe'))) 'no se escribio nada'
     Add-Check 'T14.ajenos_intactos' (@(Get-ChildItem -LiteralPath $ForeignDir -Filter 'ajeno-*.txt').Count -eq 6) 'los seis archivos siguen'
+    }
+
+    Invoke-TestBlock 'T6' {
 
     # ---------------- T6: desinstalacion /S ----------------
     Write-Log '== T6. Desinstalacion /S conservando ProgramData =='
     $uninstaller = Join-Path $ScriptsInstalledDir 'uninstall.exe'
-    $proc = Start-Process -FilePath $uninstaller -ArgumentList @('/S') -Wait -PassThru
-    Add-Check 'T6.exitcode' ($proc.ExitCode -eq 0) "exit $($proc.ExitCode)"
-    $deadline = (Get-Date).AddSeconds(60)
-    while ((Get-Date) -lt $deadline -and (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) { Start-Sleep -Seconds 1 }
-    Add-Check 'T6.servicio_eliminado' ($null -eq (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) 'sin servicio'
-    Add-Check 'T6.programdata_conservado' (Test-Path -LiteralPath (Get-ConfigPath)) 'config.toml se conserva'
-    Add-Check 'T6.archivos_eliminados' (-not (Test-Path -LiteralPath (Join-Path $ScriptsInstalledDir 'sc-sentinel-agent.exe')) -and -not (Test-Path -LiteralPath (Join-Path $ScriptsInstalledDir 'installer'))) 'binario y payload eliminados'
+    if (-not (Test-Path -LiteralPath $uninstaller)) {
+      # Causa raiz reportada: sin desinstalador no se puede probar T6. Se
+      # registra y se sigue con T7-T9, que desinstalan por script.
+      Add-Check 'T6.desinstalador' $false "no existe $uninstaller (la actualizacion anterior no llego a escribirlo)"
+    } else {
+      $proc = Start-Process -FilePath $uninstaller -ArgumentList @('/S') -Wait -PassThru
+      Add-Check 'T6.exitcode' ($proc.ExitCode -eq 0) "exit $($proc.ExitCode)"
+      $deadline = (Get-Date).AddSeconds(60)
+      while ((Get-Date) -lt $deadline -and (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) { Start-Sleep -Seconds 1 }
+      Add-Check 'T6.servicio_eliminado' ($null -eq (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) 'sin servicio'
+      Add-Check 'T6.programdata_conservado' (Test-Path -LiteralPath (Get-ConfigPath)) 'config.toml se conserva'
+      Add-Check 'T6.archivos_eliminados' (-not (Test-Path -LiteralPath (Join-Path $ScriptsInstalledDir 'sc-sentinel-agent.exe')) -and -not (Test-Path -LiteralPath (Join-Path $ScriptsInstalledDir 'installer'))) 'binario y payload eliminados'
+    }
+    }
+
+    Invoke-TestBlock 'T8' {
 
     # ---------------- T8: reinstalacion ----------------
     Write-Log '== T8. Reinstalacion =='
@@ -471,6 +570,9 @@ try {
     Add-Check 'T8.exitcode' ($code -eq 0 -or $code -eq 19) "exit $code"
     Add-Check 'T8.servicio' (Wait-ServiceRunning 120) 'servicio en ejecucion'
     Add-Check 'T8.config_conservado' (Test-Path -LiteralPath (Get-ConfigPath)) 'config.toml del cliente sigue'
+    }
+
+    Invoke-TestBlock 'T7' {
 
     # ---------------- T7: purga de datos ----------------
     Write-Log '== T7. Desinstalacion con -PurgeData =='
@@ -481,6 +583,9 @@ try {
     Add-Check 'T7.exitcode' ($proc.ExitCode -eq 0) "exit $($proc.ExitCode)"
     Add-Check 'T7.programdata_purgado' (-not (Test-Path -LiteralPath $DataDir)) "$DataDir eliminado"
     Add-Check 'T7.servicio_eliminado' ($null -eq (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) 'sin servicio'
+    }
+
+    Invoke-TestBlock 'T9' {
 
     # ---------------- T9: sin residuos ----------------
     Write-Log '== T9. Sin residuos =='
@@ -491,6 +596,7 @@ try {
     Remove-Item -LiteralPath $SoftwareKey -Recurse -Force -ErrorAction SilentlyContinue
     Add-Check 'T9.servicio' ($null -eq (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) 'sin servicio'
     Add-Check 'T9.registro' (-not (Test-Path -LiteralPath $UninstallKey) -and -not (Test-Path -LiteralPath $SoftwareKey)) 'sin claves del producto'
+    }
   }
 }
 catch {
