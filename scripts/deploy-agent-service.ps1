@@ -41,7 +41,7 @@ param(
     [string]$LogPath = 'C:\ProgramData\SC-Sentinel\logs\agent.log',
     [int]$StopTimeoutSec = 45,
     [int]$StartTimeoutSec = 45,
-    [int]$SyncTimeoutSec = 60,
+    [int]$SyncTimeoutSec = 120,
     [switch]$StrictBackupAcl,
     [switch]$DryRun,
     [switch]$ExportFunctions

@@ -58,6 +58,21 @@ if (-not (Test-Path $binaryPath)) {
   throw "No existe el binario $binaryPath. Compila antes: cargo build --release -p sc-agent"
 }
 
+# Gate: en Windows el agente publicado tiene que poder capturar (feature
+# sc-capture/live). El texto 'captura live no compilada' solo existe en el
+# binario cuando esa feature esta apagada, asi que su presencia significa que
+# se compilo sin ella y el paquete no debe publicarse. En Linux la captura
+# live es intencionalmente opcional (modo colector), por eso el gate solo
+# aplica al target windows-x64.
+if ($esWindows) {
+  $binaryBytes = [System.IO.File]::ReadAllBytes($binaryPath)
+  $binaryText = [System.Text.Encoding]::ASCII.GetString($binaryBytes)
+  if ($binaryText.Contains('captura live no compilada')) {
+    throw "El binario $binaryPath se compilo sin la feature live (contiene 'captura live no compilada'). Recompila con: cargo build --release -p sc-agent --features sc-capture/live"
+  }
+  Write-Host "==> Gate captura live: OK ($binaryPath)"
+}
+
 $stage = Join-Path ([System.IO.Path]::GetTempPath()) "sc-sentinel-pkg-$Target"
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
