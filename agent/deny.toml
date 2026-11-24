@@ -31,54 +31,54 @@ allow = [
 [[licenses.clarify]]
 crate = "sc-agent"
 expression = "LicenseRef-Proprietary"
-license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+license-files = [{ path = "../../../LICENSE", hash = 0xc4fea1fa }]
 
 [[licenses.clarify]]
 crate = "sc-aggregate"
 expression = "LicenseRef-Proprietary"
-license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+license-files = [{ path = "../../../LICENSE", hash = 0xc4fea1fa }]
 
 [[licenses.clarify]]
 crate = "sc-capture"
 expression = "LicenseRef-Proprietary"
-license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+license-files = [{ path = "../../../LICENSE", hash = 0xc4fea1fa }]
 
 [[licenses.clarify]]
 crate = "sc-collector"
 expression = "LicenseRef-Proprietary"
-license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+license-files = [{ path = "../../../LICENSE", hash = 0xc4fea1fa }]
 
 [[licenses.clarify]]
 crate = "sc-config"
 expression = "LicenseRef-Proprietary"
-license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+license-files = [{ path = "../../../LICENSE", hash = 0xc4fea1fa }]
 
 [[licenses.clarify]]
 crate = "sc-core"
 expression = "LicenseRef-Proprietary"
-license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+license-files = [{ path = "../../../LICENSE", hash = 0xc4fea1fa }]
 
 [[licenses.clarify]]
 crate = "sc-detect"
 expression = "LicenseRef-Proprietary"
-license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+license-files = [{ path = "../../../LICENSE", hash = 0xc4fea1fa }]
 
 [[licenses.clarify]]
 crate = "sc-gui"
 expression = "LicenseRef-Proprietary"
-license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+license-files = [{ path = "../../../LICENSE", hash = 0xc4fea1fa }]
 
 [[licenses.clarify]]
 crate = "sc-geo"
 expression = "LicenseRef-Proprietary"
-license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+license-files = [{ path = "../../../LICENSE", hash = 0xc4fea1fa }]
 
 [[licenses.clarify]]
 crate = "sc-sync"
 expression = "LicenseRef-Proprietary"
-license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+license-files = [{ path = "../../../LICENSE", hash = 0xc4fea1fa }]
 
 [[licenses.clarify]]
 crate = "sc-telemetry"
 expression = "LicenseRef-Proprietary"
-license-files = [{ path = "../../../LICENSE", hash = 0xd2797b10 }]
+license-files = [{ path = "../../../LICENSE", hash = 0xc4fea1fa }]
