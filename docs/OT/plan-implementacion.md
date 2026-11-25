@@ -204,15 +204,19 @@ Resuelve las dos ambigüedades detectadas en la base y en el código. Detalle en
 
 ### E2.0 — Spike de firmas (pendiente; aprobación ya otorgada)
 
-- **Alcance:** 4 fixtures binarios mínimos (Modbus, S7comm, DNP3 con CRC válido e
-  inválido, IEC-104) y un test que verifica los offsets de las firmas corregidas.
+- **Alcance:** 5 archivos binarios mínimos que cubren los 4 protocolos: Modbus TCP,
+  S7comm, IEC-104 y DNP3 con dos archivos (CRC válido y CRC roto); más un test que
+  verifica los offsets de las firmas corregidas. DNP3 cuenta dos veces porque el CRC
+  inválido debe dar `reject`, no `probable`: es el caso que valida el validador fuerte.
 - **Archivos:** `agent/crates/sc-core/tests/ot_signatures.rs` (o el módulo que
-  corresponda) + fixtures.
+  corresponda) + los 5 fixtures en `agent/fixtures/ot/`.
 - **Depende de:** E0 (firmas corregidas escritas); aprobación de M6 **otorgada el
   2026-11-25** con F1 OT en allowlist.
-- **Hecho:** los 4 protocolos clasifican según la tabla normativa M4 del diseño;
-  el resultado alimenta el checkpoint E2.0/E2.
-- **Verificación:** `cd agent && cargo test -p sc-core ot_signatures`.
+- **Hecho:** los 5 archivos clasifican según la tabla normativa M4 del diseño (4
+  protocolos; el DNP3 con CRC roto da `reject`), el test reporta 5/5 y el resultado
+  alimenta el checkpoint E2.0/E2.
+- **Verificación:** `cd agent && cargo test -p sc-core ot_signatures` →
+  `test result: ok`; 5/5 archivos, 4/4 protocolos, 0 fallos.
 - **Aborto:** si 2 o más protocolos no alcanzan la tabla, M6 vuelve a diseño y **no**
   se escribe contrato. Se registra en la bitácora.
 

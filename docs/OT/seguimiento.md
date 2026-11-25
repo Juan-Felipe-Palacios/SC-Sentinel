@@ -16,7 +16,7 @@ su nombre y no se da por resuelto (AGENTS.md §4.7).
 | E0 | Aplicar las 10 correcciones al diseño y escribir las secciones OT de `reference/` | — | `hecho` | Diff revisado contra §3 del plan, punto por punto | 10/10 por grep: 0 restos de `cap 4 KB`, `4096 B` y `8×512`; `CREATE TABLE ot_assets` en `:531`; migración en `:606`; `0x2B` y `"v": 1` sin coincidencias | 2026-11-25 · Buffy |
 | E1 | ADR-0021 (retención OT), ADR-0022 (invariante pasivo) y runbook de cleanup | — | `hecho` | ADRs con número libre (0021/0022) y runbook nombrando la tabla | `ls docs/adr \| tail -3` → `0021-ot-assets-retention-exception.md`, `0022-passive-invariant.md`; runbook `:13-31` con tabla, poda y baja de dispositivo; índice con 22 ADRs | 2026-11-25 · Buffy |
 | E1.5 | Ledger único (`sc_schema_migrations`) y patrón de escritura documentado | — | `hecho` | `drizzle.config.ts` con `out` separado, checker sin drift, runbook y patrón documentados | `node scripts/verify-migration-ledger.mjs --env-file web/.env.local` → `archivos: 17; ledger: 17; drizzle (dato): 13; sin drift` (exit 0); `node --check` exit 0; `tsc --noEmit` exit 0; runbook con «Ledger único y prohibición de `drizzle-kit`»; `node scripts/test-migration-ledger.mjs` → 5/5 | 2026-11-25 · Buffy |
-| E2.0 | Spike de firmas: 4 fixtures binarios y test de offsets | E0 | `pendiente` | Los 4 protocolos clasifican según la tabla normativa M4 | Aprobación M6 2026-11-25 (`backlog:49`); F1 OT en allowlist; sin iniciar | 2026-11-25 · Buffy |
+| E2.0 | Spike de firmas: 5 archivos binarios (4 protocolos) y test de offsets | E0 | `pendiente` | Los 5 archivos clasifican según la tabla M4 (4 protocolos; DNP3 CRC roto = `reject`) | Aprobación M6 2026-11-25 (`backlog:49`); F1 OT en allowlist; sin iniciar | 2026-11-25 · Buffy |
 | E2 | Contrato `ot` en schema + Zod + serde + fixtures (un solo cambio) | E2.0 | `bloqueado` | `verify-contracts.sh`, `validate-contracts.js` y `test-contracts-zod.mjs` verdes | Bloqueada por E2.0; checkpoint E2.0/E2 pendiente | 2026-11-25 · Buffy |
 | E3 | Migración `0017_ot-assets.sql` y `web/lib/ot/` (upsert condicional) | E2, E1 | `bloqueado` | `--dry-run` correcto + tests de retención, conteo y reaplicación | — | — |
 | E4 | Crate `sc-ot`: 4 parsers puros, peek LRU 4096, alineación 0–7 | E2 | `bloqueado` | Fuzz no-panic + property test de CRC DNP3 | — | — |
@@ -43,7 +43,7 @@ siguen bloqueadas.
 
 | Verificación | Comando exacto | Evidencia en el tablero |
 |---|---|---|
-| Firmas | `cd agent && cargo test -p sc-core ot_signatures` | `test result: ok`; 4/4 protocolos, 0 fallos; salida cruda y exit code |
+| Firmas | `cd agent && cargo test -p sc-core ot_signatures` | `test result: ok`; 5/5 archivos, 4/4 protocolos, 0 fallos; salida cruda y exit code |
 | Gate de contratos | `bash scripts/verify-contracts.sh` | `Contratos OK (Rust + JSON Schema + Zod).`; exit 0 |
 | JSON Schema | `node scripts/validate-contracts.js` | `Contratos OK.`, sin `FAIL:`, exit 0 |
 | Zod | `cd web && node --experimental-strip-types ../scripts/test-contracts-zod.mjs` | `# fail 0`; exit 0 |
@@ -72,6 +72,18 @@ Si una etapa bloqueada se desbloquea, vuelve a `pendiente` con nota de quién
 levantó el bloqueo y cuándo.
 
 ## Bitácora
+
+### 2026-11-25 · Plan · E2.0 · conteo de fixtures
+
+- **Qué se hizo:** aclarado el conteo de E2.0: son 5 archivos binarios para 4
+  protocolos, porque DNP3 lleva dos (CRC válido y CRC roto). Alcance, criterio de
+  hecho y evidencia quedaron con el mismo número: «5/5 archivos, 4/4 protocolos».
+- **Comando ejecutado:** `grep -n -i "fixture" docs/OT/plan-implementacion.md docs/OT/seguimiento.md`; edición con `str_replace` sobre ambos archivos.
+- **Salida:** `plan-implementacion.md:207-216` y la fila E2.0 del tablero dicen 5
+  archivos / 4 protocolos; la fila Firmas del checkpoint exige 5/5. La cobertura
+  sigue siendo 4 protocolos y el aborto (2 o más fuera de tabla) no cambia.
+- **Qué quedó pendiente:** implementar E2.0 (sigue `pendiente`); los 5 `.bin` y el
+  test no existen todavía.
 
 ### 2026-11-25 · Seguimiento · Buffy
 
