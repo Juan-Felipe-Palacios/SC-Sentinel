@@ -320,6 +320,8 @@ Una tarea se considera terminada cuando:
 | P8 | Fuente del webhook de seguridad | Agente / nube | Pendiente del propietario. |
 | P9 | Tope del spool | 1.008 / 10.080 ventanas | 10.080 (7 días). |
 | P10 | Drenaje final en despliegue | Advertencia / forzar sync | Advertencia (§2.6). |
+| P11 | Licencia de las capturas DEFCON ICS CTF (OQ5 de M6) | usar / no usar | Pendiente del propietario. Sin licencia verificada, sólo pcaps sintéticos propios. |
+| P12 | Piso de producción del plan Neon (OQ6 de M6) | Hobby / Launch (~$19/mes) | Pendiente del propietario. |
 
 ## 11. Fuera de alcance
 

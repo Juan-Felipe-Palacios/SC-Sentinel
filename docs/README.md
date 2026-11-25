@@ -17,6 +17,7 @@
 | `architecture/` | C4 overview (L1–L3), data-flow (DFD), decisiones (atajo a `adr/`), bootstrap | spec §3, §17 |
 | `designs/` | Diseños técnicos: batch-ingest (SYNC-30), installers, m6-passive-ot-identification, neon-query-performance, windows-installer + Stage 0 de sc-gui (con informe de cierre) | spec §3 |
 | `plans/` | Backlog único de Etapa 2 (P0 de stall + hito Fase 1) | planificación |
+| `OT/` | Ejecución del milestone M6: plan por etapas (E0–E10), tablero de seguimiento y protocolo para agentes | planificación |
 | `evidence/` | Evidencia de cierre por hito: diarios, métricas derivadas y tickets. Los `.log` crudos no se versionan | §7.8 |
 | `roadmap.md` | Roadmap y decisiones del propietario (SYNC-30, webhooks) | planificación |
 | `operations/` | deployment, alert-lifecycle, slo, observability (complementan `runbooks/`) | spec §8, §9, §12 |

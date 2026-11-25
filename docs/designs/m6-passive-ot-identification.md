@@ -1,8 +1,9 @@
 # M6 — Identificación Pasiva de Protocolos OT (F1)
 
 **Author:** SC-Sentinel Team
-**Status:** Draft (post-review: 22 fixes applied from goldfish_review_report.md)
+**Status:** Draft — correcciones de E0 aplicadas 2026-11-25; milestone **no aprobado** (`docs/plans/etapa-2-backlog.md:49`)
 **Date:** 2026-11-24
+**Última corrección:** 2026-11-25 (etapa E0; detalle y motivo en `docs/OT/plan-implementacion.md` §3)
 **Source:** concepts_brief.md (Priority 1 intake)
 
 ---
@@ -40,7 +41,7 @@ La matriz de conexiones actual etiqueta servicios por puerto (443→HTTPS, 5432�
 | G6 | Privacidad preservada | Vendor enum cerrado; evidence unión discriminada cerrada; sin strings libres ni MAC completa (solo OUI 3 B); Clase C no sale del nodo |
 | G7 | Demo sintética demostrable y honesta | Flujo Modbus sintético ejercita el contrato Zod; disclaimers "sintético"; changelog no afirma capacidad de agente antes de embarque |
 | G8 | Sensor Linux con degradación controlada | Artefacto nuevo `--features sc-capture/live`; modo `both` se mantiene (M3); sin libpcap → degrada a colector con flag en `/status`; Npcap no se bundlea sin OEM (M7) |
-| G9 | Presupuesto de rendimiento | Fuzz no-panic en clasificación y contabilidad; p95 ingest increase ≤ max(10% of baseline p95, 5 ms), medido en branch Neon con EXPLAIN ANALYZE + pg_stat_statements; cap 4 KB, events última prioridad de drop |
+| G9 | Presupuesto de rendimiento | Fuzz no-panic en clasificación y contabilidad; p95 ingest increase ≤ max(10% of baseline p95, 5 ms), medido en branch Neon con EXPLAIN ANALYZE + pg_stat_statements; cap 8 KB (ver §Truncation), events última prioridad de drop |
 
 ## Non-Goals
 
@@ -57,7 +58,7 @@ La matriz de conexiones actual etiqueta servicios por puerto (443→HTTPS, 5432�
 
 ### Resueltas
 - OQ1: MQTT diferido a F2. sc-ot F1 implementa 4 protocolos. Extensión en F1.5 si esfuerzo permite.
-- OQ4: Cap 16 endpoints (cubre p95 de plantas Modbus single-master). Configurable via `ot_max_endpoints` (rango 4–64). Si se excede, truncar por bytes desc y set truncated=true. Re-evaluar con capturas reales en F2.
+- OQ4: Cap 16 endpoints (cubre p95 de plantas Modbus single-master). Configurable via `ot_max_endpoints` (rango 4–64). Si se excede, truncar por bytes desc y set truncated=true. El tope efectivo es el presupuesto de 8 KiB de §Truncation: un valor alto de `ot_max_endpoints` se recorta por bytes, no por conteo. Re-evaluar con capturas reales en F2.
 - OQ7: `zone` (Purdue) = texto libre con cap 64 chars en F1 (sin enum). Enum diferido a F3. Validación de longitud en Zod + serde.
 
 ### Movidas a roadmap (docs/roadmap.md)
@@ -118,25 +119,24 @@ sc-ot (funciones puras sobre &[u8], cero allocs hot path)
   ▼
 sc-detect (reglas OT, baseline local SQLite spool)
   │  Per-protocol rule matrix:
-  │    Modbus TCP: ot_new_master, ot_write_outside_hours, ot_program_download,
-  │                ot_cpu_state_change, ot_ot_in_it_zone
+  │    Modbus TCP: ot_new_master, ot_write_outside_hours, ot_it_zone_crossing
   │    S7comm:     ot_new_master, ot_write_outside_hours, ot_program_download,
-  │                ot_cpu_state_change, ot_ot_in_it_zone
-  │    DNP3:       ot_new_master, ot_ot_in_it_zone (F1; resto en F2)
-  │    IEC-104:    ot_new_master, ot_write_outside_hours, ot_ot_in_it_zone
+  │                ot_cpu_state_change, ot_it_zone_crossing
+  │    DNP3:       ot_new_master, ot_it_zone_crossing (F1; resto en F2)
+  │    IEC-104:    ot_new_master, ot_write_outside_hours, ot_it_zone_crossing
   │  Baseline: learning 7d → armed (reloj monotónico + ventanas observadas)
   │  Anti-storm: mismo rule+pair con alerta abierta → collapse
   │
   ▼
 sc-aggregate (WindowSnapshot v1 + bloque ot opcional)
-  │  Cap 4 KB: events (última prioridad de drop) → protocols → endpoints
+  │  Cap 8 KB: events (última prioridad de drop) → protocols → endpoints
   │  truncated: true si algo se drop
   │  OtBlock { engine, capture_mode, baseline_instance?, protocols≤6,
   │            endpoints≤16, events≤8, truncated }
   │
   ▼
 sc-sync (gzip, TLS 1.3, rate limit 60/min)
-  │  POST /api/ingest (body +4 KB absorbido)
+  │  POST /api/ingest (body +8 KB absorbido)
   │
   ▼
 /api/ingest (dos pasadas)
@@ -166,7 +166,7 @@ Dashboard (Next.js + Neon Postgres)
 
 ```jsonc
 {
-  "v": 1,
+  // `v` viaja en el envelope de ingest, no en el snapshot (additionalProperties:false).
   "window_start": 1764000000,
   "window_end": 1764000030,
   "top_hosts": [],
@@ -243,7 +243,8 @@ Dashboard (Next.js + Neon Postgres)
 - offset 0: start == 0x68
 - offset 1: APDU length 4 ≤ L ≤ 253
 - offset 2-5: control fields
-  - U-frame: L == 4 y byte 2 ∈ {0x07, 0x13, 0x2B, 0x0B, 0x43, 0x83}
+  - U-frame: L == 4 y byte 2 ∈ {0x07, 0x0B, 0x13, 0x23, 0x43, 0x83}
+    (STARTDT act/con, STOPDT act/con, TESTFR act/con)
   - S-frame: byte 2 == 0x01, byte 3 == 0x00
   - I-frame: LSB de byte 2 == 0
 - I-frame → ASDU en offset 6: type ID. Comandos: types 45-64 y 100-107 (C_SC, C_SE, C_IC interrogación, C_CS clock…). COT 6 = activación.
@@ -269,9 +270,23 @@ DNP3 es el caso clave: CRC inválido no degrada a probable, descarta. El CRC es 
 
 ### Truncation (M1)
 
+El presupuesto del bloque es **8192 B**. El peor caso se calcula con los topes, no con
+un valor por evento aislado:
+
+| Componente | Tope | Bytes máx/unidad | Peor caso |
+|---|---|---|---|
+| `events` | 8 | 384 | 3072 |
+| `protocols` | 6 | 160 | 960 |
+| `endpoints` | 16 | 200 | 3200 |
+| Envoltorio (`engine`, `capture_mode`, `baseline_instance`, `truncated`) | — | — | 160 |
+| **Total** | | | **7392** ≤ 8192 |
+
+Un endpoint llega a 200 B porque `host` puede ser una IPv6 en claro (45 caracteres)
+cuando `anonymize_hosts=false`; con HMAC son 16 hex.
+
 - Events tienen la mayor prioridad de drop (últimos en caer); máximo 8 retenidos por ventana. Overflow incrementa `ot_events_overflow_total` y setea `truncated: true`.
-- Cap por evento: 512 B (evidence cerrada, 8×512 = 4 KB peor caso).
-- Orden de llenado: events → protocols (bytes desc) → endpoints (bytes desc) hasta 4096 B.
+- Cap por evento: 384 B (techo del validador; el presupuesto se consume por bytes medidos, no por 8×tope).
+- Orden de llenado: events → protocols (bytes desc) → endpoints (bytes desc) hasta 8192 B.
 - `truncated: true` si algo se drop.
 - Drop order (least important first): endpoints, then protocols, then events.
 
@@ -291,7 +306,7 @@ DNP3 es el caso clave: CRC inválido no degrada a probable, descarta. El CRC es 
 
 Tabla persistente, excluida del cleanup 7/15/30 d. Stale derivado >30 d (sin UPDATE diario). Purge manual + auto opt-in >180 d.
 
-Columnas: id, device_id (FK), host_key, identity_kind (ip|hmac), first_seen, last_seen, seen_windows, role (master|slave|both|unknown), protocols (JSONB cap 8), vendor (enum cerrado, Appendix A), vendor_source (oui|s7_tsap|manual; modbus_devid en F2), oui_prefix (3 B), model_hint, zone (texto libre, cap 64 chars), label, baseline_state (learning|armed|disabled), baseline_instance (UUID), baseline_epoch (u32), baseline_since (TIMESTAMPTZ), desired_baseline_state, desired_at, desired_by, intent_applied_at, peers (JSONB cap 64), risk_flags (JSONB). UNIQUE(device_id, host_key). Index solo (device_id, last_seen DESC). fillfactor=80.
+Columnas (24): id, device_id (FK), host_key, first_seen, last_seen, seen_windows, role (client|server|both|unknown: agregado de `OtRole` —Appendix A—; `both` si el host inicia y responde), protocols (JSONB cap 6, el mismo tope del bloque `ot`), vendor (enum cerrado, Appendix A), vendor_source (oui|s7_tsap|manual; modbus_devid en F2), oui_prefix (3 B), model_hint, zone (texto libre, cap 64 chars), label, baseline_state (learning|armed|disabled), baseline_instance (UUID), baseline_epoch (u32), baseline_since (TIMESTAMPTZ), desired_baseline_state, desired_at, desired_by, intent_applied_at, peers (JSONB cap 64), risk_flags (JSONB). UNIQUE(device_id, host_key). Index solo (device_id, last_seen DESC). fillfactor=80.
 
 Upsert (M6): 1 SELECT + 1 upsert multi-row + 1 insert batch alertas = ≤3 statements. Merge en TS: confianza monótona (max), unión de puertos, vendor manual gana, risk_flags sticky, espejo baseline por (instance, epoch, window_end) lexicográfico. Condición de apply: window_end_clamped − last_seen ≥ 300 s o cambio semántico {role, protocols/confianza/puertos, vendor, risk_flags, baseline_state/epoch}. first_seen = LEAST(window_end, server_now+120s) (clamp M1). seen_windows +1 solo en apply.
 
@@ -305,7 +320,7 @@ Intención diferida: dashboard PATCH → desired_baseline_state → downlink en 
 
 ### Host identity (hashing)
 
-host_key = primeros 16 hex chars de HMAC-SHA256(device_key, ip) cuando anonymize_hosts está activo; IP en claro cuando no. identity_kind = "hmac" o "ip" respectivamente. Derivación idéntica en agente y almacenada verbatim por servidor; sin re-derivación server-side. Rotación de clave HMAC → nuevas identidades, sin reconciliación (D10). oui_prefix = primeros 3 bytes del OUI de la MAC (cuando visible en el segmento), nunca la MAC completa.
+host_key = primeros 16 hex chars de HMAC-SHA256(device_key, ip) **siempre**, en ambos modos de `anonymize_hosts` (B-029, `docs/plans/etapa-2-backlog.md:65`). No hay columna `identity_kind`: con B-029 sería estado muerto. `ip_display` es un campo aparte, poblado sólo cuando `anonymize_hosts` está inactivo y con retención de 7 días. Derivación idéntica en agente y almacenada verbatim por servidor; sin re-derivación server-side. Rotación de clave HMAC → nuevas identidades, sin reconciliación (D10). oui_prefix = primeros 3 bytes del OUI de la MAC (cuando visible en el segmento), nunca la MAC completa.
 
 ### Licencias (M7)
 
@@ -370,7 +385,7 @@ ot_segment_cidrs = []  # vacío = todas las interfaces
 ## Non-Functional Requirements
 
 - **Security & Privacy**: Clase C (payload) nunca sale del nodo. Vendor enum cerrado. Evidence unión discriminada cerrada. Sin strings libres ni MAC completa. SSRF: zone con cap 64 chars, model_hint con cap, label con cap. Parameterized queries (Drizzle).
-- **Performance**: p95 ingest increase ≤ max(10% of baseline p95, 5 ms), medido en branch Neon con EXPLAIN ANALYZE + pg_stat_statements, baseline = mediana de 5 runs sobre código sin modificar. Cap 4 KB. Events última prioridad de drop. Fuzz no-panic. CPU ≤ 5% de un core en hot path. Watchdog de CPU/memoria.
+- **Performance**: p95 ingest increase ≤ max(10% of baseline p95, 5 ms), medido en branch Neon con EXPLAIN ANALYZE + pg_stat_statements, baseline = mediana de 5 runs sobre código sin modificar. Cap 8 KB. Events última prioridad de drop. Fuzz no-panic. CPU ≤ 5% de un core en hot path. Watchdog de CPU/memoria.
 - **Rollout & Rollback**: Server-first deploy (Zod/schema antes de agentes). Rollback = redeploy Zod anterior + `ot` sigue opcional. Feature flag del agente apagado por default hasta confirmar. Golden fixture 0.1.8 sin `ot` como test de regresión permanente.
 - **Observability**: Counter `ot_validation_failures_total{reason}`. CU-h watchdog al 80% del budget mensual. `/status` con `ot_engine` (confirmed|port_only). Drop counters existentes.
 
@@ -425,7 +440,14 @@ ot_segment_cidrs = []  # vacío = todas las interfaces
 - `ot_write_outside_hours`: `{ fn_codes: number[], hour: number, schedule: string }`
 - `ot_program_download`: `{ function: number, block: string }` (F2 para DNP3)
 - `ot_cpu_state_change`: `{ command: number }` (F2 para DNP3)
-- `ot_ot_in_it_zone`: `{ src_zone: string, dst_zone: string }`
+- `ot_it_zone_crossing`: `{ src_zone: string, dst_zone: string }`
+  (antes `ot_ot_in_it_zone`; renombre por defecto pendiente de confirmación del propietario)
+
+**Mapeo al contrato de alertas.** `Alert.evidence` es `Record<string,string>` con 1–32
+claves y valor ≤128 caracteres: arrays → lista separada por comas (`"3,16"`), números →
+decimal, strings sin recortes. La unión por regla se valida en Zod (`OtEvidence`) y serde;
+el JSON Schema la declara plana (`rule` + claves opcionales) porque
+`scripts/validate-contracts.js` no implementa `oneOf`.
 
 ### Markers & references
 
@@ -481,7 +503,7 @@ ot_segment_cidrs = []  # vacío = todas las interfaces
 
 | Constant | Value | Rationale | Source |
 |---|---|---|---|
-| ot block cap | 4 KB | top_asns precedent + gzip budget; absorbible by /api/ingest body limit | concepts_brief.md Spec 1 |
+| ot block cap | 8 KB | top_asns precedent + gzip budget; peor caso calculado 7392 B; absorbible by /api/ingest body limit (512 KiB) | concepts_brief.md Spec 1 + E0 |
 | LRU flow cache | 4096 | TemplateCache capacity precedent; covers p99 of single-segment flows | sc-collector TemplateCache |
 | Peek bytes | 64–256 B | MBAP (7) + PDU (max 254) fits in 256; 64 for S7/IEC-104 headers | Spec 1 §1.2 |
 | Peek attempts | 2 per direction | Tolerate TCP segmentation (1 full + 1 partial) | Spec 1 §1.2 |
@@ -490,15 +512,62 @@ ot_segment_cidrs = []  # vacío = todas las interfaces
 | Auto-purge | 180 days (opt-in) | Compliance retention; manual default for safety | Spec 2 |
 | Learning period | 7 days | Baseline convergence for weekly OT cycles | concepts_brief.md D3 |
 | Arming threshold | 100 observed windows | Prevents arming on sparse data | This doc (Issue 1 fix) |
-| Endpoint cap | 16 | Covers p95 single-master Modbus plants; configurable 4–64 | OQ4 resolved |
+| Endpoint cap | 16 | Covers p95 single-master Modbus plants; configurable 4–64, acotado por el presupuesto de 8 KiB | OQ4 |
 | Protocol cap | 6 | Single plant rarely exceeds 3-4 protocols | Spec 1 |
 | Event cap | 8 | Last-to-drop priority; overflow counted | Issue 8 fix |
-| Event size cap | 512 B | Evidence closed enum; 8×512 = 4 KB worst case | M1 |
+| Event size cap | 384 B | Evidence cerrada; 8×384 = 3072 B, deja 8192 − 7392 = 800 B de margen | M1 + E0 |
 | OUI prefix | 3 bytes | IEEE 802 OUI; never full MAC | G6 |
 | Peers cap | 64 | Single master's slave list; bounded | Spec 2 |
 | fillfactor | 80 | Reduce non-HOT updates on last_seen | M6 |
 | CU-h watchdog | 80% | Alert before monthly budget exhaustion | C2 |
 | CPU target | ≤5% one core | Hot-path budget for capture + peek + aggregation | D9 |
+
+## Appendix B — DDL de `ot_assets`
+
+Sin `identity_kind` (B-029): 24 columnas. La tabla queda **fuera** del mapa cerrado
+`RETENTION_DAYS` (`web/lib/cleanup/retention.ts`) y su poda es propia (ADR-0021).
+
+```sql
+CREATE TABLE ot_assets (
+  id                      text PRIMARY KEY,
+  device_id               text NOT NULL REFERENCES devices(id),
+  host_key                text NOT NULL CHECK (char_length(host_key) BETWEEN 8 AND 64),
+  first_seen              timestamptz NOT NULL,
+  last_seen               timestamptz NOT NULL,
+  seen_windows            bigint NOT NULL DEFAULT 0,
+  role                    text NOT NULL DEFAULT 'unknown'
+                          CHECK (role IN ('client','server','both','unknown')),
+  protocols               jsonb NOT NULL DEFAULT '[]'::jsonb
+                          CHECK (jsonb_typeof(protocols) = 'array'
+                                 AND jsonb_array_length(protocols) <= 6),
+  vendor                  text NOT NULL DEFAULT 'unknown'
+                          CHECK (vendor IN ('siemens','rockwell','schneider','abb','moxa','unknown')),
+  vendor_source           text NOT NULL DEFAULT 'manual'
+                          CHECK (vendor_source IN ('oui','s7_tsap','manual')),
+  oui_prefix              bytea CHECK (oui_prefix IS NULL OR octet_length(oui_prefix) = 3),
+  model_hint              text CHECK (model_hint IS NULL OR char_length(model_hint) <= 64),
+  zone                    text CHECK (zone IS NULL OR char_length(zone) <= 64),
+  label                   text CHECK (label IS NULL OR char_length(label) <= 64),
+  baseline_state          text NOT NULL DEFAULT 'learning'
+                          CHECK (baseline_state IN ('learning','armed','disabled')),
+  baseline_instance       uuid,
+  baseline_epoch          integer,
+  baseline_since          timestamptz,
+  desired_baseline_state  text
+                          CHECK (desired_baseline_state IS NULL
+                                 OR desired_baseline_state IN ('learning','armed','disabled')),
+  desired_at              timestamptz,
+  desired_by              text,
+  intent_applied_at       timestamptz,
+  peers                   jsonb NOT NULL DEFAULT '[]'::jsonb
+                          CHECK (jsonb_typeof(peers) = 'array'
+                                 AND jsonb_array_length(peers) <= 64),
+  risk_flags              jsonb NOT NULL DEFAULT '[]'::jsonb,
+  UNIQUE (device_id, host_key)
+) WITH (fillfactor = 80);
+
+CREATE INDEX ot_assets_device_last_seen_idx ON ot_assets (device_id, last_seen DESC);
+```
 
 ## Detailed Implementation Plan
 
@@ -527,17 +596,17 @@ ot_segment_cidrs = []  # vacío = todas las interfaces
 #### 5. `web/app/api/ingest/route.ts` (Modify)
 
 - **Type / Scope**: API route.
-- **Proposed Changes**: Dos pasadas de validación. Server-side confidence ceiling (capture_mode == "collector" → downgrade confirmed to hint). Upsert condicional `ot_assets`. Insert batch alertas con dedup R4. Downlink de intents en respuesta. Body-limit verificación +4 KB.
+- **Proposed Changes**: Dos pasadas de validación. Server-side confidence ceiling (capture_mode == "collector" → downgrade confirmed to hint). Upsert condicional `ot_assets`. Insert batch alertas con dedup R4. Downlink de intents en respuesta. Body-limit verificación +8 KB.
 
 #### 6. `web/lib/ot/` (Create — nuevo módulo)
 
 - **Type / Scope**: TypeScript module.
 - **Proposed Changes**: `upsertOtAssets(deviceId, windowEnd, assets[])`. Pure `shouldUpsert(existing, incoming, windowEnd)` predicate con unit tests. Merge en TS. fillfactor=80 en migración.
 
-#### 7. `web/db/migrations/` (Create — migración ot_assets)
+#### 7. `web/lib/db/migrations/0017_ot-assets.sql` (Create — migración ot_assets)
 
-- **Type / Scope**: Drizzle migration.
-- **Proposed Changes**: CREATE TABLE ot_assets (schema completo, Appendix A). Index (device_id, last_seen DESC). fillfactor=80. Exclusión del cron de cleanup (comentario en migración). ADR-0021 referenciado.
+- **Type / Scope**: migración SQL del runner `scripts/apply-migrations.mjs` (no `drizzle-kit`).
+- **Proposed Changes**: `CREATE TABLE ot_assets` (DDL completo en **Appendix B**). Index (device_id, last_seen DESC). fillfactor=80. Exclusión del cron de cleanup (comentario en la migración). ADR-0021 referenciado.
 
 #### 8. `agent/crates/sc-capture/` (Modify)
 
@@ -586,4 +655,5 @@ ot_segment_cidrs = []  # vacío = todas las interfaces
 
 ---
 
-*Drafted with EGM — 22 fixes applied from goldfish_review_report.md (Stage 7 Critic Review)*
+*Borrador con EGM. Correcciones de E0 aplicadas 2026-11-25; el detalle, el motivo y el estado de
+cada una están en `docs/OT/plan-implementacion.md` §3 y el avance en `docs/OT/seguimiento.md`.*
