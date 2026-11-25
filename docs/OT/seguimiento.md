@@ -16,7 +16,7 @@ su nombre y no se da por resuelto (AGENTS.md §4.7).
 | E0 | Aplicar las 10 correcciones al diseño y escribir las secciones OT de `reference/` | — | `hecho` | Diff revisado contra §3 del plan, punto por punto | 10/10 por grep: 0 restos de `cap 4 KB`, `4096 B` y `8×512`; `CREATE TABLE ot_assets` en `:531`; migración en `:606`; `0x2B` y `"v": 1` sin coincidencias | 2026-11-25 · Buffy |
 | E1 | ADR-0021 (retención OT), ADR-0022 (invariante pasivo) y runbook de cleanup | — | `hecho` | ADRs con número libre (0021/0022) y runbook nombrando la tabla | `ls docs/adr \| tail -3` → `0021-ot-assets-retention-exception.md`, `0022-passive-invariant.md`; runbook `:13-31` con tabla, poda y baja de dispositivo; índice con 22 ADRs | 2026-11-25 · Buffy |
 | E1.5 | Ledger único (`sc_schema_migrations`) y patrón de escritura documentado | — | `hecho` | `drizzle.config.ts` con `out` separado, checker sin drift, runbook y patrón documentados | `node scripts/verify-migration-ledger.mjs --env-file web/.env.local` → `archivos: 17; ledger: 17; drizzle (dato): 13; sin drift` (exit 0); `node --check` exit 0; `tsc --noEmit` exit 0; runbook con «Ledger único y prohibición de `drizzle-kit`»; `node scripts/test-migration-ledger.mjs` → 5/5 | 2026-11-25 · Buffy |
-| E2.0 | Spike de firmas: 5 archivos binarios (4 protocolos) y test de offsets | E0 | `pendiente` | Los 5 archivos clasifican según la tabla M4 (4 protocolos; DNP3 CRC roto = `reject`) | Aprobación M6 2026-11-25 (`backlog:49`); F1 OT en allowlist; sin iniciar | 2026-11-25 · Buffy |
+| E2.0 | Spike de firmas: 5 archivos binarios (4 protocolos) y test de offsets | E0 | `hecho` | Los 5 archivos clasifican según la tabla M4 (4 protocolos; DNP3 CRC roto = `reject`) | `cd agent && cargo test -p sc-core ot_signatures` → `test result: ok. 14 passed; 0 failed; 0 ignored` (1 CRC estándar + 4 positivos con offsets + 8 negativos + 1 OtBlock shape); `cargo fmt --check` OK; `cargo clippy -p sc-core --all-targets -- -D warnings` OK (0 warnings). Usuario reportó `cargo test --workspace` OK (no verificado por mí). 12 fixtures en `agent/fixtures/ot/` (4 positivos + 8 negativos: bad-pid, bad-TPKT, bad-CRC, TCP fragmentado, VLAN, GRE, retransmisión, HTTP en puerto OT); test en `agent/crates/sc-core/tests/ot_signatures.rs`. Hex de los 7 archivos de protocolo verificado contra `m6-passive-ot-identification.md:207-251` (Modbus pid 00 00, S7 TPKT+COTP, DNP3 CRC 0x953B LE, IEC-104 start 0x68). OtBlock serializa sin `baseline_instance`/`baseline_state`/`baseline_epoch`. | 2026-11-25 · Buffy |
 | E2 | Contrato `ot` en schema + Zod + serde + fixtures (un solo cambio) | E2.0 | `bloqueado` | `verify-contracts.sh`, `validate-contracts.js` y `test-contracts-zod.mjs` verdes | Bloqueada por E2.0; checkpoint E2.0/E2 pendiente | 2026-11-25 · Buffy |
 | E3 | Migración `0017_ot-assets.sql` y `web/lib/ot/` (upsert condicional) | E2, E1 | `bloqueado` | `--dry-run` correcto + tests de retención, conteo y reaplicación | — | — |
 | E4 | Crate `sc-ot`: 4 parsers puros, peek LRU 4096, alineación 0–7 | E2 | `bloqueado` | Fuzz no-panic + property test de CRC DNP3 | — | — |
@@ -205,6 +205,35 @@ levantó el bloqueo y cuándo.
 - **Qué quedó pendiente:** el renombre `ot_it_zone_crossing` quedó aplicado por defecto y
   pendiente de confirmación del propietario; E1 y E1.5 sin iniciar; E2.0–E10 bloqueadas por
   la aprobación de M6.
+
+### 2026-11-25 · E2.0 · Buffy
+
+- **Qué se hizo:** implementado el spike de firmas E2.0: 12 fixtures binarios en
+  `agent/fixtures/ot/` (4 positivos — Modbus, S7comm, DNP3 CRC-ok, IEC-104 — + 8
+  negativos: bad-pid, bad-TPKT, bad-CRC, TCP fragmentado, VLAN, GRE,
+  retransmisión, HTTP en puerto OT) y el test `agent/crates/sc-core/tests/ot_signatures.rs`
+  con 14 tests: 1 CRC estándar (0xEA82), 4 positivos con aserciones de offsets,
+  8 negativos y 1 OtBlock shape (Opción C: emisión vía `serde_json::json!` sin
+  tipado). Clasificación byte-level de Modbus/S7comm/DNP3/IEC-104 según tabla M4.
+  DNP3 con CRC roto devuelve `reject` (nunca `probable`); S7 con TPKT+COTP válidos
+  y byte 7 fuera de {0x32,0x72} devuelve `reject` (no `iso-tsap-unclassified` en
+  este spike). OtBlock se serializa sin `baseline_instance`/`baseline_state`/
+  `baseline_epoch` (recorte F1). Spike emite OtBlock sin tipado para evitar
+  dependencia circular con `types.rs` (parte de E2).
+- **Comando ejecutado:** `cd agent && cargo test -p sc-core ot_signatures`;
+  `cd agent && cargo fmt --check`; `cd agent && cargo clippy -p sc-core --all-targets -- -D warnings`;
+  verificación de hex con `xxd -p` sobre los 7 archivos de protocolo.
+- **Salida:** `test result: ok. 14 passed; 0 failed; 0 ignored` (exit 0);
+  `cargo fmt --check` exit 0 (sin diff); clippy exit 0 (0 warnings). Hex de los 7
+  archivos de protocolo coincide con la spec (Modbus pid 00 00, S7 TPKT=0x1F/
+  byte7=0x32, DNP3 CRC=0x953B LE, IEC-104 start 0x68 / L=4 / U-frame 0x07).
+  Usuario reportó `cargo test --workspace` OK (no verificado por mí en esta sesión).
+- **Qué quedó pendiente:** E2.0 cierra la etapa; el checkpoint E2.0/E2 sigue
+  pendiente porque E2 (contrato `ot`) no se inició y los gates de contrato
+  (`verify-contracts.sh`, `validate-contracts.js`, Zod) no se corrieron. E2 sigue
+  `bloqueado` por dependencia. Gates de contrato abiertos: opción A/B de
+  persistencia OT, 4→8 aristas tras medir, ADR-0023, numeración 0017 vs 0018.
+  No se commiteó aún; commit local pendiente (N1) con este cambio.
 
 Formato fijo de cada entrada (no borrar los encabezados; una entrada por etapa
 cerrada o por bloqueo nuevo):
