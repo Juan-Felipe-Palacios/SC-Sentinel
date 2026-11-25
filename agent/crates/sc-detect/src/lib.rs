@@ -899,6 +899,7 @@ mod tests {
             top_asns: Vec::new(),
             alerts: Vec::new(),
             health: health(),
+            ot: None,
         };
 
         let result = detect_and_apply(

@@ -32,6 +32,7 @@ pub fn build_snapshot(
         top_asns: accumulator.build_asns(cfg.top_asns),
         alerts: Vec::new(),
         health: health_snap,
+        ot: None,
     };
     AggregatedWindow {
         window,

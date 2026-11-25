@@ -73,6 +73,49 @@ export const AgentHealthSchema = z.object({
   last_error: z.string().max(500).nullable().optional(),
 });
 
+export const OtRoleSchema = z.enum(['client', 'server', 'both', 'unknown']);
+
+export const OtEventSchema = z.object({
+  rule: z.string().regex(/^[a-z0-9_]+$/).max(64),
+  host_key: z.string().min(8).max(64),
+  protocol: z.enum(['modbus', 's7comm', 's7comm_plus', 'dnp3', 'iec104']),
+  confidence: z.number().min(0).max(1),
+  evidence: z
+    .record(z.string(), z.string().max(128))
+    .refine(
+      (ev) => {
+        const keys = Object.keys(ev);
+        return keys.length >= 1 && keys.length <= 32;
+      },
+      { message: 'evidence must contain between 1 and 32 key-value pairs' }
+    ),
+  client: z.string().min(8).max(64),
+  server: z.string().min(8).max(64),
+});
+
+export const OtProtocolSchema = z.object({
+  name: z.string().min(1).max(32),
+  role: OtRoleSchema,
+  first_seen: z.string(),
+  last_seen: z.string(),
+});
+
+export const OtEndpointSchema = z.object({
+  host_key: z.string().min(8).max(64),
+  protocol: z.enum(['modbus', 's7comm', 's7comm_plus', 'dnp3', 'iec104']),
+  role: OtRoleSchema,
+  port: z.number().int().min(1).max(65535),
+});
+
+export const OtBlockSchema = z.object({
+  engine: z.string().min(1).max(32),
+  capture_mode: z.enum(['live', 'offline']),
+  truncated: z.boolean(),
+  events: z.array(OtEventSchema).max(8),
+  protocols: z.array(OtProtocolSchema).max(6),
+  endpoints: z.array(OtEndpointSchema).max(16),
+});
+
 export const WindowSnapshotSchema = z.object({
   top_hosts: z.array(HostStatsSchema).max(50),
   top_ports: z.array(PortStatSchema).max(50),
@@ -80,6 +123,7 @@ export const WindowSnapshotSchema = z.object({
   top_asns: z.array(AsnStatSchema).max(30).optional(),
   alerts: z.array(AlertSchema).max(50),
   health: AgentHealthSchema,
+  ot: OtBlockSchema.optional(),
 });
 
 export const DeviceIdentitySchema = z.object({

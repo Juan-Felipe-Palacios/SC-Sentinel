@@ -61,6 +61,7 @@ fn sample_envelope() -> IngestEnvelope {
             collector_flows_normalized: None,
             last_error: None,
         },
+        ot: None,
     };
     build_envelope(
         &DeviceInfo {

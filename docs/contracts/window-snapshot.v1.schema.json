@@ -94,9 +94,76 @@
     "health": {
       "type": "object",
       "$ref": "https://sc-sentinel.vercel.app/schemas/agent-health.v1.json"
+    },
+    "ot": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Bloque OT pasivo (M6). Opcional: solo presente si el agente detectó tráfico OT en la ventana. Cap 8192 B.",
+      "required": ["engine", "capture_mode", "truncated", "events", "protocols", "endpoints"],
+      "properties": {
+        "engine": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "capture_mode": { "type": "string", "enum": ["live", "offline"] },
+        "truncated": { "type": "boolean" },
+        "events": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/ot_event" }
+        },
+        "protocols": {
+          "type": "array",
+          "maxItems": 6,
+          "items": { "$ref": "#/$defs/ot_protocol" }
+        },
+        "endpoints": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/ot_endpoint" }
+        }
+      }
     }
   },
   "$defs": {
-    "counter": { "type": "integer", "minimum": 0 }
+    "counter": { "type": "integer", "minimum": 0 },
+    "ot_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule", "host_key", "protocol", "confidence", "evidence", "client", "server"],
+      "properties": {
+        "rule": { "type": "string", "pattern": "^[a-z0-9_]+$", "maxLength": 64 },
+        "host_key": { "type": "string", "minLength": 8, "maxLength": 64 },
+        "protocol": { "type": "string", "enum": ["modbus", "s7comm", "s7comm_plus", "dnp3", "iec104"] },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "evidence": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 32,
+          "additionalProperties": { "type": "string", "maxLength": 128 }
+        },
+        "client": { "type": "string", "minLength": 8, "maxLength": 64 },
+        "server": { "type": "string", "minLength": 8, "maxLength": 64 }
+      }
+    },
+    "ot_protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "role", "first_seen", "last_seen"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "role": { "type": "string", "enum": ["client", "server", "both", "unknown"] },
+        "first_seen": { "type": "string" },
+        "last_seen": { "type": "string" }
+      }
+    },
+    "ot_endpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host_key", "protocol", "role", "port"],
+      "properties": {
+        "host_key": { "type": "string", "minLength": 8, "maxLength": 64 },
+        "protocol": { "type": "string", "enum": ["modbus", "s7comm", "s7comm_plus", "dnp3", "iec104"] },
+        "role": { "type": "string", "enum": ["client", "server", "both", "unknown"] },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    }
   }
 }

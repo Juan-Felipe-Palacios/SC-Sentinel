@@ -108,6 +108,7 @@ mod tests {
                 collector_flows_normalized: None,
                 last_error: None,
             },
+            ot: None,
         };
         let device = DeviceInfo {
             id: id.to_string(),

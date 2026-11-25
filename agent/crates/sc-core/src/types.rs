@@ -189,6 +189,57 @@ pub struct AgentHealth {
 /// Snapshot agregado de una ventana (~2–10 KB JSON), espejo exacto de
 /// `docs/contracts/window-snapshot.v1.schema.json`: solo señales agregadas,
 /// jamás raw packets ni flujos individuales.
+/// Rol OT observado en una conexión (M6, ot_assets.role).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OtRole {
+    Client,
+    Server,
+    Both,
+    Unknown,
+}
+
+/// Evento OT detectado en la ventana (M6, bloque `ot.events`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OtEvent {
+    pub rule: String,
+    pub host_key: String,
+    pub protocol: String,
+    pub confidence: f64,
+    pub evidence: BTreeMap<String, String>,
+    pub client: String,
+    pub server: String,
+}
+
+/// Protocolo OT observado en la ventana (M6, bloque `ot.protocols`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OtProtocol {
+    pub name: String,
+    pub role: OtRole,
+    pub first_seen: String,
+    pub last_seen: String,
+}
+
+/// Endpoint OT observado en la ventana (M6, bloque `ot.endpoints`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OtEndpoint {
+    pub host_key: String,
+    pub protocol: String,
+    pub role: OtRole,
+    pub port: u16,
+}
+
+/// Bloque OT pasivo (M6, campo `ot` de WindowSnapshot). Opcional.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OtBlock {
+    pub engine: String,
+    pub capture_mode: String,
+    pub truncated: bool,
+    pub events: Vec<OtEvent>,
+    pub protocols: Vec<OtProtocol>,
+    pub endpoints: Vec<OtEndpoint>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WindowSnapshot {
     pub top_hosts: Vec<HostStats>,
@@ -198,6 +249,8 @@ pub struct WindowSnapshot {
     pub top_asns: Vec<AsnStat>,
     pub alerts: Vec<Alert>,
     pub health: AgentHealth,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ot: Option<OtBlock>,
 }
 
 /// Identidad del dispositivo en el envelope de ingest (`examples/ingest-request.valid.json`).
@@ -288,6 +341,7 @@ mod tests {
             top_asns: vec![],
             alerts: vec![],
             health: sample_health(),
+            ot: None,
         }
     }
 
