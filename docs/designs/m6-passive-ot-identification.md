@@ -184,7 +184,7 @@ Dashboard (Next.js + Neon Postgres)
       "fn_codes": {"3": 480, "16": 4}  // histograma top-8
     }],
     "endpoints": [{                    // ≤16, por bytes desc
-      "host": "h_8f4b219e",           // misma derivación que top_hosts
+      "host": "0123456789abcdef0123456789abcdef", // 32 hex; misma derivación que top_hosts
       "port": 502, "proto": "modbus_tcp",
       "role": "server",               // client | server | unknown
       "confidence": "confirmed",
@@ -195,8 +195,8 @@ Dashboard (Next.js + Neon Postgres)
       "rule": "ot_new_master",
       "severity": "high",
       "proto": "modbus_tcp",
-      "client": "h_a1b2c3d4",
-      "server": "h_8f4b219e",
+      "client": "89abcdef0123456789abcdef01234567",
+      "server": "0123456789abcdef0123456789abcdef",
       "evidence": { "fn_codes": [3, 16], "allowlist_version": "2026-11-25.1" }
     }],
     "truncated": false
@@ -277,12 +277,14 @@ un valor por evento aislado:
 |---|---|---|---|
 | `events` | 8 | 384 | 3072 |
 | `protocols` | 6 | 160 | 960 |
-| `endpoints` | 16 | 200 | 3200 |
+| `endpoints` | 16 | 163 | 2608 |
 | Envoltorio (`engine`, `capture_mode`, `baseline_instance`, `truncated`) | — | — | 160 |
-| **Total** | | | **7392** ≤ 8192 |
+| **Total** | | | **6800** ≤ 8192 |
 
-Un endpoint llega a 200 B porque `host` puede ser una IPv6 en claro (45 caracteres)
-cuando `anonymize_hosts=false`; con HMAC son 16 hex.
+Un endpoint llega a 163 B con los campos del Appendix A en su máximo: `host` es la
+identidad del host de 32 hex (34 B con comillas), no una IP. `ot.endpoints` no
+publica IP; `ip_display` es un campo de `HostStats`
+(`agent/crates/sc-core/src/types.rs:53-56`) y no existe en este subesquema.
 
 - Events tienen la mayor prioridad de drop (últimos en caer); máximo 8 retenidos por ventana. Overflow incrementa `ot_events_overflow_total` y setea `truncated: true`.
 - Cap por evento: 384 B (techo del validador; el presupuesto se consume por bytes medidos, no por 8×tope).
@@ -328,7 +330,7 @@ Intención diferida: dashboard PATCH → desired_baseline_state → downlink en 
 
 ### Host identity (hashing)
 
-host_key = primeros 16 hex chars de HMAC-SHA256(device_key, ip) **siempre**, en ambos modos de `anonymize_hosts` (B-029, `docs/plans/etapa-2-backlog.md:112`). No hay columna `identity_kind`: con B-029 sería estado muerto. `ip_display` es un campo aparte, poblado sólo cuando `anonymize_hosts` está inactivo y con retención de 7 días. Derivación idéntica en agente y almacenada verbatim por servidor; sin re-derivación server-side. Rotación de clave HMAC → nuevas identidades, sin reconciliación (D10). oui_prefix = primeros 3 bytes del OUI de la MAC (cuando visible en el segmento), nunca la MAC completa.
+host_key = primeros 16 bytes (128 bits) del tag de HMAC-SHA256(device_key, ip), en 32 hex minúsculas (`format!("{key:032x}")`, `agent/crates/sc-aggregate/src/host_mark.rs:33-35`) **siempre**, en ambos modos de `anonymize_hosts` (B-029, `docs/plans/etapa-2-backlog.md:112`). No hay columna `identity_kind`: con B-029 sería estado muerto. `ip_display` es un campo aparte, poblado sólo cuando `anonymize_hosts` está inactivo y con retención de 7 días. Derivación idéntica en agente y almacenada verbatim por servidor; sin re-derivación server-side. Rotación de clave HMAC → nuevas identidades, sin reconciliación (D10). oui_prefix = primeros 3 bytes del OUI de la MAC (cuando visible en el segmento), nunca la MAC completa.
 
 ### Licencias (M7)
 
@@ -511,7 +513,7 @@ el JSON Schema la declara plana (`rule` + claves opcionales) porque
 
 | Constant | Value | Rationale | Source |
 |---|---|---|---|
-| ot block cap | 8 KB | top_asns precedent + gzip budget; peor caso calculado 7392 B; absorbible by /api/ingest body limit (512 KiB) | concepts_brief.md Spec 1 + E0 |
+| ot block cap | 8 KB | top_asns precedent + gzip budget; peor caso calculado 6800 B; absorbible by /api/ingest body limit (512 KiB) | concepts_brief.md Spec 1 + E0 |
 | LRU flow cache | 4096 | TemplateCache capacity precedent; covers p99 of single-segment flows | sc-collector TemplateCache |
 | Peek bytes | 64–256 B | MBAP (7) + PDU (max 254) fits in 256; 64 for S7/IEC-104 headers | Spec 1 §1.2 |
 | Peek attempts | 2 per direction | Tolerate TCP segmentation (1 full + 1 partial) | Spec 1 §1.2 |
@@ -523,7 +525,7 @@ el JSON Schema la declara plana (`rule` + claves opcionales) porque
 | Endpoint cap | 16 | Covers p95 single-master Modbus plants; configurable 4–64, acotado por el presupuesto de 8 KiB | OQ4 |
 | Protocol cap | 6 | Single plant rarely exceeds 3-4 protocols | Spec 1 |
 | Event cap | 8 | Last-to-drop priority; overflow counted | Issue 8 fix |
-| Event size cap | 384 B | Evidence cerrada; 8×384 = 3072 B, deja 8192 − 7392 = 800 B de margen | M1 + E0 |
+| Event size cap | 384 B | Evidence cerrada; 8×384 = 3072 B, deja 8192 − 6800 = 1392 B de margen | M1 + E0 |
 | OUI prefix | 3 bytes | IEEE 802 OUI; never full MAC | G6 |
 | Peers cap | 64 | Single master's slave list; bounded | Spec 2 |
 | fillfactor | 80 | Reduce non-HOT updates on last_seen | M6 |

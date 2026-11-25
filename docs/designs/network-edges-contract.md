@@ -3,7 +3,7 @@
 **Author:** SC-Sentinel Team
 **Status:** Borrador — no aprobado, no implementado
 **Date:** 2026-11-25
-**Revisión:** r2 (2026-11-25) — corrige identidad, presupuesto y límites tras revisión
+**Revisión:** r3 (2026-11-25) — corrige los tres defectos de M6 y refunde el presupuesto
 **Source:** `docs/OT/plan-implementacion.md` §8; gate del propietario
 
 > Documento de diseño. **No** modifica contratos, esquemas, migraciones ni código.
@@ -175,16 +175,16 @@ una IP (`host_mark.rs:21-30`).
 las aristas OT llevan `pattern: "^[0-9a-f]{32}$"`. Sin ese patrón, un agente podría
 publicar una IP en `host` y el join pasaría a depender de un valor de clase C.
 
-**Defecto de M6 que hay que corregir de paso (documental, no de contrato):**
+**Defectos de M6 detectados y corregidos en la r3 (documental, no de contrato):**
 
-| # | Dónde | Dice | Realidad |
+| # | Dónde | Decía | Queda |
 |---|---|---|---|
-| 15 | `docs/designs/m6-passive-ot-identification.md:186` | `"host": "h_8f4b219e"` (10 chars, con prefijo) | 32 hex sin prefijo (`host_mark.rs:33-35`) |
-| 16 | `docs/designs/m6-passive-ot-identification.md:331` | «primeros 16 hex chars» de HMAC | 32 hex: 16 bytes de tag (`host_mark.rs:5-11`) |
-| 17 | `docs/OT/plan-implementacion.md:284` | endpoint 200 B porque `host` puede ser IPv6 en claro | `host` es la identidad (≤34 B con comillas); la IP va en `ip_display`, campo aparte |
+| 15 | diseño M6, ejemplo del bloque `ot` (endpoints y events) | `"host": "h_8f4b219e"` (10 chars, con prefijo) | identidad de 32 hex sin prefijo |
+| 16 | diseño M6, sección «Host identity» | «primeros 16 hex chars» de HMAC | 16 bytes (128 bits) del tag, en 32 hex (`host_mark.rs:33-35`) |
+| 17 | §3.1 del plan y tabla de truncado de M6 | endpoint 200 B porque `host` puede ser IPv6 en claro | 163 B: `host` es la identidad; la IP va en `ip_display` |
 
-El punto 17 no es cosmético: sobrestima el peor caso de `endpoints` en ~37 B por
-unidad y es la razón por la que la r1 concluyó que 8 aristas OT no entraban (§5.3).
+El punto 17 no es cosmético: sobrestimaba el peor caso de `endpoints` en ~37 B por
+unidad y fue la razón por la que la r1 concluyó que 8 aristas OT no entraban (§5.2).
 
 ## 5. Presupuesto de tamaño
 
@@ -218,48 +218,35 @@ Costo del array completo, incluido `"links":` (8 B) y las comas entre elementos:
   legibilidad y costo de agregación en el agente, no de payload.
 - **OT:** 629 B para 4 aristas y 1 249 B para 8.
 
-### 5.2 Escenario conservador: peor caso de `ot` según el plan (7 392 B)
+### 5.2 Peor caso del bloque `ot` (6 800 B) y margen
 
-El peor caso documentado del bloque `ot` es 7 392 B (`docs/OT/plan-implementacion.md`
-§3.1: events 3 072 + protocols 960 + endpoints 3 200 + envoltorio 160):
+Con 16 endpoints a 163 B (§4.4), el peor caso del bloque es 6 800 B: events 3 072 +
+protocols 960 + endpoints 2 608 + envoltorio 160 (`docs/OT/plan-implementacion.md`
+§3.1, corregido en esta revisión):
 
 | Escenario | Cálculo | Resultado |
 |---|---|---|
-| `ot.links` = 4 | 7 392 + 629 = 8 021 | **≤ 8 192** (margen 171 B) |
-| `ot.links` = 6 | 7 392 + 2 + 6×154 + 5 + 8 = 8 331 | **excede** |
-| `ot.links` = 8 | 7 392 + 1 249 = 8 641 | **excede** |
+| `ot.links` = 4 | 6 800 + 629 = 7 429 | **≤ 8 192** (margen 763 B) |
+| `ot.links` = 6 | 6 800 + 939 = 7 739 | **≤ 8 192** (margen 453 B) |
+| `ot.links` = 8 | 6 800 + 1 249 = 8 049 | **≤ 8 192** (margen 143 B) |
+| `ot.links` = 10 | 6 800 + 1 559 = 8 359 | **excede por 167 B** |
 
-**Decisión del diseño:** `ot.links` se fija en **4** mientras rija la estimación
-conservadora de 200 B/endpoint. Con ese supuesto, 4 es el mayor valor seguro: 5
-aristas darían 8 176 B, un margen de 16 B que no resiste ninguna variación.
+**Decisión del diseño:** `ot.links` queda en **4** por defecto, con 8 habilitable
+(gate 3) sólo después de medir. La razón no es que 8 no entren, sino que el margen de
+143 B depende de un endpoint estimado, no medido: cada 9 B extra por endpoint lo
+consumen (16 × 9 = 144 B). El techo anterior de 200 B/endpoint dejaba 4 aristas con
+171 B de margen y 8 fuera del cap; ese escenario ya no aplica porque `host` es la
+identidad, no una IPv6.
 
 La estimación de §8 del plan (600–800 B para 8 links) queda corregida: con identidad
 de 32 hex son 1 249 B, no 984.
 
-### 5.3 Escenario con el tamaño real de endpoint: 8 aristas sí entran
+### 5.3 Sensibilidad del presupuesto
 
-`host` de endpoint es la identidad de 32 hex, no una IPv6 (§4.4). Su peor caso real:
-
-| Campo del endpoint | Bytes |
-|---|---|
-| `"host":"<32 hex>"` + comas | 42 |
-| `"port":65535` | 13 |
-| `"proto":"s7comm_plus"` | 23 |
-| `"role":"server"` | 16 |
-| `"confidence":"confirmed"` | 25 |
-| `"oui_vendor":"siemens"` | 23 |
-| `"writes":4294967295` | 19 |
-| Llaves `{}` | 2 |
-| **Total** | **163** |
-
-Con 16 endpoints a 163 B, el peor caso del bloque baja a 6 800 B (3 072 + 960 +
-2 608 + 160). Entonces `ot.links` = 8 da **8 049 B ≤ 8 192** (margen 143 B) y 4 da
-7 429 B.
-
-**Corrige el informe anterior:** la r1 afirmó que «8 aristas OT no entran en el cap
-de 8192 B». Eso vale sólo bajo la estimación de 200 B/endpoint, que el código
-desmiente. Con el tamaño real, 8 caben con 143 B de margen, y 10 no (8 049 + 310 = 8 359). La decisión entre 4 y 8 es del propietario y se toma **después** de
-medir en el paso 3 del rollout (§10), no por este cálculo.
+El margen de 8 aristas (143 B) se consume con +9 B por endpoint o con ~+5 % en el
+tamaño de evento. Por eso el paso 3 del rollout (§10) mide bytes reales por ventana
+antes de subir el cap, y el gate 3 no se resuelve con este cálculo. Si la medición
+muestra endpoints por encima de ~170 B, el cap operativo es 4 (7 429 B, margen 763).
 
 ### 5.4 Cota de memoria del agente
 
@@ -411,7 +398,6 @@ Un agente viejo contra servidor nuevo sigue funcionando: los campos son opcional
 | 4 | Retención de `network_edges` = 7 días | propietario + ADR-0023 | sí |
 | 5 | Nombre definitivo del `metric` (`topology` vs `links`) | agente | `topology` |
 | 6 | Numeración de la migración (0018 provisional) | agente al implementar | 0018 |
-| 7 | Corregir los tres defectos de M6 de §4.4 (#15, #16, #17) | propietario (es su documento aprobado) | sí, mismo PR de contrato |
 
 Ninguna se resuelve por cuenta del agente (AGENTS.md §13.7). La aprobación del
 contrato no autoriza implementar: cada etapa necesita un "dale" que la nombre.
@@ -430,6 +416,14 @@ contrato no autoriza implementar: cada etapa necesita un "dale" que la nombre.
 | §8 | sin tratamiento del rango | clamp a retención con `clamped`/`retention_days` |
 | §9 | sin tope de nodos | 40 nodos, aristas filtradas |
 | §11 | 10 pruebas | 15, con identidad, rango, nodos y `s7comm_plus` |
+
+### r3 (2026-11-25)
+
+- Corregidos los tres defectos de M6 en su diseño y en §3.1 del plan: identidad de 32
+  hex en el ejemplo del bloque `ot` (endpoints y events) y en «Host identity»;
+  endpoint de 163 B y peor caso de 6 800 B en lugar de 200 B y 7 392 B.
+- §5.2 y §5.3 refundidos en un solo escenario con el endpoint real y la sensibilidad
+  del margen. El gate 3 (4 → 8 aristas) sigue abierto hasta medir en laboratorio.
 
 ## 14. PARADA
 

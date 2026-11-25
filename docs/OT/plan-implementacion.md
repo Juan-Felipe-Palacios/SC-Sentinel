@@ -51,7 +51,7 @@ Cada fila cita el diseño original y da el valor correcto. No son preferencias: 
 
 | # | Diseño dice | Corrección | Por qué |
 |---|---|---|---|
-| 1 | Cap del bloque `ot` = 4096 B, y "512 B por evento → 8×512 = 4 KB peor caso" (`:273-274`, `:496`) | Cap **8192 B** con tabla de peor caso (§3.1) | 8 eventos de 512 B ya consumen el total; sumados protocols y endpoints el peor caso es 7392 B |
+| 1 | Cap del bloque `ot` = 4096 B, y "512 B por evento → 8×512 = 4 KB peor caso" (`:273-274`, `:496`) | Cap **8192 B** con tabla de peor caso (§3.1) | 8 eventos de 512 B ya consumen el total; sumados protocols y endpoints el peor caso es 6800 B |
 | 2 | El ítem 7 remite a "schema completo, Appendix A" (`:537-540`), pero Appendix A (`:406`) sólo tiene enums | **Appendix B** con el `CREATE TABLE` de 24 columnas y sus CHECK (§3.2) | sin DDL no hay migración posible |
 | 3 | Ruta `web/db/migrations/` (`:537`) | `web/lib/db/migrations/0017_ot-assets.sql` | `web/db/` no existe; la real es `web/lib/db/migrations/` |
 | 4 | `identity_kind (ip\|hmac)` (`:294`, `:308`) | se elimina de F1 (24 columnas) | B-029 (`docs/plans/etapa-2-backlog.md:112`) fija `host_key` como HMAC en ambos modos: la columna queda como estado muerto |
@@ -68,12 +68,14 @@ Cada fila cita el diseño original y da el valor correcto. No son preferencias: 
 |---|---|---|---|
 | `events` | 8 | 384 | 3072 |
 | `protocols` | 6 | 160 | 960 |
-| `endpoints` | 16 | 200 | 3200 |
+| `endpoints` | 16 | 163 | 2608 |
 | Envoltorio (`engine`, `capture_mode`, `baseline_instance`, `truncated`) | — | — | 160 |
-| **Total** | | | **7392** ≤ 8192 |
+| **Total** | | | **6800** ≤ 8192 |
 
-Un endpoint llega a 200 B porque `host` puede ser una IPv6 en claro (45 chars)
-cuando `anonymize_hosts=false`; con HMAC son 16 hex. El orden de llenado y de drop
+Un endpoint llega a 163 B con los campos del Appendix A en su máximo: `host` es la
+identidad del host de 32 hex (34 B con comillas), no una IP; `ip_display` es un
+campo aparte de `HostStats` (`agent/crates/sc-core/src/types.rs:53-56`) y no existe
+en `ot.endpoints`. El orden de llenado y de drop
 se mantiene: se llena events → protocols → endpoints, y se descarta en orden
 inverso (endpoints primero, events último).
 
