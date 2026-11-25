@@ -15,7 +15,7 @@
 | `contracts/` | contratos `/api/ingest` v1 y `/api/chat` v1 + 3 schemas JSON + 4 ejemplos en `examples/` | spec §5, §6 |
 | `diagrams/` | 12 mermaid en `mermaid/` + 4 drawio en `drawio/` + reglas de exports (`README.md` propio) | spec §17 |
 | `architecture/` | C4 overview (L1–L3), data-flow (DFD), decisiones (atajo a `adr/`), bootstrap | spec §3, §17 |
-| `designs/` | Diseños técnicos (borradores y specs) | spec §3 |
+| `designs/` | Diseños técnicos: batch-ingest (SYNC-30), installers, m6-passive-ot-identification, neon-query-performance, windows-installer + Stage 0 de sc-gui (con informe de cierre) | spec §3 |
 | `plans/` | Backlog único de Etapa 2 (P0 de stall + hito Fase 1) | planificación |
 | `evidence/` | Evidencia de cierre por hito: diarios, métricas derivadas y tickets. Los `.log` crudos no se versionan | §7.8 |
 | `roadmap.md` | Roadmap y decisiones del propietario (SYNC-30, webhooks) | planificación |
@@ -62,7 +62,7 @@ Módulos que sostienen estas rutas: `web/lib/export`, `web/lib/ai/metrics.ts` y 
 | superpowers/specs/ | ✅ v2.2 (consolidación IA free-tier 2026-11-08) | base |
 | superpowers/plans/ | ✅ 8 planes (M0–M5, Ruta B v1/v2) | M0–M5 |
 | adr/ | ✅ 20 ADRs (0001–0020) | M0, M3.5, M4 |
-| rfc/ | ✅ plantilla + índice (sin RFCs aún) | proceso |
+| rfc/ | ✅ plantilla + índice + 7 RFCs (0001–0007) | proceso |
 | contracts/ | ✅ v1 congelados (3 schemas + 4 ejemplos) | M0 |
 | diagrams/ | ✅ 17 fuentes (12 mermaid + 4 drawio + exports) | M0–M5 + visual docs |
 | architecture/ | ✅ C4 + DFD + atajo ADRs | visual docs |
@@ -79,9 +79,9 @@ Módulos que sostienen estas rutas: `web/lib/export`, `web/lib/ai/metrics.ts` y 
 | legal/ | ✅ 5 (2 drafts pendientes de revisión legal antes de M3) | M3 |
 | release/ | ✅ 4 | M2–M5 |
 | security/ | ✅ auditoría 2026-11-09 (altos H1–H7 y M1/M2/M5/M8 + M3/M6/M7 corregidos; M4 y L1–L5 pendientes) + plan CSP nonce (P1–P2 desplegados como Report-Only en producción; P3–P5 pendientes) | transversal |
-| designs/ | ✅ ingest por lotes (SYNC-30) + Stage 0 de sc-gui con informe de cierre | planificación |
+| designs/ | ✅ batch-ingest (SYNC-30) + installers + m6 passive OT identification + neon query performance + windows-installer + Stage 0 de sc-gui (informe de cierre) | planificación |
 | plans/ | ✅ backlog de Etapa 2 (2026-11-20): P0 de stall + Fase 1 | planificación |
 | evidence/ | ✅ Stage 0 de sc-gui: diario, métricas derivadas y ticket contingente (log crudo fuera de git) | Stage 0 |
 | roadmap.md | ✅ decisiones del propietario (2026-11-15) | planificación |
 
-**Última revisión del índice:** 2026-11-20 — añadidos `plans/` y `evidence/`; Stage 0 de sc-gui cerrado con informe; estado de CSP actualizado a Report-Only en producción.
+**Última revisión del índice:** 2026-11-25 — indexados los diseños nuevos (installers, m6-passive-ot-identification, neon-query-performance, windows-installer); conteo de RFCs actualizado (7).
