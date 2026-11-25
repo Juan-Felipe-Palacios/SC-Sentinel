@@ -328,7 +328,7 @@ Resuelve las dos ambigüedades detectadas en la base y en el código. Detalle en
   (nuevo), `web/app/api/query/route.ts`, `web/lib/schemas/query.ts`,
   `web/lib/api-types.ts`, `web/lib/demo/synthetic.ts`, tests.
 - **Depende de:** E7 (evidencia client/server), E8 (tab y estilos).
-- **Hecho:** `metric=ot_topology` responde con nodos/aristas acotados; un device sin
+- **Hecho:** `metric=topology` responde con nodos/aristas acotados; un device sin
   `ot_assets` muestra empty state; no hay IP/MAC ni aristas inventadas; build verde.
 - **Verificación:** `cd web && pnpm typecheck && pnpm lint && pnpm test && pnpm build`;
   prueba con un device sin OT y con el fixture sintético.

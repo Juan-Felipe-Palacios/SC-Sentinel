@@ -24,7 +24,7 @@ su nombre y no se da por resuelto (AGENTS.md §4.7).
 | E6 | `sc-detect`: reglas corregidas, allowlist, anti-storm | E4 | `bloqueado` | Miembro/no miembro de allowlist + anti-storm sin duplicar | — | 2026-11-25 · Buffy |
 | E7 | `/api/ingest`: dos pasadas, techo de confianza, upsert, downlink | E2, E3 | `bloqueado` | ≤3 statements extra, `EXPLAIN` sin scan nuevo, fixture 0.1.8 en 200 | — | — |
 | E8 | UI: badge de protocolo en la matriz y tab "Activos OT" | E3 | `bloqueado` | `typecheck`, `lint` y `build` verdes; la tab no muestra datos sintéticos | — | — |
-| E8.1 | Card «Mapa OT observado»: nodos + rutas alertadas | E7, E8 | `bloqueado` | `metric=ot_topology` con nodos/aristas acotados; empty state; sin IP/MAC ni aristas inventadas | — | 2026-11-25 · Buffy |
+| E8.1 | Card «Mapa OT observado»: nodos + aristas reales | E7, E8 | `bloqueado` | `metric=topology` con nodos/aristas acotados (≤40 nodos, ≤80 aristas); empty state; distingue «sin datos» de «sin aristas»; sin IP/MAC ni aristas inventadas; build verde | — | 2026-11-25 · Buffy |
 | E8.2 | Card «Mapa de exposición IT»: hosts/países/puertos, sin aristas | E8 | `bloqueado` | Top hosts/países/puertos; sin aristas; empty state; build verde | — | 2026-11-25 · Buffy |
 | E9 | Demo sintética TEST-NET con las dos cards y los dos disclaimers | E8.1, E8.2 | `bloqueado` | Badge `confirmed` y cards visibles con "Flujo Modbus sintético…" y "Evidencia sintética" | — | 2026-11-25 · Buffy |
 | E10 | Empaquetado `linux-x64-sensor` y `verify-passive.sh` en CI | E5, E6 | `bloqueado` | Dry-run del target nuevo y `verify-agent.ps1` con 15 archivos | — | — |
@@ -72,6 +72,23 @@ Si una etapa bloqueada se desbloquea, vuelve a `pendiente` con nota de quién
 levantó el bloqueo y cuándo.
 
 ## Bitácora
+
+### 2026-11-25 · Seguimiento · Buffy
+
+- **Qué se hizo:** corregida la fila de E8.1 del tablero para alinearla con el
+  diseño de aristas (`docs/designs/network-edges-contract.md` §8–§9): el alcance
+  pasó de «nodos + rutas alertadas» a «nodos + aristas reales» y el criterio de
+  `metric=ot_topology` a `metric=topology`, con cota ≤40 nodos/≤80 aristas,
+  empty state y distinción «sin datos» vs «sin aristas». El diseño fija `metric=topology`
+  con aristas reales, retención de 7 d con `clamped` y tope de render; la fila
+  anterior contradecía esa decisión.
+- **Comando ejecutado:** `grep -n "E8.1\|ot_topology\|metric=topology" docs/OT/seguimiento.md docs/designs/network-edges-contract.md docs/OT/plan-implementacion.md`; edición con `str_replace` sobre `docs/OT/seguimiento.md`.
+- **Salida:** fila E8.1 del tablero y `plan-implementacion.md:331` alineadas en
+  `metric=topology`; la inconsistencia de nombre de métrica queda cerrada. La
+  sincronización se hizo en el mismo cambio para no dejar dos fuentes divergentes.
+- **Qué quedó pendiente:** E8.1 sigue `bloqueado` por el checkpoint E2.0/E2 y por
+  los gates del contrato (§12); el alcance de aristas reales vs. rutas alertadas se
+  afina cuando se apruebe el contrato (§8–§9 del diseño).
 
 ### 2026-11-25 · Plan · cards de red IT/OT
 
