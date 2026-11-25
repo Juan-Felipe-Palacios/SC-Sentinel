@@ -488,4 +488,6 @@ Para una topología real se necesita un cambio de contrato aparte:
 **Gate:** decisión del propietario, ADR de retención y contrato nuevo (schema,
 Zod, serde y fixtures en el mismo cambio). No se implementa en F1 ni se simula con
 aristas no observadas. La tabla nueva, si se crea, entra en la limpieza de
-retención y en `/legal/privacy` (AGENTS §8.4).
+retención y en `/legal/privacy` (AGENTS §8.4). El diseño detallado —campos, topes,
+presupuesto medido, persistencia, retención y gates— está en
+`docs/designs/network-edges-contract.md`.
