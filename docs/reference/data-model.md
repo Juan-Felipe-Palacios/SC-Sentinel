@@ -49,6 +49,8 @@ Reglas que sigue el camino de ingesta y que cualquier tabla nueva debe respetar:
   `ADD COLUMN` sin `IF NOT EXISTS`), así que el ledger es la fuente de verdad.
 - **Aplicar:** `node scripts/apply-migrations.mjs --dry-run` y después sin `--dry-run`.
   Procedimiento, siembra del ledger y reversión: `docs/runbooks/apply-db-migrations.md`.
+- **Comprobar drift:** `node scripts/verify-migration-ledger.mjs --env-file web/.env.local`
+  (sólo lectura; código 1 si hay pendientes o filas huérfanas).
 - **`drizzle.__drizzle_migrations` está congelado** (13 filas, la última anterior a
   `0014`) y **no es autoritativo**. `drizzle-kit generate|migrate|push` está prohibido en
   este repositorio; el detalle y la causa están en `docs/OT/plan-implementacion.md` §5.

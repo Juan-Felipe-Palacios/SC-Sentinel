@@ -13,6 +13,37 @@ node scripts/apply-migrations.mjs --dry-run
 Lista los `.sql` pendientes según el ledger `sc_schema_migrations` (tabla que
 crea el propio runner). Si imprime `pendientes: 0`, la base está al día.
 
+## Ledger único y prohibición de `drizzle-kit`
+
+- **Único ledger:** `sc_schema_migrations (name, applied_at)`. Lo crea y lo
+  actualiza `scripts/apply-migrations.mjs`, con una fila por archivo aplicado.
+  Es la única fuente para decidir qué migración falta.
+- **`drizzle.__drizzle_migrations` está congelado** (13 filas; la última,
+  `1794450000000`, es anterior a `0014`–`0016`). No es autoritativo: no se usa
+  para decidir pendientes, no se migra, no se "repara" y no se borra sin
+  autorización N4. El checker lo informa sólo como conteo.
+- **`drizzle-kit generate`, `drizzle-kit migrate` y `drizzle-kit push` están
+  prohibidos.** `web/drizzle.config.ts` apunta `out` a `./lib/db/drizzle-out`
+  para que un `generate` accidental no escriba en `web/lib/db/migrations/`, el
+  directorio que consume el runner. Ese directorio de salida no es un ledger ni
+  se aplica.
+- **Comprobar drift (sólo lectura):**
+
+  ```bash
+  node scripts/verify-migration-ledger.mjs --env-file web/.env.local
+  ```
+
+  Compara los `.sql` del repo contra el ledger, imprime el host del destino, las
+  pendientes y las filas huérfanas, y sale con código 1 si hay drift. No crea ni
+  modifica nada. Si hay pendientes, se revisan y se aplican con el runner; si hay
+  huérfanas, se investiga el archivo renombrado o borrado antes de tocar el
+  ledger.
+- **Prueba offline del checker:** `node scripts/test-migration-ledger.mjs`. Monta un
+  `web/` temporal con un módulo falso de Neon y comprueba los códigos de salida (sin
+  drift 0; pendiente, huérfana o ledger ilegible 1) sin abrir red ni tocar la base.
+- **Limitación:** el ledger no guarda checksum. Editar un `.sql` ya aplicado no
+  se detecta; todo cambio de esquema va en una migración nueva.
+
 ## Aplicar
 
 ```bash
