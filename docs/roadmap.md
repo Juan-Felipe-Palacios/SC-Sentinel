@@ -1,4 +1,4 @@
-# Roadmap SC-Sentinel — decisiones del propietario (2026-11-15)
+# Roadmap SC-Sentinel — decisiones del propietario (2026-11-15, actualizado 2026-11-25)
 
 > Documento de planificación. **Solo documentación**: no cambia código, contratos ni
 > despliegues. Las piezas citadas son el estado del árbol actual; las líneas pueden
@@ -6,6 +6,9 @@
 >
 > Fecha de redacción de esta versión: 2026-11-15. Los límites de proveedores se
 > verificaron en las URLs indicadas en §7.
+>
+> **Actualización 2026-11-25:** se agrega D6 (M6 OT aprobado, F1 OT en allowlist).
+> Las etiquetas M6/M7/M8 de §5 se mantienen.
 
 ## 1. Decisiones cerradas por el propietario
 
@@ -16,6 +19,7 @@
 | D3 | **Sin exportar PCAP.** El replay queda como herramienta interna de pruebas. | No se expone descarga de capturas en dashboard ni API pública; las fixtures de `docs/testing/fixtures/` siguen siendo internas. |
 | D4 | **Fuera del roadmap**: multi-tenant, macOS y móvil. | Single-device/Windows-first; sin abstracciones de tenant ni targets Apple/iOS/Android. |
 | D5 | **`flush_on_critical_alert` activado por defecto.** | Un evento crítico dispara un sync fuera de ciclo. Costo marginal (1-5 requests/día por device). |
+| D6 | **M6 OT aprobado (2026-11-25)**: identificación pasiva de Modbus TCP, S7comm, DNP3 e IEC 60870-5-104 como hito nuevo, con **F1 OT en allowlist + descubrimiento manual**; baseline automático diferido a F1.5/F2, condicionado a un piloto OT real. | Desbloquea E2.0–E10 por etapas: E2.0 → E2 → checkpoint → E3–E10. La aprobación no autoriza ejecución (AGENTS §3.2). `ot_new_master` evalúa allowlist; `baseline_*` en `disabled`/null; la evidencia usa `allowlist_version`. P11 (licencia DEFCON) y P12 (piso Neon) siguen pendientes y no bloquean E2.0. |
 
 ## 2. SYNC-30 — Sync cada 30 minutos
 
@@ -272,6 +276,11 @@ el mismo escenario alcanza 180 CU-h/mes (excede).
 | M8 | Línea base local, correlación IT+OT, IA sobre candidatos | Baseline y correlación documentadas; IA genera candidatos. |
 
 Orden acordado: M6 → M7 → M8.
+
+> **Nota (2026-11-25):** «M6 OT» (backlog y `docs/OT/`) es el hito de
+> identificación pasiva de Modbus/S7/DNP3/IEC-104. No es la fase «M6 — banco de
+> pruebas» de esta tabla. Las etiquetas M6/M7/M8 se mantienen sin renombrar.
+> Orden de estas fases: M6 (banco de pruebas) → M7 (Modbus) → M8 (baseline).
 
 ## 6. Presupuesto de recursos gratuitos
 

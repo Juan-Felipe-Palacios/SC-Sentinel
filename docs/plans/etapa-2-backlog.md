@@ -38,7 +38,7 @@ Antes de empezar: banco de escenarios sintéticos con anomalías inyectadas y
 métricas (precisión, falsos positivos/día, tiempo hasta detectar). No se publican
 tasas sin medición.
 
-## Diferidos con dueño
+## Diferidos y aprobados con dueño
 
 | Ítem | Origen | Prioridad |
 |---|---|---|
@@ -46,12 +46,59 @@ tasas sin medición.
 | Fix de pegado del token en el enrolamiento | Stage 0 | Media |
 | M3.6 chatbot (PDF/Markdown, incident response guiado, tendencias) | M3.5 | Media |
 | Drill-down del dashboard | Ruta B | Media |
-| M6 OT (hito nuevo sí/no, allowlist vs baseline) | Roadmap | Decisión pendiente |
+| M6 OT — **aprobado** (2026-11-25): hito nuevo; F1 OT en allowlist + descubrimiento manual; baseline automático a F1.5/F2; checkpoint tras E2.0/E2 | Roadmap | Aprobado — ejecución por etapas |
 | Parser IPv6 | Backlog técnico | Media |
 | Multi-interfaz | Backlog técnico | Baja |
 | `ArcSwap` condicional al bench | Backlog de rendimiento | Baja |
 | Roadmap Fases 2–5 (PCAP export/import, BPF, notificaciones Resend/webhooks, API, PWA en vez de iOS) | Roadmap | Planificación |
 | Control por duración de la instrumentación (`SC_GUI_STAGE0_SECONDS`, D5) | Stage 0 | Baja, con el P0 |
+
+## Decisión del propietario — M6 OT (2026-11-25)
+
+**M6 OT aprobado como hito nuevo**, con **F1 OT acotado a allowlist +
+descubrimiento manual**. El baseline automático del diseño (`ot_baseline`,
+arming de 7 días y ≥100 ventanas) queda diferido a **F1.5/F2** y requiere un
+piloto OT real y métricas de falsos positivos antes de anunciarse.
+
+- **Detección F1 OT:** `ot_new_master` alerta cuando un `client/master` con
+  confianza `confirmed` no figura en la allowlist del dispositivo. En F1 la
+  allowlist se mantiene en la configuración local del agente; editarla desde el
+  dashboard queda fuera de alcance.
+- **Descubrimiento manual:** el agente lista los maestros observados en
+  `ot_assets` (`role`, `protocols`, `last_seen`); el operador los promueve a la
+  allowlist. No hay arming ni transiciones automáticas de baseline en F1.
+- **Contrato:** `baseline_*` queda en `disabled`/null y la evidencia de
+  `ot_new_master` usa `allowlist_version` en lugar de `baseline_days`/
+  `baseline_epoch`. Se aplica en E2 con schema, Zod y serde en el mismo cambio.
+- **Pendientes que no bloquean E2.0:** P11 (licencia de pcaps DEFCON) y P12
+  (piso Neon) siguen abiertos; E2.0 usa fixtures sintéticos propios y no toca
+  Neon.
+- **Autorización:** esta aprobación **no** habilita ejecutar etapas. Cada una
+  sigue necesitando un "dale" explícito que la nombre (AGENTS.md §3.2).
+
+### Checkpoint E2.0/E2 (gate del propietario)
+
+Se evalúa al cerrar E2.0 y E2, antes de autorizar E3–E10.
+
+| Verificación | Comando exacto | Evidencia mínima en el tablero |
+|---|---|---|
+| Firmas E2.0 | `cd agent && cargo test -p sc-core ot_signatures` | `test result: ok`; 4/4 protocolos, 0 fallos; salida cruda recortada y código de salida |
+| Gate completo de contratos | `bash scripts/verify-contracts.sh` | termina en `Contratos OK (Rust + JSON Schema + Zod).` y `exit 0` |
+| JSON Schema | `node scripts/validate-contracts.js` | `Contratos OK.`, sin `FAIL:`, `exit 0` |
+| Zod | `cd web && node --experimental-strip-types ../scripts/test-contracts-zod.mjs` | `# fail 0`, `exit 0` |
+| Fixture 0.1.8 sin `ot` | incluido en `verify-contracts.sh` (Rust `ejemplo_del_contrato` + Zod) | el fixture valida y serializa idéntico; pegar nombre del test y resultado |
+
+La respuesta HTTP 200 del fixture 0.1.8 se verifica en E7, no en este checkpoint;
+aquí se valida schema/Zod/serde. Si `pnpm` bloquea `verify-contracts.sh` por el
+lockfile, se corren los comandos directos de la tabla y se deja constancia de la
+limitación; un gate parcial no cierra el checkpoint.
+
+**Registro:** la evidencia va en las celdas de E2.0 y E2 del tablero, con comando,
+salida cruda y código de salida. La decisión del propietario (`aprobado`,
+`rechazado` o `vuelve a diseño`) se registra en la bitácora. Si 2 o más protocolos
+fallan, M6 vuelve a diseño y no se escribe contrato; si falla el contrato, se
+corrige dentro de E2. El checkpoint no autoriza E3–E10 en bloque: cada etapa
+necesita un "dale" que la nombre.
 
 ## Seguimientos de la auditoría ronda 2 (2026-11-21)
 

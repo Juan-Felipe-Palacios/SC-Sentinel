@@ -12,9 +12,15 @@
   porque las correcciones de §3 están medidas contra el repositorio y la base
   reales, no derivadas del diseño. El diseño sigue siendo la descripción del
   sistema y la fuente de las firmas byte a byte.
-- **Estado del milestone:** **no aprobado**. `docs/plans/etapa-2-backlog.md:49`
-  registra "M6 OT (hito nuevo sí/no, allowlist vs baseline)" como *Decisión
-  pendiente*. Las etapas E2.0–E10 están bloqueadas hasta esa aprobación (§6).
+- **Estado del milestone:** **aprobado el 2026-11-25** con **F1 OT en allowlist +
+  descubrimiento manual**; el baseline automático queda para F1.5/F2
+  (`docs/plans/etapa-2-backlog.md:49`). E2.0 está desbloqueada; E2 depende de E2.0
+  y E3–E10 (incl. E8.1/E8.2) del checkpoint E2.0/E2. La aprobación no autoriza
+  ejecución.
+- **Cards de red (solicitud del propietario, 2026-11-25):** dos cards en
+  `/dashboard/connections`: «Mapa OT observado» (E8.1) y «Mapa de exposición IT»
+  (E8.2). No son topologías completas: el contrato actual no publica aristas; la
+  topología real queda en §8 (F1.5/F2) y requiere decisión del propietario.
 
 ## 2. Factibilidad medida
 
@@ -32,6 +38,7 @@ se pudo comprobar figura en §7.
 | Ledger de migraciones | `sc_schema_migrations` 17 filas (0000–0016); `drizzle.__drizzle_migrations` 13 filas, última `1794450000000` | consulta + `web/lib/db/migrations/meta/_journal.json` | ledger único = el del runner (§5) |
 | Patrón de escritura | `sql` crudo, ids deterministas, `ON CONFLICT DO NOTHING`, una transacción no interactiva | `web/lib/ingest/persist.ts:1-24, 88-170` | el upsert de OT sigue ese patrón (§5) |
 | Validación de ingest | una sola pasada: `IngestEnvelopeSchema.safeParse` | `web/app/api/ingest/route.ts:104` | hay que partirla en dos |
+| Aristas de red | `host_stats` es por host (sin src/dst); `top_ports` no publica pares; `ot.events` sólo cubre alertas y `ot_assets.peers` no tiene campo de origen en el contrato | `web/lib/db/migrations/0000_init.sql:45-53`; `web/lib/schemas/ingest.ts:76-87`; `docs/ux/dashboard-wireframes.md:28`; diseño `:309` | topología real fuera de F1 (§8) |
 | Baseline p95 | 1 device y 36 filas | consulta | **inmedible**: se sustituye por gate estructural (§4, E7) |
 
 ## 3. Diez correcciones al diseño
@@ -47,7 +54,7 @@ Cada fila cita el diseño original y da el valor correcto. No son preferencias: 
 | 1 | Cap del bloque `ot` = 4096 B, y "512 B por evento → 8×512 = 4 KB peor caso" (`:273-274`, `:496`) | Cap **8192 B** con tabla de peor caso (§3.1) | 8 eventos de 512 B ya consumen el total; sumados protocols y endpoints el peor caso es 7392 B |
 | 2 | El ítem 7 remite a "schema completo, Appendix A" (`:537-540`), pero Appendix A (`:406`) sólo tiene enums | **Appendix B** con el `CREATE TABLE` de 24 columnas y sus CHECK (§3.2) | sin DDL no hay migración posible |
 | 3 | Ruta `web/db/migrations/` (`:537`) | `web/lib/db/migrations/0017_ot-assets.sql` | `web/db/` no existe; la real es `web/lib/db/migrations/` |
-| 4 | `identity_kind (ip\|hmac)` (`:294`, `:308`) | se elimina de F1 (24 columnas) | B-029 (`docs/plans/etapa-2-backlog.md:65`) fija `host_key` como HMAC en ambos modos: la columna queda como estado muerto |
+| 4 | `identity_kind (ip\|hmac)` (`:294`, `:308`) | se elimina de F1 (24 columnas) | B-029 (`docs/plans/etapa-2-backlog.md:112`) fija `host_key` como HMAC en ambos modos: la columna queda como estado muerto |
 | 5 | Modbus TCP con `ot_program_download` y `ot_cpu_state_change` (`:121-122`) | Modbus: `ot_new_master`, `ot_write_outside_hours`, `ot_it_zone_crossing`; S7: las cinco; DNP3: `ot_new_master`, `ot_it_zone_crossing`; IEC-104: `ot_new_master`, `ot_write_outside_hours`, `ot_it_zone_crossing` | Modbus no tiene descarga de programa ni control de CPU (fc 43 es Read Device ID); esos comandos son S7 0x1A/0x1B/0x1C y 0x28/0x29 |
 | 6 | U-frame IEC-104 `{0x07, 0x13, 0x2B, 0x0B, 0x43, 0x83}` (`:246`) | `{0x07, 0x0B, 0x13, 0x23, 0x43, 0x83}` | `0x2B` no es un U-frame válido y falta `0x23` (STOPDT con) |
 | 7 | El ejemplo del snapshot incluye `"v": 1` (`:169`) | quitarlo | `v` vive en el envelope; el snapshot es `additionalProperties: false` |
@@ -93,7 +100,7 @@ CREATE TABLE ot_assets (
   model_hint              text CHECK (model_hint IS NULL OR char_length(model_hint) <= 64),
   zone                    text CHECK (zone IS NULL OR char_length(zone) <= 64),
   label                   text CHECK (label IS NULL OR char_length(label) <= 64),
-  baseline_state          text NOT NULL DEFAULT 'learning'
+  baseline_state          text NOT NULL DEFAULT 'disabled'
                           CHECK (baseline_state IN ('learning','armed','disabled')),
   baseline_instance       uuid,
   baseline_epoch          integer,
@@ -131,6 +138,20 @@ topes. No cambian el presupuesto ni las firmas.
 El read model no puede ser más permisivo que el contrato: si el agente nunca puede
 enviar 7 protocolos ni un rol `master`, la tabla no debe poder almacenarlos. La fuente
 del enum es `OtRole` del Appendix A; el DDL sólo agrega `both` para el agregado por host.
+
+### 3.4 Cambio de alcance aprobado (2026-11-25): allowlist en F1 OT
+
+La aprobación de M6 fija F1 OT en **allowlist + descubrimiento manual**, no en
+baseline automático.
+
+| # | Diseño previo | Alcance F1 aprobado |
+|---|---|---|
+| 13 | `ot_new_master` contra peers del baseline `armed`, con `baseline_days`/`baseline_epoch` | `ot_new_master` contra la allowlist del dispositivo; evidencia `{ fn_codes, allowlist_version }` |
+| 14 | `ot_baseline` SQLite, arming 7 días/≥100 ventanas, intención diferida | Diferido a F1.5/F2; `baseline_*` en `disabled`/null y sin transiciones server-side |
+
+El DDL de §3.2 conserva las columnas `baseline_*` para F2 y el default de
+`baseline_state` pasa a `disabled`; F2 lo vuelve a `learning` al iniciar el baseline.
+E6 se reduce a la regla de allowlist, la configuración local y el anti-storm.
 
 ## 4. Etapas
 
@@ -179,21 +200,24 @@ Resuelve las dos ambigüedades detectadas en la base y en el código. Detalle en
 - **Verificación:** §5.4.
 - **Aborto:** ninguno; no toca datos.
 
-### E2.0 — Spike de firmas (bloqueado por aprobación de M6)
+### E2.0 — Spike de firmas (pendiente; aprobación ya otorgada)
 
 - **Alcance:** 4 fixtures binarios mínimos (Modbus, S7comm, DNP3 con CRC válido e
   inválido, IEC-104) y un test que verifica los offsets de las firmas corregidas.
 - **Archivos:** `agent/crates/sc-core/tests/ot_signatures.rs` (o el módulo que
   corresponda) + fixtures.
-- **Depende de:** aprobación de M6; E0 (firmas corregidas escritas).
-- **Hecho:** los 4 protocolos clasifican según la tabla normativa M4 del diseño.
-- **Verificación:** `cargo test -p sc-core ot_signatures`.
+- **Depende de:** E0 (firmas corregidas escritas); aprobación de M6 **otorgada el
+  2026-11-25** con F1 OT en allowlist.
+- **Hecho:** los 4 protocolos clasifican según la tabla normativa M4 del diseño;
+  el resultado alimenta el checkpoint E2.0/E2.
+- **Verificación:** `cd agent && cargo test -p sc-core ot_signatures`.
 - **Aborto:** si 2 o más protocolos no alcanzan la tabla, M6 vuelve a diseño y **no**
   se escribe contrato. Se registra en la bitácora.
 
-### E2 — Contrato `ot` en un solo cambio (bloqueado)
+### E2 — Contrato `ot` en un solo cambio (bloqueado por E2.0)
 
-- **Alcance:** bloque `ot` opcional en el JSON Schema, Zod y serde, más fixtures.
+- **Alcance:** bloque `ot` opcional en el JSON Schema, Zod y serde, más fixtures;
+  evidencia de allowlist (`allowlist_version`) en lugar de baseline.
   `evidence` va **plano** en el schema (`rule` + claves opcionales) con la unión
   estricta validada en Zod/serde, porque el validador de CI
   (`scripts/validate-contracts.js`) no implementa `oneOf`.
@@ -205,7 +229,10 @@ Resuelve las dos ambigüedades detectadas en la base y en el código. Detalle en
 - **Hecho:** `scripts/verify-contracts.sh`, `scripts/validate-contracts.js` y
   `scripts/test-contracts-zod.mjs` en verde con 4 fixtures: 0.1.8 sin `ot`, válido,
   malformado y oversize.
-- **Verificación:** los tres comandos anteriores + `cd web && pnpm test`.
+- **Verificación:** `bash scripts/verify-contracts.sh`;
+  `node scripts/validate-contracts.js`;
+  `cd web && node --experimental-strip-types ../scripts/test-contracts-zod.mjs`;
+  `cd web && pnpm test`.
 - **Aborto:** si el schema no puede expresarse sin `oneOf`, se mantiene plano y la
   unión se valida sólo en Zod/serde (decisión ya prevista).
 
@@ -251,23 +278,26 @@ Resuelve las dos ambigüedades detectadas en la base y en el código. Detalle en
 
 ### E6 — `sc-detect` (bloqueado)
 
-- **Alcance:** reglas de §3 corrección 5, baseline en SQLite (`ot_baseline` con
-  `observed_windows`), arming 7 días ∧ ≥100 ventanas, anti-storm.
-- **Archivos:** `agent/crates/sc-detect/`.
+- **Alcance:** reglas de §3 corrección 5; `ot_new_master` contra la allowlist local
+  del agente (`host_key` + `proto` + puerto), anti-storm y dedup. Sin `ot_baseline`,
+  sin arming y sin transiciones de baseline en F1 (F1.5/F2).
+- **Archivos:** `agent/crates/sc-detect/`, configuración local de allowlist.
 - **Depende de:** E4.
-- **Hecho:** escenario de reinicio a mitad de aprendizaje conserva el contador.
+- **Hecho:** test de miembro/no miembro de allowlist, anti-storm y reintento sin
+  duplicar alertas; no hay contador de aprendizaje que preservar.
 - **Verificación:** `cargo test -p sc-detect`.
-- **Aborto:** si el arming no converge en el escenario sintético, se revisa el umbral
-  con el propietario (no se ajusta por cuenta propia).
+- **Aborto:** si la allowlist no se puede representar sin strings libres, se acota a
+  `host_key` + `proto` + `port` (máximo 64 entradas) antes de integrar.
 
 ### E7 — `/api/ingest` (bloqueado)
 
 - **Alcance:** dos pasadas (core + `OtBlock.safeParse`), techo de confianza
-  server-side, upsert condicional, downlink de intents.
+  server-side, upsert condicional, downlink de intents; conservar `client` y
+  `server` del evento OT en `Alert.evidence` (sólo `host_key`) para E8.1.
 - **Archivos:** `web/app/api/ingest/route.ts`, `web/lib/ingest/persist.ts`.
 - **Depende de:** E2, E3.
 - **Hecho:** ≤3 statements extra y `EXPLAIN` sin scan nuevo; fixture 0.1.8 sin `ot`
-  sigue devolviendo 200.
+  sigue devolviendo 200; una alerta OT conserva `client`/`server` en `evidence`.
 - **Verificación:** `cd web && pnpm test`, `pnpm typecheck`, `pnpm lint`.
 - **Aborto:** el gate p95 no se aplica (inmedible con 1 device / 36 filas); se
   mantiene el criterio estructural y se registra como deuda medida.
@@ -275,19 +305,60 @@ Resuelve las dos ambigüedades detectadas en la base y en el código. Detalle en
 ### E8 — UI (bloqueado)
 
 - **Alcance:** badge de protocolo en la matriz de conexiones y tab "Activos OT".
+  Las cards de red se detallan en E8.1/E8.2.
 - **Depende de:** E3.
 - **Hecho:** build verde y la tab lista lo que hay en `ot_assets` sin datos
   sintéticos.
 - **Verificación:** `cd web && pnpm typecheck && pnpm lint && pnpm build`.
 - **Aborto:** —
 
+### E8.1 — Card «Mapa OT observado» (bloqueado)
+
+- **Alcance:** card en `/dashboard/connections` con nodos de `ot_assets` activos
+  (≤30 d) y aristas **sólo** de pares cliente/servidor que aparecen en alertas OT
+  (`alerts.evidence.client/server`, persistidos en E7). Si no hay aristas, muestra
+  nodos y el aviso «sin aristas observadas»; no inventa enlaces. Layout SVG
+  determinista por rol (clientes a la izquierda, servidores a la derecha), sin
+  dependencia nueva; nodos ≤40 y aristas ≤80, sólo entre nodos incluidos; etiqueta
+  `label` o `host_key`, nunca IP ni MAC.
+- **Archivos:** `web/components/dashboard/NetworkMapCard.tsx` (nuevo),
+  `web/components/dashboard/OtNetworkMap.tsx` (nuevo), `web/lib/query/ot-topology.ts`
+  (nuevo), `web/app/api/query/route.ts`, `web/lib/schemas/query.ts`,
+  `web/lib/api-types.ts`, `web/lib/demo/synthetic.ts`, tests.
+- **Depende de:** E7 (evidencia client/server), E8 (tab y estilos).
+- **Hecho:** `metric=ot_topology` responde con nodos/aristas acotados; un device sin
+  `ot_assets` muestra empty state; no hay IP/MAC ni aristas inventadas; build verde.
+- **Verificación:** `cd web && pnpm typecheck && pnpm lint && pnpm test && pnpm build`;
+  prueba con un device sin OT y con el fixture sintético.
+- **Aborto:** si `alerts.evidence` no conserva client/server, la card se limita a
+  inventario (nodos) y se registra; no se agrega telemetría en esta etapa.
+
+### E8.2 — Card «Mapa de exposición IT» (bloqueado)
+
+- **Alcance:** card en `/dashboard/connections` con los top hosts del período
+  agrupados por país y sus puertos principales. **No dibuja aristas**: el contrato
+  actual no publica pares origen-destino; se rotula «exposición», no «topología».
+  Reusa `metric=overview` (`top_hosts`, `top_countries`, `top_ports`); sin API nueva.
+  Nodos ≤12, países ≤6; sin identificadores nuevos.
+- **Archivos:** `web/components/dashboard/NetworkMapCard.tsx` (compartido),
+  `web/components/dashboard/ItExposureMap.tsx` (nuevo),
+  `web/components/dashboard/ConnectionsView.tsx`, tests de la función pura de layout.
+- **Depende de:** E8 (estilos de la sección).
+- **Hecho:** con datos reales muestra hosts/países/puertos; con `hosts=[]` muestra
+  empty state; no hay aristas inventadas; build verde.
+- **Verificación:** `cd web && pnpm typecheck && pnpm lint && pnpm test && pnpm build`.
+- **Aborto:** si el resultado se confunde con topología, se renombra a «Exposición
+  IT» o se retira la card; no se agregan aristas sin §8.
+
 ### E9 — Demo sintética (bloqueado)
 
-- **Alcance:** topología TEST-NET con 4 hosts y disclaimers "Flujo Modbus sintético;
-  no corresponde a tráfico real" y "Evidencia sintética"; el changelog no afirma
-  capacidad de agente antes del embarque.
-- **Depende de:** E8.
-- **Hecho:** la demo muestra el badge `confirmed` con los dos disclaimers visibles.
+- **Alcance:** topología TEST-NET con 4 hosts, las dos cards (OT/IT) con datos
+  sintéticos y los disclaimers "Flujo Modbus sintético; no corresponde a tráfico
+  real" y "Evidencia sintética"; el changelog no afirma capacidad de agente antes
+  del embarque.
+- **Depende de:** E8.1, E8.2.
+- **Hecho:** la demo muestra el badge `confirmed`, las dos cards y los dos
+  disclaimers visibles.
 - **Verificación:** `pnpm build` + revisión del texto.
 - **Aborto:** si la demo toca el dispositivo de producción o datos OT, se detiene
   (AGENTS.md §8.5).
@@ -360,13 +431,16 @@ tabla, no se aplica 0017. Queda como peso muerto documentado.
 
 | Gate | Dónde | Quién decide |
 |---|---|---|
-| Aprobar M6 OT | `docs/plans/etapa-2-backlog.md:49` | propietario |
+| Checkpoint E2.0/E2 (4 protocolos + 3 gates de contrato) | §4, E2.0/E2 | propietario |
+| Topología real IT/OT (contrato de aristas, §8) | §8 | propietario (default: no en F1) |
 | Aplicar 0017 a la Neon de producción | N3 | propietario |
-| B-028 (rotación de `SC_HMAC_KEY`: discontinuidad vs. versionado) | `docs/plans/etapa-2-backlog.md:64` | propietario |
+| B-028 (rotación de `SC_HMAC_KEY`: discontinuidad vs. versionado) | `docs/plans/etapa-2-backlog.md:111` | propietario |
 | Renombrar `ot_ot_in_it_zone` → `ot_it_zone_crossing` | §3 corrección 5 | propietario (default: sí, antes de que el id entre en `alerts`) |
 | "F1" sobrecargado (DPI+blacklists en el backlog vs. fase 1 OT en el diseño) | `docs/plans/etapa-2-backlog.md` vs. diseño | propietario (default: nota, sin renombrar el roadmap) |
 
-Ninguno de estos gates se resuelve por cuenta propia (AGENTS.md §13.7).
+La aprobación de M6 se otorgó el 2026-11-25 (`docs/plans/etapa-2-backlog.md:49`);
+el gate vigente es el checkpoint E2.0/E2. Ninguno de estos gates se resuelve por
+cuenta propia (AGENTS.md §13.7).
 
 ## 7. Límites de verificación
 
@@ -378,6 +452,8 @@ Ninguno de estos gates se resuelve por cuenta propia (AGENTS.md §13.7).
   sustituye por el gate estructural de E7 y queda como deuda medida.
 - **pcaps reales**: la licencia de los datasets públicos (4SICS, Netresec) está sin
   resolver (OQ5). Sólo fixtures sintéticos propios.
+- **Baseline automático**: no verificable en F1. Requiere un piloto OT real y ≥7
+  días/100 ventanas; queda diferido a F1.5/F2.
 - **Captura Windows**: verificable con Npcap (`scripts/enable-live-capture.ps1`,
   `docs/runbooks/npcap-install.md`), pero no forma parte de F1.
 
@@ -385,3 +461,31 @@ Ninguno de estos gates se resuelve por cuenta propia (AGENTS.md §13.7).
 supuestos explícitos (endpoint IPv6 en claro, `fn_codes` top-8, sin compressión);
 el costo en CU-horas no se estima aquí porque el tráfico actual no es
 representativo.
+
+## 8. Topología real IT/OT (F1.5/F2, fuera de F1)
+
+Las cards de E8.1/E8.2 son honestas pero **no son topologías completas**. El
+contrato actual no tiene aristas:
+
+- **IT:** `host_stats` agrega por host (bytes, país, riesgo) y `top_ports` por
+  puerto; ningún campo publica `src → dst`. La propia referencia UX lo dice: «No
+  hay conexiones individuales en el esquema» (`docs/ux/dashboard-wireframes.md:28`).
+- **OT:** `ot.endpoints` lista hosts y `ot.events` sólo los pares que dispararon
+  una regla; `ot_assets.peers` existe en el DDL, pero **no hay campo de origen en
+  el contrato** que lo pueble con tráfico que no alertó. Un mapa de todos los
+  enlaces sería inventado.
+
+Para una topología real se necesita un cambio de contrato aparte:
+
+| Pieza | IT | OT |
+|---|---|---|
+| Campo | `links` opcional ≤32: `{client, server, proto, port, bytes, packets}` | `ot.links` opcional ≤8: `{client, server, proto, port, bytes}` |
+| Persistencia | tabla `network_edges` por ventana, con retención y poda | `ot_edges` o `ot_assets.peers` poblado desde `ot.links` |
+| Privacidad | sólo `host_key`; nunca IP, MAC ni payload | ídem; sin valores de registro |
+| Límites | top N por bytes con `truncated` explícito | estimado 600–800 B para 8 links (host_key 16 hex, proto enum, puerto y bytes); medir antes de fijar el cap |
+| UI | aristas reales; reemplaza el mapa de exposición | aristas reales; reemplaza «rutas alertadas» |
+
+**Gate:** decisión del propietario, ADR de retención y contrato nuevo (schema,
+Zod, serde y fixtures en el mismo cambio). No se implementa en F1 ni se simula con
+aristas no observadas. La tabla nueva, si se crea, entra en la limpieza de
+retención y en `/legal/privacy` (AGENTS §8.4).

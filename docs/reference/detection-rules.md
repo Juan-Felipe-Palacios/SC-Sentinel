@@ -36,7 +36,7 @@
 
 | rule_id | Protocolos F1 | Condición (resumen) | Severidad |
 |---|---|---|---|
-| `ot_new_master` | los cuatro | client/master con confianza `confirmed` fuera de los peers del baseline `armed` | High |
+| `ot_new_master` | los cuatro | client/master con confianza `confirmed` fuera de la allowlist del dispositivo (F1); baseline `armed` en F1.5/F2 | High |
 | `ot_write_outside_hours` | Modbus (fc 5/6/15/16/22/23), S7comm (0x05 write), IEC-104 (C_SC/C_SE) | escritura fuera del horario laboral configurado (opt-in) | Medium |
 | `ot_program_download` | S7comm (0x1A/0x1B/0x1C) | descarga de bloque o función al PLC | High |
 | `ot_cpu_state_change` | S7comm (0x28 PLC control, 0x29 PLC stop) | cambio de estado de la CPU | High |
@@ -63,9 +63,12 @@ valida en Zod y serde; el JSON Schema la declara plana (`rule` + claves opcional
 
 ### Baseline y umbrales (M6)
 
-- Aprendizaje **7 días y ≥100 ventanas observadas** (configurable) → `armed`.
-- Autoridad: el **agente** (SQLite `ot_baseline` con `observed_windows`); el servidor es
-  espejo del estado reportado y autoridad sólo sobre la intención del operador.
+- **F1 OT (aprobado 2026-11-25):** `ot_new_master` evalúa la **allowlist** del
+  dispositivo; no hay arming ni `ot_baseline`. La evidencia usa `allowlist_version`.
+- **F1.5/F2:** aprendizaje **7 días y ≥100 ventanas observadas** (configurable) →
+  `armed`. Autoridad: el **agente** (SQLite `ot_baseline` con `observed_windows`); el
+  servidor es espejo del estado reportado y autoridad sólo sobre la intención del
+  operador.
 - **Anti-storm:** mismo `rule_id` + par cliente/servidor con alerta abierta → collapse.
 - Todo evento lleva `proto`, `client`, `server` y evidencia cerrada; nunca payload,
   valores de registro ni MAC completa.

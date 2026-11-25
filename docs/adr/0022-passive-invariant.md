@@ -55,7 +55,8 @@ Reglas de aplicación:
 ## Lo que este ADR no decide
 
 - No implementa el enforcement: eso ocurre en E4 (`sc-ot`), E5 (`sc-capture`) y
-  E10 (gate de CI), todas bloqueadas por la aprobación de M6.
+  E10 (gate de CI). El hito M6 se aprobó el 2026-11-25, pero cada etapa sigue
+  necesitando un "dale" explícito (AGENTS.md §3.2).
 - No adelanta seccomp por hilo, que el diseño deja para F3+.
 - No decide el modo de captura por defecto del despliegue; sólo prohíbe que
   cualquier modo activo sea una opción.

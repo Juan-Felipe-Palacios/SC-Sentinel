@@ -1,7 +1,7 @@
 # M6 — Identificación Pasiva de Protocolos OT (F1)
 
 **Author:** SC-Sentinel Team
-**Status:** Draft — correcciones de E0 aplicadas 2026-11-25; milestone **no aprobado** (`docs/plans/etapa-2-backlog.md:49`)
+**Status:** Aprobado 2026-11-25 con F1 OT en allowlist; correcciones de E0 aplicadas 2026-11-25 (`docs/plans/etapa-2-backlog.md:49`)
 **Date:** 2026-11-24
 **Última corrección:** 2026-11-25 (etapa E0; detalle y motivo en `docs/OT/plan-implementacion.md` §3)
 **Source:** concepts_brief.md (Priority 1 intake)
@@ -36,7 +36,7 @@ La matriz de conexiones actual etiqueta servicios por puerto (443→HTTPS, 5432�
 | G1 | Identificar pasivamente los 4 protocolos F1 con confianza explícita | Tabla normativa M4 (probable/confirmed/reject); DNP3 CRC inválido = reject; S7 vs MMS desambiguado por magic, no por puerto; alineación acotada 0–7 para flujos mid-stream |
 | G2 | Contrato aditivo retrocompatible | `ot` opcional en v1, mismo PR schema/Zod/serde; dos pasadas (core → `OtBlock.safeParse`); `discardOtBlock()` + counter; jamás 4xx por `ot`; fixture real 0.1.8 en CI |
 | G3 | Inventario persistente como read model | `ot_assets` excluido del cleanup 7/15/30 d; stale derivado >30 d; purge manual + auto opt-in >180 d; upsert ≤3 statements extra, condicional 5 min o cambio semántico |
-| G4 | Baseline agent-owned con plano de intención | Agente = única autoridad efectiva; servidor = intención + espejo; reconciliación `(instance, epoch, window_end)`; arming por reloj monotónico + ventanas observadas |
+| G4 | Baseline agent-owned con plano de intención (F1.5/F2; F1 usa allowlist) | Agente = única autoridad efectiva; servidor = intención + espejo; reconciliación `(instance, epoch, window_end)`; arming por reloj monotónico + ventanas observadas |
 | G5 | Invariante pasivo con enforcement | `forbid(unsafe_code)` en sc-ot/sc-capture; clippy disallowed types/methods; test de grafo + features; BPF default por CIDR de segmento OT; egress solo sc-sync TLS + /status loopback |
 | G6 | Privacidad preservada | Vendor enum cerrado; evidence unión discriminada cerrada; sin strings libres ni MAC completa (solo OUI 3 B); Clase C no sale del nodo |
 | G7 | Demo sintética demostrable y honesta | Flujo Modbus sintético ejercita el contrato Zod; disclaimers "sintético"; changelog no afirma capacidad de agente antes de embarque |
@@ -75,8 +75,8 @@ La matriz de conexiones actual etiqueta servicios por puerto (443→HTTPS, 5432�
 
 ### CUJ 2: Alerta por nueva maestra
 
-- **Given**: Baseline armado; un dispositivo nuevo emite Modbus fc 3 a un PLC conocido.
-- **When**: El agente clasifica el flujo como confirmed, detecta que el client no está en peers del baseline.
+- **Given**: F1 OT con allowlist; un dispositivo nuevo emite Modbus fc 3 a un PLC conocido.
+- **When**: El agente clasifica el flujo como confirmed, detecta que el client no está en la allowlist.
 - **Then**: Se emite alerta `ot_new_master` (severidad alta) con evidencia (rule, fn_codes, ventana, client/server hasheados). El alerta nace con lifecycle Abierta → Aceptada → Resuelta. El dashboard muestra la alerta en el feed.
 
 ### CUJ 3: Escritura fuera de horario
@@ -197,7 +197,7 @@ Dashboard (Next.js + Neon Postgres)
       "proto": "modbus_tcp",
       "client": "h_a1b2c3d4",
       "server": "h_8f4b219e",
-      "evidence": { "fn_codes": [3, 16], "baseline_days": 7 }
+      "evidence": { "fn_codes": [3, 16], "allowlist_version": "2026-11-25.1" }
     }],
     "truncated": false
   }
@@ -308,11 +308,19 @@ Tabla persistente, excluida del cleanup 7/15/30 d. Stale derivado >30 d (sin UPD
 
 Columnas (24): id, device_id (FK), host_key, first_seen, last_seen, seen_windows, role (client|server|both|unknown: agregado de `OtRole` —Appendix A—; `both` si el host inicia y responde), protocols (JSONB cap 6, el mismo tope del bloque `ot`), vendor (enum cerrado, Appendix A), vendor_source (oui|s7_tsap|manual; modbus_devid en F2), oui_prefix (3 B), model_hint, zone (texto libre, cap 64 chars), label, baseline_state (learning|armed|disabled), baseline_instance (UUID), baseline_epoch (u32), baseline_since (TIMESTAMPTZ), desired_baseline_state, desired_at, desired_by, intent_applied_at, peers (JSONB cap 64), risk_flags (JSONB). UNIQUE(device_id, host_key). Index solo (device_id, last_seen DESC). fillfactor=80.
 
+En F1 OT (allowlist), `baseline_state` se persiste como `disabled` y
+`baseline_instance`/`baseline_epoch`/`baseline_since` quedan en null; las columnas
+se conservan para F1.5/F2.
+
 Upsert (M6): 1 SELECT + 1 upsert multi-row + 1 insert batch alertas = ≤3 statements. Merge en TS: confianza monótona (max), unión de puertos, vendor manual gana, risk_flags sticky, espejo baseline por (instance, epoch, window_end) lexicográfico. Condición de apply: window_end_clamped − last_seen ≥ 300 s o cambio semántico {role, protocols/confianza/puertos, vendor, risk_flags, baseline_state/epoch}. first_seen = LEAST(window_end, server_now+120s) (clamp M1). seen_windows +1 solo en apply.
 
 Stale: predicado `now() - last_seen > interval '30 days'`, computado en el SELECT (no persistido, sin cron UPDATE). UI filtra con `WHERE last_seen > now() - interval '30 days'` para vista activa.
 
 ### Baseline authority (B3)
+
+> **Alcance F1 aprobado (2026-11-25):** F1 OT usa **allowlist + descubrimiento
+> manual**. El baseline descrito en esta sección queda para F1.5/F2 y requiere un
+> piloto OT real; en F1 `baseline_*` se persiste en `disabled`/null y no hay arming.
 
 Agente = única autoridad efectiva. Servidor = intención del operador + espejo. Reconciliación por (instance, epoch, window_end). Arming por reloj monotónico + ventanas observadas (no wall-clock). Persistencia: tabla `ot_baseline` en SQLite del agente con columnas (device_id, host_key, state, epoch, observed_windows INTEGER, armed_at, learning_started_at). observed_windows incrementa por ventana donde el host aparece. Arming threshold = 7 días AND ≥ N ventanas observadas (configurable, default 100). Reboot preserva contadores via SQLite. Reinstalación (baseline_instance mismatch) → reset a learning con audit log.
 
@@ -320,7 +328,7 @@ Intención diferida: dashboard PATCH → desired_baseline_state → downlink en 
 
 ### Host identity (hashing)
 
-host_key = primeros 16 hex chars de HMAC-SHA256(device_key, ip) **siempre**, en ambos modos de `anonymize_hosts` (B-029, `docs/plans/etapa-2-backlog.md:65`). No hay columna `identity_kind`: con B-029 sería estado muerto. `ip_display` es un campo aparte, poblado sólo cuando `anonymize_hosts` está inactivo y con retención de 7 días. Derivación idéntica en agente y almacenada verbatim por servidor; sin re-derivación server-side. Rotación de clave HMAC → nuevas identidades, sin reconciliación (D10). oui_prefix = primeros 3 bytes del OUI de la MAC (cuando visible en el segmento), nunca la MAC completa.
+host_key = primeros 16 hex chars de HMAC-SHA256(device_key, ip) **siempre**, en ambos modos de `anonymize_hosts` (B-029, `docs/plans/etapa-2-backlog.md:112`). No hay columna `identity_kind`: con B-029 sería estado muerto. `ip_display` es un campo aparte, poblado sólo cuando `anonymize_hosts` está inactivo y con retención de 7 días. Derivación idéntica en agente y almacenada verbatim por servidor; sin re-derivación server-side. Rotación de clave HMAC → nuevas identidades, sin reconciliación (D10). oui_prefix = primeros 3 bytes del OUI de la MAC (cuando visible en el segmento), nunca la MAC completa.
 
 ### Licencias (M7)
 
@@ -436,7 +444,7 @@ ot_segment_cidrs = []  # vacío = todas las interfaces
 `oui`, `s7_tsap`, `manual` (modbus_devid en F2)
 
 ### Evidence shapes (por regla)
-- `ot_new_master`: `{ fn_codes: number[], baseline_days: number, baseline_epoch: number }`
+- `ot_new_master`: `{ fn_codes: number[], allowlist_version: string }` (F1; `baseline_days`/`baseline_epoch` en F1.5/F2)
 - `ot_write_outside_hours`: `{ fn_codes: number[], hour: number, schedule: string }`
 - `ot_program_download`: `{ function: number, block: string }` (F2 para DNP3)
 - `ot_cpu_state_change`: `{ command: number }` (F2 para DNP3)
@@ -548,7 +556,7 @@ CREATE TABLE ot_assets (
   model_hint              text CHECK (model_hint IS NULL OR char_length(model_hint) <= 64),
   zone                    text CHECK (zone IS NULL OR char_length(zone) <= 64),
   label                   text CHECK (label IS NULL OR char_length(label) <= 64),
-  baseline_state          text NOT NULL DEFAULT 'learning'
+  baseline_state          text NOT NULL DEFAULT 'disabled'
                           CHECK (baseline_state IN ('learning','armed','disabled')),
   baseline_instance       uuid,
   baseline_epoch          integer,

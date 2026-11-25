@@ -16,21 +16,47 @@ su nombre y no se da por resuelto (AGENTS.md §4.7).
 | E0 | Aplicar las 10 correcciones al diseño y escribir las secciones OT de `reference/` | — | `hecho` | Diff revisado contra §3 del plan, punto por punto | 10/10 por grep: 0 restos de `cap 4 KB`, `4096 B` y `8×512`; `CREATE TABLE ot_assets` en `:531`; migración en `:606`; `0x2B` y `"v": 1` sin coincidencias | 2026-11-25 · Buffy |
 | E1 | ADR-0021 (retención OT), ADR-0022 (invariante pasivo) y runbook de cleanup | — | `hecho` | ADRs con número libre (0021/0022) y runbook nombrando la tabla | `ls docs/adr \| tail -3` → `0021-ot-assets-retention-exception.md`, `0022-passive-invariant.md`; runbook `:13-31` con tabla, poda y baja de dispositivo; índice con 22 ADRs | 2026-11-25 · Buffy |
 | E1.5 | Ledger único (`sc_schema_migrations`) y patrón de escritura documentado | — | `hecho` | `drizzle.config.ts` con `out` separado, checker sin drift, runbook y patrón documentados | `node scripts/verify-migration-ledger.mjs --env-file web/.env.local` → `archivos: 17; ledger: 17; drizzle (dato): 13; sin drift` (exit 0); `node --check` exit 0; `tsc --noEmit` exit 0; runbook con «Ledger único y prohibición de `drizzle-kit`»; `node scripts/test-migration-ledger.mjs` → 5/5 | 2026-11-25 · Buffy |
-| E2.0 | Spike de firmas: 4 fixtures binarios y test de offsets | Aprobación M6, E0 | `bloqueado` | Los 4 protocolos clasifican según la tabla normativa M4 | — | — |
-| E2 | Contrato `ot` en schema + Zod + serde + fixtures (un solo cambio) | E2.0 | `bloqueado` | `verify-contracts.sh`, `validate-contracts.js` y `test-contracts-zod.mjs` verdes | — | — |
+| E2.0 | Spike de firmas: 4 fixtures binarios y test de offsets | E0 | `pendiente` | Los 4 protocolos clasifican según la tabla normativa M4 | Aprobación M6 2026-11-25 (`backlog:49`); F1 OT en allowlist; sin iniciar | 2026-11-25 · Buffy |
+| E2 | Contrato `ot` en schema + Zod + serde + fixtures (un solo cambio) | E2.0 | `bloqueado` | `verify-contracts.sh`, `validate-contracts.js` y `test-contracts-zod.mjs` verdes | Bloqueada por E2.0; checkpoint E2.0/E2 pendiente | 2026-11-25 · Buffy |
 | E3 | Migración `0017_ot-assets.sql` y `web/lib/ot/` (upsert condicional) | E2, E1 | `bloqueado` | `--dry-run` correcto + tests de retención, conteo y reaplicación | — | — |
 | E4 | Crate `sc-ot`: 4 parsers puros, peek LRU 4096, alineación 0–7 | E2 | `bloqueado` | Fuzz no-panic + property test de CRC DNP3 | — | — |
 | E5 | `sc-capture`: `forbid(unsafe_code)`, clippy, peek, BPF, degradación | E2 | `bloqueado` | Compila con y sin `--features live`; gate detecta un socket de prueba | — | — |
-| E6 | `sc-detect`: reglas corregidas, baseline SQLite, arming, anti-storm | E4 | `bloqueado` | Reinicio a mitad de aprendizaje conserva `observed_windows` | — | — |
+| E6 | `sc-detect`: reglas corregidas, allowlist, anti-storm | E4 | `bloqueado` | Miembro/no miembro de allowlist + anti-storm sin duplicar | — | 2026-11-25 · Buffy |
 | E7 | `/api/ingest`: dos pasadas, techo de confianza, upsert, downlink | E2, E3 | `bloqueado` | ≤3 statements extra, `EXPLAIN` sin scan nuevo, fixture 0.1.8 en 200 | — | — |
 | E8 | UI: badge de protocolo en la matriz y tab "Activos OT" | E3 | `bloqueado` | `typecheck`, `lint` y `build` verdes; la tab no muestra datos sintéticos | — | — |
-| E9 | Demo sintética TEST-NET con los dos disclaimers | E8 | `bloqueado` | Badge `confirmed` visible con "Flujo Modbus sintético…" y "Evidencia sintética" | — | — |
+| E8.1 | Card «Mapa OT observado»: nodos + rutas alertadas | E7, E8 | `bloqueado` | `metric=ot_topology` con nodos/aristas acotados; empty state; sin IP/MAC ni aristas inventadas | — | 2026-11-25 · Buffy |
+| E8.2 | Card «Mapa de exposición IT»: hosts/países/puertos, sin aristas | E8 | `bloqueado` | Top hosts/países/puertos; sin aristas; empty state; build verde | — | 2026-11-25 · Buffy |
+| E9 | Demo sintética TEST-NET con las dos cards y los dos disclaimers | E8.1, E8.2 | `bloqueado` | Badge `confirmed` y cards visibles con "Flujo Modbus sintético…" y "Evidencia sintética" | — | 2026-11-25 · Buffy |
 | E10 | Empaquetado `linux-x64-sensor` y `verify-passive.sh` en CI | E5, E6 | `bloqueado` | Dry-run del target nuevo y `verify-agent.ps1` con 15 archivos | — | — |
 
-Bloqueos por gate del propietario (no se resuelven por cuenta propia):
-aprobación de M6 (`docs/plans/etapa-2-backlog.md:49`), aplicación de `0017` a
-producción (N3), B-028 y el renombre de `ot_ot_in_it_zone`. Detalle en
+Aprobación de M6 **otorgada el 2026-11-25** (`docs/plans/etapa-2-backlog.md:49`):
+hito nuevo con F1 OT en allowlist + descubrimiento manual y checkpoint tras
+E2.0/E2. La aprobación no autoriza ejecución: E2.0 requiere un "dale" que la
+nombre. Gates que siguen abiertos: checkpoint E2.0/E2 (propietario), aplicación
+de `0017` a producción (N3), B-028 y el renombre `ot_ot_in_it_zone`. Detalle en
 `plan-implementacion.md` §6.
+
+## Checkpoint E2.0/E2
+
+Se evalúa al cerrar E2.0 y E2; sin esta decisión, E3–E10 (incl. E8.1/E8.2)
+siguen bloqueadas.
+
+| Verificación | Comando exacto | Evidencia en el tablero |
+|---|---|---|
+| Firmas | `cd agent && cargo test -p sc-core ot_signatures` | `test result: ok`; 4/4 protocolos, 0 fallos; salida cruda y exit code |
+| Gate de contratos | `bash scripts/verify-contracts.sh` | `Contratos OK (Rust + JSON Schema + Zod).`; exit 0 |
+| JSON Schema | `node scripts/validate-contracts.js` | `Contratos OK.`, sin `FAIL:`, exit 0 |
+| Zod | `cd web && node --experimental-strip-types ../scripts/test-contracts-zod.mjs` | `# fail 0`; exit 0 |
+| Fixture 0.1.8 sin `ot` | incluido en `verify-contracts.sh` | valida y serializa idéntico; nombre del test y resultado |
+
+La respuesta HTTP 200 del fixture 0.1.8 se verifica en E7, no en este checkpoint.
+Si `pnpm` bloquea `verify-contracts.sh` por el lockfile, se corren los comandos
+directos y se registra la limitación; un gate parcial no cierra el checkpoint.
+
+**Registro:** la evidencia va en las celdas de E2.0/E2 y la decisión del propietario
+(`aprobado`, `rechazado` o `vuelve a diseño`) en la bitácora. Si 2 o más protocolos
+fallan, M6 vuelve a diseño y no se escribe contrato; si falla el contrato, se corrige
+dentro de E2. El checkpoint no autoriza E3–E10 en bloque: cada etapa necesita "dale".
 
 ## Leyenda de estados
 
@@ -46,6 +72,37 @@ Si una etapa bloqueada se desbloquea, vuelve a `pendiente` con nota de quién
 levantó el bloqueo y cuándo.
 
 ## Bitácora
+
+### 2026-11-25 · Plan · cards de red IT/OT
+
+- **Qué se hizo:** análisis de viabilidad y planificación de dos cards: «Mapa OT
+  observado» (E8.1) y «Mapa de exposición IT» (E8.2). Se documentó por qué una
+  topología real no es posible con el contrato actual: `host_stats` no tiene
+  src/dst, `top_ports` no publica pares y `ot_assets.peers` no tiene campo de
+  origen; queda como gate de contrato en §8.
+- **Comando ejecutado:** revisión de `web/lib/db/migrations/0000_init.sql:45-53`,
+  `web/lib/schemas/ingest.ts:76-87`, `web/components/dashboard/OverviewView.tsx`,
+  `web/components/dashboard/ConnectionsView.tsx` y
+  `docs/ux/dashboard-wireframes.md:28`.
+- **Salida:** E8.1/E8.2 agregadas al plan y al tablero; E9 pasa a depender de
+  ambas; total 15 etapas (3 hechas, 1 pendiente, 11 bloqueadas). No se implementó
+  ninguna card.
+- **Qué quedó pendiente:** E8.1/E8.2 bloqueadas por el checkpoint y sus
+  dependencias; la topología real IT/OT requiere decisión del propietario y
+  cambio de contrato (§8).
+
+### 2026-11-25 · M6 · aprobación del propietario
+
+- **Qué se hizo:** aprobado M6 OT como hito nuevo con F1 OT en allowlist +
+  descubrimiento manual; baseline automático diferido a F1.5/F2. Checkpoint
+  obligatorio tras E2.0/E2, con comandos y evidencia definidos en el tablero.
+- **Comando ejecutado:** revisión de `docs/plans/etapa-2-backlog.md:49`, del plan
+  §6 y de los scripts de contrato (`scripts/verify-contracts.sh`,
+  `scripts/validate-contracts.js`, `scripts/test-contracts-zod.mjs`).
+- **Salida:** decisión registrada en backlog y roadmap; E2.0 pasa a `pendiente`;
+  E2–E10 siguen bloqueadas por dependencia o por el checkpoint.
+- **Qué quedó pendiente:** ejecutar E2.0 (requiere "dale"); checkpoint E2.0/E2;
+  B-028, el renombre y la aplicación de `0017` a producción siguen como gates.
 
 ### 2026-11-25 · E1.5 · revisión · Buffy
 

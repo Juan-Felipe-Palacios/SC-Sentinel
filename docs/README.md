@@ -17,7 +17,7 @@
 | `architecture/` | C4 overview (L1–L3), data-flow (DFD), decisiones (atajo a `adr/`), bootstrap | spec §3, §17 |
 | `designs/` | Diseños técnicos: batch-ingest (SYNC-30), installers, m6-passive-ot-identification, neon-query-performance, windows-installer + Stage 0 de sc-gui (con informe de cierre) | spec §3 |
 | `plans/` | Backlog único de Etapa 2 (P0 de stall + hito Fase 1) | planificación |
-| `OT/` | Ejecución del milestone M6: plan por etapas (E0–E10), tablero de seguimiento y protocolo para agentes | planificación |
+| `OT/` | Ejecución del milestone M6: plan por etapas (E0–E10 + E8.1/E8.2), tablero de seguimiento y protocolo para agentes | planificación |
 | `evidence/` | Evidencia de cierre por hito: diarios, métricas derivadas y tickets. Los `.log` crudos no se versionan | §7.8 |
 | `roadmap.md` | Roadmap y decisiones del propietario (SYNC-30, webhooks) | planificación |
 | `operations/` | deployment, alert-lifecycle, slo, observability (complementan `runbooks/`) | spec §8, §9, §12 |
@@ -82,8 +82,8 @@ Módulos que sostienen estas rutas: `web/lib/export`, `web/lib/ai/metrics.ts` y 
 | security/ | ✅ auditoría 2026-11-09 (altos H1–H7 y M1/M2/M5/M8 + M3/M6/M7 corregidos; M4 y L1–L5 pendientes) + plan CSP nonce (P1–P2 desplegados como Report-Only en producción; P3–P5 pendientes) | transversal |
 | designs/ | ✅ batch-ingest (SYNC-30) + installers + m6 passive OT identification + neon query performance + windows-installer + Stage 0 de sc-gui (informe de cierre) | planificación |
 | plans/ | ✅ backlog de Etapa 2 (2026-11-20): P0 de stall + Fase 1 | planificación |
-| OT/ | ✅ plan de implementación M6 + tablero de 13 etapas (3 hechas, 10 bloqueadas por la aprobación del hito) | planificación |
+| OT/ | ✅ plan de implementación M6 + tablero de 15 etapas (3 hechas, 1 pendiente —E2.0—, 11 bloqueadas; M6 aprobado con F1 OT en allowlist, checkpoint E2.0/E2, cards IT/OT planificadas) | planificación |
 | evidence/ | ✅ Stage 0 de sc-gui: diario, métricas derivadas y ticket contingente (log crudo fuera de git) | Stage 0 |
 | roadmap.md | ✅ decisiones del propietario (2026-11-15) | planificación |
 
-**Última revisión del índice:** 2026-11-25 — indexados los diseños nuevos (installers, m6-passive-ot-identification, neon-query-performance, windows-installer), conteo de RFCs actualizado (7), agregado `OT/` con el plan ejecutable de M6 y su tablero, y E1/E1.5 cerradas con los ADR-0021/0022, la excepción de `ot_assets` en el runbook de cleanup, el ledger único documentado y el checker de drift.
+**Última revisión del índice:** 2026-11-25 — indexados los diseños nuevos (installers, m6-passive-ot-identification, neon-query-performance, windows-installer), conteo de RFCs actualizado (7), agregado `OT/` con el plan ejecutable de M6 y su tablero, y E1/E1.5 cerradas con los ADR-0021/0022, la excepción de `ot_assets` en el runbook de cleanup, el ledger único documentado y el checker de drift. M6 aprobado el 2026-11-25 con F1 OT en allowlist y checkpoint E2.0/E2. Se planificaron las cards IT/OT (E8.1/E8.2) y la topología real quedó como gate de contrato (§8).

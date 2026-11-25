@@ -1,7 +1,7 @@
 # Goldfish — informe de revisión (estado corregido)
 
-**Estado:** abierto. Quedan 5 decisiones del propietario; los hallazgos de diseño se
-corrigieron el 2026-11-25 en la etapa E0.
+**Estado:** abierto. Quedan 4 decisiones del propietario; M6 OT se aprobó el
+2026-11-25 con F1 en allowlist y los hallazgos de diseño se corrigieron en E0.
 
 **Objetivo revisado:** `docs/designs/m6-passive-ot-identification.md` (588 líneas al
 momento de la revisión).
@@ -20,7 +20,7 @@ revisión, no como fuente de verdad.
 | 1 | `data-model.md` y `detection-rules.md` no contenían OT | Confirmado en parte | Se escribieron las secciones OT en E0; el cuarto nombre de regla era inventado (§1) |
 | 2 | El ítem 7 remite a un DDL inexistente | Confirmado | Appendix B con el DDL de 24 columnas |
 | 3 | No existen los 6 informes de revisión | Confirmado, no accionable | Auditarlos por diff es inviable: el diseño tiene un solo commit (`c1a8500`). Decisión del propietario |
-| 4 | M6 OT está "Decisión pendiente" en el backlog | Confirmado | **Bloqueante**: sin aprobación no hay E2.0–E10 |
+| 4 | M6 OT está "Decisión pendiente" en el backlog | Confirmado | **Aprobado 2026-11-25** con F1 OT en allowlist (`backlog:49`); sigue el checkpoint E2.0/E2 |
 | 5 | "F1" sobrecargado (DPI+blacklists vs fase 1 OT) | Confirmado | Decisión del propietario; default propuesto: nota, sin renombrar |
 | 6 | `host_key` contradice B-029 | Confirmado | Alineado a B-029 y `identity_kind` eliminado |
 | 7 | "16 en contrato vs 64 en `ot_max_endpoints`" | **No es defecto** | El propio diseño ya distinguía default y rango (`:60`); el riesgo real era otro (§7) |
@@ -60,9 +60,10 @@ correcciones en un ADR. Sin decisión, el punto queda abierto.
 
 ### 4. Aprobación del milestone
 
-`docs/plans/etapa-2-backlog.md:49` registra "M6 OT (hito nuevo sí/no, allowlist vs
-baseline)" como *Decisión pendiente*. El diseño no puede tratarse como aprobado. Es la
-única decisión que bloquea trabajo de código.
+`docs/plans/etapa-2-backlog.md:49` registraba "M6 OT (hito nuevo sí/no, allowlist vs
+baseline)" como *Decisión pendiente*. El propietario aprobó M6 el 2026-11-25 con F1 OT
+en **allowlist + descubrimiento manual**; el baseline automático queda para F1.5/F2. El
+gate vigente es el checkpoint E2.0/E2, no la aprobación del hito.
 
 ### 5. "F1" sobrecargado
 
@@ -72,7 +73,7 @@ la nota de desambiguación en el diseño; el renombre queda a decisión del prop
 
 ### 6. `host_key` e `identity_kind`
 
-B-029 (`docs/plans/etapa-2-backlog.md:65`) fija `host_key` como HMAC en **ambos** modos y
+B-029 (`docs/plans/etapa-2-backlog.md:112`) fija `host_key` como HMAC en **ambos** modos y
 aclara que no cambia al activar la anonimización. El diseño decía lo contrario. Se alineó
 a B-029 y se eliminó `identity_kind`: con HMAC incondicional sería una columna con un
 solo valor posible. `ip_display` sigue siendo el campo separado, con retención de 7 días.
@@ -104,11 +105,13 @@ Detectados al verificar el diseño contra el repositorio y la base (2026-11-25):
 
 ## Abierto
 
-1. **Aprobar M6 OT** (`docs/plans/etapa-2-backlog.md:49`) — bloquea E2.0–E10.
-2. **Nivel de auditoría** de los 6 informes ausentes (hallazgo 3).
-3. **Desambiguar "F1"** (hallazgo 5).
-4. **B-028**: rotación de `SC_HMAC_KEY` con discontinuidad aceptada o con versionado.
-5. **Confirmar el renombre** `ot_ot_in_it_zone` → `ot_it_zone_crossing`.
+1. **Nivel de auditoría** de los 6 informes ausentes (hallazgo 3).
+2. **Desambiguar "F1"** (hallazgo 5).
+3. **B-028**: rotación de `SC_HMAC_KEY` con discontinuidad aceptada o con versionado.
+4. **Confirmar el renombre** `ot_ot_in_it_zone` → `ot_it_zone_crossing`.
+
+M6 OT ya no está en esta lista: aprobado el 2026-11-25. El checkpoint E2.0/E2 se
+evalúa al cerrar esas dos etapas y tampoco se resuelve por cuenta del agente.
 
 Nada de esto se resuelve por cuenta del agente (AGENTS.md §13.7). El orden de ejecución
 vigente está en `docs/OT/plan-implementacion.md` §4 y el estado en

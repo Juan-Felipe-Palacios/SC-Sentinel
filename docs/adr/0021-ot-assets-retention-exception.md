@@ -62,8 +62,8 @@ filas que permitan estimar crecimiento real.
 
 ## Lo que este ADR no decide
 
-- No aprueba el milestone M6: `docs/plans/etapa-2-backlog.md:49` sigue siendo la
-  decisión pendiente del propietario.
+- No sustituye la decisión del propietario sobre M6: `docs/plans/etapa-2-backlog.md:49`
+  la registra (aprobado 2026-11-25 con F1 OT en allowlist); este ADR no la modifica.
 - No habilita la poda automática de 180 días.
 - No fija zonas Purdue ni el esquema de permisos del dashboard.
 
