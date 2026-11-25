@@ -479,10 +479,10 @@ Para una topología real se necesita un cambio de contrato aparte:
 
 | Pieza | IT | OT |
 |---|---|---|
-| Campo | `links` opcional ≤32: `{client, server, proto, port, bytes, packets}` | `ot.links` opcional ≤8: `{client, server, proto, port, bytes}` |
+| Campo | `links` opcional ≤32: `{client, server, proto, port, bytes, packets}` | `ot.links` opcional ≤4 (8 tras medir): `{client, server, proto, port, bytes}` |
 | Persistencia | tabla `network_edges` por ventana, con retención y poda | `ot_edges` o `ot_assets.peers` poblado desde `ot.links` |
 | Privacidad | sólo `host_key`; nunca IP, MAC ni payload | ídem; sin valores de registro |
-| Límites | top N por bytes con `truncated` explícito | estimado 600–800 B para 8 links (host_key 16 hex, proto enum, puerto y bytes); medir antes de fijar el cap |
+| Límites | 32 aristas ≈5,3 KB; top N por bytes con `truncated` explícito | `host_key` de 32 hex: 629 B para 4 links y 1 249 B para 8; con el endpoint real (163 B) 8 caben (8 049 B), pero el cap por defecto se queda en 4 hasta medir |
 | UI | aristas reales; reemplaza el mapa de exposición | aristas reales; reemplaza «rutas alertadas» |
 
 **Gate:** decisión del propietario, ADR de retención y contrato nuevo (schema,
