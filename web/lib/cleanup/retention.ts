@@ -16,6 +16,7 @@ import { db } from '@/lib/db';
  * - ingest_batches: 2 días (solo idempotencia) — se borra solo si NO tiene flow_windows vivo
  *
  * `devices` y `settings` NUNCA se tocan (runbook: prohibido TRUNCATE sobre ellos).
+ * `ot_assets` está FUERA de RETENTION_DAYS: poda propia según ADR-0021.
  * Las ventanas referenciadas por alertas vivas se conservan aunque superen los 7 días.
  */
 

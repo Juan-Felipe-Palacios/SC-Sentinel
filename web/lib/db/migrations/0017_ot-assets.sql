@@ -1,0 +1,28 @@
+CREATE TABLE "ot_assets" (
+	"id" text PRIMARY KEY NOT NULL,
+	"device_id" text NOT NULL REFERENCES "devices"("id"),
+	"host_key" text NOT NULL CHECK (char_length("host_key") BETWEEN 8 AND 64),
+	"first_seen" timestamptz NOT NULL,
+	"last_seen" timestamptz NOT NULL,
+	"seen_windows" bigint NOT NULL DEFAULT 0,
+	"role" text NOT NULL DEFAULT 'unknown' CHECK ("role" IN ('client','server','both','unknown')),
+	"protocols" jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof("protocols") = 'array' AND jsonb_array_length("protocols") <= 6),
+	"vendor" text NOT NULL DEFAULT 'unknown' CHECK ("vendor" IN ('siemens','rockwell','schneider','abb','moxa','unknown')),
+	"vendor_source" text NOT NULL DEFAULT 'manual' CHECK ("vendor_source" IN ('oui','s7_tsap','manual')),
+	"oui_prefix" bytea CHECK ("oui_prefix" IS NULL OR octet_length("oui_prefix") = 3),
+	"model_hint" text CHECK ("model_hint" IS NULL OR char_length("model_hint") <= 64),
+	"zone" text CHECK ("zone" IS NULL OR char_length("zone") <= 64),
+	"label" text CHECK ("label" IS NULL OR char_length("label") <= 64),
+	"baseline_state" text NOT NULL DEFAULT 'disabled' CHECK ("baseline_state" IN ('learning','armed','disabled')),
+	"baseline_instance" uuid,
+	"baseline_epoch" integer,
+	"baseline_since" timestamptz,
+	"desired_baseline_state" text CHECK ("desired_baseline_state" IS NULL OR "desired_baseline_state" IN ('learning','armed','disabled')),
+	"desired_at" timestamptz,
+	"desired_by" text,
+	"intent_applied_at" timestamptz,
+	"peers" jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof("peers") = 'array' AND jsonb_array_length("peers") <= 64),
+	"risk_flags" jsonb NOT NULL DEFAULT '[]'::jsonb,
+	UNIQUE ("device_id", "host_key")
+) WITH (fillfactor = 80);--> statement-breakpoint
+CREATE INDEX "ot_assets_device_last_seen_idx" ON "ot_assets" USING btree ("device_id", "last_seen" DESC);
