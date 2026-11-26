@@ -16,6 +16,7 @@
 
 import { createHash } from 'crypto';
 import { alertDeadlines } from '@/lib/alerts/policy';
+import { buildOtAssetsUpsertStatement, type OtAssetSeed } from '@/lib/ot/upsert';
 
 /** Etiqueta `sql` del driver de Neon (o un doble en tests). */
 export type SqlTag = (strings: TemplateStringsArray, ...values: unknown[]) => unknown;
@@ -72,6 +73,12 @@ export interface PersistInput {
   /** Top ASNs de la ventana (opcional: agente sin GeoLite2-ASN lo omite). */
   asnStats?: AsnStatInput[];
   alerts: AlertInput[];
+  /**
+   * Activos OT de la ventana (M6 E7). Van en UN statement extra, con la guarda
+   * de `seen_windows` para que el reintento de la misma ventana no incremente el
+   * contador. Sin activos no se agrega ningún statement.
+   */
+  otAssets?: OtAssetSeed[];
   health: AgentHealthInput;
   /** Solo se envía cuando el device acaba de enrolarse (ADR-0010). */
   promoteToActive: boolean;
@@ -142,6 +149,13 @@ export function buildPersistStatements(sql: SqlTag, input: PersistInput): unknow
               ${deadlines.expiresAt.toISOString()}::timestamptz)
       ON CONFLICT DO NOTHING`);
   }
+
+  const otUpsert = buildOtAssetsUpsertStatement(sql, {
+    deviceId: input.deviceId,
+    windowEnd: input.end,
+    assets: input.otAssets ?? [],
+  });
+  if (otUpsert) statements.push(otUpsert);
 
   const h = input.health;
   statements.push(sql`

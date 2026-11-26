@@ -81,7 +81,7 @@ const readExample = (name) =>
 const issuePaths = (result) => result.error.issues.map((i) => i.path.join('.'));
 
 test('Contrato ot (M6 E2): fixtures contra WindowSnapshotSchema', async (t) => {
-  const { WindowSnapshotSchema } = await import('../web/lib/schemas/ingest.ts');
+  const { WindowSnapshotSchema, OtBlockSchema } = await import('../web/lib/schemas/ingest.ts');
 
   await t.test('0.1.8 sin ot sigue validando: el campo es opcional', () => {
     const result = WindowSnapshotSchema.safeParse(readExample('snapshot-0.1.8-no-ot.json'));
@@ -93,32 +93,36 @@ test('Contrato ot (M6 E2): fixtures contra WindowSnapshotSchema', async (t) => {
     assert.equal(result.data.ot, undefined);
   });
 
-  await t.test('bloque ot válido valida y conserva eventos, protocolos y endpoints', () => {
-    const result = WindowSnapshotSchema.safeParse(readExample('snapshot-ot-valid.json'));
-    assert.equal(
-      result.success,
-      true,
-      `Validation failed: ${JSON.stringify(result.error?.issues)}`
-    );
-    assert.equal(result.data.ot.events.length, 2);
-    assert.equal(result.data.ot.events[0].rule, 'ot_new_master');
-    assert.equal(result.data.ot.protocols[0].name, 'modbus');
-    assert.equal(result.data.ot.endpoints[0].port, 502);
-    assert.equal(result.data.ot.truncated, false);
+  await t.test('bloque ot válido pasa el core y la segunda pasada (E7)', () => {
+    const fixture = readExample('snapshot-ot-valid.json');
+    assert.equal(WindowSnapshotSchema.safeParse(fixture).success, true);
+    const ot = OtBlockSchema.safeParse(fixture.ot);
+    assert.equal(ot.success, true, `Validation failed: ${JSON.stringify(ot.error?.issues)}`);
+    assert.equal(ot.data.events.length, 2);
+    assert.equal(ot.data.events[0].rule, 'ot_new_master');
+    assert.equal(ot.data.protocols[0].name, 'modbus');
+    assert.equal(ot.data.endpoints[0].port, 502);
+    assert.equal(ot.data.truncated, false);
   });
 
-  await t.test('bloque ot malformado falla con rutas útiles', () => {
-    const result = WindowSnapshotSchema.safeParse(readExample('snapshot-ot-malformed.json'));
+  await t.test('bloque ot malformado NO da 4xx: el core pasa y la segunda pasada falla', () => {
+    const fixture = readExample('snapshot-ot-malformed.json');
+    assert.equal(
+      WindowSnapshotSchema.safeParse(fixture).success,
+      true,
+      'el core debe aceptar el bloque ot aunque sea inválido'
+    );
+    const result = OtBlockSchema.safeParse(fixture.ot);
     assert.equal(result.success, false);
     const paths = issuePaths(result);
     for (const expected of [
-      'ot.engine',
-      'ot.capture_mode',
-      'ot.truncated',
-      'ot.events.0.protocol',
-      'ot.events.0.confidence',
-      'ot.events.0.evidence',
-      'ot.endpoints.0.port',
+      'engine',
+      'capture_mode',
+      'truncated',
+      'events.0.protocol',
+      'events.0.confidence',
+      'events.0.evidence',
+      'endpoints.0.port',
     ]) {
       assert.ok(
         paths.includes(expected),
@@ -126,7 +130,7 @@ test('Contrato ot (M6 E2): fixtures contra WindowSnapshotSchema', async (t) => {
       );
     }
     assert.ok(
-      paths.some((p) => p.startsWith('ot.events.0')),
+      paths.some((p) => p.startsWith('events.0')),
       `el evento inválido debe señalar su ruta: ${JSON.stringify(paths)}`
     );
   });
@@ -137,12 +141,13 @@ test('Contrato ot (M6 E2): fixtures contra WindowSnapshotSchema', async (t) => {
     assert.equal(fixture.ot.protocols.length, 7);
     assert.equal(fixture.ot.endpoints.length, 17);
 
-    const result = WindowSnapshotSchema.safeParse(fixture);
+    assert.equal(WindowSnapshotSchema.safeParse(fixture).success, true);
+    const result = OtBlockSchema.safeParse(fixture.ot);
     assert.equal(result.success, false);
     const paths = issuePaths(result);
-    assert.ok(paths.includes('ot.events'), JSON.stringify(paths));
-    assert.ok(paths.includes('ot.protocols'), JSON.stringify(paths));
-    assert.ok(paths.includes('ot.endpoints'), JSON.stringify(paths));
+    assert.ok(paths.includes('events'), JSON.stringify(paths));
+    assert.ok(paths.includes('protocols'), JSON.stringify(paths));
+    assert.ok(paths.includes('endpoints'), JSON.stringify(paths));
     assert.equal(
       result.error.issues.length,
       3,

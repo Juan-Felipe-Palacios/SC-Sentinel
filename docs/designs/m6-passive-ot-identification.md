@@ -143,9 +143,11 @@ sc-sync (gzip, TLS 1.3, rate limit 60/min)
   │  1. Core schema (ot: z.unknown().optional()) → siempre pasa
   │  2. OtBlock.safeParse() → si falla: discardOtBlock() + counter
   │     ot_validation_failures_total{reason}
-  │  Server-side confidence ceiling: si capture_mode == "collector" y
-  │     confidence == "confirmed" → downgrade a "hint",
-  │     counter ot_confidence_downgraded_total
+  │  Server-side confidence ceiling (ADR-0023): el contrato usa confidence
+  │     numérico y capture_mode live|offline, así que el techo se aplica a
+  │     capture_mode == "offline" con confidence >= 0.9 → 0.7, rastro en
+  │     evidence.confidence_ceiling y log ot_confidence_downgraded.
+  │     La regla literal (collector → hint) queda para F2, con cambio de contrato.
   │
   ├─► ot_assets upsert (≤3 statements, condicional 5 min o cambio semántico)
   │     merge en TS: confianza monótona, vendor manual gana,

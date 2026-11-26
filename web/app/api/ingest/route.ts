@@ -9,7 +9,12 @@ import { clientIp } from '@/lib/http/client-ip';
 import { checkRateLimit } from '@/lib/rate-limit/ingest';
 import { readIngestBody } from '@/lib/ingest/read-body';
 import { logServerError } from '@/lib/logging/error';
-import { IngestEnvelopeSchema } from '@/lib/schemas/ingest';
+import { IngestEnvelopeSchema, OtBlockSchema, type OtBlock } from '@/lib/schemas/ingest';
+import {
+  alertsFromOtBlock,
+  applyConfidenceCeiling,
+  assetsFromOtBlock,
+} from '@/lib/ot/from-snapshot';
 import { buildPersistStatements, type SqlTag } from '@/lib/ingest/persist';
 import { db, flowWindows, alerts } from '@/lib/db';
 import { eq, and, gte } from 'drizzle-orm';
@@ -120,6 +125,40 @@ export async function POST(request: NextRequest) {
 
   const envelope = parsed.data;
 
+  // 6b. Segunda pasada (M6 E7): el bloque `ot` se valida aparte porque el campo
+  // es aditivo y opcional. Si falla se descarta y se registra; nunca 4xx por OT
+  // (G2 del diseño). La ventana sigue su curso con el core ya validado.
+  let otBlock: OtBlock | null = null;
+  if (envelope.snapshot.ot !== undefined) {
+    const parsedOt = OtBlockSchema.safeParse(envelope.snapshot.ot);
+    if (parsedOt.success) {
+      // Techo de confianza (E7): se aplica antes de derivar alertas y activos,
+      // así lo que se persiste es lo degradado. El contador es una línea de log
+      // estructurada, igual que `ot_block_discarded` (no hay subsistema de
+      // métricas todavía).
+      const ceiling = applyConfidenceCeiling(parsedOt.data);
+      otBlock = ceiling.block;
+      if (ceiling.downgraded > 0) {
+        console.info(
+          JSON.stringify({
+            event: 'ot_confidence_downgraded',
+            device_id: envelope.device.id,
+            window_id: envelope.window.id,
+            count: ceiling.downgraded,
+            capture_mode: parsedOt.data.capture_mode,
+          })
+        );
+      }
+    } else {
+      const firstIssue = parsedOt.error.issues[0];
+      logServerError(
+        'ot_block_discarded',
+        new Error(`${firstIssue?.path.join('.') || 'ot'}: ${firstIssue?.message ?? 'invalid'}`),
+        { code: 'ot_validation_failed', includeMessage: true }
+      );
+    }
+  }
+
   // Verify that the payload device.id matches the authenticated token device (unless dev fallback)
   if (authenticatedDeviceId !== 'dev_local_development' && envelope.device.id !== authenticatedDeviceId) {
     return NextResponse.json(
@@ -148,6 +187,9 @@ export async function POST(request: NextRequest) {
       if (cloudRisk.alert && !(await hasRecentHeuristicAlert(envelope.device.id))) {
         alertRows.push(cloudRisk.alert);
       }
+      // Eventos OT confirmados → alertas del feed, con `client`/`server` en
+      // `evidence` (E7) para que E8.1 pueda dibujar aristas reales.
+      const otAlerts = otBlock ? alertsFromOtBlock(otBlock) : [];
 
       const health = envelope.snapshot.health;
       const statements = buildPersistStatements(sql as unknown as SqlTag, {
@@ -176,13 +218,23 @@ export async function POST(request: NextRequest) {
           bytes: a.bytes,
           hosts: a.hosts,
         })),
-        alerts: alertRows.map((a) => ({
-          ruleId: a.rule_id,
-          severity: a.severity,
-          title: a.title,
-          description: a.description ?? '',
-          evidence: a.evidence ?? null,
-        })),
+        alerts: [
+          ...alertRows.map((a) => ({
+            ruleId: a.rule_id,
+            severity: a.severity,
+            title: a.title,
+            description: a.description ?? '',
+            evidence: a.evidence ?? null,
+          })),
+          ...otAlerts.map((a) => ({
+            ruleId: a.rule_id,
+            severity: a.severity,
+            title: a.title,
+            description: a.description,
+            evidence: a.evidence,
+          })),
+        ],
+        otAssets: otBlock ? assetsFromOtBlock(otBlock) : [],
         health: {
           captureStatus: health.capture_status,
           packetsSeen: health.packets_seen,

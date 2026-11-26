@@ -14,9 +14,11 @@ import { createHash } from 'crypto';
 export type SqlTag = (strings: TemplateStringsArray, ...values: unknown[]) => unknown;
 
 export interface OtAssetInput {
-  deviceId: string;
+  /** Los aporta el lote (`UpsertOtAssetsInput`); si vienen, el lote manda. */
+  deviceId?: string;
   hostKey: string;
-  windowEnd: Date;
+  /** Idem `deviceId`: la ventana del lote es la autoridad. */
+  windowEnd?: Date;
   firstSeen?: Date;
   role?: 'client' | 'server' | 'both' | 'unknown';
   protocols?: string[];
@@ -24,9 +26,13 @@ export interface OtAssetInput {
   riskFlags?: string[];
 }
 
+/** Activo sin los datos del lote: los aporta la ventana que lo contiene. */
+export type OtAssetSeed = Omit<OtAssetInput, 'deviceId' | 'windowEnd'>;
+
 export interface UpsertOtAssetsInput {
   deviceId: string;
   windowEnd: Date;
+  /** Cada activo puede traer los campos del lote, pero no los necesita. */
   assets: OtAssetInput[];
 }
 
@@ -92,4 +98,75 @@ export function buildUpsertOtAssetsStatements(
   }
 
   return statements;
+}
+
+/**
+ * Un único statement para todos los activos de la ventana.
+ *
+ * El criterio de E7 es ≤3 statements extra por ingest, así que no se puede
+ * emitir un `INSERT` por host. En un `INSERT ... VALUES (...), (...)` la cláusula
+ * `ON CONFLICT ... DO UPDATE ... WHERE` se evalúa por fila, así que la guarda
+ * `WHERE ot_assets.last_seen < EXCLUDED.last_seen` sigue impidiendo que un
+ * reintento de la misma ventana incremente `seen_windows`.
+ *
+ * Devuelve `null` cuando no hay activos: no se agrega un statement vacío.
+ */
+export function buildOtAssetsUpsertStatement(
+  sql: SqlTag,
+  input: UpsertOtAssetsInput
+): unknown | null {
+  if (input.assets.length === 0) return null;
+
+  const segments: string[] = [];
+  const values: unknown[] = [];
+  const literal = (text: string) => {
+    if (segments.length === 0) segments.push(text);
+    else segments[segments.length - 1] += text;
+  };
+  const bind = (value: unknown) => {
+    segments.push('');
+    values.push(value);
+  };
+
+  literal(
+    'INSERT INTO ot_assets (id, device_id, host_key, first_seen, last_seen, seen_windows, ' +
+      'role, protocols, peers, risk_flags) VALUES '
+  );
+
+  input.assets.forEach((asset, index) => {
+    if (index > 0) literal(', ');
+    const firstSeen = asset.firstSeen ?? input.windowEnd;
+    literal('(');
+    bind(stableId('ota', input.deviceId, asset.hostKey));
+    literal(', ');
+    bind(input.deviceId);
+    literal(', ');
+    bind(asset.hostKey);
+    literal(', ');
+    bind(firstSeen.toISOString());
+    literal('::timestamptz, ');
+    bind(input.windowEnd.toISOString());
+    literal('::timestamptz, ');
+    literal('1, ');
+    bind(asset.role ?? 'unknown');
+    literal(', ');
+    bind(JSON.stringify(asset.protocols ?? []));
+    literal('::jsonb, ');
+    bind(JSON.stringify(asset.peers ?? []));
+    literal('::jsonb, ');
+    bind(JSON.stringify(asset.riskFlags ?? []));
+    literal('::jsonb)');
+  });
+
+  literal(`
+      ON CONFLICT (device_id, host_key) DO UPDATE SET
+        last_seen = EXCLUDED.last_seen,
+        seen_windows = ot_assets.seen_windows + 1,
+        role = EXCLUDED.role,
+        protocols = EXCLUDED.protocols,
+        peers = EXCLUDED.peers,
+        risk_flags = EXCLUDED.risk_flags
+      WHERE ot_assets.last_seen < EXCLUDED.last_seen`);
+
+  return sql(segments as unknown as TemplateStringsArray, ...values);
 }

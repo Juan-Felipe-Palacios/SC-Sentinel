@@ -11,7 +11,11 @@ import { PGlite } from '@electric-sql/pglite';
 import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { queryRows, type QueryDb } from '@/lib/query/db-rows';
-import { buildUpsertOtAssetsStatements, type SqlTag } from '../upsert';
+import {
+  buildOtAssetsUpsertStatement,
+  buildUpsertOtAssetsStatements,
+  type SqlTag,
+} from '../upsert';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
 const migrationSql = fileURLToPath(
@@ -251,5 +255,35 @@ describe('migración 0017_ot-assets.sql', () => {
     expect(new Date(asset.first_seen).toISOString()).toBe(WINDOW_1.toISOString());
     expect(new Date(asset.last_seen).toISOString()).toBe(WINDOW_2.toISOString());
     expect(asset.protocols).toEqual(['modbus']);
+  });
+});
+
+describe('E7 · plan del upsert batcheado de ot_assets', () => {
+  it('el INSERT ... ON CONFLICT usa el índice único y no hace Seq Scan sobre ot_assets', async () => {
+    const statement = buildOtAssetsUpsertStatement(sql as unknown as SqlTag, {
+      deviceId: DEVICE_ID,
+      windowEnd: WINDOW_2,
+      assets: [
+        { hostKey: HOST_KEY, role: 'server', protocols: ['modbus'], peers: [], riskFlags: [] },
+        { hostKey: 'b'.repeat(32), role: 'client', protocols: ['s7comm'], peers: [], riskFlags: [] },
+      ],
+    }) as SQL;
+
+    const result = await db.execute(sql`EXPLAIN (FORMAT JSON) ${statement}`);
+    const plan = JSON.stringify(result.rows);
+    // Evidencia en el log del test: el plan real, recortado.
+    console.info(`EXPLAIN ot_assets: ${plan.slice(0, 600)}`);
+
+    // Plan medido en PGlite (PostgreSQL 17): ModifyTable/Insert sobre ot_assets,
+    // con el índice único como árbitro y un Values Scan del lote. No hay scan
+    // nuevo sobre la tabla, ni Seq Scan del lado del INSERT.
+    expect(plan).not.toContain('Seq Scan');
+    expect(plan).toContain('"Node Type":"ModifyTable"');
+    expect(plan).toContain('"Operation":"Insert"');
+    expect(plan).toContain('"Relation Name":"ot_assets"');
+    expect(plan).toContain('"Conflict Resolution":"UPDATE"');
+    expect(plan).toContain('ot_assets_device_id_host_key_key');
+    expect(plan).toContain('(ot_assets.last_seen < excluded.last_seen)');
+    expect(plan).toContain('"Node Type":"Values Scan"');
   });
 });

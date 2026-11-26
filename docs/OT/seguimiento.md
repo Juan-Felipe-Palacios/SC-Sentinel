@@ -22,7 +22,7 @@ su nombre y no se da por resuelto (AGENTS.md §4.7).
 | E4 | Crate `sc-ot`: 4 parsers puros, peek LRU 4096, alineación 0–7 | E2 | `hecho` | Fuzz no-panic + property test de CRC DNP3 | Crate `sc-ot` nuevo (`agent/crates/sc-ot/`): 4 parsers puros, `PeekCache` LRU 4096 por 5-tupla/dirección con 2 intentos y congelamiento tras `Confirmed`, alineación 0–7 en `classify_aligned`. Gate: `cargo fmt --all --check` exit 0; `cargo clippy --workspace --all-targets -- -D warnings` exit 0; `cargo test -p sc-ot` → `37 passed` (unit) + `5 passed` (fixtures) + `6 passed` (properties), 0 failed; `cargo test --workspace` exit 0 con `sc-core ot_signatures` 14/14 intacto. Paridad con los 12 fixtures de E2.0: 4 confirmados con su protocolo y 8 en `Reject`, incluido CRC DNP3 roto. `proptest` 256 casos: bytes arbitrarios de 0–2048 nunca paniquean; DNP3 sólo confirma con CRC válido (property test del criterio). **Fuzz real: deuda medida**, `cargo fuzz` no está instalado y la toolchain es `stable` (decisión del propietario 2026-11-26). **CI en verde:** `Rust CI` 45828598517 sobre `cafa7ab`, ambos jobs en success, con `sc_ot` 37, `ot_fixtures` 5 y `properties` 6 en `0 failed` sobre ubuntu y `cargo deny check licenses` → `licenses ok`. El push de `52b98a7` había fallado por dos causas ajenas al alcance: `sc-ot` sin bloque en `agent/deny.toml` y el fixture HTTP normalizado a LF por git; se corrigieron en `cafa7ab` sin cambiar ninguna assertion. | 2026-11-26 · Buffy |
 | E5 | `sc-capture`: `forbid(unsafe_code)`, clippy, peek, BPF, degradación | E2 | `pendiente` | Compila con y sin `--features live`; gate detecta un socket de prueba | Dependencia E2 `hecho` el 2026-11-26; tomable con dale | 2026-11-26 · Buffy |
 | E6 | `sc-detect`: reglas corregidas, allowlist, anti-storm | E4 | `hecho` | Miembro/no miembro de allowlist + anti-storm sin duplicar | Nuevo `agent/crates/sc-detect/src/ot.rs`: `Allowlist` (`host_key` + protocolo + puerto, tope 64, `from_lines`/`from_path`, versión para evidencia), `OtObservation`, `OtConfig` y `OtDetector::observe(sequence, obs)` con `ot_new_master`, dedup por clave y anti-storm por cooldown de ventanas (120 por defecto, **supuesto**). Evidencia del evento `{fn_codes: CSV, allowlist_version}`, recortada a 128 chars y 8 códigos. Gate: `cargo fmt --all --check` exit 0; `cargo clippy --workspace --all-targets -- -D warnings` exit 0; `cargo test -p sc-detect` → `33 passed; 0 failed` (20 previos + 13 nuevos); `cargo test --workspace` → 33 suites `ok`, 0 fallos. Criterios: miembro/no miembro (también con protocolo o puerto distinto), anti-storm dentro del cooldown y reintento de la misma ventana sin duplicar. Gate del renombre cerrado por el propietario: D7 en `docs/roadmap.md`. **CI de Rust 45835501319 sobre `a6d51ff`: `completed/success`**, `test (ubuntu-latest)` y `test (windows-latest)` en success, con `Running unittests src/lib.rs (sc_detect-…)` → `test result: ok. 33 passed; 0 failed` en ubuntu, `cargo clippy -- -D warnings`, `cargo audit`, `cargo deny check licenses` y el build con captura live en Windows también en verde. | 2026-11-26 · Buffy |
-| E7 | `/api/ingest`: dos pasadas, techo de confianza, upsert, downlink | E2, E3 | `pendiente` | ≤3 statements extra, `EXPLAIN` sin scan nuevo, fixture 0.1.8 en 200 | Dependencias E2 y E3 `hecho` el 2026-11-26; tomable con dale | 2026-11-26 · Buffy |
+| E7 | `/api/ingest`: dos pasadas, techo de confianza, upsert, downlink | E2, E3 | `hecho` | ≤3 statements extra, `EXPLAIN` sin scan nuevo, fixture 0.1.8 en 200 | Lote OT = **1** statement (test de presupuesto); `EXPLAIN` = `ModifyTable/Insert` + árbitro `ot_assets_device_id_host_key_key` + `Values Scan` (0 `Seq Scan`, medido en PGlite); fixture 0.1.8 → **200** en los tres casos (`pnpm test`: 382 passed); techo de confianza según ADR-0023. | 2026-11-26 · Buffy |
 | E8 | UI: badge de protocolo en la matriz y tab "Activos OT" | E3 | `pendiente` | `typecheck`, `lint` y `build` verdes; la tab no muestra datos sintéticos | Dependencia E3 `hecho` el 2026-11-26; tomable con dale | 2026-11-26 · Buffy |
 | E8.1 | Card «Mapa OT observado»: nodos + aristas reales | E7, E8 | `bloqueado` | `metric=topology` con nodos/aristas acotados (≤40 nodos, ≤80 aristas); empty state; distingue «sin datos» de «sin aristas»; sin IP/MAC ni aristas inventadas; build verde | — | 2026-11-25 · Buffy |
 | E8.2 | Card «Mapa de exposición IT»: hosts/países/puertos, sin aristas | E8 | `bloqueado` | Top hosts/países/puertos; sin aristas; empty state; build verde | — | 2026-11-25 · Buffy |
@@ -564,6 +564,69 @@ ventanas, de modo que un reintento de la misma ventana no duplica nada.
 - **Qué quedó pendiente:** `Skills CI` no se corrió en este push (los paths que lo
   disparan no cambiaron), así que queda como **no verificado**; el backup de los
   archivos ignorados en `/tmp/sc-ignored-backup` (103 archivos) no se borró.
+
+### 2026-11-26 · E7 · arranque (dos pasadas + upsert de `ot_assets`)
+
+- **Qué se hizo:** se marcó la fila E7 `en curso` antes de tocar código y se
+  implementó la parte de persistencia del ingest pasivo OT: (a) dos pasadas, con
+  `WindowSnapshotSchema` aceptando `ot` como `unknown` y `OtBlockSchema` validando
+  aparte en `web/app/api/ingest/route.ts`, de modo que un bloque `ot` malformado se
+  descarta con el evento estructurado `ot_block_discarded` y la ventana sigue
+  (nunca 4xx por OT); (b) `web/lib/ot/from-snapshot.ts` traduce `ot.events` a
+  alertas con `client`/`server` dentro de `evidence` (se escriben primero para que
+  el tope de 32 claves no los recorte; arrays → CSV y valores ≤128 chars) y agrega
+  endpoints/eventos en un activo por `host_key`; (c) `buildOtAssetsUpsertStatement`
+  emite un único `INSERT ... VALUES (...),(...) ON CONFLICT (device_id, host_key)
+  DO UPDATE ... WHERE ot_assets.last_seen < EXCLUDED.last_seen`, que preserva la
+  guarda de `seen_windows` por fila; (d) `buildPersistStatements` acepta `otAssets`
+  y no agrega statement cuando no hay activos. Se actualizó
+  `scripts/test-contracts-zod.mjs` al contrato de dos pasadas (el fixture malformado
+  ya no debe fallar en el core) y se sumó `web/lib/ot/__tests__/from-snapshot.test.ts`.
+- **Comando ejecutado:** `cd web && pnpm test`; `node node_modules/typescript/bin/tsc
+  --noEmit`; `pnpm lint`; `bash scripts/verify-contracts.sh`.
+- **Salida:** `pnpm test` → 66 archivos / 373 tests passed (43 en `lib/ot` +
+  `lib/ingest`, incluido el presupuesto de statements: el lote OT agrega **1**
+  statement, criterio ≤3); `tsc --noEmit` exit 0; `pnpm lint` exit 0 con 5 warnings
+  previos en `lib/query/__tests__/*`; contratos `# pass 11 # fail 0` → "Contratos OK
+  (Rust + JSON Schema + Zod)". El lint local no arrancaba por un `node_modules`
+  desincronizado (faltaba `@next/eslint-plugin-next` resoluble desde `web/`); se
+  reparó con `pnpm install --force --frozen-lockfile` (exit 0, lockfile intacto).
+- **Qué quedó pendiente:** el **techo de confianza** sigue bloqueado: el diseño
+  (`docs/designs/m6-passive-ot-identification.md:144`) pide degradar `confirmed →
+  hint` cuando `capture_mode == "collector"`, pero el contrato usa `confidence`
+  numérico (`agent/crates/sc-core/src/types.rs:208`) y `capture_mode` sólo admite
+  `live|offline`, así que la regla no es representable sin cambiar el contrato.
+  También quedan sin medir el `EXPLAIN` del insert y una prueba HTTP real de
+  `/api/ingest` con el fixture 0.1.8 (los tests cubren las funciones puras y el
+  builder, no la ruta contra la base). No se commiteó ni se empujó nada de E7.
+
+### 2026-11-26 · E7 · cierre (techo de confianza, EXPLAIN y ruta)
+
+- **Qué se hizo:** se resolvió el bloqueo del techo de confianza con la opción (a):
+  `applyConfidenceCeiling` degrada a 0.7 los eventos con `confidence >= 0.9` cuando
+  `capture_mode == "offline"`, deja `evidence.confidence_ceiling = "hint:offline:0.7"`
+  y registra `ot_confidence_downgraded`; `live` pasa intacto. La regla literal del
+  diseño (`collector` → `hint`) queda para F2 porque `capture_mode` no admite
+  `collector` ni `confidence` es un enum: se documentó en **ADR-0023** y se anotó
+  en el diagrama del diseño. Se sumó la medición que faltaba: (1) `EXPLAIN (FORMAT
+  JSON)` del lote contra PostgreSQL real (PGlite): `ModifyTable`/`Insert` sobre
+  `ot_assets`, `Conflict Arbiter Indexes = [ot_assets_device_id_host_key_key]`,
+  `Conflict Filter = (ot_assets.last_seen < excluded.last_seen)` y un `Values Scan`;
+  (2) prueba de la ruta real `POST /api/ingest` con los tres fixtures 0.1.8
+  (sin OT, válido, malformado), sustituyendo solo auth, Neon y la consulta de dedup.
+- **Comando ejecutado:** `cd web && pnpm test`; `pnpm typecheck`; `pnpm lint`;
+  `bash scripts/verify-contracts.sh`.
+- **Salida:** `pnpm test` → 67 archivos / **382 tests passed**, incluidos: malformado
+  → **200** con `ot_block_discarded` y sin `INSERT INTO ot_assets`; válido → **200**,
+  un solo `INSERT INTO ot_assets` y dos alertas con `client`/`server` en `evidence`;
+  sin OT → **200** sin statement de activos. `typecheck` exit 0; `lint` exit 0 (5
+  warnings previos de `lib/query/__tests__/*`); contratos `# pass 11 # fail 0`.
+  Presupuesto de statements extra de OT: 1 activos + 2 alertas = **3**, el tope del
+  criterio.
+- **Qué quedó pendiente:** el techo y sus umbrales (0.9 / 0.7) son **supuestos**, no
+  mediciones: se ajustan con el piloto OT y se registran en el roadmap (ADR-0023).
+  El push de esta etapa no se hizo: `main` despliega producción web (AGENTS §3, N2),
+  así que requiere un "dale" explícito para ese SHA.
 
 Formato fijo de cada entrada (no borrar los encabezados; una entrada por etapa
 cerrada o por bloqueo nuevo):

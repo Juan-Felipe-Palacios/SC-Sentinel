@@ -116,6 +116,10 @@ export const OtBlockSchema = z.object({
   endpoints: z.array(OtEndpointSchema).max(16),
 });
 
+// Primera pasada (E7): el core acepta `ot` como `unknown` y el bloque se valida
+// aparte con `OtBlockSchema`. Así un bloque OT malformado se descarta (y se
+// registra) sin tumbar la ventana completa: el contrato prohíbe 4xx por `ot`
+// porque el campo es aditivo y opcional (diseño M6, G2).
 export const WindowSnapshotSchema = z.object({
   top_hosts: z.array(HostStatsSchema).max(50),
   top_ports: z.array(PortStatSchema).max(50),
@@ -123,7 +127,7 @@ export const WindowSnapshotSchema = z.object({
   top_asns: z.array(AsnStatSchema).max(30).optional(),
   alerts: z.array(AlertSchema).max(50),
   health: AgentHealthSchema,
-  ot: OtBlockSchema.optional(),
+  ot: z.unknown().optional(),
 });
 
 export const DeviceIdentitySchema = z.object({
@@ -149,7 +153,13 @@ export const IngestEnvelopeSchema = z.object({
 });
 
 export type IngestEnvelope = z.infer<typeof IngestEnvelopeSchema>;
+// `ot` queda como `unknown` en el tipo del core: quien lo consume usa el
+// resultado de la segunda pasada (`OtBlock`), no el payload crudo.
 export type WindowSnapshot = z.infer<typeof WindowSnapshotSchema>;
+export type OtRole = z.infer<typeof OtRoleSchema>;
+export type OtBlock = z.infer<typeof OtBlockSchema>;
+export type OtEvent = z.infer<typeof OtEventSchema>;
+export type OtEndpoint = z.infer<typeof OtEndpointSchema>;
 export type HostStats = z.infer<typeof HostStatsSchema>;
 export type PortStat = z.infer<typeof PortStatSchema>;
 export type CountryStat = z.infer<typeof CountryStatSchema>;
