@@ -31,9 +31,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # Node 22 es el mínimo para `--experimental-strip-types` (el test importa .ts).
+      # pnpm >= 10.5 es el mínimo que lee `overrides` desde pnpm-workspace.yaml;
+      # con 9 el install --frozen-lockfile falla con LOCKFILE_CONFIG_MISMATCH.
       - uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 22

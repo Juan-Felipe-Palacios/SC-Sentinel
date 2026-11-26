@@ -1,0 +1,10 @@
+# Raíz del workspace: web/ es el único proyecto del repositorio.
+#
+# `overrides` vive aquí porque el campo `pnpm` de package.json dejó de leerse
+# (pnpm 11 lo ignora y pnpm 10.5+ lee este archivo). El valor no cambia:
+# postcss >= 8.5.23.
+packages:
+  - '.'
+
+overrides:
+  postcss: '>=8.5.23'

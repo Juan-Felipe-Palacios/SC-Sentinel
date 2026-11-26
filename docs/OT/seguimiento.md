@@ -17,7 +17,7 @@ su nombre y no se da por resuelto (AGENTS.md §4.7).
 | E1 | ADR-0021 (retención OT), ADR-0022 (invariante pasivo) y runbook de cleanup | — | `hecho` | ADRs con número libre (0021/0022) y runbook nombrando la tabla | `ls docs/adr \| tail -3` → `0021-ot-assets-retention-exception.md`, `0022-passive-invariant.md`; runbook `:13-31` con tabla, poda y baja de dispositivo; índice con 22 ADRs | 2026-11-25 · Buffy |
 | E1.5 | Ledger único (`sc_schema_migrations`) y patrón de escritura documentado | — | `hecho` | `drizzle.config.ts` con `out` separado, checker sin drift, runbook y patrón documentados | `node scripts/verify-migration-ledger.mjs --env-file web/.env.local` → `archivos: 17; ledger: 17; drizzle (dato): 13; sin drift` (exit 0); `node --check` exit 0; `tsc --noEmit` exit 0; runbook con «Ledger único y prohibición de `drizzle-kit`»; `node scripts/test-migration-ledger.mjs` → 5/5 | 2026-11-25 · Buffy |
 | E2.0 | Spike de firmas: 5 archivos binarios (4 protocolos) y test de offsets | E0 | `hecho` | Los 5 archivos clasifican según la tabla M4 (4 protocolos; DNP3 CRC roto = `reject`) | `cd agent && cargo test -p sc-core ot_signatures` → `test result: ok. 14 passed; 0 failed; 0 ignored` (1 CRC estándar + 4 positivos con offsets + 8 negativos + 1 OtBlock shape); `cargo fmt --check` OK; `cargo clippy -p sc-core --all-targets -- -D warnings` OK (0 warnings). Usuario reportó `cargo test --workspace` OK (no verificado por mí). 12 fixtures en `agent/fixtures/ot/` (4 positivos + 8 negativos: bad-pid, bad-TPKT, bad-CRC, TCP fragmentado, VLAN, GRE, retransmisión, HTTP en puerto OT); test en `agent/crates/sc-core/tests/ot_signatures.rs`. Hex de los 7 archivos de protocolo verificado contra `m6-passive-ot-identification.md:207-251` (Modbus pid 00 00, S7 TPKT+COTP, DNP3 CRC 0x953B LE, IEC-104 start 0x68). OtBlock serializa sin `baseline_instance`/`baseline_state`/`baseline_epoch`. | 2026-11-25 · Buffy |
-| E2 | Contrato `ot` en schema + Zod + serde + fixtures (un solo cambio) | E2.0 | `hecho` | `verify-contracts.sh`, `validate-contracts.js` y `test-contracts-zod.mjs` verdes con 4 fixtures | Contrato en `3afabe4`: serde `OtBlock` en `agent/crates/sc-core/src/types.rs:234`, Zod `OtBlockSchema` en `web/lib/schemas/ingest.ts:110`, `ot` en `docs/contracts/window-snapshot.v1.schema.json`. 4 fixtures: `docs/contracts/examples/snapshot-0.1.8-no-ot.json` (sin `ot`), `snapshot-ot-valid.json` (2 eventos / 2 protocolos / 3 endpoints), `snapshot-ot-malformed.json`, `snapshot-ot-oversize.json` (9/7/17, solo fallan los topes). Gate completo: `bash scripts/verify-contracts.sh` → `Contratos OK (Rust + JSON Schema + Zod).`, exit 0 (antes moría en pnpm con `ERR_PNPM_VERIFY_DEPS_BEFORE_RUN`; ahora usa `--config.verify-deps-before-run=false` y cae a node solo si pnpm no ejecutó el test). `node scripts/validate-contracts.js` → `OK:` en los dos válidos y rechazos con `13 errores` y `3 errores`, exit 0; Zod → `# tests 11 / # pass 11 / # fail 0`, exit 0; Rust → `test result: ok. 2 passed; 0 failed`. Abierto: el cap de 8192 B no se valida en schema, Zod ni serde; los fixtures cubren los topes estructurales. Checkpoint E2.0/E2 saltado por el propietario el 2026-11-26. | 2026-11-26 · Buffy |
+| E2 | Contrato `ot` en schema + Zod + serde + fixtures (un solo cambio) | E2.0 | `hecho` | `verify-contracts.sh`, `validate-contracts.js` y `test-contracts-zod.mjs` verdes con 4 fixtures | Contrato en `3afabe4`: serde `OtBlock` en `agent/crates/sc-core/src/types.rs:234`, Zod `OtBlockSchema` en `web/lib/schemas/ingest.ts:110`, `ot` en `docs/contracts/window-snapshot.v1.schema.json`. 4 fixtures: `docs/contracts/examples/snapshot-0.1.8-no-ot.json` (sin `ot`), `snapshot-ot-valid.json` (2 eventos / 2 protocolos / 3 endpoints), `snapshot-ot-malformed.json`, `snapshot-ot-oversize.json` (9/7/17, solo fallan los topes). Gate completo: `bash scripts/verify-contracts.sh` → `Contratos OK (Rust + JSON Schema + Zod).`, exit 0; `cd web && pnpm test:contracts` → `# pass 11 / # fail 0`, exit 0, **sin flags** (causa de `ERR_PNPM_VERIFY_DEPS_BEFORE_RUN` eliminada: `overrides` movido a `web/pnpm-workspace.yaml`; ver bitácora y CI con pnpm 10). `node scripts/validate-contracts.js` → `OK:` en los dos válidos y rechazos con `13 errores` y `3 errores`, exit 0; Zod → `# tests 11 / # pass 11 / # fail 0`, exit 0; Rust → `test result: ok. 2 passed; 0 failed`. Abierto: el cap de 8192 B no se valida en schema, Zod ni serde; los fixtures cubren los topes estructurales. Checkpoint E2.0/E2 saltado por el propietario el 2026-11-26. | 2026-11-26 · Buffy |
 | E3 | Migración `0017_ot-assets.sql` y `web/lib/ot/` (upsert condicional) | E2, E1 | `hecho` | `--dry-run` correcto + tests de retención, conteo y reaplicación | `cd web && node node_modules/vitest/vitest.mjs run lib/ot app/api/devices lib/cleanup` → `Test Files 5 passed (5)`, `Tests 31 passed (31)`; `tsc --noEmit` exit 0; `eslint` exit 0. Migración real contra PGlite (PostgreSQL WASM): 24 columnas, índice `(device_id, last_seen DESC)`, UNIQUE `(device_id, host_key)`, CHECK de `role`/`protocols`/`host_key`/`oui_prefix` (SQLSTATE 23514) y duplicado (23505); reaplicar la misma ventana deja `seen_windows = 1`, la ventana siguiente lo lleva a 2 y conserva `first_seen` (`lib/ot/__tests__/migration.integration.test.ts`, 10 tests). Producción `ep-delicate-rain…`: `node scripts/apply-migrations.mjs --env-file web/.env.production.local` → `aplicadas: 1; fallos: 0`; ledger `archivos: 18; ledger: 18; sin drift`; `--dry-run` → `pendientes: 0`; en la base: 24 columnas, 3 índices, 28 constraints, 0 filas. Retención: `ot_assets` fuera de `RETENTION_DAYS` (test explícito). Extra pedido por el propietario: `GET /api/devices/[id]/ot-assets` (6 tests). Commits `f5a9551` (migración y upsert) y `03d526d` (endpoint, pruebas y runner). | 2026-11-26 · Buffy |
 | E4 | Crate `sc-ot`: 4 parsers puros, peek LRU 4096, alineación 0–7 | E2 | `pendiente` | Fuzz no-panic + property test de CRC DNP3 | Dependencia E2 `hecho` el 2026-11-26; tomable con dale | 2026-11-26 · Buffy |
 | E5 | `sc-capture`: `forbid(unsafe_code)`, clippy, peek, BPF, degradación | E2 | `pendiente` | Compila con y sin `--features live`; gate detecta un socket de prueba | Dependencia E2 `hecho` el 2026-11-26; tomable con dale | 2026-11-26 · Buffy |
@@ -311,6 +311,39 @@ levantó el bloqueo y cuándo.
   Schema, Zod ni serde; no hay comprobación de bytes en ninguna capa, así que el
   fixture `oversize` prueba los topes estructurales 8/6/16 y no ese presupuesto.
   Abiertos también B-028 y el renombre `ot_ot_in_it_zone`.
+
+### 2026-11-26 · E2 · pnpm sin flag
+
+- **Qué se hizo:** eliminada la causa de `ERR_PNPM_VERIFY_DEPS_BEFORE_RUN` en vez
+  del parche. El campo `pnpm.overrides` de `web/package.json` se movió a
+  `web/pnpm-workspace.yaml` (`packages: ['.']` + `overrides: postcss: '>=8.5.23'`,
+  mismo valor) y `scripts/verify-contracts.sh` volvió a `pnpm test:contracts` a
+  secas, sin `--config.verify-deps-before-run=false` ni fallback a node. El
+  lockfile necesitó una sola reparación: la entrada de `xlsx` (tarball de
+  cdn.sheetjs.com) no tenía `integrity`, y pnpm ≥11 se niega a instalarla sin
+  hash. Se calculó el SHA-512 del tarball fijado y se agregó a esa `resolution`
+  (sin cambiar ninguna versión ni el override). Además el CI pasa de pnpm 9 a
+  10: con 9 el mismo lockfile falla con `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`
+  porque 9 no lee `overrides` del workspace (medido).
+- **Comando ejecutado:** `cd web && pnpm test:contracts`;
+  `bash scripts/verify-contracts.sh`; `pnpm install --frozen-lockfile`;
+  `npx pnpm@9.15.9 install --frozen-lockfile --lockfile-only` y
+  `npx pnpm@10 install --frozen-lockfile --lockfile-only` sobre una copia en
+  `/tmp/p9check`; `node` para calcular el SHA-512 del tarball; `pnpm --version`.
+- **Salida:** local (pnpm `12.23.0`): `pnpm test:contracts` → `# tests 11 /
+  # pass 11 / # fail 0`, `test_exit=0`; gate → `Contratos OK (Rust + JSON Schema
+  + Zod).`, `gate_exit=0`; `pnpm install --frozen-lockfile` restaura 30 entradas
+  en `node_modules` (zod y vitest presentes). Lockfile: `1 file changed, 1
+  insertion(+), 1 deletion(-)`. pnpm 9.15.9 → `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`
+  (`p9_exit=1`); pnpm 10.34.9 → `Done in 2.3s using pnpm v10.34.9`,
+  `p10_exit=0`.
+- **Qué quedó pendiente:** con pnpm 12 local, `pnpm install` termina con
+  `ERR_PNPM_IGNORED_BUILDS` (`@google/genai`, `esbuild` 3 versiones,
+  `protobufjs`) porque `strictDepBuilds` es `true` en 12; en pnpm 10 es `false`
+  por defecto, así que el CI advierte y no falla. Aprobar o rechazar esos build
+  scripts (`allowBuilds`/`onlyBuiltDependencies`) es una decisión de cadena de
+  suministro del propietario y no se tomó acá. Sigue abierto el cap de 8192 B y
+  los gates B-028 y el renombre `ot_ot_in_it_zone`.
 
 Formato fijo de cada entrada (no borrar los encabezados; una entrada por etapa
 cerrada o por bloqueo nuevo):
