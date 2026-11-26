@@ -5,7 +5,7 @@ import { z } from 'zod';
 const isoDatetime = z.iso.datetime({ offset: true });
 
 export const QueryParamsSchema = z.object({
-  metric: z.enum(['overview', 'hosts', 'alerts', 'health', 'ai', 'evals', 'host', 'heatmap']),
+  metric: z.enum(['overview', 'hosts', 'alerts', 'health', 'ai', 'evals', 'host', 'heatmap', 'topology']),
   range: z.enum(['15m', '1h', '6h', '24h', '7d', '30d']).default('1h'),
   device_id: z.string().min(1).optional(),
   // Idioma del análisis IA devuelto (el producto es en español por defecto).

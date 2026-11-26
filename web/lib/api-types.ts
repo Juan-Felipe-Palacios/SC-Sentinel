@@ -305,6 +305,29 @@ export interface HealthMetric {
   recorded_at: string | null;
 }
 
+export interface OtTopologyNode {
+  host_key: string;
+  label: string | null;
+  role: string;
+  protocols: string[];
+  last_seen: string;
+}
+
+export interface OtTopologyEdge {
+  client: string;
+  server: string;
+  rule_id: string;
+  count: number;
+}
+
+export interface TopologyResponse {
+  range: QueryRange;
+  period: Period;
+  nodes: OtTopologyNode[];
+  edges: OtTopologyEdge[];
+  truncated: { nodes: boolean; edges: boolean };
+}
+
 export interface EvalsResponse {
   success_rate: number | null;
   total: number;

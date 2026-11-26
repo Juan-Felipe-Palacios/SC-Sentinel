@@ -13,6 +13,7 @@ import { queryHostDetail } from '@/lib/query/host-detail';
 import { queryPortHeatmap } from '@/lib/query/heatmap';
 import { resolveQueryBounds } from '@/lib/query/range';
 import { queryHealth } from '@/lib/query/health';
+import { queryOtTopology } from '@/lib/query/ot-topology';
 import { fetchLatestInsight } from '@/lib/ai/analyze';
 import { queryEvals } from '@/lib/query/evals';
 import { attachHostnames } from '@/lib/dns/reverse';
@@ -21,6 +22,7 @@ import {
   isSyntheticDemoDevice,
   syntheticAlerts,
   syntheticHealth,
+  syntheticTopology,
   syntheticHeatmap,
   syntheticHostDetail,
   syntheticHosts,
@@ -31,7 +33,7 @@ import { classifyOperationalError, isUnavailableCode } from '@/lib/errors/classi
 
 const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
 
-type SyntheticMetric = 'overview' | 'hosts' | 'alerts' | 'host' | 'heatmap' | 'health' | 'ai';
+type SyntheticMetric = 'overview' | 'hosts' | 'alerts' | 'host' | 'heatmap' | 'health' | 'ai' | 'topology';
 
 /** Respuestas de la demo: deterministas y generadas en memoria, sin base. */
 function syntheticResponse(
@@ -55,8 +57,12 @@ function syntheticResponse(
       return NextResponse.json(syntheticHeatmap(range), { status: 200, headers: noStoreHeaders });
     case 'health':
       return NextResponse.json(syntheticHealth(), { status: 200, headers: noStoreHeaders });
+    case 'topology':
+      return NextResponse.json(syntheticTopology(range), { status: 200, headers: noStoreHeaders });
     case 'ai':
       return NextResponse.json(syntheticInsight(), { status: 200, headers: noStoreHeaders });
+    case 'topology':
+      return NextResponse.json(syntheticTopology(range), { status: 200, headers: noStoreHeaders });
   }
 }
 
@@ -170,6 +176,11 @@ export async function GET(request: NextRequest) {
       case 'heatmap':
         return NextResponse.json(
           await queryPortHeatmap(range, deviceId, undefined, undefined, bounds),
+          { status: 200, headers: noStoreHeaders }
+        );
+      case 'topology':
+        return NextResponse.json(
+          await queryOtTopology(range, deviceId, undefined, undefined, bounds),
           { status: 200, headers: noStoreHeaders }
         );
       case 'health':

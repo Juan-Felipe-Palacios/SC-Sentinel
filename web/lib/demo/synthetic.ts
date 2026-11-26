@@ -17,6 +17,7 @@ import type {
   HostsResponse,
   OverviewResponse,
   OverviewTopHost,
+  TopologyResponse,
 } from '@/lib/api-types';
 import { getRangeBounds, type RangeBounds } from '@/lib/query/range';
 import type { QueryRange } from '@/lib/schemas/query';
@@ -457,6 +458,33 @@ export function syntheticHeatmap(
     cells,
     max: flat.length ? Math.max(...flat) : 0,
     total_bytes: flat.reduce((sum, value) => sum + value, 0),
+  };
+}
+
+export function syntheticTopology(
+  range: QueryRange,
+  now: Date = new Date(),
+  bounds?: RangeBounds
+): TopologyResponse {
+  const { start, end } = bounds ?? getRangeBounds(range, now);
+  const nodes = HOSTS.slice(0, 5).map((host) => ({
+    host_key: host.host_key,
+    label: host.host_key,
+    role: host.host_key.includes('db') ? 'server' : 'client',
+    protocols: ['modbus'],
+    last_seen: end.toISOString(),
+  }));
+  const nodeKeys = new Set(nodes.map((n) => n.host_key));
+  const edges = [
+    { client: nodes[0].host_key, server: nodes[3].host_key, rule_id: 'ot_new_master', count: 1 },
+    { client: nodes[1].host_key, server: nodes[3].host_key, rule_id: 'ot_write_outside_hours', count: 1 },
+  ].filter((e) => nodeKeys.has(e.client) && nodeKeys.has(e.server));
+  return {
+    range,
+    period: { start: start.toISOString(), end: end.toISOString() },
+    nodes,
+    edges,
+    truncated: { nodes: false, edges: false },
   };
 }
 

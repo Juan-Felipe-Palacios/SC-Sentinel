@@ -11,6 +11,7 @@ import { ExportBar } from './ExportBar';
 import { TrafficPanel } from './TrafficPanel';
 import { TopPortsTable } from './TopPortsTable';
 import { GeoDistribution } from './GeoDistribution';
+import { NetworkMapCard } from './NetworkMapCard';
 import { zoomParams, formatZoomLabel, formatZoomSpan } from '@/lib/zoom';
 
 const REFRESH_MS = 5000;
@@ -147,6 +148,7 @@ export function ConnectionsView({ range }: { range: QueryRange }) {
           <GeoDistribution countries={topCountries} />
         </div>
       </div>
+      <NetworkMapCard range={range} />
     </div>
   );
 }
