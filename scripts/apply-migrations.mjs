@@ -55,9 +55,14 @@ if (!dryRun) {
   )`;
 }
 
-const appliedRows = dryRun
-  ? []
-  : await sql`SELECT name FROM sc_schema_migrations`;
+// El dry-run también lee el ledger: si no, informa las 18 migraciones como
+// pendientes y no sirve para verificar el estado real (criterio de E3).
+let appliedRows = [];
+try {
+  appliedRows = await sql`SELECT name FROM sc_schema_migrations`;
+} catch {
+  appliedRows = []; // sin ledger todavía: todo pendiente
+}
 const applied = new Set(appliedRows.map((row) => row.name));
 
 let pending = 0;

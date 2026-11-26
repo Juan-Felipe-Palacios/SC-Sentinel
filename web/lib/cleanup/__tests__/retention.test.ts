@@ -32,4 +32,9 @@ describe('lib/cleanup/retention', () => {
   it('asn_stats comparte plazo con host_stats (deriva del mismo snapshot)', () => {
     expect(RETENTION_DAYS.asnStats).toBe(RETENTION_DAYS.hostStats);
   });
+
+  it('ot_assets queda fuera de RETENTION_DAYS: poda propia (ADR-0021)', () => {
+    expect(Object.keys(RETENTION_DAYS)).not.toContain('otAssets');
+    expect(Object.keys(RETENTION_DAYS).filter((key) => /^ot/i.test(key))).toEqual([]);
+  });
 });
