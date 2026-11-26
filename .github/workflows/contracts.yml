@@ -35,7 +35,7 @@ jobs:
       # con 9 el install --frozen-lockfile falla con LOCKFILE_CONFIG_MISMATCH.
       - uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 10.34.9
       - uses: actions/setup-node@v4
         with:
           node-version: 22
