@@ -2,6 +2,65 @@
 
 Monitor de red con motor determinista local + dashboard en la nube. El agente captura tráfico en el dispositivo (pcap / NetFlow), lo agrega en ventanas de 30–60 s y envía señales de métricas (NUNCA paquetes crudos) a un dashboard en Vercel. La IA actúa como asistente de interpretación; el motor determinista Servicio/umbrales/GeoIP es la fuente de verdad.
 
+## Arquitectura
+
+```
+┌─ Dispositivo (Windows, modo estrictamente pasivo) ──────────────────────────────┐
+│  captura pcap (npcap) ──┐                                                       │
+│  colector NetFlow/IPFIX ┴→ agregación en ventanas 30–60 s → detección           │
+│                             determinista (reglas · umbrales · blacklist · GeoIP)│
+│                                        ↓                                        │
+│                        spool SQLite → sync HTTPS (c/ 30 min, al arrancar)       │
+└──────────────────────────────────────┬──────────────────────────────────────────┘
+                                       │ WindowSnapshot (agregados IT/OT)
+                                       │ NUNCA paquetes crudos · NUNCA clase C
+                                       ▼
+             Vercel  POST /api/ingest (token + Zod) ──→  Neon Postgres
+                                                        ├→ Dashboard Next.js
+                                                        ├→ IA por lotes (interpretación)
+                                                        └→ Alertas webhook (Slack/Discord)
+```
+
+```mermaid
+flowchart LR
+  subgraph Nodo["Dispositivo (Windows)"]
+    CAP["Captura pcap<br/>(npcap)"]
+    COL["Colector NetFlow v5/v9<br/>+ IPFIX"]
+    AGG["Agregación<br/>ventanas 30–60 s"]
+    DET["Detección determinista<br/>reglas · umbrales · GeoIP"]
+    SPOOL[("Spool SQLite")]
+    CAP --> AGG
+    COL --> AGG
+    AGG --> DET --> SPOOL
+  end
+  subgraph Nube["Vercel + Neon (planes gratuitos)"]
+    ING["POST /api/ingest<br/>token + Zod"]
+    PG[("Neon Postgres")]
+    DASH["Dashboard Next.js"]
+    AI["IA por lotes<br/>(fallback degradado)"]
+    ING --> PG
+    PG --> DASH
+    PG --> AI --> DASH
+  end
+  SPOOL -- "HTTPS · solo agregados<br/>clase A/B (jamás clase C)" --> ING
+```
+
+```mermaid
+sequenceDiagram
+  participant A as Agente (sc-sync)
+  participant W as /api/ingest
+  participant D as Neon Postgres
+  participant U as Dashboard
+  A->>A: ventana 30–60 s: agregados IT (+ OT en M6)
+  A->>W: POST WindowSnapshot (JSON)
+  Note over W: auth por token · validación Zod/Schema
+  W->>D: transacción idempotente
+  D-->>W: ok
+  W-->>A: 200 sync_confirmed
+  U->>D: consulta agregados (retención 7 d / alertas 30 d)
+  U->>U: IA por lotes sobre candidatos (fallback: reglas)
+```
+
 ## Estructura
 
 - `agent/` — workspace Rust (agente local: captura, agregación, sincronización). Ver `agent/README.md`.
@@ -13,6 +72,48 @@ Monitor de red con motor determinista local + dashboard en la nube. El agente ca
 - `doc/` — notas sueltas de mejora; no confundir con `docs/`.
 - `docs/atlas.pdf` — atlas de documentación completo en A4 vectorial (306 páginas: 91 docs + 12 diagramas SVG embebidos). Generado con Chrome headless print-to-pdf.
 - `docs/diagrams/exports/` — 12 diagramas en formato vectorial: `.svg` (fuente), `.dxf` (CAD, uno por diagrama) y `.png` (3 diagramas clave). Conversión SVG→DXF vía `scripts/svg2dxf.py` (ezdxf).
+
+## Skeleton del proyecto
+
+```
+SC-Sentinel/
+├── agent/                        # Workspace Rust — ver agent/README.md
+│   ├── crates/
+│   │   ├── sc-agent/             # daemon + servicio Windows (src/main.rs, src/service.rs)
+│   │   ├── sc-capture/           # captura de paquetes (pcap, Windows/npcap)
+│   │   ├── sc-collector/         # colector pasivo NetFlow v5/v9 + IPFIX (M4)
+│   │   ├── sc-aggregate/         # agregación en ventanas de 30 s
+│   │   ├── sc-detect/            # motor determinista (reglas, blacklist, riesgo)
+│   │   ├── sc-sync/              # spool SQLite + cliente POST /api/ingest
+│   │   ├── sc-core/              # tipos de dominio (FlowKey, HostStats, WindowSnapshot)
+│   │   ├── sc-config/            # configuración TOML del agente
+│   │   ├── sc-geo/               # GeoIP vía MaxMindDB
+│   │   ├── sc-gui/               # GUI de bandeja Windows
+│   │   └── sc-telemetry/         # métricas, logs, healthcheck local
+│   └── fixtures/                 # loopback-trace.pcap + 12 fixtures de firmas OT (M6 E2.0)
+├── web/                          # Next.js 15 (App Router) — ver web/README.md
+│   └── app/
+│       ├── (marketing)/          # / · /funcionalidades · /security · /contacto
+│       │                         # /novedades · /legal/{privacy,terms,third-party-notices}
+│       ├── (dashboard)/dashboard/
+│       │   ├── overview/  hosts/  connections/  alerts/  evals/  settings/
+│       │   └── admin/            # exports/ · trust-access/
+│       ├── demo/  login/  p/     # demo de solo lectura · login · Trust Pages
+│       └── api/                  # 24 rutas: ingest, ai/{analyze,cron}, chat(+history),
+│                                 # devices (enroll, [id], [id]/ot-assets, [id]/rotate),
+│                                 # alerts/[id], export(+stats), trust(+access,[id]/rotate),
+│                                 # operators, query, auth, cron/cleanup, csp-report
+├── docs/                         # spec (fuente de verdad), ADRs, contratos, runbooks
+│   ├── README.md                 # índice verificable de todos los directorios
+│   ├── adr/                      # ADR-0001 … ADR-0022
+│   ├── contracts/                # JSON Schema (window-snapshot/alert/agent-health v1)
+│   │                             # + specs markdown (chat-api, ingest-api v1)
+│   └── OT/                       # plan de M6 (E0–E10): identificación pasiva OT
+├── scripts/                      # despliegue, verify-*, migraciones, gates de docs
+├── installer/                    # fuente NSIS (sc-sentinel.nsi)
+└── .github/workflows/            # CI: rust · web · contracts · release
+                                  #      installer-windows · ai-cron
+```
 
 ## Desarrollo local (requerido: Rust stable, Node 20+, pnpm 10+)
 
