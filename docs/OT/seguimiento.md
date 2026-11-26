@@ -21,7 +21,7 @@ su nombre y no se da por resuelto (AGENTS.md §4.7).
 | E3 | Migración `0017_ot-assets.sql` y `web/lib/ot/` (upsert condicional) | E2, E1 | `hecho` | `--dry-run` correcto + tests de retención, conteo y reaplicación | `cd web && node node_modules/vitest/vitest.mjs run lib/ot app/api/devices lib/cleanup` → `Test Files 5 passed (5)`, `Tests 31 passed (31)`; `tsc --noEmit` exit 0; `eslint` exit 0. Migración real contra PGlite (PostgreSQL WASM): 24 columnas, índice `(device_id, last_seen DESC)`, UNIQUE `(device_id, host_key)`, CHECK de `role`/`protocols`/`host_key`/`oui_prefix` (SQLSTATE 23514) y duplicado (23505); reaplicar la misma ventana deja `seen_windows = 1`, la ventana siguiente lo lleva a 2 y conserva `first_seen` (`lib/ot/__tests__/migration.integration.test.ts`, 10 tests). Producción `ep-delicate-rain…`: `node scripts/apply-migrations.mjs --env-file web/.env.production.local` → `aplicadas: 1; fallos: 0`; ledger `archivos: 18; ledger: 18; sin drift`; `--dry-run` → `pendientes: 0`; en la base: 24 columnas, 3 índices, 28 constraints, 0 filas. Retención: `ot_assets` fuera de `RETENTION_DAYS` (test explícito). Extra pedido por el propietario: `GET /api/devices/[id]/ot-assets` (6 tests). Commits `f5a9551` (migración y upsert) y `03d526d` (endpoint, pruebas y runner). | 2026-11-26 · Buffy |
 | E4 | Crate `sc-ot`: 4 parsers puros, peek LRU 4096, alineación 0–7 | E2 | `hecho` | Fuzz no-panic + property test de CRC DNP3 | Crate `sc-ot` nuevo (`agent/crates/sc-ot/`): 4 parsers puros, `PeekCache` LRU 4096 por 5-tupla/dirección con 2 intentos y congelamiento tras `Confirmed`, alineación 0–7 en `classify_aligned`. Gate: `cargo fmt --all --check` exit 0; `cargo clippy --workspace --all-targets -- -D warnings` exit 0; `cargo test -p sc-ot` → `37 passed` (unit) + `5 passed` (fixtures) + `6 passed` (properties), 0 failed; `cargo test --workspace` exit 0 con `sc-core ot_signatures` 14/14 intacto. Paridad con los 12 fixtures de E2.0: 4 confirmados con su protocolo y 8 en `Reject`, incluido CRC DNP3 roto. `proptest` 256 casos: bytes arbitrarios de 0–2048 nunca paniquean; DNP3 sólo confirma con CRC válido (property test del criterio). **Fuzz real: deuda medida**, `cargo fuzz` no está instalado y la toolchain es `stable` (decisión del propietario 2026-11-26). **CI en verde:** `Rust CI` 45828598517 sobre `cafa7ab`, ambos jobs en success, con `sc_ot` 37, `ot_fixtures` 5 y `properties` 6 en `0 failed` sobre ubuntu y `cargo deny check licenses` → `licenses ok`. El push de `52b98a7` había fallado por dos causas ajenas al alcance: `sc-ot` sin bloque en `agent/deny.toml` y el fixture HTTP normalizado a LF por git; se corrigieron en `cafa7ab` sin cambiar ninguna assertion. | 2026-11-26 · Buffy |
 | E5 | `sc-capture`: `forbid(unsafe_code)`, clippy, peek, BPF, degradación | E2 | `pendiente` | Compila con y sin `--features live`; gate detecta un socket de prueba | Dependencia E2 `hecho` el 2026-11-26; tomable con dale | 2026-11-26 · Buffy |
-| E6 | `sc-detect`: reglas corregidas, allowlist, anti-storm | E4 | `bloqueado` | Miembro/no miembro de allowlist + anti-storm sin duplicar | — | 2026-11-25 · Buffy |
+| E6 | `sc-detect`: reglas corregidas, allowlist, anti-storm | E4 | `hecho` | Miembro/no miembro de allowlist + anti-storm sin duplicar | Nuevo `agent/crates/sc-detect/src/ot.rs`: `Allowlist` (`host_key` + protocolo + puerto, tope 64, `from_lines`/`from_path`, versión para evidencia), `OtObservation`, `OtConfig` y `OtDetector::observe(sequence, obs)` con `ot_new_master`, dedup por clave y anti-storm por cooldown de ventanas (120 por defecto, **supuesto**). Evidencia del evento `{fn_codes: CSV, allowlist_version}`, recortada a 128 chars y 8 códigos. Gate: `cargo fmt --all --check` exit 0; `cargo clippy --workspace --all-targets -- -D warnings` exit 0; `cargo test -p sc-detect` → `33 passed; 0 failed` (20 previos + 13 nuevos); `cargo test --workspace` → 33 suites `ok`, 0 fallos. Criterios: miembro/no miembro (también con protocolo o puerto distinto), anti-storm dentro del cooldown y reintento de la misma ventana sin duplicar. Gate del renombre cerrado por el propietario: D7 en `docs/roadmap.md`. CI de Rust pendiente de push. | 2026-11-26 · Buffy |
 | E7 | `/api/ingest`: dos pasadas, techo de confianza, upsert, downlink | E2, E3 | `pendiente` | ≤3 statements extra, `EXPLAIN` sin scan nuevo, fixture 0.1.8 en 200 | Dependencias E2 y E3 `hecho` el 2026-11-26; tomable con dale | 2026-11-26 · Buffy |
 | E8 | UI: badge de protocolo en la matriz y tab "Activos OT" | E3 | `pendiente` | `typecheck`, `lint` y `build` verdes; la tab no muestra datos sintéticos | Dependencia E3 `hecho` el 2026-11-26; tomable con dale | 2026-11-26 · Buffy |
 | E8.1 | Card «Mapa OT observado»: nodos + aristas reales | E7, E8 | `bloqueado` | `metric=topology` con nodos/aristas acotados (≤40 nodos, ≤80 aristas); empty state; distingue «sin datos» de «sin aristas»; sin IP/MAC ni aristas inventadas; build verde | — | 2026-11-25 · Buffy |
@@ -513,6 +513,32 @@ conversión de fin de línea; no se cambió ninguna assertion.
 - El commit de esta entrada queda local hasta que se autorice el push.
 - Deuda de fuzz sin cambios; E6 espera su "dale" y la decisión del renombre
   `ot_ot_in_it_zone`.
+
+### 2026-11-26 · E6 · regla `ot_new_master` en `sc-detect`
+**Qué se hizo**
+Nuevo módulo `agent/crates/sc-detect/src/ot.rs` con la allowlist local
+(`host_key` + protocolo + puerto, tope de 64 entradas, versión para la
+evidencia), la regla `ot_new_master` y el anti-storm. La allowlist se carga en
+memoria o desde archivo y el protocolo se valida contra el enum de `sc-ot`, así
+que no hay cadenas libres. `OtDetector::observe(sequence, observaciones)`
+deduplica por clave (cliente + servidor + protocolo), recorta la evidencia a los
+topes del contrato y suprime la misma clave durante `cooldown_windows`
+ventanas, de modo que un reintento de la misma ventana no duplica nada.
+**Comando ejecutado**
+- `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo test -p sc-detect`, `cargo test --workspace`.
+**Salida**
+- `fmt` exit 0; `clippy` exit 0 (`Finished dev profile`, sin warnings).
+- `cargo test -p sc-detect` → `test result: ok. 33 passed; 0 failed` (20 previos
+  + 13 nuevos de `ot::tests`).
+- `cargo test --workspace` → 33 suites en `test result: ok`, sin `FAILED`.
+**Qué quedó pendiente**
+- Las demás reglas OT (escrituras fuera de horario, descarga de programa, cambio
+  de estado de CPU y `ot_it_zone_crossing`) quedan para F1.5/F2: necesitan PDU
+  de aplicación que `sc-ot` todavía no recorre.
+- `cooldown_windows = 120` es un supuesto, no una medición; se ajusta con el
+  piloto OT.
+- El push y el CI de Rust quedan pendientes de autorización.
 
 Formato fijo de cada entrada (no borrar los encabezados; una entrada por etapa
 cerrada o por bloqueo nuevo):

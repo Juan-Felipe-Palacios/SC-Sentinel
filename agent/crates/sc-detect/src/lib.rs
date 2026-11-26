@@ -18,8 +18,10 @@
 //! motor. La salida respeta `docs/contracts/alert.v1.schema.json`.
 
 pub mod blacklist;
+pub mod ot;
 
 pub use blacklist::{Blacklist, BlacklistError};
+pub use ot::{Allowlist, AllowlistEntry, AllowlistError, OtConfig, OtDetector, OtObservation};
 
 use sc_core::{
     AgentHealth, Alert, AlertSeverity, CaptureStatus, DetectionInput, HostSignal, Window,

@@ -9,6 +9,7 @@ authors.workspace = true
 
 [dependencies]
 sc-core = { path = "../sc-core" }
+sc-ot = { path = "../sc-ot" }
 thiserror = { workspace = true }
 
 [dev-dependencies]

@@ -3416,6 +3416,7 @@ version = "0.1.10"
 dependencies = [
  "chrono",
  "sc-core",
+ "sc-ot",
  "thiserror 2.0.21",
 ]
 
