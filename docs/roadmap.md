@@ -7,6 +7,8 @@
 > Fecha de redacción de esta versión: 2026-11-15. Los límites de proveedores se
 > verificaron en las URLs indicadas en §7.
 >
+> **Actualización 2026-11-26:** se agrega D7 (renombre del id de cruce IT→OT).
+>
 > **Actualización 2026-11-25:** se agrega D6 (M6 OT aprobado, F1 OT en allowlist).
 > Las etiquetas M6/M7/M8 de §5 se mantienen.
 
@@ -19,6 +21,7 @@
 | D3 | **Sin exportar PCAP.** El replay queda como herramienta interna de pruebas. | No se expone descarga de capturas en dashboard ni API pública; las fixtures de `docs/testing/fixtures/` siguen siendo internas. |
 | D4 | **Fuera del roadmap**: multi-tenant, macOS y móvil. | Single-device/Windows-first; sin abstracciones de tenant ni targets Apple/iOS/Android. |
 | D5 | **`flush_on_critical_alert` activado por defecto.** | Un evento crítico dispara un sync fuera de ciclo. Costo marginal (1-5 requests/día por device). |
+| D7 | **Renombre del id de cruce IT→OT decidido (2026-11-26):** `ot_ot_in_it_zone` pasa a **`ot_it_zone_crossing`** antes de que el id entre en `alerts`. | Cierra el gate pendiente de `docs/OT/plan-implementacion.md` §6. Hoy no hay ninguna referencia al id en código (`grep -rn ot_ot_in_it_zone` sin coincidencias en `agent/`), así que el renombre es de nomenclatura futura: E6 no emite ese id y las reglas que lo emitan deben nacer con el nombre nuevo. |
 | D6 | **M6 OT aprobado (2026-11-25)**: identificación pasiva de Modbus TCP, S7comm, DNP3 e IEC 60870-5-104 como hito nuevo, con **F1 OT en allowlist + descubrimiento manual**; baseline automático diferido a F1.5/F2, condicionado a un piloto OT real. | Desbloquea E2.0–E10 por etapas: E2.0 → E2 → checkpoint → E3–E10. La aprobación no autoriza ejecución (AGENTS §3.2). `ot_new_master` evalúa allowlist; `baseline_*` en `disabled`/null; la evidencia usa `allowlist_version`. P11 (licencia DEFCON) y P12 (piso Neon) siguen pendientes y no bloquean E2.0. |
 
 ## 2. SYNC-30 — Sync cada 30 minutos
