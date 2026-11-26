@@ -421,6 +421,20 @@ lee, así que el `pnpm install --frozen-lockfile` del workflow moría con
 **Qué quedó pendiente**
 - Siguen abiertos el cap de 8192 B, B-028 y el renombre `ot_ot_in_it_zone`.
 
+### 2026-11-26 · E2 · pnpm fijado en los workflows
+**Qué se hizo**
+`web.yml` y `contracts.yml` fijan `version: 10.34.9` en `pnpm/action-setup@v4`
+en lugar de `10`. Con `10`, cada corrida resolvía el mayor 10.x del momento, así
+que un release de pnpm podía cambiar el instalador sin tocar el repo.
+**Comando ejecutado**
+- `git push origin main` (`7913fd7..6304deb`).
+**Salida**
+- Run `45818945016` (Validate Contracts) → `completed/success`.
+- Run `45818945018` (Web CI) → `completed/success`; el log registra
+  `+ pnpm 10.34.9 (12.23.0 is available)` y `Done in 2.9s using pnpm v10.34.9`.
+**Qué quedó pendiente**
+- Siguen abiertos el cap de 8192 B, B-028 y el renombre `ot_ot_in_it_zone`.
+
 Formato fijo de cada entrada (no borrar los encabezados; una entrada por etapa
 cerrada o por bloqueo nuevo):
 
