@@ -345,6 +345,26 @@ levantó el bloqueo y cuándo.
   suministro del propietario y no se tomó acá. Sigue abierto el cap de 8192 B y
   los gates B-028 y el renombre `ot_ot_in_it_zone`.
 
+### 2026-11-26 · E2 · script `test` sin salto a pnpm
+
+- **Qué se hizo:** `web/package.json` dejó de invocar el gestor de paquetes
+  dentro de `test`: de `vitest run && pnpm test:contracts` a
+  `vitest run && node --experimental-strip-types ../scripts/test-contracts-zod.mjs`,
+  la misma orden que ya ejecuta `test:contracts`. Causa: en Windows `cmd.exe`
+  resuelve el `pnpm` del shim que generó npm (`"%dp0%\node_modules\pnpm\pnpm" %*`)
+  y pnpm 12 declara `bin: {pnpm: "pnpm"}` sin extensión, así que el shim no
+  puede lanzarlo (medido antes en esta sesión: `sh -c "pnpm --version"` →
+  `12.23.0`; `cmd /c pnpm --version` → «no se reconoce como un comando»). El
+  script no necesitaba pnpm: lo usaba sólo como intermediario para ejecutar
+  `node`.
+- **Comando ejecutado:** `cd web && pnpm test`; `pnpm --version`.
+- **Salida:** pnpm `12.23.0`; `pnpm test` → suite de vitest completa y luego
+  `# tests 11 / # pass 11 / # fail 0`, `exit 0`. Es la primera vez que el tramo
+  de contratos se alcanza dentro de `pnpm test` en este host.
+- **Qué quedó pendiente:** los build scripts sin aprobar de `esbuild`,
+  `protobufjs` y `@google/genai`; se tratan en la entrada siguiente del mismo
+  día. Siguen abiertos el cap de 8192 B, B-028 y el renombre `ot_ot_in_it_zone`.
+
 Formato fijo de cada entrada (no borrar los encabezados; una entrada por etapa
 cerrada o por bloqueo nuevo):
 

@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run && pnpm test:contracts",
+    "test": "vitest run && node --experimental-strip-types ../scripts/test-contracts-zod.mjs",
     "test:contracts": "node --experimental-strip-types ../scripts/test-contracts-zod.mjs",
     "operator:create": "node scripts/create-operator.mjs"
   },
