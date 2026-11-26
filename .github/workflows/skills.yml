@@ -1,5 +1,6 @@
 name: Skills CI
 on:
+  workflow_dispatch:
   push:
     paths:
       - ".opencode/**"
