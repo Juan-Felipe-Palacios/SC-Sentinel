@@ -401,6 +401,26 @@ levantó el bloqueo y cuándo.
   no se puede hard-linkear a otra unidad; queda un store fuera del repo. Siguen
   abiertos el cap de 8192 B, B-028 y el renombre `ot_ot_in_it_zone`.
 
+### 2026-11-26 · E2 · Web CI en pnpm 10
+**Qué se hizo**
+`web.yml` pasó de `version: 9` a `version: 10` en `pnpm/action-setup@v4`, igual
+que `contracts.yml`. Con pnpm 9 el `overrides` de `web/pnpm-workspace.yaml` no se
+lee, así que el `pnpm install --frozen-lockfile` del workflow moría con
+`ERR_PNPM_LOCKFILE_CONFIG_MISMATCH` antes de instalar. Nada más cambió.
+**Comando ejecutado**
+- `git push origin main` (`d15dd1a..d15057c`).
+**Salida**
+- Antes: run `45814700703` (Web CI sobre `d15dd1a`) → `failure` en 12 s con
+  `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`.
+- Después: run `45817011206` (Web CI sobre `d15057c`) → `success`; los diez pasos
+  en verde, incluidos `pnpm install --frozen-lockfile`,
+  `pnpm audit --prod --audit-level=high`, `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` y `pnpm build`.
+- Vercel marcó éxito sobre `d15057c`; producción respondió `/` → 200 y
+  `/api/devices` → 401.
+**Qué quedó pendiente**
+- Siguen abiertos el cap de 8192 B, B-028 y el renombre `ot_ot_in_it_zone`.
+
 Formato fijo de cada entrada (no borrar los encabezados; una entrada por etapa
 cerrada o por bloqueo nuevo):
 
