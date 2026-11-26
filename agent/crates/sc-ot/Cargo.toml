@@ -1,0 +1,13 @@
+[package]
+name = "sc-ot"
+description = "Parsers pasivos de protocolos OT (Modbus/TCP, S7comm, DNP3, IEC-104)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file = "../../../LICENSE"
+authors.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+proptest = "1.5"

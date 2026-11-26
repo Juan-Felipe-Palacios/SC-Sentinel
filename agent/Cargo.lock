@@ -3451,6 +3451,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sc-ot"
+version = "0.1.10"
+dependencies = [
+ "proptest",
+]
+
+[[package]]
 name = "sc-sync"
 version = "0.1.10"
 dependencies = [
