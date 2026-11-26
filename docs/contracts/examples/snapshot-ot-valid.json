@@ -1,0 +1,97 @@
+{
+  "top_hosts": [
+    {
+      "host_key": "hmac-truncated-01",
+      "ip_display": null,
+      "country": "AR",
+      "bytes_in": 1048576,
+      "bytes_out": 524288,
+      "packets": 1500,
+      "risk_score": 0.2
+    }
+  ],
+  "top_ports": [
+    { "port": 443, "protocol": "tcp", "bytes": 2097152, "connections": 50 }
+  ],
+  "top_countries": [
+    { "country": "AR", "bytes": 5242880, "hosts": 15 }
+  ],
+  "alerts": [],
+  "health": {
+    "capture_status": "ok",
+    "packets_seen": 50000,
+    "packets_dropped": 0,
+    "parse_errors": 0,
+    "queue_depth": 5,
+    "spool_bytes": 102400,
+    "cpu_percent": 2.5,
+    "memory_bytes": 52428800,
+    "last_error": null
+  },
+  "ot": {
+    "engine": "sc-ot/0.1",
+    "capture_mode": "live",
+    "truncated": false,
+    "events": [
+      {
+        "rule": "ot_new_master",
+        "host_key": "9f2c1d4b7a5e3c8d1b0a6f4e2d9c7b3a",
+        "protocol": "modbus",
+        "confidence": 0.82,
+        "evidence": {
+          "fn_codes": "1,3,16",
+          "allowlist_version": "1",
+          "window": "2026-11-20T10:00:00Z/2026-11-20T10:00:30Z"
+        },
+        "client": "9f2c1d4b7a5e3c8d1b0a6f4e2d9c7b3a",
+        "server": "4e8a7c2b1d9f3a6e5c0b8d4f2a7e1c9b"
+      },
+      {
+        "rule": "ot_write_outside_hours",
+        "host_key": "9f2c1d4b7a5e3c8d1b0a6f4e2d9c7b3a",
+        "protocol": "s7comm",
+        "confidence": 0.64,
+        "evidence": {
+          "fn_codes": "5",
+          "hour_utc": "3"
+        },
+        "client": "9f2c1d4b7a5e3c8d1b0a6f4e2d9c7b3a",
+        "server": "4e8a7c2b1d9f3a6e5c0b8d4f2a7e1c9b"
+      }
+    ],
+    "protocols": [
+      {
+        "name": "modbus",
+        "role": "both",
+        "first_seen": "2026-11-20T09:58:12Z",
+        "last_seen": "2026-11-20T10:00:29Z"
+      },
+      {
+        "name": "s7comm",
+        "role": "server",
+        "first_seen": "2026-11-20T09:59:03Z",
+        "last_seen": "2026-11-20T10:00:27Z"
+      }
+    ],
+    "endpoints": [
+      {
+        "host_key": "4e8a7c2b1d9f3a6e5c0b8d4f2a7e1c9b",
+        "protocol": "modbus",
+        "role": "server",
+        "port": 502
+      },
+      {
+        "host_key": "9f2c1d4b7a5e3c8d1b0a6f4e2d9c7b3a",
+        "protocol": "modbus",
+        "role": "client",
+        "port": 502
+      },
+      {
+        "host_key": "4e8a7c2b1d9f3a6e5c0b8d4f2a7e1c9b",
+        "protocol": "s7comm",
+        "role": "server",
+        "port": 102
+      }
+    ]
+  }
+}

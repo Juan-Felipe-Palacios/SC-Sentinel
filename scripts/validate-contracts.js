@@ -30,10 +30,19 @@ function validate(value, schema, canonical, errors, pathStr) {
       for (const k of Object.keys(value))
         if (!allowed.has(k)) errors.push(`${canonical || pathStr}: propiedad adicional "${k}" no permitida`);
     }
+    const propertyCount = Object.keys(value).length;
+    if (schema.minProperties != null && propertyCount < schema.minProperties)
+      errors.push(`${canonical || pathStr}: ${propertyCount} propiedades < minProperties ${schema.minProperties}`);
+    if (schema.maxProperties != null && propertyCount > schema.maxProperties)
+      errors.push(`${canonical || pathStr}: ${propertyCount} propiedades > maxProperties ${schema.maxProperties}`);
     return true;
   }
   if (schema.type === "array") {
     if (!Array.isArray(value)) return errors.push(`${canonical || pathStr}: se esperaba array`), false;
+    if (schema.minItems != null && value.length < schema.minItems)
+      errors.push(`${canonical || pathStr}: ${value.length} items < minItems ${schema.minItems}`);
+    if (schema.maxItems != null && value.length > schema.maxItems)
+      errors.push(`${canonical || pathStr}: ${value.length} items > maxItems ${schema.maxItems}`);
     value.forEach((item, i) => item && schema.items && validate(item, schema.items, null, errors, `${pathStr}[${i}]`));
     return true;
   }
@@ -100,6 +109,11 @@ function validateInvalid(name, schemaFile, exampleFile) {
 // --- Casos principales (agregar más cuando aparezcan nuevos contratos) ---
 validateValid("snapshot-minimal", "window-snapshot.v1.schema.json", "examples/snapshot-minimal.json");
 validateValid("snapshot-with-alerts", "window-snapshot.v1.schema.json", "examples/snapshot-with-alerts.json");
+// Contrato `ot` (M6, E2): compatibilidad 0.1.8, bloque válido y sus dos rechazos.
+validateValid("snapshot-0.1.8-no-ot", "window-snapshot.v1.schema.json", "examples/snapshot-0.1.8-no-ot.json");
+validateValid("snapshot-ot-valid", "window-snapshot.v1.schema.json", "examples/snapshot-ot-valid.json");
+validateInvalid("snapshot-ot-malformed", "window-snapshot.v1.schema.json", "examples/snapshot-ot-malformed.json");
+validateInvalid("snapshot-ot-oversize", "window-snapshot.v1.schema.json", "examples/snapshot-ot-oversize.json");
 // El envelope completo de /api/ingest (§5.1) se valida desde M2 con ajv.
 
 if (failures > 0) { console.error(`\n${failures} fallos de validación.`); process.exit(1); }

@@ -1,0 +1,31 @@
+{
+  "top_hosts": [
+    {
+      "host_key": "hmac-truncated-01",
+      "ip_display": null,
+      "country": "AR",
+      "bytes_in": 1048576,
+      "bytes_out": 524288,
+      "packets": 1500,
+      "risk_score": 0.2
+    }
+  ],
+  "top_ports": [
+    { "port": 443, "protocol": "tcp", "bytes": 2097152, "connections": 50 }
+  ],
+  "top_countries": [
+    { "country": "AR", "bytes": 5242880, "hosts": 15 }
+  ],
+  "alerts": [],
+  "health": {
+    "capture_status": "ok",
+    "packets_seen": 50000,
+    "packets_dropped": 0,
+    "parse_errors": 0,
+    "queue_depth": 5,
+    "spool_bytes": 102400,
+    "cpu_percent": 2.5,
+    "memory_bytes": 52428800,
+    "last_error": null
+  }
+}

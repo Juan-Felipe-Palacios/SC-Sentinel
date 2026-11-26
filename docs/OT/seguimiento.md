@@ -17,13 +17,13 @@ su nombre y no se da por resuelto (AGENTS.md §4.7).
 | E1 | ADR-0021 (retención OT), ADR-0022 (invariante pasivo) y runbook de cleanup | — | `hecho` | ADRs con número libre (0021/0022) y runbook nombrando la tabla | `ls docs/adr \| tail -3` → `0021-ot-assets-retention-exception.md`, `0022-passive-invariant.md`; runbook `:13-31` con tabla, poda y baja de dispositivo; índice con 22 ADRs | 2026-11-25 · Buffy |
 | E1.5 | Ledger único (`sc_schema_migrations`) y patrón de escritura documentado | — | `hecho` | `drizzle.config.ts` con `out` separado, checker sin drift, runbook y patrón documentados | `node scripts/verify-migration-ledger.mjs --env-file web/.env.local` → `archivos: 17; ledger: 17; drizzle (dato): 13; sin drift` (exit 0); `node --check` exit 0; `tsc --noEmit` exit 0; runbook con «Ledger único y prohibición de `drizzle-kit`»; `node scripts/test-migration-ledger.mjs` → 5/5 | 2026-11-25 · Buffy |
 | E2.0 | Spike de firmas: 5 archivos binarios (4 protocolos) y test de offsets | E0 | `hecho` | Los 5 archivos clasifican según la tabla M4 (4 protocolos; DNP3 CRC roto = `reject`) | `cd agent && cargo test -p sc-core ot_signatures` → `test result: ok. 14 passed; 0 failed; 0 ignored` (1 CRC estándar + 4 positivos con offsets + 8 negativos + 1 OtBlock shape); `cargo fmt --check` OK; `cargo clippy -p sc-core --all-targets -- -D warnings` OK (0 warnings). Usuario reportó `cargo test --workspace` OK (no verificado por mí). 12 fixtures en `agent/fixtures/ot/` (4 positivos + 8 negativos: bad-pid, bad-TPKT, bad-CRC, TCP fragmentado, VLAN, GRE, retransmisión, HTTP en puerto OT); test en `agent/crates/sc-core/tests/ot_signatures.rs`. Hex de los 7 archivos de protocolo verificado contra `m6-passive-ot-identification.md:207-251` (Modbus pid 00 00, S7 TPKT+COTP, DNP3 CRC 0x953B LE, IEC-104 start 0x68). OtBlock serializa sin `baseline_instance`/`baseline_state`/`baseline_epoch`. | 2026-11-25 · Buffy |
-| E2 | Contrato `ot` en schema + Zod + serde + fixtures (un solo cambio) | E2.0 | `en curso` | `verify-contracts.sh`, `validate-contracts.js` y `test-contracts-zod.mjs` verdes con 4 fixtures | Contrato versionado en `3afabe4`: serde `OtBlock` en `agent/crates/sc-core/src/types.rs:234`, Zod `OtBlockSchema` en `web/lib/schemas/ingest.ts:110`, `ot` en `docs/contracts/window-snapshot.v1.schema.json`. Gates directos: `node scripts/validate-contracts.js` → `Contratos OK.` (exit 0); `node --experimental-strip-types ../scripts/test-contracts-zod.mjs` → `# tests 6 / # pass 6 / # fail 0` (exit 0); `bash scripts/verify-contracts.sh` imprime `Contratos OK.` y se detiene en el paso `pnpm` con `ERR_PNPM_VERIFY_DEPS_BEFORE_RUN` (limitación del entorno ya registrada en E1.5). **Faltan los 4 fixtures del criterio**: `grep -l '"ot"' docs/contracts/examples/*` → 0 coincidencias y no hay golden 0.1.8. Checkpoint E2.0/E2 saltado por el propietario el 2026-11-26. | 2026-11-26 · Buffy |
+| E2 | Contrato `ot` en schema + Zod + serde + fixtures (un solo cambio) | E2.0 | `hecho` | `verify-contracts.sh`, `validate-contracts.js` y `test-contracts-zod.mjs` verdes con 4 fixtures | Contrato en `3afabe4`: serde `OtBlock` en `agent/crates/sc-core/src/types.rs:234`, Zod `OtBlockSchema` en `web/lib/schemas/ingest.ts:110`, `ot` en `docs/contracts/window-snapshot.v1.schema.json`. 4 fixtures: `docs/contracts/examples/snapshot-0.1.8-no-ot.json` (sin `ot`), `snapshot-ot-valid.json` (2 eventos / 2 protocolos / 3 endpoints), `snapshot-ot-malformed.json`, `snapshot-ot-oversize.json` (9/7/17, solo fallan los topes). Gate completo: `bash scripts/verify-contracts.sh` → `Contratos OK (Rust + JSON Schema + Zod).`, exit 0 (antes moría en pnpm con `ERR_PNPM_VERIFY_DEPS_BEFORE_RUN`; ahora usa `--config.verify-deps-before-run=false` y cae a node solo si pnpm no ejecutó el test). `node scripts/validate-contracts.js` → `OK:` en los dos válidos y rechazos con `13 errores` y `3 errores`, exit 0; Zod → `# tests 11 / # pass 11 / # fail 0`, exit 0; Rust → `test result: ok. 2 passed; 0 failed`. Abierto: el cap de 8192 B no se valida en schema, Zod ni serde; los fixtures cubren los topes estructurales. Checkpoint E2.0/E2 saltado por el propietario el 2026-11-26. | 2026-11-26 · Buffy |
 | E3 | Migración `0017_ot-assets.sql` y `web/lib/ot/` (upsert condicional) | E2, E1 | `hecho` | `--dry-run` correcto + tests de retención, conteo y reaplicación | `cd web && node node_modules/vitest/vitest.mjs run lib/ot app/api/devices lib/cleanup` → `Test Files 5 passed (5)`, `Tests 31 passed (31)`; `tsc --noEmit` exit 0; `eslint` exit 0. Migración real contra PGlite (PostgreSQL WASM): 24 columnas, índice `(device_id, last_seen DESC)`, UNIQUE `(device_id, host_key)`, CHECK de `role`/`protocols`/`host_key`/`oui_prefix` (SQLSTATE 23514) y duplicado (23505); reaplicar la misma ventana deja `seen_windows = 1`, la ventana siguiente lo lleva a 2 y conserva `first_seen` (`lib/ot/__tests__/migration.integration.test.ts`, 10 tests). Producción `ep-delicate-rain…`: `node scripts/apply-migrations.mjs --env-file web/.env.production.local` → `aplicadas: 1; fallos: 0`; ledger `archivos: 18; ledger: 18; sin drift`; `--dry-run` → `pendientes: 0`; en la base: 24 columnas, 3 índices, 28 constraints, 0 filas. Retención: `ot_assets` fuera de `RETENTION_DAYS` (test explícito). Extra pedido por el propietario: `GET /api/devices/[id]/ot-assets` (6 tests). Commits `f5a9551` (migración y upsert) y `03d526d` (endpoint, pruebas y runner). | 2026-11-26 · Buffy |
-| E4 | Crate `sc-ot`: 4 parsers puros, peek LRU 4096, alineación 0–7 | E2 | `bloqueado` | Fuzz no-panic + property test de CRC DNP3 | — | — |
-| E5 | `sc-capture`: `forbid(unsafe_code)`, clippy, peek, BPF, degradación | E2 | `bloqueado` | Compila con y sin `--features live`; gate detecta un socket de prueba | — | — |
+| E4 | Crate `sc-ot`: 4 parsers puros, peek LRU 4096, alineación 0–7 | E2 | `pendiente` | Fuzz no-panic + property test de CRC DNP3 | Dependencia E2 `hecho` el 2026-11-26; tomable con dale | 2026-11-26 · Buffy |
+| E5 | `sc-capture`: `forbid(unsafe_code)`, clippy, peek, BPF, degradación | E2 | `pendiente` | Compila con y sin `--features live`; gate detecta un socket de prueba | Dependencia E2 `hecho` el 2026-11-26; tomable con dale | 2026-11-26 · Buffy |
 | E6 | `sc-detect`: reglas corregidas, allowlist, anti-storm | E4 | `bloqueado` | Miembro/no miembro de allowlist + anti-storm sin duplicar | — | 2026-11-25 · Buffy |
-| E7 | `/api/ingest`: dos pasadas, techo de confianza, upsert, downlink | E2, E3 | `bloqueado` | ≤3 statements extra, `EXPLAIN` sin scan nuevo, fixture 0.1.8 en 200 | — | — |
-| E8 | UI: badge de protocolo en la matriz y tab "Activos OT" | E3 | `bloqueado` | `typecheck`, `lint` y `build` verdes; la tab no muestra datos sintéticos | — | — |
+| E7 | `/api/ingest`: dos pasadas, techo de confianza, upsert, downlink | E2, E3 | `pendiente` | ≤3 statements extra, `EXPLAIN` sin scan nuevo, fixture 0.1.8 en 200 | Dependencias E2 y E3 `hecho` el 2026-11-26; tomable con dale | 2026-11-26 · Buffy |
+| E8 | UI: badge de protocolo en la matriz y tab "Activos OT" | E3 | `pendiente` | `typecheck`, `lint` y `build` verdes; la tab no muestra datos sintéticos | Dependencia E3 `hecho` el 2026-11-26; tomable con dale | 2026-11-26 · Buffy |
 | E8.1 | Card «Mapa OT observado»: nodos + aristas reales | E7, E8 | `bloqueado` | `metric=topology` con nodos/aristas acotados (≤40 nodos, ≤80 aristas); empty state; distingue «sin datos» de «sin aristas»; sin IP/MAC ni aristas inventadas; build verde | — | 2026-11-25 · Buffy |
 | E8.2 | Card «Mapa de exposición IT»: hosts/países/puertos, sin aristas | E8 | `bloqueado` | Top hosts/países/puertos; sin aristas; empty state; build verde | — | 2026-11-25 · Buffy |
 | E9 | Demo sintética TEST-NET con las dos cards y los dos disclaimers | E8.1, E8.2 | `bloqueado` | Badge `confirmed` y cards visibles con "Flujo Modbus sintético…" y "Evidencia sintética" | — | 2026-11-25 · Buffy |
@@ -32,14 +32,15 @@ su nombre y no se da por resuelto (AGENTS.md §4.7).
 Aprobación de M6 **otorgada el 2026-11-25** (`docs/plans/etapa-2-backlog.md:49`):
 hito nuevo con F1 OT en allowlist + descubrimiento manual y checkpoint tras
 E2.0/E2. La aprobación no autoriza ejecución: E2.0 requiere un "dale" que la
-nombre. Gates que siguen abiertos: contrato de E2 (sin escribir), B-028 y el
-renombre `ot_ot_in_it_zone`. Detalle en `plan-implementacion.md` §6.
+nombre. Gates que siguen abiertos: B-028 y el renombre `ot_ot_in_it_zone`.
+Detalle en `plan-implementacion.md` §6.
 
 **2026-11-26 · decisión del propietario:** saltar el checkpoint E2.0/E2 y
 ejecutar E3 completo, incluida la aplicación de `0017` a producción (N3). E3 se
 cerró sin el bloque `ot` del contrato porque el upsert define su propia entrada
-(`OtAssetInput`) y no consume el schema. E2 sigue `en curso` (contrato en
-`3afabe4`; faltan sus 4 fixtures) y E4/E7/E8 no se desbloquean con este cierre.
+(`OtAssetInput`) y no consume el schema. E2 quedó `hecho` el 2026-11-26 con su
+contrato y sus 4 fixtures, así que E4, E5, E7 y E8 vuelven a `pendiente`; E6,
+E8.1, E8.2, E9 y E10 siguen bloqueadas por sus propias dependencias.
 
 ## Checkpoint E2.0/E2
 
@@ -280,6 +281,36 @@ levantó el bloqueo y cuándo.
   '0017_ot-assets.sql';`. Nota: `web/lib/db/migrations/meta/_journal.json` sigue
   sin 0017, así que `drizzle` no la conoce; el ledger del runner es la autoridad
   (E1.5).
+
+### 2026-11-26 · E2 · Buffy
+
+- **Qué se hizo:** cerrados los 4 fixtures del criterio de E2 en
+  `docs/contracts/examples/`: `snapshot-0.1.8-no-ot.json` (compatibilidad, sin
+  `ot`), `snapshot-ot-valid.json` (bloque completo dentro de topes),
+  `snapshot-ot-malformed.json` (enum, tipos, rangos, faltantes y propiedad
+  adicional) y `snapshot-ot-oversize.json` (9 eventos / 7 protocolos / 17
+  endpoints, generado para que solo fallen los topes). `scripts/validate-contracts.js`
+  ahora valida `minItems`/`maxItems`/`minProperties`/`maxProperties` (antes
+  ignoraba los topes de array) y corre los 4 casos. `scripts/verify-contracts.sh`
+  ya no se corta en pnpm: pasa `--config.verify-deps-before-run=false` y solo cae
+  a `node --experimental-strip-types` si pnpm no llegó a ejecutar el test, así que
+  un fallo real de las pruebas sigue poniendo el gate en rojo. No se tocó el
+  contrato (schema, Zod, serde) ni las dependencias.
+- **Comando ejecutado:** `bash scripts/verify-contracts.sh`;
+  `node scripts/validate-contracts.js`;
+  `cd web && node --experimental-strip-types ../scripts/test-contracts-zod.mjs`;
+  `cd agent && cargo test -p sc-core ejemplo_del_contrato`; `pnpm --version`.
+- **Salida:** `Contratos OK (Rust + JSON Schema + Zod).`, `gate_exit=0`;
+  `OK: snapshot-0.1.8-no-ot`, `OK: snapshot-ot-valid`,
+  `OK: snapshot-ot-malformed rechazado correctamente (13 errores detectados)`,
+  `OK: snapshot-ot-oversize rechazado correctamente (3 errores detectados)`,
+  `Contratos OK.`, exit 0; Zod `# tests 11 / # pass 11 / # fail 0`, exit 0;
+  Rust `test result: ok. 2 passed; 0 failed`; `pnpm` local `12.23.0` (el CI fija
+  pnpm 9 y no usaba este script).
+- **Qué quedó pendiente:** el cap de 8192 B del bloque `ot` no se valida en JSON
+  Schema, Zod ni serde; no hay comprobación de bytes en ninguna capa, así que el
+  fixture `oversize` prueba los topes estructurales 8/6/16 y no ese presupuesto.
+  Abiertos también B-028 y el renombre `ot_ot_in_it_zone`.
 
 Formato fijo de cada entrada (no borrar los encabezados; una entrada por etapa
 cerrada o por bloqueo nuevo):
