@@ -1,0 +1,5 @@
+# Fixtures binarios de OT: se guardan byte a byte, sin conversión de fin de
+# línea. Sin esta regla git normalizaba `neg_http_on_ot_port.bin` a LF y el
+# archivo medía 16 bytes en Windows y 15 en Linux, lo que hacía fallar
+# `agent/crates/sc-core/tests/ot_signatures.rs` sólo en CI.
+agent/fixtures/ot/*.bin -text

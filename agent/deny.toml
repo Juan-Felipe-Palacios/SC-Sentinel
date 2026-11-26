@@ -74,6 +74,11 @@ expression = "LicenseRef-Proprietary"
 license-files = [{ path = "../../../LICENSE", hash = 0xc4fea1fa }]
 
 [[licenses.clarify]]
+crate = "sc-ot"
+expression = "LicenseRef-Proprietary"
+license-files = [{ path = "../../../LICENSE", hash = 0xc4fea1fa }]
+
+[[licenses.clarify]]
 crate = "sc-sync"
 expression = "LicenseRef-Proprietary"
 license-files = [{ path = "../../../LICENSE", hash = 0xc4fea1fa }]
