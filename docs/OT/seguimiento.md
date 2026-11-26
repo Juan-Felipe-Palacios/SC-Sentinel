@@ -391,8 +391,12 @@ levantó el bloqueo y cuándo.
   `10.34.9` con `npm view pnpm@10 version`. Si algún día se fijara 10.5 literal,
   la clave se ignoraría sin romper el install, porque en 10.x `strictDepBuilds`
   es `false` por defecto.
-- **Qué quedó pendiente:** el `pnpm install` y el gate no se corrieron con pnpm
-  10.34.9 local (de esa versión sólo se consultó el número). pnpm 12 usa
+- **Qué quedó pendiente:** ninguna medición de lo tratado acá: el
+  `pnpm install --frozen-lockfile` con pnpm **10.34.9** se midió después sobre
+  una copia de `package.json`, `pnpm-lock.yaml` y `pnpm-workspace.yaml` en un
+  temporal con store propio → `Done in 1m 46s using pnpm v10.34.9`, exit 0,
+  lockfile sin cambios (`cmp`) y 30 entradas en `node_modules`. El gate completo
+  (typecheck/lint/tests/build) sigue sin correrse con 10.34.9. pnpm 12 usa
   `D:\.pnpm-store\v11` porque el store de `C:\Users\Juan\AppData\Local\pnpm\store\v11`
   no se puede hard-linkear a otra unidad; queda un store fuera del repo. Siguen
   abiertos el cap de 8192 B, B-028 y el renombre `ot_ot_in_it_zone`.
