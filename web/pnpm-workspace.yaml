@@ -10,7 +10,7 @@ packages:
 # postinstall (binario nativo por plataforma; cubre sus tres versiones).
 # @google/genai y protobufjs quedan denegados explícitamente: no aportan binario
 # y funcionaban sin postinstall. La clave existe desde pnpm 10.26.0, así que el
-# CI (version: 10 → 10.34.9) también la lee.
+# CI, que fija pnpm 10.34.9, también la lee.
 allowBuilds:
   '@google/genai': false
   esbuild: true

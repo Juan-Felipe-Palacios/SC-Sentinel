@@ -2,7 +2,7 @@
 
 ## Requisitos
 
-- Node 20, pnpm 9.
+- Node 20+, pnpm 10+.
 - Base de datos Postgres (Neon branch o local).
 
 ## Pasos

@@ -7,10 +7,14 @@ Monitor de red con motor determinista local + dashboard en la nube. El agente ca
 - `agent/` — workspace Rust (agente local: captura, agregación, sincronización). Ver `agent/README.md`.
 - `web/` — Next.js 15 (dashboard + landing). Ver `web/README.md`.
 - `docs/` — spec (fuente de verdad), ADRs, contratos, runbooks, testing. Empezar por `docs/README.md`.
-- `docs/atlas.pdf` — atlas de documentación completo en A4 vectorial (283 páginas: 91 docs + 12 diagramas SVG embebidos). Generado con Chrome headless print-to-pdf.
+- `scripts/` — despliegue, verificación, migraciones y utilidades (PowerShell / Node / Python).
+- `installer/` — fuente NSIS del instalador Windows (`sc-sentinel.nsi`).
+- `.github/workflows/` — CI: `rust`, `web`, `contracts`, `release`, `installer-windows`, `ai-cron`.
+- `doc/` — notas sueltas de mejora; no confundir con `docs/`.
+- `docs/atlas.pdf` — atlas de documentación completo en A4 vectorial (306 páginas: 91 docs + 12 diagramas SVG embebidos). Generado con Chrome headless print-to-pdf.
 - `docs/diagrams/exports/` — 12 diagramas en formato vectorial: `.svg` (fuente), `.dxf` (CAD, uno por diagrama) y `.png` (3 diagramas clave). Conversión SVG→DXF vía `scripts/svg2dxf.py` (ezdxf).
 
-## Desarrollo local (requerido: Rust stable, Node 20, pnpm 9)
+## Desarrollo local (requerido: Rust stable, Node 20+, pnpm 10+)
 
 ```bash
 # Agente
@@ -31,6 +35,7 @@ Requisitos detallados y gates diarios: `docs/runbooks/local-development.md`.
 - **Ruta B v2 (entregada):** export CSV/XLSX con streaming y auditoría, AI Evals con coste/latencia/éxito y Trust Pages con rotación, revocación y access logs. Runbooks y métricas en `docs/`.
 - **M4 (cerrado):** colector pasivo NetFlow v5/v9 + IPFIX integrado en el agente (ADR-0014), con métricas del colector persistidas en `agent_health` y visibles en el dashboard; validado con MikroTik RouterOS CHR, fixtures reales y soak de 24 h.
 - **M5 (cerrado):** servicio Windows `SC-Sentinel-Agent` con recovery, logging a archivo, instalador/desinstalador y runbook verificados en una instalación real. Reinicio real del servidor verificado el 2026-11-13 (LastBootUpTime 20:20:10 local; servicio `Running` sin arranque manual, `AUTO_START`; npcap `RUNNING`; captura live con `--interface`; `packets_seen` creciente; `sync_confirmed` posterior). GUI post-reinicio confirmada por el propietario. **Ciclo físico de 10 etapas completado el 2026-11-14 con 0 fallos** (`scripts/verify-m5-cycle.ps1`, UAC aceptado; destapó y corrigió tres defectos de instalador/desinstalador; ver `docs/testing/acceptance-criteria.md`).
-- **Release 0.1.0:** primer release funcional. Ver `docs/release/changelog.md`.
+- **M6 (en curso):** identificación pasiva OT (Modbus/TCP, S7comm, DNP3, IEC-104): plan por etapas en `docs/OT/` (E0–E10). Cerradas: E0–E1.5 (ADRs 0021–0022), E2.0 (fixtures de firmas), E2 (bloque `ot` en el contrato), E3 (migración `0017` `ot_assets`).
+- **Releases:** primera release funcional `v0.1.0`; última publicada **`v0.1.10`** (2026-11-24, instalador NSIS). Ver `docs/release/changelog.md`.
 - **Demo pública:** `/demo` entra como visitante de solo lectura, sin credenciales ni configuración previa.
 - Roadmap histórico M0–M5: `docs/superpowers/specs/SC-Sentinel-Spec-Completo-2026-11-03.md` §13.

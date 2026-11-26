@@ -1,6 +1,6 @@
 # Runbook — Desarrollo local (M0+)
 
-**Requisitos:** Rust toolchain stable (rustup) · Node 20+ · pnpm 9+ · Git · Windows (dev principal) o Linux.
+**Requisitos:** Rust toolchain stable (rustup) · Node 20+ · pnpm 10+ · Git · Windows (dev principal) o Linux.
 
 ## 1. Estructura
 

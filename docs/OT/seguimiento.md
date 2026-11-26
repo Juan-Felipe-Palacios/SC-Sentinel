@@ -435,6 +435,29 @@ que un release de pnpm podía cambiar el instalador sin tocar el repo.
 **Qué quedó pendiente**
 - Siguen abiertos el cap de 8192 B, B-028 y el renombre `ot_ot_in_it_zone`.
 
+### 2026-11-26 · E2 · requisitos de pnpm 10 en la documentación
+**Qué se hizo**
+Se revisaron y commitearon las ediciones pendientes en `README.md`,
+`docs/diagrams/README.md`, `docs/runbooks/local-development.md` y
+`docs/tutorials/quickstart-dashboard.md`: requisito de pnpm 9 → 10+, nuevos
+directorios en el mapa del README, M6 y `v0.1.10`, atlas de 283 a 306 páginas.
+También se actualizó el comentario de `web/pnpm-workspace.yaml` que describía
+una resolución por major del CI.
+**Comando ejecutado**
+- `pnpm install --frozen-lockfile` en `web` y
+  `pwsh -NoProfile -File scripts/check-doc-versions.ps1`.
+**Salida**
+- `Done in 601ms using pnpm v12.23.0`, exit 0: un comentario no cambia el hash de
+  configuración del lockfile.
+- `==> Version esperada: 0.1.10` / `OK: ninguna guia apunta a otra version`,
+  exit 0.
+- Coherencia comprobada: existen `scripts/`, `installer/`, `doc/`,
+  `.github/workflows/`, el tag `v0.1.10` (2026-11-24), los ADRs 0021–0022,
+  `web/lib/db/migrations/0017_ot-assets.sql` y el atlas tiene `/Count 306`.
+**Qué quedó pendiente**
+- `web/README.md:18` sigue diciendo "pnpm 9+"; no formaba parte de este lote.
+  Siguen abiertos el cap de 8192 B, B-028 y el renombre `ot_ot_in_it_zone`.
+
 Formato fijo de cada entrada (no borrar los encabezados; una entrada por etapa
 cerrada o por bloqueo nuevo):
 

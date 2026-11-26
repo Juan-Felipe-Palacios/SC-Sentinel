@@ -34,7 +34,7 @@ Fuente de verdad del contenido: `docs/superpowers/specs/SC-Sentinel-Spec-Complet
 
 Generar bajo demanda desde los fuentes (`.mmd` vía mermaid-cli `mmdc`; `.drawio` vía export de la app). **Regla:** si un export entra en un documento publicado en producción, re-generarlo del fuente congelado — no editar el export a mano.
 
-**Atlas vectorial (A4):** `docs/atlas.pdf` (documentación completa + diagramas SVG embebidos, 283 páginas) y `docs/diagrams/exports/*.dxf` (un DXF por diagrama, geometría vectorial CAD). Conversión SVG→DXF: `scripts/svg2dxf.py` (svgpathtools + ezdxf).
+**Atlas vectorial (A4):** `docs/atlas.pdf` (documentación completa + diagramas SVG embebidos, 306 páginas) y `docs/diagrams/exports/*.dxf` (un DXF por diagrama, geometría vectorial CAD). Conversión SVG→DXF: `scripts/svg2dxf.py` (svgpathtools + ezdxf).
 
 ## Checklist de calidad visual (cada diagrama)
 
