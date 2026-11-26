@@ -365,6 +365,38 @@ levantó el bloqueo y cuándo.
   `protobufjs` y `@google/genai`; se tratan en la entrada siguiente del mismo
   día. Siguen abiertos el cap de 8192 B, B-028 y el renombre `ot_ot_in_it_zone`.
 
+### 2026-11-26 · E2 · builds de esbuild aprobados
+
+- **Qué se hizo:** con pnpm 12 `strictDepBuilds` vale `true`, así que cualquier
+  build script sin revisar hace fallar `pnpm install` con
+  `ERR_PNPM_IGNORED_BUILDS` (exit 1). Se revisaron los cinco paquetes implicados
+  y se aprobó **sólo `esbuild`** (`allowBuilds: esbuild: true`): es el único que
+  necesita su postinstall para bajar el binario nativo de la plataforma. Con eso
+  aprobado el error seguía nombrando `@google/genai` y `protobufjs`, que quedaron
+  con `false` explícito: no aportan binario y ya funcionaban sin su postinstall
+  en los gates previos. El mapa vive en `web/pnpm-workspace.yaml` junto a
+  `overrides`, con un comentario que explica la decisión.
+- **Comando ejecutado:** `cd web && pnpm approve-builds esbuild`;
+  `pnpm approve-builds '!@google/genai' '!protobufjs'`;
+  `pnpm install --frozen-lockfile`; `node node_modules/vitest/vitest.mjs run
+  lib/ot`; `npm view pnpm@10 version`.
+- **Salida:** `approve-builds` → `esbuild@0.18.20`, `0.25.12` y `0.28.2`
+  `postinstall: Done`, exit 0. `pnpm install --frozen-lockfile` → `Done in 1.5s
+  using pnpm v12.23.0`, **exit 0** (antes: `Error: ERR_PNPM_IGNORED_BUILDS`,
+  `install_exit=1`). esbuild resuelve `0.25.12` y transforma; `vitest run lib/ot`
+  → `Test Files 2 passed (2)`, `Tests 17 passed (17)`, exit 0.
+- **Clave y CI:** pnpm 12 escribe `allowBuilds`, que existe desde **10.26.0**. El
+  CI no usa 10.5 (ese número es el mínimo que lee `overrides` del workspace):
+  `pnpm/action-setup@v4` con `version: 10` resuelve el último 10.x, medido como
+  `10.34.9` con `npm view pnpm@10 version`. Si algún día se fijara 10.5 literal,
+  la clave se ignoraría sin romper el install, porque en 10.x `strictDepBuilds`
+  es `false` por defecto.
+- **Qué quedó pendiente:** el `pnpm install` y el gate no se corrieron con pnpm
+  10.34.9 local (de esa versión sólo se consultó el número). pnpm 12 usa
+  `D:\.pnpm-store\v11` porque el store de `C:\Users\Juan\AppData\Local\pnpm\store\v11`
+  no se puede hard-linkear a otra unidad; queda un store fuera del repo. Siguen
+  abiertos el cap de 8192 B, B-028 y el renombre `ot_ot_in_it_zone`.
+
 Formato fijo de cada entrada (no borrar los encabezados; una entrada por etapa
 cerrada o por bloqueo nuevo):
 
