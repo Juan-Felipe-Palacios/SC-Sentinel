@@ -647,7 +647,7 @@ ventanas, de modo que un reintento de la misma ventana no duplica nada.
 - **Qué se hizo:** como la cuota de Neon sigue en HTTP 402 y no hay Docker ni `psql` en la máquina, se agregó una base de desarrollo local con PGlite (PostgreSQL 17 en WASM, ya como `devDependency`) detrás del flag `SC_DEV_DB=pglite`, inerte fuera de desarrollo. `web/lib/db/index.ts` elige el driver según el flag y `web/lib/db/local-pglite.ts` carga PGlite con `require` en runtime y specifiers en variables para no meterlo en el bundle. `web/scripts/seed-local-dev-db.mjs` (`pnpm dev:seed`) aplica las migraciones reales (0000–0016 con el migrator de Drizzle y `0017_ot-assets.sql` a mano) y siembra un device **no demo** (`dev_local_ot`) con 3 activos OT, 1 ventana y 3 alertas OT. Receta en `docs/runbooks/local-development.md` §9.
 - **Comando ejecutado:** `cd web && pnpm dev:seed`; `SC_DEV_DB=pglite SC_DEV_AUTH=1 pnpm dev -H 127.0.0.1 -p 3123`; `curl 'http://127.0.0.1:3123/api/query?metric=topology&range=24h&device_id=dev_local_ot'`; `tsc --noEmit`; `pnpm lint`; `vitest run lib/db/__tests__/local-pglite.test.ts app/api/query lib/query/__tests__/ot-topology.test.ts`; `pnpm build`.
 - **Salida:** siembra → `nodes: 3`, `otAlerts: 3`, `migrationsApplied: 17`; `GET` → **200**, 3 nodos reales de `ot_assets` (client modbus, server s7comm y uno sin alertas) y **1 arista** `a1b2c3d4e5f60718 → 18f60718a1b2c3d4` con `count: 2`; la alerta `ot_unexpected_peer` (extremo `ffffffffffffffff`, que no es nodo) **no** produjo arista; sin IP ni MAC en el cuerpo. Flag: 5/5 tests. Gates: `tsc` exit 0, `lint` exit 0 (5 warnings previos), ruta+read model 17/17, `build` exit 0. Bundle de producción sin rastro de PGlite: `grep -rli 'electric-sql' .next/server .next/static` → **0** archivos (antes, con el specifier literal, webpack metía un chunk de 911 671 bytes con el runtime de PGlite en todas las rutas).
-- **Qué quedó pendiente:** el camino sigue sin verificar contra Neon real (cuota 402), así que no se pudieron aplicar migraciones ni probar el device de producción; PGlite no ejercita pooling ni el protocolo HTTP de Neon. El empty state manual de la card sigue sin revisarse en la UI.
+- **Qué quedó pendiente:** el camino sigue sin verificar contra Neon real (cuota 402), así que no se pudieron aplicar migraciones ni probar el device de producción; PGlite no ejercita pooling ni el protocolo HTTP de Neon. El empty state de la card se verificó después en la UI (ver entrada «empty state de «Mapa OT observado»»).
 
 ### 2026-11-27 · E8.1 (0017 en el journal + chequeo de integridad) · Buffy
 
@@ -674,7 +674,36 @@ ventanas, de modo que un reintento de la misma ventana no duplica nada.
   Typecheck → 0. `pnpm test` → exit 0 (incluye el checker). Build → exit 0.
 - **Qué quedó pendiente:** directorios `.local-db` creados antes del cambio
   requieren un `pnpm dev:seed -- --reset` único (documentado en el runbook
-  local §9.2). El empty state manual de la card sigue sin revisarse en la UI.
+  local §9.2). El empty state de la card se verificó después en la UI (ver entrada «empty state de «Mapa OT observado»»).
+
+### 2026-11-27 · E8.1 (empty state de «Mapa OT observado») · Buffy
+
+- **Qué se hizo:** se verificó en la UI real los tres estados de la card con la
+  base PGlite sembrada: device sin activos (`DEFAULT_DEVICE_ID=dev_sin_ot`),
+  `dev_local_ot` en ventana `1h` (activos sin aristas) y en `24h` (activos +
+  arista). Como no hay jsdom ni `@testing-library` en el proyecto (el include de
+  vitest sólo toma `*.test.ts`, así que los componentes se prueban por SSR con
+  `renderToStaticMarkup`, igual que `AsnDistribution`), se agregó
+  `web/components/dashboard/__tests__/OtNetworkMap.test.ts` con 4 casos: activos
+  sin aristas, arista cliente/servidor, par con extremo inexistente y fallback de
+  etiqueta a `host_key`. El caso del par inexistente destapó que el mapa no
+  dibujaba la arista pero tampoco mostraba el aviso de vacío (card muda):
+  `OtNetworkMap` ahora calcula `drawn` (pares con ambos extremos entre los nodos)
+  y usa esa cuenta tanto para las `<line>` como para el mensaje.
+- **Comando ejecutado:** `cd web && pnpm dev:seed`;
+  `SC_DEV_DB=pglite SC_DEV_AUTH=1 ADMIN_SECRET= DEFAULT_DEVICE_ID=dev_sin_ot pnpm dev -H 127.0.0.1 -p 3123`
+  (login local «Admin», sin tocar secretos reales: `SC_DEV_AUTH` sólo cubre las
+  APIs, `/dashboard/*` exige cookie de sesión); `pnpm exec vitest run components/dashboard/__tests__/OtNetworkMap.test.ts`;
+  `pnpm typecheck`; `pnpm lint`.
+- **Salida:** sin activos → «Sin activos OT observados en el período.»;
+  `dev_local_ot` con `?range=1h` → 3 nodos, **0** `<line>` y «Sin aristas
+  observadas: solo se muestran los activos OT.»; con `?range=24h` → 3 nodos,
+  **1** `<line>` y sin aviso. Test 4/4, typecheck exit 0, lint exit 0 (5 warnings
+  previos).
+- **Qué quedó pendiente:** la card no distingue «el device no reportó activos» de
+  «no hubo activos en esta ventana» (mismo texto para ambos casos); si se quiere
+  esa distinción hace falta cambiar el contrato de `/api/query?metric=topology`.
+  Neon sigue en HTTP 402, así que nada de esto se probó contra la base real.
 
  Formato fijo de cada entrada (no borrar los encabezados; una entrada por etapa
 cerrada o por bloqueo nuevo):

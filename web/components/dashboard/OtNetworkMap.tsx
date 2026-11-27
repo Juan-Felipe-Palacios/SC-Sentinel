@@ -35,6 +35,10 @@ export function OtNetworkMap({ nodes, edges }: OtNetworkMapProps) {
 
   const label = (n: OtTopologyNode) => (n.label && n.label.trim() ? n.label : n.host_key).slice(0, 18);
 
+  // Solo se dibujan pares con ambos extremos entre los nodos: una arista huérfana
+  // no se inventa y tampoco cuenta para el aviso de "sin aristas".
+  const drawn = edges.filter((e) => pos.has(e.client) && pos.has(e.server));
+
   return (
     <div className="space-y-2">
       <svg
@@ -43,10 +47,9 @@ export function OtNetworkMap({ nodes, edges }: OtNetworkMapProps) {
         role="img"
         aria-label="Mapa OT observado"
       >
-        {edges.map((e, i) => {
-          const a = pos.get(e.client);
-          const b = pos.get(e.server);
-          if (!a || !b) return null;
+        {drawn.map((e, i) => {
+          const a = pos.get(e.client)!;
+          const b = pos.get(e.server)!;
           return (
             <line
               key={`${e.client}-${e.server}-${i}`}
@@ -82,7 +85,7 @@ export function OtNetworkMap({ nodes, edges }: OtNetworkMapProps) {
           );
         })}
       </svg>
-      {edges.length === 0 ? (
+      {drawn.length === 0 ? (
         <p className="text-xs text-slate-400">Sin aristas observadas: solo se muestran los activos OT.</p>
       ) : null}
     </div>
