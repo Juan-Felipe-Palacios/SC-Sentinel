@@ -13,6 +13,9 @@
 # testing
 /coverage
 
+# base de desarrollo local (PGlite), ver docs/runbooks/local-development.md
+/.local-db/
+
 # next.js
 /.next/
 /out/

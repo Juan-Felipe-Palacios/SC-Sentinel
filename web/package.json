@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run && node --experimental-strip-types ../scripts/test-contracts-zod.mjs",
     "test:contracts": "node --experimental-strip-types ../scripts/test-contracts-zod.mjs",
-    "operator:create": "node scripts/create-operator.mjs"
+    "operator:create": "node scripts/create-operator.mjs",
+    "dev:seed": "node scripts/seed-local-dev-db.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.32.0",

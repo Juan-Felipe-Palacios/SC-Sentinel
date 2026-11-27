@@ -348,3 +348,78 @@ Límite que sigue en pie: la carpeta protege de procesos **no elevados**. Un
 administrador puede cambiarla, como cualquier ruta del sistema; eso no lo cubre
 el script.
 
+## 9. Base de datos local con PGlite (sin Neon)
+
+Para trabajar el camino real de la API sin Neon: cuota agotada (HTTP 402), sin
+red o sin gastar CU-horas. PGlite es PostgreSQL 17 compilado a WASM y ya está
+como `devDependency` de `web/` (lo usan las pruebas de integración), así que no
+hace falta Docker, `psql` ni instalar un servidor.
+
+### 9.1 Cómo se activa
+
+El driver se elige en `web/lib/db/index.ts`: con `NODE_ENV != production` y
+`SC_DEV_DB=pglite` usa `web/lib/db/local-pglite.ts`; en cualquier otro caso usa
+el driver HTTP de Neon y `DATABASE_URL` como siempre. **En producción el flag es
+inerte** aunque alguien lo setee (`web/lib/db/__tests__/local-pglite.test.ts`).
+
+| Variable | Efecto |
+|---|---|
+| `SC_DEV_DB=pglite` | habilita la base local (sólo en desarrollo) |
+| `SC_DEV_DB_DIR` | directorio de datos; por defecto `web/.local-db` (ignorado por git) |
+| `SC_DEV_AUTH=1` | autenticación local de admin sin cookie (sólo en desarrollo, `lib/auth/admin.ts`) |
+
+### 9.2 Sembrar y arrancar
+
+```bash
+cd web
+pnpm dev:seed                    # crea/migra .local-db y siembra el device local
+pnpm dev:seed -- --reset         # borra el directorio y vuelve a sembrar
+SC_DEV_DB=pglite SC_DEV_AUTH=1 pnpm dev -H 127.0.0.1 -p 3123
+```
+
+En PowerShell:
+
+```powershell
+cd web
+$env:SC_DEV_DB='pglite'; $env:SC_DEV_AUTH='1'
+pnpm dev -H 127.0.0.1 -p 3123
+```
+
+La siembra es idempotente: aplica las migraciones reales del repo (0000–0016 con
+el migrator de Drizzle y `0017_ot-assets.sql` a mano, porque todavía no está en
+el journal), trunca y vuelve a insertar. Deja:
+
+| Objeto | Valor |
+|---|---|
+| device | `dev_local_ot` (no demo: no pasa por el dataset sintético) |
+| ventana | `w_local_0001`, hace 60–90 s (entra en `range=24h`) |
+| activos OT | `a1b2c3d4e5f60718` (client, modbus), `18f60718a1b2c3d4` (server, s7comm), `c0ffee00c0ffee11` (sin alertas) |
+| alertas OT | 2 × `ot_new_master` del par client→server y 1 × `ot_unexpected_peer` con un extremo que no es nodo |
+
+### 9.3 Verificar la card «Mapa OT observado»
+
+```bash
+curl -s 'http://127.0.0.1:3123/api/query?metric=topology&range=24h&device_id=dev_local_ot'
+```
+
+Resultado esperado: **3 nodos** y **1 arista** `a1b2c3d4e5f60718 → 18f60718a1b2c3d4`
+con `count: 2`. La alerta `ot_unexpected_peer` no crea arista porque su extremo
+`ffffffffffffffff` no es nodo activo: el read model no inventa enlaces. El cuerpo
+no lleva IP ni MAC, sólo host keys.
+
+### 9.4 Límites y cuidados
+
+1. **Un solo proceso por directorio.** PGlite usa el directorio en exclusiva: no
+   pueden compartirlo `pnpm dev` y un script a la vez (cierra el servidor antes de
+   sembrar, o usa otro `SC_DEV_DB_DIR`).
+2. **No es Neon.** No ejercita pooling, el protocolo HTTP del driver ni errores
+   propios de Neon; sirve para el camino de datos, no para medir latencias.
+3. **Nunca en producción.** El flag requiere `NODE_ENV != production`; un
+   despliegue no arranca con PGlite aunque `SC_DEV_DB` esté definido.
+4. **`SC_DEV_AUTH=1` es sólo local.** Evita montar una sesión u operador en la
+   base de desarrollo; no reemplaza el login real en preview ni en producción.
+5. La siembra escribe datos **sintéticos**: no usar capturas ni datos de una red
+   OT real (clase C) ni siquiera en local.
+6. `web/.local-db/` está en `web/.gitignore`: no se versiona ni se borra con
+   `git clean -fdx` sin querer (sí con `-x`, cuidado).
+

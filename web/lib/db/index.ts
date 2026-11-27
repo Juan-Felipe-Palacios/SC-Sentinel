@@ -2,9 +2,15 @@
 
 import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
+import { getLocalDevDb, isLocalDevDbEnabled } from './local-pglite';
 import * as schema from './schema';
 
 export function getDb() {
+  // Base de desarrollo (PGlite): sólo si NODE_ENV != production y SC_DEV_DB=pglite.
+  if (isLocalDevDbEnabled()) {
+    return getLocalDevDb() as unknown as ReturnType<typeof drizzle<typeof schema>>;
+  }
+
   const url = process.env.DATABASE_URL;
   if (!url) {
     throw new Error('DATABASE_URL environment variable is not defined');
