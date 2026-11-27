@@ -60,7 +60,13 @@ if (!dryRun) {
 let appliedRows = [];
 try {
   appliedRows = await sql`SELECT name FROM sc_schema_migrations`;
-} catch {
+} catch (error) {
+  // Sólo una base sin ledger significa "todo pendiente" (42P01). Un fallo de
+  // red o de cuota no debe convertirse en 18 migraciones no idempotentes.
+  if (error?.code !== '42P01') {
+    console.error(`no se pudo leer sc_schema_migrations: ${error?.message ?? error}`);
+    process.exit(1);
+  }
   appliedRows = []; // sin ledger todavía: todo pendiente
 }
 const applied = new Set(appliedRows.map((row) => row.name));

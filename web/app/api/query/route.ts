@@ -61,8 +61,6 @@ function syntheticResponse(
       return NextResponse.json(syntheticTopology(range), { status: 200, headers: noStoreHeaders });
     case 'ai':
       return NextResponse.json(syntheticInsight(), { status: 200, headers: noStoreHeaders });
-    case 'topology':
-      return NextResponse.json(syntheticTopology(range), { status: 200, headers: noStoreHeaders });
   }
 }
 
