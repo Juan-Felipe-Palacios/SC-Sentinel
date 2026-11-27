@@ -7,11 +7,11 @@
 //       --dir    directorio de datos (por defecto web/.local-db)
 //       --reset  borra el directorio antes de migrar (lo demás es idempotente)
 //
-// Aplica las migraciones reales del repo (0000–0016 con el migrator de Drizzle
-// y 0017 a mano, porque aún no está en el journal) y luego deja un dataset
-// mínimo y determinista. No toca Neon ni la red.
+// Aplica las migraciones reales del repo con el migrator de Drizzle (todas,
+// incluida 0017: el journal las nombra) y luego deja un dataset mínimo y
+// determinista. No toca Neon ni la red.
 
-import { readFileSync, rmSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sql } from 'drizzle-orm';
@@ -39,9 +39,6 @@ const dataDir = configuredDir
   ? resolve(process.cwd(), configuredDir)
   : fileURLToPath(new URL('../.local-db', import.meta.url));
 const migrationsFolder = fileURLToPath(new URL('../lib/db/migrations', import.meta.url));
-const otAssetsMigration = fileURLToPath(
-  new URL('../lib/db/migrations/0017_ot-assets.sql', import.meta.url)
-);
 
 if (reset) {
   rmSync(dataDir, { recursive: true, force: true });
@@ -50,26 +47,12 @@ if (reset) {
 const client = new PGlite(dataDir);
 const db = drizzle(client);
 
-async function applyOtAssetsMigrationIfMissing() {
-  const result = await db.execute(sql`SELECT to_regclass('public.ot_assets')::text AS reg`);
-  if (result.rows[0]?.reg != null) return false;
-  const statements = readFileSync(otAssetsMigration, 'utf8')
-    .split('--> statement-breakpoint')
-    .map((statement) => statement.trim())
-    .filter((statement) => statement.length > 0);
-  for (const statement of statements) {
-    await db.execute(sql.raw(statement));
-  }
-  return true;
-}
-
 function countOf(result) {
   return Number(result.rows[0]?.n ?? 0);
 }
 
 try {
   await migrate(db, { migrationsFolder });
-  const appliedOtAssets = await applyOtAssetsMigrationIfMissing();
 
   const now = new Date();
   const windowStart = new Date(now.getTime() - 90_000);
@@ -120,7 +103,7 @@ try {
 
   const nodes = await db.execute(sql`SELECT COUNT(*)::int AS n FROM ot_assets WHERE device_id = ${DEVICE_ID}`);
   const alertCount = await db.execute(sql`SELECT COUNT(*)::int AS n FROM alerts a INNER JOIN flow_windows fw ON fw.window_id = a.window_id WHERE fw.device_id = ${DEVICE_ID} AND a.rule_id LIKE 'ot_%'`);
-  // Migraciones aplicadas según el journal de Drizzle (0000–0016) + 0017 a mano.
+  // Migraciones aplicadas según el journal de Drizzle (0000–0017).
   const applied = await db.execute(sql`SELECT COUNT(*)::int AS n FROM drizzle.__drizzle_migrations`);
 
   console.log(
@@ -130,10 +113,9 @@ try {
         dataDir,
         device: DEVICE_ID,
         windowId: WINDOW_ID,
-        otAssetsMigrationApplied: appliedOtAssets,
         nodes: countOf(nodes),
         otAlerts: countOf(alertCount),
-        migrationsApplied: countOf(applied) + (appliedOtAssets ? 1 : 0),
+        migrationsApplied: countOf(applied),
       },
       null,
       2

@@ -649,7 +649,34 @@ ventanas, de modo que un reintento de la misma ventana no duplica nada.
 - **Salida:** siembra → `nodes: 3`, `otAlerts: 3`, `migrationsApplied: 17`; `GET` → **200**, 3 nodos reales de `ot_assets` (client modbus, server s7comm y uno sin alertas) y **1 arista** `a1b2c3d4e5f60718 → 18f60718a1b2c3d4` con `count: 2`; la alerta `ot_unexpected_peer` (extremo `ffffffffffffffff`, que no es nodo) **no** produjo arista; sin IP ni MAC en el cuerpo. Flag: 5/5 tests. Gates: `tsc` exit 0, `lint` exit 0 (5 warnings previos), ruta+read model 17/17, `build` exit 0. Bundle de producción sin rastro de PGlite: `grep -rli 'electric-sql' .next/server .next/static` → **0** archivos (antes, con el specifier literal, webpack metía un chunk de 911 671 bytes con el runtime de PGlite en todas las rutas).
 - **Qué quedó pendiente:** el camino sigue sin verificar contra Neon real (cuota 402), así que no se pudieron aplicar migraciones ni probar el device de producción; PGlite no ejercita pooling ni el protocolo HTTP de Neon. El empty state manual de la card sigue sin revisarse en la UI.
 
-Formato fijo de cada entrada (no borrar los encabezados; una entrada por etapa
+### 2026-11-27 · E8.1 (0017 en el journal + chequeo de integridad) · Buffy
+
+- **Qué se hizo:** `0017_ot-assets.sql` entró al journal de Drizzle
+  (`web/lib/db/migrations/meta/_journal.json`, `idx: 17`, `when` = mtime del
+  archivo), así que `migrate()` la aplica como cualquier otra: se eliminó el
+  paso manual en `web/scripts/seed-local-dev-db.mjs` y el fallback
+  `applyMigration()` de `web/lib/ot/__tests__/migration.integration.test.ts`. Nuevo
+  `scripts/check-migrations-journal.mjs` (sólo lectura) que compara el conjunto
+  y el orden de los `.sql` contra el journal (índices, tags, duplicados) y sale 1
+  ante cualquier divergencia. `scripts/apply-migrations.mjs` lo ejecuta antes de
+  leer `DATABASE_URL` y toma la lista de migraciones del journal (no de
+  `readdir`); `pnpm test` del web lo suma a su gate (`web/package.json`). Prueba
+  offline: `scripts/test-migrations-journal.mjs` (6 casos).
+- **Comando ejecutado:** `node scripts/check-migrations-journal.mjs`;
+  `node scripts/test-migrations-journal.mjs`; `cd web && pnpm dev:seed -- --reset`;
+  `pnpm exec vitest run lib/ot/__tests__/migration.integration.test.ts`;
+  `pnpm lint`; `pnpm typecheck`; `pnpm test`; `pnpm build`.
+- **Salida:** checker → `journal: 18 entradas; archivos .sql: 18`, `ok: journal y
+  directorio coinciden (18 migraciones)`, exit 0. Self-test → `6/6`, exit 0. Siembra
+  → `nodes: 3`, `otAlerts: 3`, `migrationsApplied: 18` (sin reset: falla con
+  `relation "ot_assets" already exists`, comportamiento esperado para directorios
+  previos al cambio). Vitest → 11/11. Lint → 0 errores (5 warnings previos).
+  Typecheck → 0. `pnpm test` → exit 0 (incluye el checker). Build → exit 0.
+- **Qué quedó pendiente:** directorios `.local-db` creados antes del cambio
+  requieren un `pnpm dev:seed -- --reset` único (documentado en el runbook
+  local §9.2). El empty state manual de la card sigue sin revisarse en la UI.
+
+ Formato fijo de cada entrada (no borrar los encabezados; una entrada por etapa
 cerrada o por bloqueo nuevo):
 
 ```markdown

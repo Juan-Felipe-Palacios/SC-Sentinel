@@ -3,7 +3,6 @@
 // DDL, CHECK, UNIQUE, índice y la idempotencia del upsert que fija E3.
 // No abre red ni toca Neon.
 
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { sql, type SQL } from 'drizzle-orm';
@@ -18,9 +17,6 @@ import {
 } from '../upsert';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations', import.meta.url));
-const migrationSql = fileURLToPath(
-  new URL('../../db/migrations/0017_ot-assets.sql', import.meta.url)
-);
 
 const DEVICE_ID = 'dev_1';
 const HOST_KEY = 'a'.repeat(32);
@@ -31,25 +27,6 @@ const WINDOW_2 = new Date('2026-11-20T10:00:30.000Z');
 let client: PGlite | undefined;
 let db: PgliteDatabase;
 let queryDb: QueryDb;
-
-/** Aplica el .sql con el mismo separador que `scripts/apply-migrations.mjs`. */
-async function applyMigration() {
-  const statements = readFileSync(migrationSql, 'utf8')
-    .split('--> statement-breakpoint')
-    .map((statement) => statement.trim())
-    .filter((statement) => statement.length > 0);
-  for (const statement of statements) {
-    await db.execute(sql.raw(statement));
-  }
-}
-
-async function otAssetsTableExists(): Promise<boolean> {
-  const rows = await queryRows<{ reg: string | null }>(
-    queryDb,
-    sql`SELECT to_regclass('public.ot_assets')::text AS reg`
-  );
-  return rows[0]?.reg !== null && rows[0]?.reg !== undefined;
-}
 
 async function upsertWindow(windowEnd: Date) {
   const statements = buildUpsertOtAssetsStatements(sql as unknown as SqlTag, {
@@ -146,11 +123,9 @@ beforeAll(async () => {
   db = drizzle(client);
   queryDb = db as unknown as QueryDb;
 
+  // El journal de Drizzle nombra 0017_ot-assets desde 2026-11-27: `migrate` la
+  // aplica como cualquier otra, sin paso manual.
   await migrate(db, { migrationsFolder });
-  // Si 0017 entra al journal de Drizzle, `migrate` ya la aplicó.
-  if (!(await otAssetsTableExists())) {
-    await applyMigration();
-  }
 }, 30_000);
 
 beforeEach(async () => {

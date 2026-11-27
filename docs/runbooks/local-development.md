@@ -385,9 +385,13 @@ $env:SC_DEV_DB='pglite'; $env:SC_DEV_AUTH='1'
 pnpm dev -H 127.0.0.1 -p 3123
 ```
 
-La siembra es idempotente: aplica las migraciones reales del repo (0000–0016 con
-el migrator de Drizzle y `0017_ot-assets.sql` a mano, porque todavía no está en
-el journal), trunca y vuelve a insertar. Deja:
+> **Migración única:** si `.local-db` se creó antes de que 0017 entrara al
+> journal (2026-11-27), `migrate()` intenta recrear `ot_assets` y falla con
+> `relation "ot_assets" already exists`. Corré una vez `pnpm dev:seed -- --reset`.
+
+La siembra es idempotente: aplica las migraciones reales del repo con el
+migrator de Drizzle (0000–0017; el journal las nombra desde 2026-11-27),
+trunca y vuelve a insertar. Deja:
 
 | Objeto | Valor |
 |---|---|

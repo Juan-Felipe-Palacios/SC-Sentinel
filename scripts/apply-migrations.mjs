@@ -15,8 +15,9 @@
 // migraciones del repo no son idempotentes (CREATE TABLE / ADD COLUMN sin
 // IF NOT EXISTS), así que el ledger es la fuente de verdad.
 import { createRequire } from 'node:module';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { checkMigrationsJournal } from './check-migrations-journal.mjs';
 
 const require = createRequire(resolve('web/package.json'));
 const { neon } = require('@neondatabase/serverless');
@@ -28,6 +29,24 @@ function arg(name, fallback = null) {
 
 const dryRun = process.argv.includes('--dry-run');
 const envFile = arg('--env-file', 'web/.env.production.local');
+
+// El journal de Drizzle es la fuente de verdad del orden: `migrate()` (la
+// siembra local y las pruebas de integración) aplica sólo lo que él nombra. Si
+// el directorio tiene un `.sql` que el journal no nombra, producción y local
+// divergen, así que se aborta antes de tocar la base.
+const dir = resolve('web/lib/db/migrations');
+const journal = checkMigrationsJournal({ dir });
+if (!journal.ok) {
+  console.error('journal de migraciones inconsistente: no se aplica nada.');
+  for (const problem of journal.problems) {
+    console.error(`  - [${problem.code}] ${problem.message}`);
+  }
+  process.exit(1);
+}
+console.log(`journal: ${journal.journalCount} migraciones, todas con archivo en disco`);
+// La lista sale del journal y no de `readdir`: mismo orden que el sort por
+// nombre de siempre, pero una migración sólo se aplica si el journal la nombra.
+const files = journal.tags.map((tag) => `${tag}.sql`);
 
 let url = process.env.DATABASE_URL;
 if (!url) {
@@ -42,11 +61,6 @@ if (!url) {
 const sql = neon(url);
 const host = url.match(/@([^/]+)/)?.[1] ?? 'desconocido';
 console.log(`destino: ${host}${dryRun ? ' (dry-run)' : ''}`);
-
-const dir = resolve('web/lib/db/migrations');
-const files = readdirSync(dir)
-  .filter((name) => name.endsWith('.sql'))
-  .sort();
 
 if (!dryRun) {
   await sql`CREATE TABLE IF NOT EXISTS sc_schema_migrations (

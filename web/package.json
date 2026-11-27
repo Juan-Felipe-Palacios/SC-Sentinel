@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run && node --experimental-strip-types ../scripts/test-contracts-zod.mjs",
+    "test": "vitest run && node --experimental-strip-types ../scripts/test-contracts-zod.mjs && node ../scripts/check-migrations-journal.mjs",
     "test:contracts": "node --experimental-strip-types ../scripts/test-contracts-zod.mjs",
     "operator:create": "node scripts/create-operator.mjs",
     "dev:seed": "node scripts/seed-local-dev-db.mjs"

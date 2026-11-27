@@ -41,6 +41,17 @@ crea el propio runner). Si imprime `pendientes: 0`, la base está al día.
 - **Prueba offline del checker:** `node scripts/test-migration-ledger.mjs`. Monta un
   `web/` temporal con un módulo falso de Neon y comprueba los códigos de salida (sin
   drift 0; pendiente, huérfana o ledger ilegible 1) sin abrir red ni tocar la base.
+- **Integridad del journal de Drizzle:** `node scripts/check-migrations-journal.mjs`
+  compara los `.sql` del directorio con `meta/_journal.json` (mismo conjunto,
+  mismo orden, `idx` consecutivo, tag alineado con su índice) y sale con código
+  1 ante cualquier divergencia. El runner lo ejecuta **antes** de leer
+  `DATABASE_URL` y no aplica nada si falla; `pnpm test` del web lo suma a su
+  gate. Motivo: `migrate()` (siembra local y pruebas de integración) aplica
+  sólo lo que el journal nombra. Prueba offline:
+  `node scripts/test-migrations-journal.mjs` (6 casos, sin red).
+- **Snapshots (`meta/*_snapshot.json`):** son del `drizzle-kit generate`, que está
+  prohibido; no son ledger ni se consumen al aplicar. Faltan los de 0008–0012 y
+  0017 y eso no afecta al runner ni a `migrate()`.
 - **Limitación:** el ledger no guarda checksum. Editar un `.sql` ya aplicado no
   se detecta; todo cambio de esquema va en una migración nueva.
 
