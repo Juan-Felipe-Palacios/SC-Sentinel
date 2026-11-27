@@ -4,14 +4,44 @@
 
 import useSWR from 'swr';
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { fetcher } from '@/lib/swr';
+import { RefreshCw, TriangleAlert } from 'lucide-react';
+import { fetcher, FetchError } from '@/lib/swr';
 import type { EvalsResponse } from '@/lib/api-types';
 import type { QueryRange } from '@/lib/schemas/query';
 
 const PIE_COLORS = ['#38bdf8', '#34d399', '#fbbf24', '#f472b6', '#a78bfa', '#94a3b8'];
 
 export function EvalsView({ range }: { range: QueryRange }) {
-  const { data } = useSWR<EvalsResponse>(`/api/query?metric=evals&range=${range}`, fetcher, { refreshInterval: 15000 });
+  const { data, error, mutate } = useSWR<EvalsResponse>(`/api/query?metric=evals&range=${range}`, fetcher, { refreshInterval: 15000 });
+  if (error && !data) {
+    const forbidden = error instanceof FetchError && error.status === 403;
+    const unavailable = error instanceof FetchError && error.status === 503;
+    return (
+      <div className="mx-auto max-w-md rounded-xl border border-slate-800/80 bg-slate-900/60 p-8 text-center">
+        <TriangleAlert className="mx-auto size-6 text-orange-400" strokeWidth={1.5} aria-hidden="true" />
+        <h2 className="mt-4 font-display text-lg font-semibold text-slate-100">
+          {forbidden ? 'Solo administración' : unavailable ? 'Servicio de datos no disponible' : 'No se pudo cargar los evals'}
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-slate-400">
+          {forbidden
+            ? 'Los evals de IA son información operativa y solo están disponibles para administradores. Si necesitás acceso, pedí rol admin al propietario.'
+            : unavailable
+              ? 'El servicio de datos no está disponible en este momento. No es un período sin datos. Reintentá en unos minutos.'
+              : `${error instanceof FetchError ? `El servidor respondió ${error.status}.` : 'Error de conexión.'} Revisá la conexión y reintentá.`}
+        </p>
+        {!forbidden && (
+          <button
+            type="button"
+            onClick={() => void mutate()}
+            className="mt-6 inline-flex items-center gap-2 rounded-xl border border-slate-800/80 px-5 py-2.5 font-display text-sm font-semibold text-slate-100 transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50"
+          >
+            <RefreshCw className="size-4" aria-hidden="true" />
+            Reintentar
+          </button>
+        )}
+      </div>
+    );
+  }
   if (!data) return <div className="animate-pulse rounded-xl border border-slate-800 bg-slate-900/60 p-8 text-sm text-slate-400">Cargando evals…</div>;
 
   const costData = data.daily_cost.map((d) => ({ day: d.day.slice(5), cost_usd: d.cost_usd }));
