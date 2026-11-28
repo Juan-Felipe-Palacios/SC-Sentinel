@@ -3,9 +3,9 @@
 // El token solo se muestra una vez; no se puede volver a leer desde la base.
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import useSWR from 'swr';
-import { KeyRound, Loader2, Plus, RefreshCw, Trash2, TriangleAlert } from 'lucide-react';
+import { Check, Copy, KeyRound, Loader2, Moon, Plus, RefreshCw, Trash2, TriangleAlert } from 'lucide-react';
 import type { Device, DevicesResponse, EnrollResponse } from '@/lib/api-types';
 import { fetcher, FetchError } from '@/lib/swr';
 import { timeAgo } from '@/lib/format';
@@ -72,6 +72,57 @@ export function SettingsView() {
   const [trustLabel, setTrustLabel] = useState('');
   const [trustToken, setTrustToken] = useState<string | null>(null);
   const pages: TrustPageItem[] = trustData?.pages ?? [];
+
+  // Modo nocturno: apagar el agente en un horario (Windows Task Scheduler).
+  const [nightMode, setNightMode] = useState(false);
+  const [nightStart, setNightStart] = useState('23:00');
+  const [nightEnd, setNightEnd] = useState('07:00');
+  const [copiedCmd, setCopiedCmd] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('sc-night-mode');
+      if (raw) {
+        const parsed = JSON.parse(raw) as { enabled: boolean; start: string; end: string };
+        setNightMode(Boolean(parsed.enabled));
+        if (parsed.start) setNightStart(parsed.start);
+        if (parsed.end) setNightEnd(parsed.end);
+      }
+    } catch {
+      /* ignorar */
+    }
+  }, []);
+
+  function persistNightMode(next: { enabled: boolean; start: string; end: string }) {
+    setNightMode(next.enabled);
+    setNightStart(next.start);
+    setNightEnd(next.end);
+    try {
+      localStorage.setItem('sc-night-mode', JSON.stringify(next));
+    } catch {
+      /* ignorar */
+    }
+  }
+
+  function nightCommand(): string {
+    return [
+      '# Ejecutar en PowerShell como Administrador:',
+      `$start = "${nightStart}"; $end = "${nightEnd}";`,
+      'schtasks /Create /TN "SC-Sentinel Stop" /TR "sc stop SC-Sentinel" /SC DAILY /ST $start /F | Out-Null;',
+      'schtasks /Create /TN "SC-Sentinel Start" /TR "sc start SC-Sentinel" /SC DAILY /ST $end /F | Out-Null;',
+      'Write-Host "Programado: detener a $start, iniciar a $end."',
+    ].join('\n');
+  }
+
+  async function handleCopyNightCmd() {
+    try {
+      await navigator.clipboard.writeText(nightCommand());
+      setCopiedCmd(true);
+      setTimeout(() => setCopiedCmd(false), 2000);
+    } catch {
+      setCopiedCmd(false);
+    }
+  }
 
   async function handleEnroll(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -518,6 +569,80 @@ export function SettingsView() {
           )}
         </div>
       </section>
+      <section aria-label="Modo nocturno" className="rounded-xl border-slate-800/80 bg-slate-900/60">
+        <header className="border-b border-slate-800/80 px-5 py-4">
+          <h2 className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-slate-400">
+            <Moon className="size-3.5" aria-hidden="true" />
+            Modo nocturno (ahorro de CU-horas)
+          </h2>
+          <p className="mt-1.5 text-xs leading-5 text-slate-400">
+            Programa el servicio del agente para que se detenga e inicie en un horario, reduciendo el
+            tiempo despierto de la base de Neon. Requiere que el agente esté instalado como servicio
+            de Windows y ejecutar el comando como Administrador.
+          </p>
+        </header>
+        <div className="flex flex-wrap items-end gap-3 px-5 py-4">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={nightMode}
+              onChange={(event) =>
+                persistNightMode({ enabled: event.target.checked, start: nightStart, end: nightEnd })
+              }
+              className="size-4 rounded border-slate-800/80 bg-slate-950/60"
+            />
+            <span className="text-sm text-slate-100">Activar modo nocturno</span>
+          </label>
+          <label className="flex min-w-32 flex-col gap-1.5">
+            <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-slate-400">Apagar a las</span>
+            <input
+              type="time"
+              value={nightStart}
+              disabled={!nightMode}
+              onChange={(event) =>
+                persistNightMode({ enabled: nightMode, start: event.target.value, end: nightEnd })
+              }
+              className="rounded-xl border-slate-800/80 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50"
+            />
+          </label>
+          <label className="flex min-w-32 flex-col gap-1.5">
+            <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-slate-400">Encender a las</span>
+            <input
+              type="time"
+              value={nightEnd}
+              disabled={!nightMode}
+              onChange={(event) =>
+                persistNightMode({ enabled: nightMode, start: nightStart, end: event.target.value })
+              }
+              className="rounded-xl border-slate-800/80 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={!nightMode}
+            onClick={() => void handleCopyNightCmd()}
+            className="inline-flex items-center gap-2 rounded-lg border border-sky-400/40 bg-sky-400/10 px-4 py-2 font-display text-sm font-semibold text-sky-400 transition-colors hover:bg-sky-400/20 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50"
+          >
+            {copiedCmd ? <Check className="size-4" aria-hidden="true" /> : <Copy className="size-4" aria-hidden="true" />}
+            {copiedCmd ? 'Copiado' : 'Copiar comando para programar'}
+          </button>
+        </div>
+        {nightMode ? (
+          <div className="mx-5 mb-5 rounded-lg border border-slate-800/80 bg-slate-950/60 p-3">
+            <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-slate-400">Comando (PowerShell, como Administrador)</p>
+            <pre className="mt-2 overflow-x-auto rounded bg-slate-900/60 px-2 py-1.5 font-mono text-[10px] leading-5 text-slate-100">
+              {nightCommand()}
+            </pre>
+            <p className="mt-2 text-[11px] leading-5 text-slate-400">
+              Pegalo en PowerShell como Administrador. Crea dos tareas programadas diarias: una detiene el
+              servicio a la hora de apagado y otra lo inicia a la hora de encendido. Para desactivar,
+              desmarcá el modo nocturno y volvé a ejecutar el comando (o borrá las tareas con
+              <code className="mx-1 rounded bg-slate-800 px-1 py-0.5 font-mono text-[10px]">schtasks /Delete /TN &quot;SC-Sentinel Stop&quot; /F</code>).
+            </p>
+          </div>
+        ) : null}
+      </section>
+
     </div>
   );
 }
