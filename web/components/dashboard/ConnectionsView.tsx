@@ -16,8 +16,11 @@ import { zoomParams, formatZoomLabel, formatZoomSpan } from '@/lib/zoom';
 
 const REFRESH_MS = 5000;
 
+type ConnectionsTab = 'conexiones' | 'activos-ot';
+
 export function ConnectionsView({ range }: { range: QueryRange }) {
   const [zoom, setZoom] = useState<ZoomRange | null>(null);
+  const [tab, setTab] = useState<ConnectionsTab>('conexiones');
 
   useEffect(() => {
     setZoom(null);
@@ -90,6 +93,35 @@ export function ConnectionsView({ range }: { range: QueryRange }) {
         <ExportBar range={range} zoom={zoom} />
       </div>
 
+      <div className="flex gap-2" role="tablist" aria-label="Vistas de conexiones">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'conexiones'}
+          onClick={() => setTab('conexiones')}
+          className={`rounded-lg border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50 ${
+            tab === 'conexiones'
+              ? 'border-sky-500/30 bg-sky-500/15 text-sky-300'
+              : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          Conexiones
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'activos-ot'}
+          onClick={() => setTab('activos-ot')}
+          className={`rounded-lg border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50 ${
+            tab === 'activos-ot'
+              ? 'border-sky-500/30 bg-sky-500/15 text-sky-300'
+              : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          Activos OT
+        </button>
+      </div>
+
       {!hasTraffic ? (
         <div
           role="status"
@@ -128,27 +160,32 @@ export function ConnectionsView({ range }: { range: QueryRange }) {
         </div>
       ) : null}
 
-      <TrafficPanel
-        range={range}
-        series={series}
-        hosts={topHosts}
-        ports={topPorts}
-        protocols={protocols}
-        countries={topCountries}
-        periodLabel={periodLabel}
-        zoom={zoom}
-        onApplyZoom={setZoom}
-      />
+      {tab === 'conexiones' ? (
+        <>
+          <TrafficPanel
+            range={range}
+            series={series}
+            hosts={topHosts}
+            ports={topPorts}
+            protocols={protocols}
+            countries={topCountries}
+            periodLabel={periodLabel}
+            zoom={zoom}
+            onApplyZoom={setZoom}
+          />
 
-      <div className="grid gap-4 lg:grid-cols-5">
-        <div className="lg:col-span-3">
-          <TopPortsTable ports={topPorts} protocols={protocols} />
-        </div>
-        <div className="lg:col-span-2">
-          <GeoDistribution countries={topCountries} />
-        </div>
-      </div>
-      <NetworkMapCard range={range} />
+          <div className="grid gap-4 lg:grid-cols-5">
+            <div className="lg:col-span-3">
+              <TopPortsTable ports={topPorts} protocols={protocols} />
+            </div>
+            <div className="lg:col-span-2">
+              <GeoDistribution countries={topCountries} />
+            </div>
+          </div>
+        </>
+      ) : (
+        <NetworkMapCard range={range} />
+      )}
     </div>
   );
 }

@@ -23,7 +23,7 @@ su nombre y no se da por resuelto (AGENTS.md §4.7).
 | E5 | `sc-capture`: `forbid(unsafe_code)`, clippy, peek, BPF, degradación | E2 | `hecho` | Compila con y sin `--features live`; gate detecta un socket de prueba | `cargo fmt --all --check` exit 0; `cargo clippy -p sc-capture --all-targets -- -D warnings` exit 0; `cargo clippy --workspace --all-targets --features sc-capture/live -- -D warnings` exit 0; `cargo build -p sc-capture` (sin features) exit 0; `cargo build -p sc-capture --features live` exit 0; `cargo test -p sc-capture` → 1 passed (driver_fixture) + 1 passed (parser_fixture), 0 failed; control: archivo temporal con `TcpStream::connect` → clippy reporta `disallowed-methods` y `disallowed-types` (3 errores), compilación falla. `#![forbid(unsafe_code)]` en `lib.rs`; `.clippy.toml` con `disallowed-types` (`TcpStream`, `UdpSocket`, `TcpListener`) y `disallowed-methods` (`connect`, `bind`). | 2026-11-28 · Buffy |
 | E6 | `sc-detect`: reglas corregidas, allowlist, anti-storm | E4 | `hecho` | Miembro/no miembro de allowlist + anti-storm sin duplicar | Nuevo `agent/crates/sc-detect/src/ot.rs`: `Allowlist` (`host_key` + protocolo + puerto, tope 64, `from_lines`/`from_path`, versión para evidencia), `OtObservation`, `OtConfig` y `OtDetector::observe(sequence, obs)` con `ot_new_master`, dedup por clave y anti-storm por cooldown de ventanas (120 por defecto, **supuesto**). Evidencia del evento `{fn_codes: CSV, allowlist_version}`, recortada a 128 chars y 8 códigos. Gate: `cargo fmt --all --check` exit 0; `cargo clippy --workspace --all-targets -- -D warnings` exit 0; `cargo test -p sc-detect` → `33 passed; 0 failed` (20 previos + 13 nuevos); `cargo test --workspace` → 33 suites `ok`, 0 fallos. Criterios: miembro/no miembro (también con protocolo o puerto distinto), anti-storm dentro del cooldown y reintento de la misma ventana sin duplicar. Gate del renombre cerrado por el propietario: D7 en `docs/roadmap.md`. **CI de Rust 45835501319 sobre `a6d51ff`: `completed/success`**, `test (ubuntu-latest)` y `test (windows-latest)` en success, con `Running unittests src/lib.rs (sc_detect-…)` → `test result: ok. 33 passed; 0 failed` en ubuntu, `cargo clippy -- -D warnings`, `cargo audit`, `cargo deny check licenses` y el build con captura live en Windows también en verde. | 2026-11-26 · Buffy |
 | E7 | `/api/ingest`: dos pasadas, techo de confianza, upsert, downlink | E2, E3 | `hecho` | ≤3 statements extra, `EXPLAIN` sin scan nuevo, fixture 0.1.8 en 200 | Lote OT = **1** statement (test de presupuesto); `EXPLAIN` = `ModifyTable/Insert` + árbitro `ot_assets_device_id_host_key_key` + `Values Scan` (0 `Seq Scan`, medido en PGlite); fixture 0.1.8 → **200** en los tres casos (`pnpm test`: 382 passed); techo de confianza según ADR-0023. | 2026-11-26 · Buffy |
-| E8 | UI: badge de protocolo en la matriz y tab "Activos OT" | E3 | `pendiente` | `typecheck`, `lint` y `build` verdes; la tab no muestra datos sintéticos | Dependencia E3 `hecho` el 2026-11-26; tomable con dale | 2026-11-26 · Buffy |
+| E8 | UI: badge de protocolo en la matriz y tab "Activos OT" | E3 | `hecho` | `typecheck`, `lint` y `build` verdes; la tab no muestra datos sintéticos | `node node_modules/typescript/bin/tsc --noEmit` exit 0; `pnpm lint` exit 0 (0 errores, 5 warnings preexistentes); `pnpm build` exit 0. TopPortsTable: puertos OT (102, 502, 20000, 2404) en `SERVICE_NAMES` con badge "OT" (amber). ConnectionsView: tab switcher "Conexiones" / "Activos OT"; tab "Activos OT" muestra `NetworkMapCard` (metric=topology, datos reales de `ot_assets`). | 2026-11-28 · Buffy |
 | E8.1 | Card «Mapa OT observado»: nodos + aristas reales | E7, E8 | `hecho` | `metric=topology` con nodos/aristas acotados (≤40 nodos, ≤80 aristas); empty state; distingue «sin datos» de «sin aristas»; sin IP/MAC ni aristas inventadas; build verde | Ruta `app/api/query/__tests__/route.topology.test.ts` (estilo `route.ot.test.ts`, mock de auth/Neon/dedup): 4/4 — device real sin `ot_assets` → payload vacío (nodes=[], edges=[]); device real con activos y alertas → 2 nodos y 1 arista real; demo sintético → nodos y aristas sin tocar la base; rango inválido → 400. `lib/query/__tests__/ot-topology.test.ts`: 4/4 (`deriveOtEdges`). `tsc --noEmit` exit 0; `pnpm lint` exit 0 (5 warnings); `pnpm build` exit 0. Caps en código (`OT_TOPOLOGY_NODE_CAP=40`, `OT_TOPOLOGY_EDGE_CAP=80`, `OT_TOPOLOGY_ACTIVE_DAYS=30`). | 2026-11-26 · Buffy |
 | E8.2 | Card «Mapa de exposición IT»: hosts/países/puertos, sin aristas | E8 | `bloqueado` | Top hosts/países/puertos; sin aristas; empty state; build verde | — | 2026-11-25 · Buffy |
 | E9 | Demo sintética TEST-NET con las dos cards y los dos disclaimers | E8.1, E8.2 | `bloqueado` | Badge `confirmed` y cards visibles con "Flujo Modbus sintético…" y "Evidencia sintética" | — | 2026-11-25 · Buffy |
@@ -704,6 +704,24 @@ ventanas, de modo que un reintento de la misma ventana no duplica nada.
   «no hubo activos en esta ventana» (mismo texto para ambos casos); si se quiere
   esa distinción hace falta cambiar el contrato de `/api/query?metric=topology`.
   Neon sigue en HTTP 402, así que nada de esto se probó contra la base real.
+
+### 2026-11-28 · E8 · Buffy
+
+- **Qué se hizo:** se cerró la etapa E8 de M6: (1) badge de protocolo OT en
+  `TopPortsTable` — los puertos well-known de los protocolos pasivos (102 S7comm,
+  502 Modbus TCP, 20000 DNP3, 2404 IEC-104) se agregaron a `SERVICE_NAMES` y
+  reciben un badge adicional "OT" (amber) junto al badge de protocolo TCP/UDP;
+  (2) tab switcher "Conexiones" / "Activos OT" en `ConnectionsView` con `useState`,
+  rol `tablist`/`tab`, `aria-selected`. La tab "Conexiones" muestra el contenido
+  existente (TrafficPanel, TopPortsTable, GeoDistribution); la tab "Activos OT"
+  muestra `NetworkMapCard` (metric=topology, datos reales de `ot_assets`, sin datos
+  sintéticos).
+- **Comando ejecutado:** `node node_modules/typescript/bin/tsc --noEmit` (exit 0);
+  `pnpm lint` (exit 0, 0 errores, 5 warnings preexistentes); `pnpm build` (exit 0).
+- **Salida:** typecheck sin errores; lint 0 errores; build exit 0 con todas las rutas.
+- **Qué quedó pendiente:** la tab "Activos OT" reusa `NetworkMapCard` (topology).
+  Un listado tabular de activos con vendor/model/zone queda para E8.2 o F1.5.
+  Neon sigue en HTTP 402, así que no se probó contra la base real.
 
 ### 2026-11-28 · E5 · Buffy
 
