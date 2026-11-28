@@ -1,0 +1,16 @@
+# Invariante pasivo (AGENTS.md §10.1, ADR-0022): sc-capture solo observa.
+# Estos tipos y métodos no deben aparecer en el código de producción.
+# Un test de control introduce std::net::TcpStream::connect para verificar
+# que el gate de clippy lo detecta.
+
+disallowed-types = [
+    "std::net::TcpStream",
+    "std::net::UdpSocket",
+    "std::net::TcpListener",
+]
+
+disallowed-methods = [
+    "std::net::TcpStream::connect",
+    "std::net::UdpSocket::bind",
+    "std::net::TcpListener::bind",
+]

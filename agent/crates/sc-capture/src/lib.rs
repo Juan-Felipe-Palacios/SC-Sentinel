@@ -1,4 +1,14 @@
 // Copyright (c) 2026 Strategic Connex. Todos los derechos reservados.
+//!
+//! Captura de paquetes pasiva (M6 OT). Este crate solo observa: no responde,
+//! no hace handshake y no escanea (AGENTS.md §10.1).
+//!
+//! Invariante pasivo: `#![forbid(unsafe_code)]` en toda la crate; clippy
+//! `disallowed-types`/`disallowed-methods` bloquea `TcpStream::connect` y
+//! similares para que un futuro cambio no introduzca tráfico activo.
+
+#![forbid(unsafe_code)]
+
 pub mod channel;
 pub mod driver;
 pub mod fixtures;
