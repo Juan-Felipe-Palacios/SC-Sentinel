@@ -2,6 +2,20 @@
 
 Formato: Keep a Changelog 1.1 (semantic entries) publicado también en cada GitHub Release.
 
+## [Unreleased]
+
+### Added
+- (Demo) Demo sintética del contrato OT: flujo Modbus con 4 hosts TEST-NET
+  (192.0.2.201–.204), card «Mapa OT observado» con sus dos aristas y card
+  «Mapa de exposición IT», badge `confirmed` en el puerto 502 y los avisos
+  «Flujo Modbus sintético; no corresponde a tráfico real» y «Evidencia
+  sintética» en las alertas del dataset.
+- (Web) Puertos OT (102, 502, 20000, 2404) con badge en la matriz de conexiones
+  y pestaña «Activos OT» en Conexiones.
+- (Sensor) Gate pasivo de CI (`scripts/verify-passive.sh`, ADR-0022) y target
+  `linux-x64-sensor` en el empaquetador. El sensor Linux **no** forma parte de
+  esta release: hasta su embarque la captura OT es solo por puerto.
+
 ## [0.1.10] — 2026-11-24
 
 Release publicada con el tag `v0.1.10`: versión reproducible e instaladores

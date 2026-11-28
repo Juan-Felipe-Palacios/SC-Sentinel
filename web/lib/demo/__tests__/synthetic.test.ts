@@ -11,6 +11,7 @@ import {
   syntheticHosts,
   syntheticInsight,
   syntheticOverview,
+  syntheticTopology,
 } from '@/lib/demo/synthetic';
 
 const NOW = new Date('2026-11-17T03:00:00.000Z');
@@ -59,5 +60,37 @@ describe('dataset sintético de la demo', () => {
     expect(insight.device_id).toBe(SYNTHETIC_DEMO_DEVICE_ID);
     expect(insight.summary).toMatch(/demostración/i);
     expect(insight.facts_hash).toBe('demo-synthetic');
+  });
+
+  it('la topología demo tiene 4 hosts TEST-NET y dos aristas del flujo Modbus', () => {
+    const topology = syntheticTopology('1h', NOW);
+
+    expect(topology.nodes).toHaveLength(4);
+    expect(
+      topology.nodes.every((node) => /192\.0\.2\.(201|202|203|204)/.test(node.label ?? ''))
+    ).toBe(true);
+    expect(topology.nodes.filter((node) => node.role === 'server')).toHaveLength(1);
+    expect(topology.edges).toHaveLength(2);
+    const keys = new Set(topology.nodes.map((node) => node.host_key));
+    expect(topology.edges.every((edge) => keys.has(edge.client) && keys.has(edge.server))).toBe(true);
+    expect(topology.truncated).toEqual({ nodes: false, edges: false });
+  });
+
+  it('marca el puerto 502 como confirmed y agrega las dos alertas OT sintéticas', () => {
+    const overview = syntheticOverview('1h', NOW);
+    const modbus = overview.top_ports.find((port) => port.port === 502);
+
+    expect(modbus?.confidence).toBe('confirmed');
+    expect(overview.top_ports.filter((port) => port.confidence).length).toBe(1);
+
+    const alerts = syntheticAlerts('1h', NOW);
+    const otAlerts = alerts.alerts.filter((alert) => alert.rule_id.startsWith('ot_'));
+
+    expect(otAlerts.map((alert) => alert.rule_id).sort()).toEqual([
+      'ot_new_master',
+      'ot_write_outside_hours',
+    ]);
+    expect(otAlerts.every((alert) => alert.evidence?.demo === true)).toBe(true);
+    expect(otAlerts.every((alert) => typeof alert.evidence?.server === 'string')).toBe(true);
   });
 });

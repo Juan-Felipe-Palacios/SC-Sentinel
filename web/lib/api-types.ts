@@ -72,6 +72,11 @@ export interface OverviewTopPort {
   protocol: string;
   bytes: number;
   connections: number;
+  /**
+   * Confianza del protocolo cuando viene del dataset sintético de la demo.
+   * En datos reales el `overview` no publica confianza: queda ausente.
+   */
+  confidence?: 'confirmed' | 'port_only';
 }
 
 /** Distribución de tráfico por ASN (agregada por ventana; no identifica hosts). */

@@ -47,8 +47,17 @@ const HOSTS: readonly DemoHost[] = [
   { host_key: 'demo_backup_us_06', ip: '203.0.113.90', country: 'US', risk_score: 0.55, weight: 0.1 },
 ];
 
-const PORTS = [
-  { port: 443, protocol: 'tcp', weight: 0.46 },
+const PORTS: ReadonlyArray<{
+  port: number;
+  protocol: string;
+  weight: number;
+  confidence?: 'confirmed' | 'port_only';
+}> = [
+  // Flujo Modbus sintético de la demo (E9): el puerto OT se muestra con su
+  // confianza para ejercitar el badge `confirmed` sin inventar confianza en
+  // datos reales.
+  { port: 502, protocol: 'tcp', weight: 0.06, confidence: 'confirmed' },
+  { port: 443, protocol: 'tcp', weight: 0.4 },
   { port: 80, protocol: 'tcp', weight: 0.18 },
   { port: 53, protocol: 'udp', weight: 0.12 },
   { port: 22, protocol: 'tcp', weight: 0.08 },
@@ -160,6 +169,7 @@ function portsFor(totals: { bytesIn: number; bytesOut: number }): OverviewRespon
     protocol: entry.protocol,
     bytes: Math.round(total * entry.weight),
     connections: Math.round((total * entry.weight) / 18_000),
+    ...(entry.confidence ? { confidence: entry.confidence } : {}),
   }));
 }
 
@@ -313,6 +323,63 @@ export function syntheticAlerts(
       notes_count: 1,
     },
     {
+      id: 'alert_demo_005',
+      window_id: 'window_demo_005',
+      rule_id: 'ot_new_master',
+      severity: 'high',
+      title: 'Maestro Modbus nuevo en el segmento OT',
+      description:
+        'Un maestro que la allowlist no autoriza inició peticiones al PLC. Evidencia sintética.',
+      evidence: {
+        demo: true,
+        client: 'demo_ot_rogue_204',
+        server: 'demo_ot_plc_201',
+        protocol: 'modbus',
+        confidence: 0.95,
+      },
+      created_at: created(8),
+      status: 'open',
+      assignee: null,
+      assignee_operator_id: null,
+      acknowledged_at: null,
+      resolved_at: null,
+      sla_due_at: new Date(now.getTime() + 30 * 60_000).toISOString(),
+      expires_at: new Date(now.getTime() + 24 * 60 * 60_000).toISOString(),
+      sla_breached: false,
+      sla_remaining_seconds: 1800,
+      updated_at: created(8),
+      notes_count: 0,
+    },
+    {
+      id: 'alert_demo_006',
+      window_id: 'window_demo_006',
+      rule_id: 'ot_write_outside_hours',
+      severity: 'medium',
+      title: 'Escritura Modbus fuera del horario operativo',
+      description:
+        'Una estación de ingeniería escribió registros del PLC fuera de la ventana declarada. Evidencia sintética.',
+      evidence: {
+        demo: true,
+        client: 'demo_ot_eng_203',
+        server: 'demo_ot_plc_201',
+        protocol: 'modbus',
+        fn_codes: '16',
+        confidence: 0.92,
+      },
+      created_at: created(21),
+      status: 'open',
+      assignee: null,
+      assignee_operator_id: null,
+      acknowledged_at: null,
+      resolved_at: null,
+      sla_due_at: new Date(now.getTime() + 60 * 60_000).toISOString(),
+      expires_at: new Date(now.getTime() + 24 * 60 * 60_000).toISOString(),
+      sla_breached: false,
+      sla_remaining_seconds: 3600,
+      updated_at: created(21),
+      notes_count: 0,
+    },
+    {
       id: 'alert_demo_003',
       window_id: 'window_demo_003',
       rule_id: 'egress_spike',
@@ -461,23 +528,35 @@ export function syntheticHeatmap(
   };
 }
 
+/**
+ * Topología TEST-NET de la demo (E9): un PLC servidor y tres clientes con las
+ * dos aristas que produce el flujo Modbus sintético. Las IPs 192.0.2.0/24 son
+ * de documentación (RFC 5737): no enrutan y no pueden ser tráfico real.
+ */
+const DEMO_OT_HOSTS: ReadonlyArray<{ host_key: string; label: string; role: string }> = [
+  { host_key: 'demo_ot_plc_201', label: 'PLC de mezcla (192.0.2.201)', role: 'server' },
+  { host_key: 'demo_ot_scada_202', label: 'SCADA maestro (192.0.2.202)', role: 'client' },
+  { host_key: 'demo_ot_eng_203', label: 'Estación de ingeniería (192.0.2.203)', role: 'client' },
+  { host_key: 'demo_ot_rogue_204', label: 'Maestro desconocido (192.0.2.204)', role: 'client' },
+];
+
 export function syntheticTopology(
   range: QueryRange,
   now: Date = new Date(),
   bounds?: RangeBounds
 ): TopologyResponse {
   const { start, end } = bounds ?? getRangeBounds(range, now);
-  const nodes = HOSTS.slice(0, 5).map((host) => ({
+  const nodes = DEMO_OT_HOSTS.map((host) => ({
     host_key: host.host_key,
-    label: host.host_key,
-    role: host.host_key.includes('db') ? 'server' : 'client',
+    label: host.label,
+    role: host.role,
     protocols: ['modbus'],
     last_seen: end.toISOString(),
   }));
   const nodeKeys = new Set(nodes.map((n) => n.host_key));
   const edges = [
-    { client: nodes[0].host_key, server: nodes[3].host_key, rule_id: 'ot_new_master', count: 1 },
-    { client: nodes[1].host_key, server: nodes[3].host_key, rule_id: 'ot_write_outside_hours', count: 1 },
+    { client: 'demo_ot_eng_203', server: 'demo_ot_plc_201', rule_id: 'ot_write_outside_hours', count: 1 },
+    { client: 'demo_ot_rogue_204', server: 'demo_ot_plc_201', rule_id: 'ot_new_master', count: 1 },
   ].filter((e) => nodeKeys.has(e.client) && nodeKeys.has(e.server));
   return {
     range,

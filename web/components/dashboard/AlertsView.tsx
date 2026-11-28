@@ -26,6 +26,7 @@ import { fetcher, FetchError } from '@/lib/swr';
 import { timeAgo, severityRank } from '@/lib/format';
 import { useDashboardRole } from './DashboardRoleContext';
 import { ExportBar } from './ExportBar';
+import { SyntheticEvidenceBadge } from './SyntheticEvidenceBadge';
 
 const REFRESH_MS = 30000;
 const SEVERITIES = ['all', 'critical', 'high', 'medium', 'low'] as const;
@@ -355,9 +356,12 @@ export function AlertsView({ range }: { range: QueryRange }) {
                 </div>
 
                 {alert.evidence ? (
-                  <pre className="mt-3 overflow-x-auto rounded-lg border border-slate-800 bg-slate-950/80 p-3 font-mono text-[10px] leading-5 text-sky-300">
-                    {JSON.stringify(alert.evidence, null, 2)}
-                  </pre>
+                  <div className="mt-3 space-y-1.5">
+                    <SyntheticEvidenceBadge evidence={alert.evidence} />
+                    <pre className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950/80 p-3 font-mono text-[10px] leading-5 text-sky-300">
+                      {JSON.stringify(alert.evidence, null, 2)}
+                    </pre>
+                  </div>
                 ) : null}
 
                 {isAdmin ? (
