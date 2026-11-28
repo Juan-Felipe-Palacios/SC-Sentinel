@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { safeEqual } from '@/lib/auth/secrets';
 import { resolveDeviceId } from '@/lib/query/device';
 import { AI_CRON_MIN_INTERVAL_MS, checkDailyBudget, runAiPipeline } from '@/lib/ai';
-import { logServerError } from '@/lib/logging/error';
+import { errorCode, logServerError } from '@/lib/logging/error';
 import { classifyOperationalError, isUnavailableCode } from '@/lib/errors/classify';
 
 export const runtime = 'nodejs';
@@ -96,10 +96,13 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     // Solo el código operativo: nada de SQL, parámetros, URLs ni payloads.
+    // El nombre del error (errorCode) se incluye en la respuesta para diagnóstico;
+    // el mensaje completo va solo a los logs de Vercel (includeMessage).
     const code = classifyOperationalError(error);
-    logServerError('ai_cron_failed', error, { code });
+    const name = errorCode(error);
+    logServerError('ai_cron_failed', error, { code, includeMessage: true });
     return NextResponse.json(
-      { error: 'internal_error' },
+      { error: 'internal_error', error_name: name },
       { status: isUnavailableCode(code) ? 503 : 500, headers: noStoreHeaders }
     );
   }

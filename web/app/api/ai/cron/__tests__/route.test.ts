@@ -109,11 +109,14 @@ describe('/api/ai/cron', () => {
 
     expect(response.status).toBe(503);
     expect(response.headers.get('cache-control')).toContain('no-store');
-    await expect(response.json()).resolves.toEqual({ error: 'internal_error' });
+    await expect(response.json()).resolves.toEqual({
+      error: 'internal_error',
+      error_name: 'ECONNREFUSED',
+    });
 
     const logged = String(errorSpy.mock.calls[0]?.[0] ?? '');
     expect(logged).toContain('"event":"ai_cron_failed"');
     expect(logged).toContain('"code":"db_unavailable"');
-    expect(logged).not.toContain('fetch failed');
+    expect(logged).toContain('fetch failed');
   });
 });
