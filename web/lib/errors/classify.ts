@@ -16,18 +16,24 @@ export type OperationalErrorCode =
 
 function messageOf(error: unknown): string {
   if (!(error instanceof Error)) return String(error ?? '').toLowerCase();
-  return `${error.name}: ${error.message}`.toLowerCase();
+  const cause = (error as { cause?: unknown }).cause;
+  const base = `${error.name}: ${error.message}`;
+  if (cause instanceof Error) return `${base} | ${cause.name}: ${cause.message}`.toLowerCase();
+  if (cause != null) return `${base} | ${String(cause)}`.toLowerCase();
+  return base.toLowerCase();
 }
 
 function codeOf(error: unknown): string {
-  const code = (error as { code?: unknown } | null)?.code;
+  const e = error as { code?: unknown; cause?: { code?: unknown } } | null;
+  const code = e?.code ?? e?.cause?.code;
   return typeof code === 'string' ? code.toLowerCase() : '';
 }
 
 /** Extrae el status HTTP del error si lo expone (Neon driver, fetch, etc.). */
 function httpStatusOf(error: unknown): number | null {
-  const e = error as { status?: unknown; statusCode?: unknown; response?: { status?: unknown } } | null;
-  for (const v of [e?.status, e?.statusCode, e?.response?.status]) {
+  const e = error as { status?: unknown; statusCode?: unknown; response?: { status?: unknown }; cause?: { status?: unknown; statusCode?: unknown; response?: { status?: unknown } } } | null;
+  const candidates = [e?.status, e?.statusCode, e?.response?.status, e?.cause?.status, e?.cause?.statusCode, e?.cause?.response?.status];
+  for (const v of candidates) {
     if (typeof v === 'number' && Number.isFinite(v)) return v;
     if (typeof v === 'string' && /^\d{3}$/.test(v)) return Number(v);
   }
