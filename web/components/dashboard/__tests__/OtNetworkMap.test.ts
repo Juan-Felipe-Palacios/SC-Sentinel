@@ -54,6 +54,18 @@ describe('OtNetworkMap', () => {
     expect(html).toContain('Sin aristas observadas: solo se muestran los activos OT.');
   });
 
+  it('dibuja la IP entre paréntesis completa, en su propia línea', () => {
+    const html = renderToStaticMarkup(
+      createElement(OtNetworkMap, {
+        nodes: [node('demo_ot_plc_201', 'server', 'PLC de mezcla (192.0.2.201)')],
+        edges: [],
+      })
+    );
+    expect(html).toContain('PLC de mezcla');
+    expect(html).toContain('(192.0.2.201)');
+    expect(html).toContain('<title>PLC de mezcla (192.0.2.201)</title>');
+  });
+
   it('cae al host_key cuando el activo no tiene etiqueta', () => {
     const html = renderToStaticMarkup(
       createElement(OtNetworkMap, {
