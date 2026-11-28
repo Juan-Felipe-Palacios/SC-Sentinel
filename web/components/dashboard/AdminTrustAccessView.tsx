@@ -13,7 +13,7 @@ interface AccessItem {
 }
 
 export function AdminTrustAccessView() {
-  const { data } = useSWR<{ accesses: AccessItem[] }>('/api/trust/access', fetcher, { refreshInterval: 5000 });
+  const { data } = useSWR<{ accesses: AccessItem[] }>('/api/trust/access', fetcher, { refreshInterval: 30000 });
   const accesses = data?.accesses ?? [];
   return (
     <div className="space-y-6">

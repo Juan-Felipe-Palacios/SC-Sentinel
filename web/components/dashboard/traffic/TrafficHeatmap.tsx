@@ -12,7 +12,7 @@ import { VIZ } from '@/lib/viz';
 import { zoomParams, type ZoomRange } from '@/lib/zoom';
 import { EmptyChart } from './EmptyChart';
 
-const REFRESH_MS = 5000;
+const REFRESH_MS = 30000;
 const HOUR_TICKS = [0, 3, 6, 9, 12, 15, 18, 21];
 
 function rgbaFromHex(hex: string, alpha: number): string {

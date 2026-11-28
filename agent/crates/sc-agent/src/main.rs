@@ -34,7 +34,16 @@ mod service;
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 /// Vueltas máximas del drenaje final de sync (un batch de 10 por vuelta).
 const DRAIN_ATTEMPTS: usize = 5;
-const SYNC_INTERVAL: Duration = Duration::from_secs(1);
+/// Intervalo entre sincronizaciones. Por defecto 15 min (900 s) para permitir
+/// que el compute de Neon se suspenda entre syncs (scale-to-zero a los 5 min).
+/// Sobrescribible con SC_SYNC_INTERVAL_SECS (mínimo 60 s).
+fn sync_interval() -> Duration {
+    let secs = std::env::var("SC_SYNC_INTERVAL_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(900);
+    Duration::from_secs(secs.max(60))
+}
 /// Reintento del enrolamiento: el device no puede hacer nada hasta que lo inscriban.
 const ENROLLMENT_RETRY: Duration = Duration::from_secs(60);
 /// Cada cuántos ticks de 1 s se aplica la retención del spool (cota §9.4).
@@ -967,7 +976,7 @@ async fn sync_loop(
     mut shutdown: watch::Receiver<bool>,
 ) {
     let mut syncer = Syncer::new();
-    let mut interval = tokio::time::interval(SYNC_INTERVAL);
+    let mut interval = tokio::time::interval(sync_interval());
 
     loop {
         let delay = tokio::select! {
@@ -1005,81 +1014,75 @@ async fn sync_pass(
     device_id: &str,
     status: &StatusShared,
 ) -> bool {
-    let batches = {
-        let mut s = spool.lock().await;
-        s.next_batch(10).unwrap_or_default()
-    };
-
-    for batch in batches {
-        let decision = match serde_json::from_slice::<sc_core::IngestEnvelope>(&batch.payload) {
-            Ok(mut env) => {
-                // Un batch agregado antes de un re-enrolamiento lleva el device
-                // id de aquel momento. El backend responde 403 si no coincide
-                // con el dueño del token, y como la cola es FIFO ese batch
-                // bloqueaba el drenaje completo. Se reasigna al device actual.
-                if rebase_device_id(&mut env, device_id) {
-                    tracing::info!(
-                        event = "sync_rebased_device",
-                        window_id = %batch.window_id,
-                        device_id = %device_id,
-                        "sync: ventana reasignada al device enrolado"
-                    );
-                }
-                client.post_envelope(&env).await
-            }
-            // Un payload ilegible no se puede reintentar: va a dead-letter.
-            Err(_) => SyncDecision::InvalidContract,
-        };
-
-        let applied = {
+    loop {
+        let batches = {
             let mut s = spool.lock().await;
-            syncer.apply(&mut s, batch.row_id, &decision)
+            s.next_batch(10).unwrap_or_default()
         };
 
-        match applied {
-            // Prueba directa de publicación: solo un 2xx borra la fila del
-            // spool, así que esta línea es la evidencia de que el device está
-            // autenticado y el batch entró en el backend. La usa
-            // `scripts/re-enroll-device.ps1` para devolver exit 0.
-            Ok(Applied::Confirmed) => {
-                tracing::info!(
-                    event = "sync_confirmed",
-                    window_id = %batch.window_id,
-                    "sync: ventana aceptada por el backend"
-                );
-                // Alimenta `last_sync_at` de /status (lo muestra la GUI).
-                status.note_sync(&batch.window_id);
-            }
-            Ok(Applied::DeadLettered) => {
-                tracing::warn!(window_id = %batch.window_id, ?decision, "sync: batch a dead-letter");
-            }
-            Ok(Applied::EnrollmentRequired) => {
-                tracing::error!(
-                    window_id = %batch.window_id,
-                    "sync: 401/403, re-enrolar el device"
-                );
-                return true;
-            }
-            Ok(Applied::Retained) => {
-                tracing::warn!(
-                    window_id = %batch.window_id,
-                    ?decision,
-                    "sync: batch retenido para reintento"
-                );
-                return true;
-            }
-            Err(error) => {
-                tracing::error!(
-                    window_id = %batch.window_id,
-                    %error,
-                    "sync: no se pudo aplicar la decisión al spool"
-                );
-                return true;
+        if batches.is_empty() {
+            return false;
+        }
+
+        for batch in batches {
+            let decision = match serde_json::from_slice::<sc_core::IngestEnvelope>(&batch.payload) {
+                Ok(mut env) => {
+                    if rebase_device_id(&mut env, device_id) {
+                        tracing::info!(
+                            event = "sync_rebased_device",
+                            window_id = %batch.window_id,
+                            device_id = %device_id,
+                            "sync: ventana reasignada al device enrolado"
+                        );
+                    }
+                    client.post_envelope(&env).await
+                }
+                Err(_) => SyncDecision::InvalidContract,
+            };
+
+            let applied = {
+                let mut s = spool.lock().await;
+                syncer.apply(&mut s, batch.row_id, &decision)
+            };
+
+            match applied {
+                Ok(Applied::Confirmed) => {
+                    tracing::info!(
+                        event = "sync_confirmed",
+                        window_id = %batch.window_id,
+                        "sync: ventana aceptada por el backend"
+                    );
+                    status.note_sync(&batch.window_id);
+                }
+                Ok(Applied::DeadLettered) => {
+                    tracing::warn!(window_id = %batch.window_id, ?decision, "sync: batch a dead-letter");
+                }
+                Ok(Applied::EnrollmentRequired) => {
+                    tracing::error!(
+                        window_id = %batch.window_id,
+                        "sync: 401/403, re-enrolar el device"
+                    );
+                    return true;
+                }
+                Ok(Applied::Retained) => {
+                    tracing::warn!(
+                        window_id = %batch.window_id,
+                        ?decision,
+                        "sync: batch retenido para reintento"
+                    );
+                    return true;
+                }
+                Err(error) => {
+                    tracing::error!(
+                        window_id = %batch.window_id,
+                        %error,
+                        "sync: no se pudo aplicar la decisión al spool"
+                    );
+                    return true;
+                }
             }
         }
     }
-
-    false
 }
 
 /// Best-effort al apagar: vacía el spool sin esperar backoff ni enrolamiento.

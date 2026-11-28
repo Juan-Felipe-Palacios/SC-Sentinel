@@ -33,7 +33,7 @@ import { SeverityChips } from './SeverityChips';
 import { useDashboardRole } from './DashboardRoleContext';
 import { ExportBar } from './ExportBar';
 
-const REFRESH_MS = 5000;
+const REFRESH_MS = 30000;
 
 function SkeletonBlock({ className }: { className: string }) {
   return <div aria-hidden="true" className={`animate-pulse rounded-xl border border-slate-800 bg-slate-900/60 ${className}`} />;

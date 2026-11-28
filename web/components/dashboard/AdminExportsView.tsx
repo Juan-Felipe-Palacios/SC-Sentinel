@@ -14,7 +14,7 @@ interface Stats {
 }
 
 export function AdminExportsView() {
-  const { data, error } = useSWR<Stats>('/api/export/stats', fetcher, { refreshInterval: 5000 });
+  const { data, error } = useSWR<Stats>('/api/export/stats', fetcher, { refreshInterval: 30000 });
   const sessionExpired = error instanceof FetchError && error.status === 401;
   if (sessionExpired) {
     return (

@@ -43,7 +43,7 @@ export function MapCardFrame({
 
 export function NetworkMapCard({ range }: { range: QueryRange }) {
   const key = `/api/query?metric=topology&range=${range}`;
-  const { data, error, isLoading } = useSWR<TopologyResponse>(key, fetcher, { refreshInterval: 5000 });
+  const { data, error, isLoading } = useSWR<TopologyResponse>(key, fetcher, { refreshInterval: 30000 });
 
   return (
     <MapCardFrame

@@ -12,7 +12,7 @@ import type { QueryRange } from '@/lib/schemas/query';
 const PIE_COLORS = ['#38bdf8', '#34d399', '#fbbf24', '#f472b6', '#a78bfa', '#94a3b8'];
 
 export function EvalsView({ range }: { range: QueryRange }) {
-  const { data, error, mutate } = useSWR<EvalsResponse>(`/api/query?metric=evals&range=${range}`, fetcher, { refreshInterval: 15000 });
+  const { data, error, mutate } = useSWR<EvalsResponse>(`/api/query?metric=evals&range=${range}`, fetcher, { refreshInterval: 30000 });
   if (error && !data) {
     const forbidden = error instanceof FetchError && error.status === 403;
     const unavailable = error instanceof FetchError && error.status === 503;

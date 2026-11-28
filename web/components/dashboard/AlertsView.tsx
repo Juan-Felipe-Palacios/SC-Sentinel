@@ -27,7 +27,7 @@ import { timeAgo, severityRank } from '@/lib/format';
 import { useDashboardRole } from './DashboardRoleContext';
 import { ExportBar } from './ExportBar';
 
-const REFRESH_MS = 5000;
+const REFRESH_MS = 30000;
 const SEVERITIES = ['all', 'critical', 'high', 'medium', 'low'] as const;
 const STATUSES = ['all', 'open', 'acknowledged', 'resolved', 'expired'] as const;
 type SeverityFilter = (typeof SEVERITIES)[number];

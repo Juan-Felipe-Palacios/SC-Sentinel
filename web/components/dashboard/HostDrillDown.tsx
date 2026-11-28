@@ -15,7 +15,7 @@ import { formatBytes, formatNum } from '@/lib/format';
 import { VIZ } from '@/lib/viz';
 import { zoomParams, type ZoomRange } from '@/lib/zoom';
 
-const REFRESH_MS = 5000;
+const REFRESH_MS = 30000;
 
 interface HostDrillDownProps {
   range: QueryRange;

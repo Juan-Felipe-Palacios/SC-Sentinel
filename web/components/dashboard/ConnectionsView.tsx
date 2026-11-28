@@ -14,7 +14,7 @@ import { GeoDistribution } from './GeoDistribution';
 import { ItExposureCard, NetworkMapCard } from './NetworkMapCard';
 import { zoomParams, formatZoomLabel, formatZoomSpan } from '@/lib/zoom';
 
-const REFRESH_MS = 5000;
+const REFRESH_MS = 30000;
 
 type ConnectionsTab = 'conexiones' | 'activos-ot';
 
