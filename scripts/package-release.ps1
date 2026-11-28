@@ -3,8 +3,9 @@
   Empaqueta el agente SC-Sentinel para publicarlo como artefacto de release.
 .DESCRIPTION
   Genera el paquete de la release a partir del binario ya compilado:
-    - windows-x64 -> sc-sentinel-agent-vX.Y.Z-windows-x64.zip
-    - linux-x64   -> sc-sentinel-agent-vX.Y.Z-linux-x64.tar.gz
+    - windows-x64        -> sc-sentinel-agent-vX.Y.Z-windows-x64.zip
+    - linux-x64          -> sc-sentinel-agent-vX.Y.Z-linux-x64.tar.gz
+    - linux-x64-sensor   -> sc-sentinel-agent-vX.Y.Z-linux-x64-sensor.tar.gz
   El paquete Windows incluye el instalador de un clic (auto-elevado), los
   scripts PowerShell de instalacion/desinstalacion y la guia para usuarios
   sin conocimientos de informatica. El paquete Linux incluye el binario y
@@ -20,12 +21,15 @@ param(
   [string]$Version,
 
   [Parameter(Mandatory = $true, HelpMessage = "Plataforma objetivo")]
-  [ValidateSet('windows-x64', 'linux-x64')]
+  [ValidateSet('windows-x64', 'linux-x64', 'linux-x64-sensor')]
   [string]$Target,
 
   [string]$RepoRoot = '',
 
-  [string]$OutDir = ''
+  [string]$OutDir = '',
+
+  # Valida target, version y runbook y sale sin compilar ni empaquetar.
+  [switch]$DryRun
 )
 
 $ErrorActionPreference = 'Stop'
@@ -48,11 +52,40 @@ function Write-TextNoBom {
 }
 
 $repo = (Resolve-Path $RepoRoot).Path
-$out = if (Test-Path $OutDir) { (Resolve-Path $OutDir).Path } else { New-Item -ItemType Directory -Path $OutDir -Force | Out-Null; (Resolve-Path $OutDir).Path }
 
 $esWindows = $Target -eq 'windows-x64'
+# El sensor Linux es el tercer artefacto: captura pasiva con libpcap, a
+# diferencia de `linux-x64`, que es el colector NetFlow/IPFIX sin libpcap.
+$esSensor = $Target -eq 'linux-x64-sensor'
 $binaryName = if ($esWindows) { 'sc-sentinel-agent.exe' } else { 'sc-sentinel-agent' }
 $binaryPath = Join-Path $repo "agent/target/release/$binaryName"
+
+# Dry-run: comprueba lo que puede romper una release (target, runbook y
+# versiones) sin exigir el binario ni escribir el paquete. Util en CI y en
+# una maquina que no puede compilar el target (p.ej. sensor Linux en Windows).
+if ($DryRun) {
+  if (-not $esWindows) {
+    $runbookName = if ($esSensor) { 'install-agent-linux-sensor.md' } else { 'install-agent-linux.md' }
+    $runbook = Join-Path $repo "docs/runbooks/$runbookName"
+    if (-not (Test-Path $runbook)) { throw "No existe $runbook" }
+    $guideText = [System.IO.File]::ReadAllText($runbook)
+    if ($guideText -notmatch '(?m)^VER=') { throw "El runbook $runbookName no tiene linea VER=." }
+    $stale = [regex]::Matches($guideText, 'v\d+\.\d+\.\d+') |
+      ForEach-Object { $_.Value } |
+      Where-Object { $_ -ne "v$Version" } |
+      Select-Object -Unique
+    if ($stale) {
+      throw "El runbook $runbookName menciona versiones obsoletas ($($stale -join ', ')); actualizalo a v$Version antes de empaquetar."
+    }
+    $guideOut = if ($esSensor) { 'INSTALACION-LINUX-SENSOR.md' } else { 'INSTALACION-LINUX.md' }
+    Write-Host "==> Dry-run: guia $runbookName -> $guideOut"
+  }
+  $ext = if ($esWindows) { 'zip' } else { 'tar.gz' }
+  Write-Host "==> Dry-run OK: sc-sentinel-agent-v$Version-$Target.$ext"
+  exit 0
+}
+
+$out = if (Test-Path $OutDir) { (Resolve-Path $OutDir).Path } else { New-Item -ItemType Directory -Path $OutDir -Force | Out-Null; (Resolve-Path $OutDir).Path }
 
 if (-not (Test-Path $binaryPath)) {
   throw "No existe el binario $binaryPath. Compila antes: cargo build --release -p sc-agent"
@@ -64,7 +97,9 @@ if (-not (Test-Path $binaryPath)) {
 # se compilo sin ella y el paquete no debe publicarse. En Linux la captura
 # live es intencionalmente opcional (modo colector), por eso el gate solo
 # aplica al target windows-x64.
-if ($esWindows) {
+# El sensor Linux tambien publica captura live: el mismo texto delata un
+# binario compilado sin la feature y el paquete no debe salir.
+if ($esWindows -or $esSensor) {
   $binaryBytes = [System.IO.File]::ReadAllBytes($binaryPath)
   $binaryText = [System.Text.Encoding]::ASCII.GetString($binaryBytes)
   if ($binaryText.Contains('captura live no compilada')) {
@@ -151,11 +186,14 @@ if ($esWindows) {
   $copied['sc-gui.exe'] = $guiSource
 } else {
   # Linux no tiene instalador de un clic: el runbook documenta el paso a paso.
+  # Cada target lleva su guia: el colector no necesita libpcap y el sensor si.
   # El runbook lleva la version de la release en una linea `VER=`. Se reescribe
   # aqui con la version real del artefacto para que el paquete nunca apunte a
   # una release antigua (y a la version rota).
-  $linuxGuide = Join-Path $stage 'INSTALACION-LINUX.md'
-  $guideText = [System.IO.File]::ReadAllText((Join-Path $repo 'docs/runbooks/install-agent-linux.md'))
+  $guideName = if ($esSensor) { 'INSTALACION-LINUX-SENSOR.md' } else { 'INSTALACION-LINUX.md' }
+  $runbookName = if ($esSensor) { 'install-agent-linux-sensor.md' } else { 'install-agent-linux.md' }
+  $linuxGuide = Join-Path $stage $guideName
+  $guideText = [System.IO.File]::ReadAllText((Join-Path $repo "docs/runbooks/$runbookName"))
   $guideText = [regex]::Replace($guideText, '(?m)^VER=.*$', "VER=$Version")
   # Si sobrevive alguna version literal distinta de la del paquete, es un
   # forgot de actualizar el runbook: se corta la release en vez de publicar

@@ -32,6 +32,11 @@ jobs:
             target: windows-x64
           - os: ubuntu-latest
             target: linux-x64
+          # Sensor pasivo (captura con libpcap). El colector `linux-x64` no la
+          # lleva a proposito: quedaria enlazado a libpcap.so en equipos que
+          # no lo tienen.
+          - os: ubuntu-latest
+            target: linux-x64-sensor
     steps:
       - name: Determinar version y tag
         id: meta
@@ -153,6 +158,17 @@ jobs:
         if: matrix.target == 'linux-x64'
         working-directory: agent
         run: cargo build --release -p sc-agent
+
+      # El sensor Linux si captura: necesita libpcap-dev en el runner y se
+      # publica con la feature live (modo pasivo SPAN/TAP).
+      - name: Instalar libpcap (Linux, sensor pasivo)
+        if: matrix.target == 'linux-x64-sensor'
+        run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+
+      - name: Compilar agente (Linux, sensor pasivo)
+        if: matrix.target == 'linux-x64-sensor'
+        working-directory: agent
+        run: cargo build --release -p sc-agent --features sc-capture/live
 
       # Gate: el texto "captura live no compilada" solo existe en el binario
       # cuando la feature `live` esta apagada.

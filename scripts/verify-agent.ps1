@@ -114,6 +114,7 @@ if (-not $SkipPackage) {
         'sc-sentinel-agent.exe',
         'install-agent.ps1',
         'uninstall-agent.ps1',
+        'deploy-agent-service.ps1',
         'instalar-sc-sentinel.bat',
         'desinstalar-sc-sentinel.bat',
         'abrir-gui.bat',

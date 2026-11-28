@@ -43,6 +43,7 @@ Write-Host "==> Version esperada: $Version"
 $candidates = @(
   (Join-Path $repo 'docs/runbooks/install-agent-windows.md'),
   (Join-Path $repo 'docs/runbooks/install-agent-linux.md'),
+  (Join-Path $repo 'docs/runbooks/install-agent-linux-sensor.md'),
   (Join-Path $repo 'scripts/LEEME-INSTALACION.txt'),
   (Join-Path $repo 'scripts/instalar-sc-sentinel.bat'),
   (Join-Path $repo 'scripts/desinstalar-sc-sentinel.bat'),

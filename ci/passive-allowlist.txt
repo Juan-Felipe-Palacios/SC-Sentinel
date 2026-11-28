@@ -1,0 +1,10 @@
+# Allowlist auditada del gate pasivo (ADR-0022, etapa E10).
+#
+# Formato: <ruta relativa a la raíz del repo>|<patrón>|<motivo>
+#   - El gate falla si un uso activo no está listado.
+#   - El gate falla si una entrada listada ya no coincide (allowlist obsoleta).
+#   - Agregar una línea es un cambio de seguridad: requiere revisión y, si
+#     toca un invariante, un ADR previo al merge (ADR-0022, regla 1).
+#
+# Hoy sc-ot y sc-capture no usan sockets ni envío: la lista está vacía a
+# propósito y el gate sólo debe crecer con una excepción justificada.

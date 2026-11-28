@@ -2,9 +2,9 @@ name: Rust CI
 on:
   workflow_dispatch:
   push:
-    paths: ["agent/**", ".github/workflows/rust.yml"]
+    paths: ["agent/**", "scripts/verify-passive.sh", "ci/**", ".github/workflows/rust.yml"]
   pull_request:
-    paths: ["agent/**", ".github/workflows/rust.yml"]
+    paths: ["agent/**", "scripts/verify-passive.sh", "ci/**", ".github/workflows/rust.yml"]
 
 jobs:
   test:
@@ -109,3 +109,18 @@ jobs:
             throw "el binario $exe filtra la ruta del registro de cargo"
           }
           Write-Host "OK: $exe incluye la captura live y no filtra rutas de compilacion"
+
+  # Gate pasivo del sensor OT (ADR-0022, etapa E10). Corre sin libpcap: clippy
+  # usa las features por defecto y el grafo de dependencias no compila la
+  # captura. Falla cerrado ante cualquier socket, envío o crate de red nuevo.
+  passive:
+    name: Gate pasivo (ADR-0022)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: agent -> target
+      - name: verify-passive.sh
+        run: bash scripts/verify-passive.sh

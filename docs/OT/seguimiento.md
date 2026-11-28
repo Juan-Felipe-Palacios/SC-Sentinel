@@ -25,9 +25,9 @@ su nombre y no se da por resuelto (AGENTS.md §4.7).
 | E7 | `/api/ingest`: dos pasadas, techo de confianza, upsert, downlink | E2, E3 | `hecho` | ≤3 statements extra, `EXPLAIN` sin scan nuevo, fixture 0.1.8 en 200 | Lote OT = **1** statement (test de presupuesto); `EXPLAIN` = `ModifyTable/Insert` + árbitro `ot_assets_device_id_host_key_key` + `Values Scan` (0 `Seq Scan`, medido en PGlite); fixture 0.1.8 → **200** en los tres casos (`pnpm test`: 382 passed); techo de confianza según ADR-0023. | 2026-11-26 · Buffy |
 | E8 | UI: badge de protocolo en la matriz y tab "Activos OT" | E3 | `hecho` | `typecheck`, `lint` y `build` verdes; la tab no muestra datos sintéticos | `node node_modules/typescript/bin/tsc --noEmit` exit 0; `pnpm lint` exit 0 (0 errores, 5 warnings preexistentes); `pnpm build` exit 0. TopPortsTable: puertos OT (102, 502, 20000, 2404) en `SERVICE_NAMES` con badge "OT" (amber). ConnectionsView: tab switcher "Conexiones" / "Activos OT"; tab "Activos OT" muestra `NetworkMapCard` (metric=topology, datos reales de `ot_assets`). | 2026-11-28 · Buffy |
 | E8.1 | Card «Mapa OT observado»: nodos + aristas reales | E7, E8 | `hecho` | `metric=topology` con nodos/aristas acotados (≤40 nodos, ≤80 aristas); empty state; distingue «sin datos» de «sin aristas»; sin IP/MAC ni aristas inventadas; build verde | Ruta `app/api/query/__tests__/route.topology.test.ts` (estilo `route.ot.test.ts`, mock de auth/Neon/dedup): 4/4 — device real sin `ot_assets` → payload vacío (nodes=[], edges=[]); device real con activos y alertas → 2 nodos y 1 arista real; demo sintético → nodos y aristas sin tocar la base; rango inválido → 400. `lib/query/__tests__/ot-topology.test.ts`: 4/4 (`deriveOtEdges`). `tsc --noEmit` exit 0; `pnpm lint` exit 0 (5 warnings); `pnpm build` exit 0. Caps en código (`OT_TOPOLOGY_NODE_CAP=40`, `OT_TOPOLOGY_EDGE_CAP=80`, `OT_TOPOLOGY_ACTIVE_DAYS=30`). | 2026-11-26 · Buffy |
-| E8.2 | Card «Mapa de exposición IT»: hosts/países/puertos, sin aristas | E8 | `bloqueado` | Top hosts/países/puertos; sin aristas; empty state; build verde | — | 2026-11-25 · Buffy |
+| E8.2 | Card «Mapa de exposición IT»: hosts/países/puertos, sin aristas | E8 | `hecho` | Top hosts/países/puertos; sin aristas; empty state; build verde | `node node_modules/vitest/vitest.mjs run lib/__tests__/it-exposure.test.ts components/dashboard/__tests__/OtNetworkMap.test.ts` → `Test Files 2 passed`, `Tests 9 passed`; `tsc --noEmit` exit 0; `pnpm lint` exit 0 (5 warnings previos); `pnpm build` exit 0. `web/lib/it-exposure.ts`: agrupa `top_hosts` por país (bucket «Sin país»), topes 6 países / 12 hosts / 6 puertos, orden determinista por bytes; `ItExposureMap.tsx` lista país→hosts y puertos; `ItExposureCard` en `NetworkMapCard.tsx` con `MapCardFrame` compartido y empty state «Sin hosts observados en el período.»; sin aristas y rotulada «Exposición IT». Renderizada en la tab «Conexiones» con los datos de `metric=overview` (sin API nueva). | 2026-11-28 · Buffy |
 | E9 | Demo sintética TEST-NET con las dos cards y los dos disclaimers | E8.1, E8.2 | `bloqueado` | Badge `confirmed` y cards visibles con "Flujo Modbus sintético…" y "Evidencia sintética" | — | 2026-11-25 · Buffy |
-| E10 | Empaquetado `linux-x64-sensor` y `verify-passive.sh` en CI | E5, E6 | `bloqueado` | Dry-run del target nuevo y `verify-agent.ps1` con 15 archivos | — | — |
+| E10 | Empaquetado `linux-x64-sensor` y `verify-passive.sh` en CI | E5, E6 | `hecho` | Dry-run del target nuevo y `verify-agent.ps1` con 15 archivos | `bash scripts/verify-passive.sh` → `Gate pasivo OK (ADR-0022)`, exit 0 (forbid(unsafe_code), clippy, búsqueda por texto y grafo normal/features); control con una entrada falsa en la allowlist → exit 1 (falla cerrado) y al revertir → exit 0. `pwsh -File scripts/package-release.ps1 -Version 0.1.10 -Target linux-x64-sensor -DryRun` → `Dry-run OK: sc-sentinel-agent-v0.1.10-linux-x64-sensor.tar.gz`, exit 0 (y `linux-x64` exit 0); `pwsh -File scripts/verify-agent.ps1 -ZipPath dist/sc-sentinel-agent-v0.1.10-windows-x64.zip` → `[ OK ] Contenido completo: 15 ficheros esperados`; `check-doc-versions.ps1` exit 0. Nuevos: `scripts/verify-passive.sh`, `ci/passive-allowlist.txt`, `docs/runbooks/install-agent-linux-sensor.md`; job `passive` en `rust.yml`; matriz `linux-x64-sensor` (libpcap-dev + `--features sc-capture/live`) en `release.yml`. Abierto: el ZIP 0.1.10 ya publicado falla la higiene del binario (`.cargo\registry`), anterior al remapeo del workflow. | 2026-11-28 · Buffy |
 
 Aprobación de M6 **otorgada el 2026-11-25** (`docs/plans/etapa-2-backlog.md:49`):
 hito nuevo con F1 OT en allowlist + descubrimiento manual y checkpoint tras
@@ -704,6 +704,63 @@ ventanas, de modo que un reintento de la misma ventana no duplica nada.
   «no hubo activos en esta ventana» (mismo texto para ambos casos); si se quiere
   esa distinción hace falta cambiar el contrato de `/api/query?metric=topology`.
   Neon sigue en HTTP 402, así que nada de esto se probó contra la base real.
+
+### 2026-11-28 · E8.2 · Buffy
+
+- **Qué se hizo:** se cerró la card «Mapa de exposición IT»: `web/lib/it-exposure.ts`
+  agrupa los `top_hosts` de `metric=overview` por país (los sin país caen en
+  «Sin país») y ordena por bytes con desempate estable, acotando a 6 países,
+  12 hosts y 6 puertos; `ItExposureMap.tsx` la dibuja como tarjetas país→hosts más
+  los puertos principales, y `ItExposureCard` (en `NetworkMapCard.tsx`, con el
+  marco `MapCardFrame` ahora compartido por las dos cards) la envuelve con el
+  empty state «Sin hosts observados en el período.». La card vive en la tab
+  «Conexiones» y reusa el `overview` que `ConnectionsView` ya carga: no hay API
+  nueva ni aristas inventadas, y se rotula «Exposición IT», no «topología».
+- **Comando ejecutado:** `cd web && node node_modules/vitest/vitest.mjs run
+  lib/__tests__/it-exposure.test.ts components/dashboard/__tests__/OtNetworkMap.test.ts`;
+  `node node_modules/typescript/bin/tsc --noEmit`; `pnpm lint`; `pnpm build`.
+- **Salida:** `Test Files 2 passed (2)`, `Tests 9 passed (9)`; `tsc_exit=0`;
+  `pnpm lint` exit 0 (0 errores, 5 warnings previos); `pnpm build` exit 0.
+- **Qué quedó pendiente:** la card no muestra país por host cuando el GeoIP no
+  resolvió (bucket «Sin país») ni puertos por país: `top_ports` es global en el
+  contrato. Neon sigue en HTTP 402, así que no se probó contra la base real.
+
+### 2026-11-28 · E10 · Buffy
+
+- **Qué se hizo:** se cerró el empaquetado del sensor pasivo: (1)
+  `scripts/verify-passive.sh` implementa el gate de ADR-0022 en cuatro capas —
+  `#![forbid(unsafe_code)]` en `sc-ot`/`sc-capture`, clippy con `-D warnings` en
+  los dos crates, búsqueda de respaldo por texto (sockets, `sendpacket`,
+  `libc::send*`, comentarios excluidos) contra `ci/passive-allowlist.txt`, y
+  grafo de dependencias normal y por features contra `socket2`/`reqwest`/`hyper`/
+  `ureq`/`axum`/`sc-sync`. La allowlist falla en las dos direcciones: un uso sin
+  excepción y una excepción sin uso. (2) `package-release.ps1` acepta
+  `linux-x64-sensor`: usa `INSTALACION-LINUX-SENSOR.md`, exige captura live
+  compilada y suma `-DryRun`, que valida target, runbook y versiones sin
+  necesitar el binario. (3) `release.yml` agrega el target con `libpcap-dev` y
+  `--features sc-capture/live`; `rust.yml` tiene el job `passive`. (4)
+  `verify-agent.ps1` pasa a 15 ficheros requeridos (faltaba
+  `deploy-agent-service.ps1`, que el paquete ya copiaba). (5) Runbook nuevo
+  `install-agent-linux-sensor.md`, incluido en `check-doc-versions.ps1`.
+- **Comando ejecutado:** `bash scripts/verify-passive.sh`; control con entrada
+  falsa en la allowlist y reversión; `pwsh -NoProfile -File
+  scripts/package-release.ps1 -Version 0.1.10 -Target linux-x64-sensor -DryRun`
+  (y `-Target linux-x64 -DryRun`); `pwsh -NoProfile -File
+  scripts/verify-agent.ps1 -ZipPath dist/sc-sentinel-agent-v0.1.10-windows-x64.zip`;
+  `pwsh -NoProfile -File scripts/check-doc-versions.ps1`.
+- **Salida:** gate → `Gate pasivo OK (ADR-0022)`, `passive_exit=0`; control →
+  `[FALLO] allowlist sin coincidencia`, `control_exit=1`, y tras revertir
+  `restored_exit=0`; dry-run sensor → `==> Dry-run OK:
+  sc-sentinel-agent-v0.1.10-linux-x64-sensor.tar.gz`, `dryrun_sensor_exit=0`;
+  dry-run colector → exit 0; `verify-agent.ps1` → `[ OK ] Contenido completo:
+  15 ficheros esperados`; `check-doc-versions.ps1` → `OK: ninguna guia apunta a
+  otra version.`, exit 0.
+- **Qué quedó pendiente:** `verify-agent.ps1` cierra con 1 fallo **del artefacto
+  ya publicado**: el ZIP 0.1.10 filtra `.cargo\registry` (compilado antes del
+  remapeo de rutas del workflow); no se regeneró la release porque es N4. El
+  gate pasivo no cubre egress de red del binario en runtime (sólo grafo de
+  dependencias): queda para F3 con seccomp. El `sc-ot` sigue sin `.clippy.toml`
+  propio (su clippy semántico lo aporta el `forbid(unsafe_code)` + búsqueda).
 
 ### 2026-11-28 · E8 · Buffy
 
